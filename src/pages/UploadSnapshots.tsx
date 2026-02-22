@@ -2,8 +2,10 @@ import { useState, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSnapshots, deleteSnapshot, deleteAllData } from "@/data/db";
 import { importRvtoolsXlsx } from "@/domain/services/importService";
+import type { ImportProgress } from "@/domain/services/importService";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +18,7 @@ export default function UploadSnapshots() {
   const [dragOver, setDragOver] = useState(false);
   const [lastResult, setLastResult] = useState<ImportResult | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
 
   const { data: snapshots = [], refetch } = useQuery({
     queryKey: ["snapshots"],
@@ -32,7 +35,8 @@ export default function UploadSnapshots() {
     setImporting(true);
     for (const file of xlsxFiles) {
       try {
-        const result = await importRvtoolsXlsx(file);
+        setProgress({ step: "Vorbereitung", percent: 0, detail: file.name });
+        const result = await importRvtoolsXlsx(file, setProgress);
         setLastResult(result);
         if (result.success) toast.success(`"${file.name}" erfolgreich importiert.`);
         else toast.error(`Fehler bei "${file.name}": ${result.errors.join(", ")}`);
@@ -41,6 +45,7 @@ export default function UploadSnapshots() {
       }
     }
     setImporting(false);
+    setProgress(null);
     invalidateAll();
   }, [invalidateAll]);
 
@@ -90,7 +95,7 @@ export default function UploadSnapshots() {
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !importing && fileInputRef.current?.click()}
       >
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
@@ -98,7 +103,23 @@ export default function UploadSnapshots() {
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
       </div>
 
-      {lastResult && (
+      {/* Progress bar during import */}
+      {importing && progress && (
+        <Card className="animate-fade-in border-primary/30">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-primary">{progress.step}</span>
+              <span className="text-muted-foreground tabular-nums">{progress.percent}%</span>
+            </div>
+            <Progress value={progress.percent} className="h-2" />
+            {progress.detail && (
+              <p className="text-xs text-muted-foreground">{progress.detail}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {lastResult && !importing && (
         <Card className="animate-fade-in">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">

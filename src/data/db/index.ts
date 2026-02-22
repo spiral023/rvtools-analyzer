@@ -149,8 +149,9 @@ export async function getRawSheetRows(
 export async function batchPut<S extends StoreName>(
   storeName: S,
   items: RVToolsDBSchema[S]["value"][],
-  batchSize = 2000,
+  batchSize = 5000,
 ): Promise<void> {
+  if (items.length === 0) return;
   const db = await getDb();
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
