@@ -1,7 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds } from "@/data/db";
-import { useFilterState } from "@/hooks/useFilterState";
+import { useActiveSnapshotIds, useVms, useHosts, useDatastores, useHealthEvents } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -9,10 +7,9 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Server, Cpu, HardDrive, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { NormalizedVm, NormalizedHost, NormalizedDatastore, NormalizedHealth } from "@/domain/models/types";
+import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
-
-const CHART_COLORS = ["hsl(190, 85%, 48%)", "hsl(215, 12%, 45%)", "hsl(38, 92%, 50%)", "hsl(0, 72%, 51%)"];
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
@@ -32,51 +29,11 @@ const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
 ];
 
 export default function Overview() {
-  const { filters } = useFilterState();
-  const { data: snapshots = [] } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
-
-  const activeSnapshotIds = useMemo(() => {
-    if (filters.snapshotIds.length > 0) return filters.snapshotIds;
-    const latestMap = new Map<string, { id: string; ts: string }>();
-    const filtered = filters.vcenterIds.length ? snapshots.filter((s) => filters.vcenterIds.includes(s.vcenterId)) : snapshots;
-    for (const s of filtered) {
-      const existing = latestMap.get(s.vcenterId);
-      if (!existing || s.exportTs > existing.ts) latestMap.set(s.vcenterId, { id: s.snapshotId, ts: s.exportTs });
-    }
-    return [...latestMap.values()].map((v) => v.id);
-  }, [snapshots, filters.snapshotIds, filters.vcenterIds]);
-
-  const { data: vms = [] } = useQuery({
-    queryKey: ["vms", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds),
-    enabled: activeSnapshotIds.length > 0,
-  });
-  const { data: hosts = [] } = useQuery({
-    queryKey: ["hosts", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", activeSnapshotIds),
-    enabled: activeSnapshotIds.length > 0,
-  });
-  const { data: datastores = [] } = useQuery({
-    queryKey: ["datastores", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", activeSnapshotIds),
-    enabled: activeSnapshotIds.length > 0,
-  });
-  const { data: healthEvents = [] } = useQuery({
-    queryKey: ["health", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", activeSnapshotIds),
-    enabled: activeSnapshotIds.length > 0,
-  });
-
-  const filteredVms = useMemo(() => {
-    let result = vms;
-    if (filters.clusters.length) result = result.filter((v) => v.cluster && filters.clusters.includes(v.cluster));
-    if (filters.hosts.length) result = result.filter((v) => v.host && filters.hosts.includes(v.host));
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter((v) => v.vmName.toLowerCase().includes(q) || v.host?.toLowerCase().includes(q) || v.cluster?.toLowerCase().includes(q));
-    }
-    return result;
-  }, [vms, filters]);
+  const { snapshots, filters } = useActiveSnapshotIds();
+  const { vms: filteredVms } = useVms();
+  const { data: hosts = [] } = useHosts();
+  const { data: datastores = [] } = useDatastores();
+  const { data: healthEvents = [] } = useHealthEvents();
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -117,7 +74,7 @@ export default function Overview() {
         <KpiCard title="Powered Off" value={formatNum(poweredOff)} icon={<Monitor className="h-4 w-4" />} />
         <KpiCard title="Hosts" value={formatNum(hosts.length)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} />
-        <KpiCard title="Config Issues" value={formatNum(configIssues)} severity={configIssues > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -125,9 +82,9 @@ export default function Overview() {
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
-                {powerData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                {powerData.map((_, i) => <Cell key={i} fill={SEVERITY_COLORS[i]} />)}
               </Pie>
-              <Tooltip contentStyle={{ backgroundColor: "hsl(222, 15%, 11%)", border: "1px solid hsl(222, 12%, 18%)", borderRadius: "8px", color: "hsl(210, 20%, 93%)" }} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
             </PieChart>
           </ResponsiveContainer>
@@ -136,16 +93,16 @@ export default function Overview() {
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Hosts je Cluster</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={clusterData}>
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(215, 12%, 55%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(215, 12%, 55%)" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: "hsl(222, 15%, 11%)", border: "1px solid hsl(222, 12%, 18%)", borderRadius: "8px", color: "hsl(210, 20%, 93%)" }} />
-              <Bar dataKey="hosts" fill="hsl(190, 85%, 48%)" radius={[4, 4, 0, 0]} />
+              <XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Bar dataKey="hosts" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen</h3>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
         <VirtualTable data={filteredVms} columns={vmColumns} globalFilter={filters.search} height={400} />
       </div>
     </div>
