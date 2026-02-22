@@ -14,6 +14,18 @@ import type {
   WorkerParseResult,
 } from "@/domain/models/types";
 
+/* ---------- progress callback ---------- */
+
+export interface ImportProgress {
+  step: string;
+  detail?: string;
+  percent: number; // 0–100
+}
+
+export type ProgressCallback = (p: ImportProgress) => void;
+
+/* ---------- worker ---------- */
+
 function createWorker(): Worker {
   return new Worker(
     new URL("../../workers/parser.worker.ts", import.meta.url),
@@ -34,9 +46,13 @@ function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
   });
 }
 
+/* ---------- helpers ---------- */
+
 function findSheet(sheets: ParsedSheetData[], name: string): ParsedSheetData | undefined {
   return sheets.find((s) => s.sheetName === name);
 }
+
+/* ---------- normalizers (unchanged logic) ---------- */
 
 function normalizeVms(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedVm[] {
   if (!sheet) return [];
@@ -165,12 +181,22 @@ function normalizeHealth(sheet: ParsedSheetData | undefined, snapshotId: string,
   }));
 }
 
-export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
+/* ---------- main import with progress ---------- */
+
+export async function importRvtoolsXlsx(
+  file: File,
+  onProgress?: ProgressCallback,
+): Promise<ImportResult> {
   const warnings: string[] = [];
   const errors: string[] = [];
+  const report = (step: string, percent: number, detail?: string) =>
+    onProgress?.({ step, percent, detail });
 
   try {
+    report("Datei lesen", 5, `${(file.size / 1024 / 1024).toFixed(1)} MB`);
     const buffer = await file.arrayBuffer();
+
+    report("Prüfsumme berechnen", 10);
     const checksum = await computeChecksum(buffer);
 
     const existing = await getSnapshotsByChecksum(checksum);
@@ -178,9 +204,13 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
       return { success: false, snapshotId: existing.snapshotId, warnings: [], errors: ["Diese Datei wurde bereits importiert."] };
     }
 
+    report("XLSX parsen", 15, "Web Worker aktiv…");
     const parsed = await workerParse(buffer);
     warnings.push(...parsed.warnings);
     errors.push(...parsed.errors);
+
+    const totalRows = parsed.sheets.reduce((s, sh) => s + sh.rows.length, 0);
+    report("Sheets erkannt", 30, `${parsed.sheets.length} Sheets, ${totalRows.toLocaleString("de-DE")} Zeilen`);
 
     const snapshotId = crypto.randomUUID();
     const vcenterId = parsed.vcenterName.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
@@ -190,6 +220,7 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
       sheetStats[sheet.sheetName] = { rowCount: sheet.rows.length, columnCount: sheet.headers.length };
     }
 
+    report("Metadaten speichern", 35);
     await putSnapshot({
       snapshotId, vcenterId,
       vcenterDisplayName: parsed.vcenterName,
@@ -200,6 +231,9 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
       sheetStats,
     });
 
+    // Store raw sheets in chunks with progress
+    report("Rohdaten speichern", 40, `${totalRows.toLocaleString("de-DE")} Zeilen…`);
+    const CHUNK = 5000;
     const rawRows: SheetRow[] = [];
     for (const sheet of parsed.sheets) {
       for (let i = 0; i < sheet.rows.length; i++) {
@@ -209,23 +243,46 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
         });
       }
     }
-    await batchPut("rawSheets", rawRows);
+    // Write in chunks and report progress
+    for (let i = 0; i < rawRows.length; i += CHUNK) {
+      const batch = rawRows.slice(i, i + CHUNK);
+      await batchPut("rawSheets", batch, CHUNK);
+      const pct = 40 + Math.round((i / rawRows.length) * 30);
+      report("Rohdaten speichern", Math.min(pct, 69), `${Math.min(i + CHUNK, rawRows.length).toLocaleString("de-DE")} / ${rawRows.length.toLocaleString("de-DE")}`);
+    }
 
+    report("Normalisieren", 70, "VMs…");
     const vms = normalizeVms(findSheet(parsed.sheets, "vInfo"), snapshotId, vcenterId);
+
+    report("Normalisieren", 75, "Hosts & Cluster…");
     const hosts = normalizeHosts(findSheet(parsed.sheets, "vHost"), snapshotId, vcenterId);
     const clusters = normalizeClusters(findSheet(parsed.sheets, "vCluster"), snapshotId, vcenterId);
+
+    report("Normalisieren", 78, "Datastores…");
     const datastores = normalizeDatastores(findSheet(parsed.sheets, "vDatastore"), snapshotId, vcenterId);
+
+    report("Normalisieren", 80, "Snapshots & Health…");
     const vmSnapshots = normalizeSnapshots(findSheet(parsed.sheets, "vSnapshot"), snapshotId, vcenterId);
     const healthEvents = normalizeHealth(findSheet(parsed.sheets, "vHealth"), snapshotId, vcenterId);
 
-    await Promise.all([
-      batchPut("entities_vm", vms),
-      batchPut("entities_host", hosts),
-      batchPut("entities_cluster", clusters),
-      batchPut("entities_datastore", datastores),
-      batchPut("entities_snapshot", vmSnapshots),
-      batchPut("entities_health", healthEvents),
-    ]);
+    // Write normalized entities with progress
+    const entityBatches: Array<{ name: string; store: any; items: any[]; pctStart: number; pctEnd: number }> = [
+      { name: "VMs", store: "entities_vm", items: vms, pctStart: 82, pctEnd: 90 },
+      { name: "Hosts", store: "entities_host", items: hosts, pctStart: 90, pctEnd: 92 },
+      { name: "Cluster", store: "entities_cluster", items: clusters, pctStart: 92, pctEnd: 93 },
+      { name: "Datastores", store: "entities_datastore", items: datastores, pctStart: 93, pctEnd: 95 },
+      { name: "Snapshots", store: "entities_snapshot", items: vmSnapshots, pctStart: 95, pctEnd: 97 },
+      { name: "Health", store: "entities_health", items: healthEvents, pctStart: 97, pctEnd: 99 },
+    ];
+
+    for (const eb of entityBatches) {
+      if (eb.items.length > 0) {
+        report("Entitäten speichern", eb.pctStart, `${eb.items.length.toLocaleString("de-DE")} ${eb.name}`);
+        await batchPut(eb.store, eb.items, 3000);
+      }
+    }
+
+    report("Abgeschlossen", 100, `${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
 
     return { success: true, snapshotId, warnings, errors, sheetStats };
   } catch (err) {

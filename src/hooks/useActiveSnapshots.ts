@@ -8,9 +8,16 @@ import type {
   SheetRow,
 } from "@/domain/models/types";
 
+// Shared staleTime: avoid refetching unchanged data on every page switch
+const STALE_MS = 5 * 60 * 1000; // 5 min
+
 export function useActiveSnapshotIds() {
   const { filters } = useFilterState();
-  const { data: snapshots = [] } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
+  const { data: snapshots = [] } = useQuery({
+    queryKey: ["snapshots"],
+    queryFn: getSnapshots,
+    staleTime: STALE_MS,
+  });
 
   const activeSnapshotIds = useMemo(() => {
     if (filters.snapshotIds.length > 0) return filters.snapshotIds;
@@ -34,6 +41,7 @@ export function useVms() {
     queryKey: ["vms", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 
   const filtered = useMemo(() => {
@@ -61,6 +69,7 @@ export function useHosts() {
     queryKey: ["hosts", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
 
@@ -70,6 +79,7 @@ export function useClusters() {
     queryKey: ["clusters", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
 
@@ -79,6 +89,7 @@ export function useDatastores() {
     queryKey: ["datastores", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
 
@@ -88,6 +99,7 @@ export function useVmSnapshots() {
     queryKey: ["vmSnapshots", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedSnapshot>("entities_snapshot", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
 
@@ -97,6 +109,7 @@ export function useHealthEvents() {
     queryKey: ["health", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
 
@@ -106,5 +119,6 @@ export function useRawSheet(sheetName: string) {
     queryKey: ["rawSheet", sheetName, activeSnapshotIds],
     queryFn: () => getRawSheetRows(activeSnapshotIds, sheetName),
     enabled: activeSnapshotIds.length > 0,
+    staleTime: STALE_MS,
   });
 }
