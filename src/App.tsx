@@ -16,6 +16,7 @@ import NetworkSecurity from "@/pages/NetworkSecurity";
 import ComplianceLifecycle from "@/pages/ComplianceLifecycle";
 import Licensing from "@/pages/Licensing";
 import FleetCompare from "@/pages/FleetCompare";
+import Hardware from "@/pages/Hardware";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="/storage-backup" element={<StorageBackup />} />
                 <Route path="/network-security" element={<NetworkSecurity />} />
                 <Route path="/compliance" element={<ComplianceLifecycle />} />
+                <Route path="/hardware" element={<Hardware />} />
                 <Route path="/licensing" element={<Licensing />} />
                 <Route path="/fleet-compare" element={<FleetCompare />} />
                 <Route path="*" element={<NotFound />} />

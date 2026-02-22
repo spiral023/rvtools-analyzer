@@ -22,6 +22,7 @@ import {
   Key,
   GitCompare,
   Lock,
+  Server,
 } from "lucide-react";
 
 const mainNav = [
@@ -35,6 +36,7 @@ const analysisNav = [
   { title: "Performance", url: "/performance", icon: Gauge },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
   { title: "Network / Security", url: "/network-security", icon: Network },
+  { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
   { title: "Licensing", url: "/licensing", icon: Key },
 ];
