@@ -1,4 +1,4 @@
-import Dexie, { type Table } from "dexie";
+import { openDB, type IDBPDatabase, type DBSchema } from "idb";
 import type {
   SnapshotMeta,
   SheetRow,
@@ -12,105 +12,200 @@ import type {
   UiState,
 } from "@/domain/models/types";
 
-export class RVToolsDB extends Dexie {
-  snapshots!: Table<SnapshotMeta, string>;
-  rawSheets!: Table<SheetRow, [string, string, number]>;
-  entities_vm!: Table<NormalizedVm, string>;
-  entities_host!: Table<NormalizedHost, string>;
-  entities_cluster!: Table<NormalizedCluster, string>;
-  entities_datastore!: Table<NormalizedDatastore, string>;
-  entities_snapshot!: Table<NormalizedSnapshot>;
-  entities_health!: Table<NormalizedHealth>;
-  metrics_cache!: Table<AnalysisMetric, string>;
-  ui_state!: Table<UiState, string>;
+/* ---------- schema ---------- */
+interface RVToolsDBSchema extends DBSchema {
+  snapshots: {
+    key: string;
+    value: SnapshotMeta;
+    indexes: {
+      vcenterId: string;
+      exportTs: string;
+      fileChecksum: string;
+    };
+  };
+  rawSheets: {
+    key: [string, string, number];
+    value: SheetRow;
+    indexes: {
+      snapshotId: string;
+      sheetName: string;
+    };
+  };
+  entities_vm: {
+    key: string;
+    value: NormalizedVm;
+    indexes: { snapshotId: string };
+  };
+  entities_host: {
+    key: string;
+    value: NormalizedHost;
+    indexes: { snapshotId: string };
+  };
+  entities_cluster: {
+    key: string;
+    value: NormalizedCluster;
+    indexes: { snapshotId: string };
+  };
+  entities_datastore: {
+    key: string;
+    value: NormalizedDatastore;
+    indexes: { snapshotId: string };
+  };
+  entities_snapshot: {
+    key: number;
+    value: NormalizedSnapshot & { id?: number };
+    indexes: { snapshotId: string };
+  };
+  entities_health: {
+    key: number;
+    value: NormalizedHealth & { id?: number };
+    indexes: { snapshotId: string };
+  };
+  metrics_cache: {
+    key: [string, string];
+    value: AnalysisMetric;
+    indexes: { snapshotId: string };
+  };
+  ui_state: {
+    key: string;
+    value: UiState;
+  };
+}
 
-  constructor() {
-    super("rvtools-analyzer");
+type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
+  | "entities_cluster" | "entities_datastore" | "entities_snapshot"
+  | "entities_health" | "metrics_cache" | "ui_state";
 
-    this.version(1).stores({
-      snapshots:
-        "snapshotId, [vcenterId+exportTs], vcenterId, exportTs, fileChecksum",
-      rawSheets:
-        "[snapshotId+sheetName+rowIndex], [snapshotId+sheetName], sheetName, snapshotId",
-      entities_vm:
-        "vmKey, vcenterId, snapshotId, cluster, host, powerState",
-      entities_host:
-        "hostKey, vcenterId, snapshotId, cluster",
-      entities_cluster:
-        "clusterKey, vcenterId, snapshotId",
-      entities_datastore:
-        "dsKey, vcenterId, snapshotId, clusterName, freePct",
-      entities_snapshot:
-        "++id, snapshotId, vcenterId, vmName",
-      entities_health:
-        "++id, snapshotId, vcenterId, messageType",
-      metrics_cache:
-        "[snapshotId+id], id, snapshotId, vcenterId",
-      ui_state: "id",
+const DB_NAME = "rvtools-analyzer";
+const DB_VERSION = 1;
+const ALL_STORES: StoreName[] = [
+  "snapshots", "rawSheets", "entities_vm", "entities_host",
+  "entities_cluster", "entities_datastore", "entities_snapshot",
+  "entities_health", "metrics_cache", "ui_state",
+];
+
+let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
+
+export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
+  if (!dbPromise) {
+    dbPromise = openDB<RVToolsDBSchema>(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        const snap = db.createObjectStore("snapshots", { keyPath: "snapshotId" });
+        snap.createIndex("vcenterId", "vcenterId");
+        snap.createIndex("exportTs", "exportTs");
+        snap.createIndex("fileChecksum", "fileChecksum");
+
+        const raw = db.createObjectStore("rawSheets", { keyPath: ["snapshotId", "sheetName", "rowIndex"] });
+        raw.createIndex("snapshotId", "snapshotId");
+        raw.createIndex("sheetName", "sheetName");
+
+        const vm = db.createObjectStore("entities_vm", { keyPath: "vmKey" });
+        vm.createIndex("snapshotId", "snapshotId");
+
+        const host = db.createObjectStore("entities_host", { keyPath: "hostKey" });
+        host.createIndex("snapshotId", "snapshotId");
+
+        const cluster = db.createObjectStore("entities_cluster", { keyPath: "clusterKey" });
+        cluster.createIndex("snapshotId", "snapshotId");
+
+        const ds = db.createObjectStore("entities_datastore", { keyPath: "dsKey" });
+        ds.createIndex("snapshotId", "snapshotId");
+
+        const snapEnt = db.createObjectStore("entities_snapshot", { keyPath: "id", autoIncrement: true });
+        snapEnt.createIndex("snapshotId", "snapshotId");
+
+        const health = db.createObjectStore("entities_health", { keyPath: "id", autoIncrement: true });
+        health.createIndex("snapshotId", "snapshotId");
+
+        const metrics = db.createObjectStore("metrics_cache", { keyPath: ["snapshotId", "id"] });
+        metrics.createIndex("snapshotId", "snapshotId");
+
+        db.createObjectStore("ui_state", { keyPath: "id" });
+      },
     });
+  }
+  return dbPromise;
+}
+
+/* ---------- query helpers ---------- */
+
+export async function getSnapshots(): Promise<SnapshotMeta[]> {
+  const db = await getDb();
+  return db.getAll("snapshots");
+}
+
+export async function getSnapshotsByChecksum(checksum: string): Promise<SnapshotMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("snapshots", "fileChecksum", checksum);
+}
+
+export async function putSnapshot(snap: SnapshotMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("snapshots", snap);
+}
+
+export async function getBySnapshotIds<T>(
+  store: "entities_vm" | "entities_host" | "entities_cluster" | "entities_datastore" | "entities_snapshot" | "entities_health",
+  snapshotIds: string[],
+): Promise<T[]> {
+  if (snapshotIds.length === 0) return [];
+  const db = await getDb();
+  const results: T[] = [];
+  for (const sid of snapshotIds) {
+    const items = await db.getAllFromIndex(store, "snapshotId", sid);
+    results.push(...(items as unknown as T[]));
+  }
+  return results;
+}
+
+export async function batchPut<S extends StoreName>(
+  storeName: S,
+  items: RVToolsDBSchema[S]["value"][],
+  batchSize = 2000,
+): Promise<void> {
+  const db = await getDb();
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const tx = db.transaction(storeName, "readwrite");
+    for (const item of batch) {
+      tx.store.put(item as any);
+    }
+    await tx.done;
   }
 }
 
-export const db = new RVToolsDB();
+/* ---------- delete helpers ---------- */
+
+async function deleteBySnapshotId(storeName: StoreName, snapshotId: string): Promise<void> {
+  if (storeName === "snapshots" || storeName === "ui_state") return;
+  const db = await getDb();
+  const tx = db.transaction(storeName, "readwrite");
+  const index = tx.store.index("snapshotId");
+  let cursor = await index.openCursor(snapshotId);
+  while (cursor) {
+    cursor.delete();
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+}
 
 export async function deleteAllData(): Promise<void> {
-  await db.transaction(
-    "rw",
-    [
-      db.snapshots,
-      db.rawSheets,
-      db.entities_vm,
-      db.entities_host,
-      db.entities_cluster,
-      db.entities_datastore,
-      db.entities_snapshot,
-      db.entities_health,
-      db.metrics_cache,
-      db.ui_state,
-    ],
-    async () => {
-      await Promise.all([
-        db.snapshots.clear(),
-        db.rawSheets.clear(),
-        db.entities_vm.clear(),
-        db.entities_host.clear(),
-        db.entities_cluster.clear(),
-        db.entities_datastore.clear(),
-        db.entities_snapshot.clear(),
-        db.entities_health.clear(),
-        db.metrics_cache.clear(),
-        db.ui_state.clear(),
-      ]);
-    }
-  );
+  const db = await getDb();
+  const tx = db.transaction(ALL_STORES, "readwrite");
+  for (const s of ALL_STORES) {
+    tx.objectStore(s).clear();
+  }
+  await tx.done;
 }
 
 export async function deleteSnapshot(snapshotId: string): Promise<void> {
-  await db.transaction(
-    "rw",
-    [
-      db.snapshots,
-      db.rawSheets,
-      db.entities_vm,
-      db.entities_host,
-      db.entities_cluster,
-      db.entities_datastore,
-      db.entities_snapshot,
-      db.entities_health,
-      db.metrics_cache,
-    ],
-    async () => {
-      await Promise.all([
-        db.snapshots.delete(snapshotId),
-        db.rawSheets.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_vm.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_host.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_cluster.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_datastore.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_snapshot.where("snapshotId").equals(snapshotId).delete(),
-        db.entities_health.where("snapshotId").equals(snapshotId).delete(),
-        db.metrics_cache.where("snapshotId").equals(snapshotId).delete(),
-      ]);
-    }
-  );
+  const db = await getDb();
+  await db.delete("snapshots", snapshotId);
+  const entityStores: StoreName[] = [
+    "rawSheets", "entities_vm", "entities_host", "entities_cluster",
+    "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
+  ];
+  for (const store of entityStores) {
+    await deleteBySnapshotId(store, snapshotId);
+  }
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { db } from "@/data/db";
+import { getSnapshots, getBySnapshotIds } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
@@ -26,7 +26,7 @@ const perfColumns: ColumnDef<NormalizedVm, unknown>[] = [
 
 export default function PerformancePage() {
   const { filters } = useFilterState();
-  const { data: snapshots = [] } = useQuery({ queryKey: ["snapshots"], queryFn: () => db.snapshots.toArray() });
+  const { data: snapshots = [] } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
 
   const activeSnapshotIds = useMemo(() => {
     if (filters.snapshotIds.length > 0) return filters.snapshotIds;
@@ -36,15 +36,10 @@ export default function PerformancePage() {
     return [...latestMap.values()].map((v) => v.id);
   }, [snapshots, filters]);
 
-  const { data: vms = [] } = useQuery({
-    queryKey: ["vms", activeSnapshotIds],
-    queryFn: () => activeSnapshotIds.length ? db.entities_vm.where("snapshotId").anyOf(activeSnapshotIds).toArray() : Promise.resolve([]),
-    enabled: activeSnapshotIds.length > 0,
-  });
+  const { data: vms = [] } = useQuery({ queryKey: ["vms", activeSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds), enabled: activeSnapshotIds.length > 0 });
 
   const cpuReadyVms = useMemo(() => vms.filter((v) => v.cpuReady !== null && v.cpuReady > 0).sort((a, b) => (b.cpuReady || 0) - (a.cpuReady || 0)), [vms]);
   const hotspots = cpuReadyVms.filter((v) => (v.cpuReady || 0) > 5).length;
-
   const topChart = useMemo(() => cpuReadyVms.slice(0, 15).map((v) => ({ name: v.vmName, cpuReady: v.cpuReady })), [cpuReadyVms]);
 
   if (snapshots.length === 0) {

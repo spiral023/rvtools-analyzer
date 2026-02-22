@@ -1,4 +1,4 @@
-import { db } from "@/data/db";
+import { getSnapshotsByChecksum, putSnapshot, batchPut } from "@/data/db";
 import { computeChecksum, toNumber, toBool, toStr } from "@/lib/xlsx/parseHelpers";
 import type {
   ImportResult,
@@ -21,58 +21,32 @@ function createWorker(): Worker {
   );
 }
 
-function workerParse(
-  buffer: ArrayBuffer
-): Promise<WorkerParseResult> {
+function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
   return new Promise((resolve, reject) => {
     const worker = createWorker();
     worker.onmessage = (e) => {
       worker.terminate();
-      if (e.data.type === "PARSE_ERROR") {
-        reject(new Error(e.data.payload));
-      } else {
-        resolve(e.data.payload as WorkerParseResult);
-      }
+      if (e.data.type === "PARSE_ERROR") reject(new Error(e.data.payload));
+      else resolve(e.data.payload as WorkerParseResult);
     };
-    worker.onerror = (err) => {
-      worker.terminate();
-      reject(err);
-    };
-    // Transfer buffer for zero-copy
-    worker.postMessage(
-      { type: "PARSE_FILE", payload: { buffer } },
-      [buffer]
-    );
+    worker.onerror = (err) => { worker.terminate(); reject(err); };
+    worker.postMessage({ type: "PARSE_FILE", payload: { buffer } }, [buffer]);
   });
-}
-
-const BATCH_SIZE = 2000;
-
-async function batchInsert<T>(table: { bulkPut: (items: T[]) => Promise<unknown> }, items: T[]) {
-  for (let i = 0; i < items.length; i += BATCH_SIZE) {
-    await table.bulkPut(items.slice(i, i + BATCH_SIZE));
-  }
 }
 
 function findSheet(sheets: ParsedSheetData[], name: string): ParsedSheetData | undefined {
   return sheets.find((s) => s.sheetName === name);
 }
 
-function normalizeVms(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedVm[] {
+function normalizeVms(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedVm[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const vmUuid = toStr(row["VM UUID"]);
     const vmName = String(row["VM"] || row["Name"] || "unknown");
     return {
-      snapshotId,
-      vcenterId,
+      snapshotId, vcenterId,
       vmKey: `${vmUuid || vmName}::${vcenterId}`,
-      vmUuid,
-      vmName,
+      vmUuid, vmName,
       cluster: toStr(row["Cluster"]),
       host: toStr(row["Host"]),
       powerState: toStr(row["Powerstate"]),
@@ -100,19 +74,13 @@ function normalizeVms(
   });
 }
 
-function normalizeHosts(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedHost[] {
+function normalizeHosts(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedHost[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const host = String(row["Host"] || row["Name"] || "unknown");
     return {
-      snapshotId,
-      vcenterId,
-      hostKey: `${host}::${vcenterId}`,
-      host,
+      snapshotId, vcenterId,
+      hostKey: `${host}::${vcenterId}`, host,
       cluster: toStr(row["Cluster"]),
       datacenter: toStr(row["Datacenter"]),
       cpuModel: toStr(row["CPU Model"]),
@@ -132,19 +100,13 @@ function normalizeHosts(
   });
 }
 
-function normalizeClusters(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedCluster[] {
+function normalizeClusters(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedCluster[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const name = String(row["Name"] || row["Cluster"] || "unknown");
     return {
-      snapshotId,
-      vcenterId,
-      clusterKey: `${name}::${vcenterId}`,
-      name,
+      snapshotId, vcenterId,
+      clusterKey: `${name}::${vcenterId}`, name,
       datacenter: toStr(row["Datacenter"]),
       haEnabled: toBool(row["HA enabled"]),
       drsEnabled: toBool(row["DRS enabled"]),
@@ -157,11 +119,7 @@ function normalizeClusters(
   });
 }
 
-function normalizeDatastores(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedDatastore[] {
+function normalizeDatastores(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedDatastore[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const name = String(row["Name"] || row["Datastore"] || "unknown");
@@ -170,10 +128,8 @@ function normalizeDatastores(
     const inUseMiB = toNumber(row["In Use MiB"] || row["In Use MB"]);
     const freePct = toNumber(row["Free %"]);
     return {
-      snapshotId,
-      vcenterId,
-      dsKey: `${name}::${vcenterId}`,
-      name,
+      snapshotId, vcenterId,
+      dsKey: `${name}::${vcenterId}`, name,
       clusterName: toStr(row["Cluster"] || row["Datacenter/Cluster"]),
       type: toStr(row["Type"]),
       capacityMiB: capMiB,
@@ -186,15 +142,10 @@ function normalizeDatastores(
   });
 }
 
-function normalizeSnapshots(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedSnapshot[] {
+function normalizeSnapshots(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedSnapshot[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => ({
-    snapshotId,
-    vcenterId,
+    snapshotId, vcenterId,
     vmName: String(row["VM"] || row["VM Name"] || "unknown"),
     snapshotName: toStr(row["Snapshot Name"] || row["Name"]),
     description: toStr(row["Description"]),
@@ -204,15 +155,10 @@ function normalizeSnapshots(
   }));
 }
 
-function normalizeHealth(
-  sheet: ParsedSheetData | undefined,
-  snapshotId: string,
-  vcenterId: string
-): NormalizedHealth[] {
+function normalizeHealth(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedHealth[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => ({
-    snapshotId,
-    vcenterId,
+    snapshotId, vcenterId,
     entity: toStr(row["Entity"] || row["Name"]),
     messageType: toStr(row["Message type"] || row["Type"] || row["Status"]),
     message: toStr(row["Message"]),
@@ -227,18 +173,11 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
     const buffer = await file.arrayBuffer();
     const checksum = await computeChecksum(buffer);
 
-    // Check duplicate
-    const existing = await db.snapshots.where("fileChecksum").equals(checksum).first();
+    const existing = await getSnapshotsByChecksum(checksum);
     if (existing) {
-      return {
-        success: false,
-        snapshotId: existing.snapshotId,
-        warnings: [],
-        errors: ["Diese Datei wurde bereits importiert."],
-      };
+      return { success: false, snapshotId: existing.snapshotId, warnings: [], errors: ["Diese Datei wurde bereits importiert."] };
     }
 
-    // Parse via worker
     const parsed = await workerParse(buffer);
     warnings.push(...parsed.warnings);
     errors.push(...parsed.errors);
@@ -246,19 +185,13 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
     const snapshotId = crypto.randomUUID();
     const vcenterId = parsed.vcenterName.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
 
-    // Build sheet stats
     const sheetStats: Record<string, SheetStats> = {};
     for (const sheet of parsed.sheets) {
-      sheetStats[sheet.sheetName] = {
-        rowCount: sheet.rows.length,
-        columnCount: sheet.headers.length,
-      };
+      sheetStats[sheet.sheetName] = { rowCount: sheet.rows.length, columnCount: sheet.headers.length };
     }
 
-    // Store snapshot meta
-    await db.snapshots.put({
-      snapshotId,
-      vcenterId,
+    await putSnapshot({
+      snapshotId, vcenterId,
       vcenterDisplayName: parsed.vcenterName,
       exportTs: parsed.exportTs,
       importedAt: new Date().toISOString(),
@@ -267,21 +200,17 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
       sheetStats,
     });
 
-    // Store raw sheet rows
     const rawRows: SheetRow[] = [];
     for (const sheet of parsed.sheets) {
       for (let i = 0; i < sheet.rows.length; i++) {
         rawRows.push({
-          snapshotId,
-          sheetName: sheet.sheetName,
-          rowIndex: i,
+          snapshotId, sheetName: sheet.sheetName, rowIndex: i,
           data: sheet.rows[i] as Record<string, string | number | boolean | null>,
         });
       }
     }
-    await batchInsert(db.rawSheets, rawRows);
+    await batchPut("rawSheets", rawRows);
 
-    // Normalize entities
     const vms = normalizeVms(findSheet(parsed.sheets, "vInfo"), snapshotId, vcenterId);
     const hosts = normalizeHosts(findSheet(parsed.sheets, "vHost"), snapshotId, vcenterId);
     const clusters = normalizeClusters(findSheet(parsed.sheets, "vCluster"), snapshotId, vcenterId);
@@ -290,20 +219,16 @@ export async function importRvtoolsXlsx(file: File): Promise<ImportResult> {
     const healthEvents = normalizeHealth(findSheet(parsed.sheets, "vHealth"), snapshotId, vcenterId);
 
     await Promise.all([
-      batchInsert(db.entities_vm, vms),
-      batchInsert(db.entities_host, hosts),
-      batchInsert(db.entities_cluster, clusters),
-      batchInsert(db.entities_datastore, datastores),
-      batchInsert(db.entities_snapshot, vmSnapshots),
-      batchInsert(db.entities_health, healthEvents),
+      batchPut("entities_vm", vms),
+      batchPut("entities_host", hosts),
+      batchPut("entities_cluster", clusters),
+      batchPut("entities_datastore", datastores),
+      batchPut("entities_snapshot", vmSnapshots),
+      batchPut("entities_health", healthEvents),
     ]);
 
     return { success: true, snapshotId, warnings, errors, sheetStats };
   } catch (err) {
-    return {
-      success: false,
-      warnings,
-      errors: [...errors, err instanceof Error ? err.message : String(err)],
-    };
+    return { success: false, warnings, errors: [...errors, err instanceof Error ? err.message : String(err)] };
   }
 }
