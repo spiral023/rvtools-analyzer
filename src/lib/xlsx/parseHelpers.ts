@@ -1,0 +1,63 @@
+/**
+ * Convert Excel serial date number to ISO string.
+ * Excel serial dates: days since 1899-12-30 (with the Lotus 123 bug).
+ */
+export function excelSerialToIso(serial: number): string {
+  if (serial <= 0) return "";
+  // Excel epoch is 1899-12-30, but serial 1 = 1900-01-01
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const ms = epoch.getTime() + serial * 86400000;
+  return new Date(ms).toISOString();
+}
+
+/** Try to parse a value as a number. Returns null if not parseable. */
+export function toNumber(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  const n = Number(v);
+  return isFinite(n) ? n : null;
+}
+
+/** Parse boolean-ish values */
+export function toBool(v: unknown): boolean | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "boolean") return v;
+  const s = String(v).toLowerCase().trim();
+  if (s === "true" || s === "yes" || s === "1") return true;
+  if (s === "false" || s === "no" || s === "0") return false;
+  return null;
+}
+
+/** Safely get string value */
+export function toStr(v: unknown): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v).trim();
+}
+
+/** Compute SHA-256 checksum of an ArrayBuffer */
+export async function computeChecksum(buffer: ArrayBuffer): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Format bytes to human-readable */
+export function formatBytes(mib: number | null): string {
+  if (mib === null || mib === undefined) return "—";
+  if (mib >= 1048576) return `${(mib / 1048576).toFixed(1)} TiB`;
+  if (mib >= 1024) return `${(mib / 1024).toFixed(1)} GiB`;
+  return `${mib.toFixed(0)} MiB`;
+}
+
+/** Format percentage */
+export function formatPct(pct: number | null, decimals = 1): string {
+  if (pct === null || pct === undefined) return "—";
+  return `${pct.toFixed(decimals)}%`;
+}
+
+/** Format large numbers with locale */
+export function formatNum(n: number | null): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("de-DE");
+}
