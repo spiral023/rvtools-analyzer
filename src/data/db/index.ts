@@ -77,7 +77,7 @@ type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_health" | "metrics_cache" | "ui_state";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 1;
+const DB_VERSION = 11;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -89,38 +89,57 @@ let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
 export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<RVToolsDBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const snap = db.createObjectStore("snapshots", { keyPath: "snapshotId" });
-        snap.createIndex("vcenterId", "vcenterId");
-        snap.createIndex("exportTs", "exportTs");
-        snap.createIndex("fileChecksum", "fileChecksum");
+      upgrade(db, oldVersion) {
+        // Delete any leftover stores from old Dexie versions so we start clean
+        const existing = Array.from(db.objectStoreNames);
+        if (oldVersion < 11) {
+          for (const name of existing) {
+            db.deleteObjectStore(name);
+          }
+        }
 
-        const raw = db.createObjectStore("rawSheets", { keyPath: ["snapshotId", "sheetName", "rowIndex"] });
-        raw.createIndex("snapshotId", "snapshotId");
-        raw.createIndex("sheetName", "sheetName");
-
-        const vm = db.createObjectStore("entities_vm", { keyPath: "vmKey" });
-        vm.createIndex("snapshotId", "snapshotId");
-
-        const host = db.createObjectStore("entities_host", { keyPath: "hostKey" });
-        host.createIndex("snapshotId", "snapshotId");
-
-        const cluster = db.createObjectStore("entities_cluster", { keyPath: "clusterKey" });
-        cluster.createIndex("snapshotId", "snapshotId");
-
-        const ds = db.createObjectStore("entities_datastore", { keyPath: "dsKey" });
-        ds.createIndex("snapshotId", "snapshotId");
-
-        const snapEnt = db.createObjectStore("entities_snapshot", { keyPath: "id", autoIncrement: true });
-        snapEnt.createIndex("snapshotId", "snapshotId");
-
-        const health = db.createObjectStore("entities_health", { keyPath: "id", autoIncrement: true });
-        health.createIndex("snapshotId", "snapshotId");
-
-        const metrics = db.createObjectStore("metrics_cache", { keyPath: ["snapshotId", "id"] });
-        metrics.createIndex("snapshotId", "snapshotId");
-
-        db.createObjectStore("ui_state", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("snapshots")) {
+          const snap = db.createObjectStore("snapshots", { keyPath: "snapshotId" });
+          snap.createIndex("vcenterId", "vcenterId");
+          snap.createIndex("exportTs", "exportTs");
+          snap.createIndex("fileChecksum", "fileChecksum");
+        }
+        if (!db.objectStoreNames.contains("rawSheets")) {
+          const raw = db.createObjectStore("rawSheets", { keyPath: ["snapshotId", "sheetName", "rowIndex"] });
+          raw.createIndex("snapshotId", "snapshotId");
+          raw.createIndex("sheetName", "sheetName");
+        }
+        if (!db.objectStoreNames.contains("entities_vm")) {
+          const vm = db.createObjectStore("entities_vm", { keyPath: "vmKey" });
+          vm.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("entities_host")) {
+          const host = db.createObjectStore("entities_host", { keyPath: "hostKey" });
+          host.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("entities_cluster")) {
+          const cluster = db.createObjectStore("entities_cluster", { keyPath: "clusterKey" });
+          cluster.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("entities_datastore")) {
+          const ds = db.createObjectStore("entities_datastore", { keyPath: "dsKey" });
+          ds.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("entities_snapshot")) {
+          const snapEnt = db.createObjectStore("entities_snapshot", { keyPath: "id", autoIncrement: true });
+          snapEnt.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("entities_health")) {
+          const health = db.createObjectStore("entities_health", { keyPath: "id", autoIncrement: true });
+          health.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("metrics_cache")) {
+          const metrics = db.createObjectStore("metrics_cache", { keyPath: ["snapshotId", "id"] });
+          metrics.createIndex("snapshotId", "snapshotId");
+        }
+        if (!db.objectStoreNames.contains("ui_state")) {
+          db.createObjectStore("ui_state", { keyPath: "id" });
+        }
       },
     });
   }
