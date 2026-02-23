@@ -56,7 +56,8 @@ interface HostDetail {
 
 interface ModelGroup {
   signature: string;
-  model: string;
+  modelLabel: string;
+  models: string[];
   vendor: string;
   cpuModel: string;
   cpuSockets: number;
@@ -209,13 +210,20 @@ function formatCpuClock(mhz: number): string {
   return `${mhz} MHz`;
 }
 
+function normalizeCpuModel(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function normalizeCpuClockForGrouping(mhz: number): number {
+  if (!mhz) return 0;
+  return Math.round((mhz / 1000) * 100) / 100;
+}
+
 function buildHardwareSignature(host: HostDetail): string {
   return [
-    host.model || "Unknown",
-    host.vendor || "Unknown",
-    host.cpuModel || "Unknown CPU",
-    host.speedMHz || 0,
+    normalizeCpuModel(host.cpuModel || "Unknown CPU"),
     host.totalCores || 0,
+    normalizeCpuClockForGrouping(host.speedMHz || 0),
     host.memoryMiB || 0,
   ].join("|");
 }
@@ -232,7 +240,7 @@ function ModelCard({
   onSelect: (h: HostDetail) => void;
 }) {
   const {
-    model,
+    modelLabel,
     count,
     vendor,
     hosts,
@@ -258,7 +266,7 @@ function ModelCard({
               <Server className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-semibold">{model || "Unknown Model"}</CardTitle>
+              <CardTitle className="text-base font-semibold">{modelLabel || "Unknown Model"}</CardTitle>
               <p className="text-xs text-muted-foreground">{vendor}</p>
               <p className="text-[11px] text-muted-foreground">
                 {cpuModel || "Unknown CPU"} · {socketLabel} · {coreLabel} · {formatCpuClock(speedMHz)} · {ramLabel}
@@ -588,7 +596,7 @@ export default function Hardware() {
     });
   }, [hosts, filters.clusters, filters.hosts, filters.search]);
 
-  // Group by model + hardware profile (CPU, speed, cores, RAM)
+  // Group by hardware profile (CPU type, core count, GHz, RAM), independent of model name
   const modelGroups = useMemo<ModelGroup[]>(() => {
     const map = new Map<string, ModelGroup>();
     for (const h of filteredHosts) {
@@ -597,11 +605,17 @@ export default function Hardware() {
       if (existing) {
         existing.hosts.push(h);
         existing.count += 1;
+        if (h.model && !existing.models.includes(h.model)) {
+          existing.models.push(h.model);
+          existing.models.sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }));
+          existing.modelLabel = existing.models.join(" / ");
+        }
         continue;
       }
       map.set(signature, {
         signature,
-        model: h.model || "Unknown",
+        modelLabel: h.model || "Unknown",
+        models: h.model ? [h.model] : ["Unknown"],
         vendor: h.vendor || "Unknown",
         cpuModel: h.cpuModel || "Unknown CPU",
         cpuSockets: h.cpuSockets || 0,
@@ -614,7 +628,7 @@ export default function Hardware() {
       });
     }
     return [...map.values()].sort(
-      (a, b) => b.count - a.count || a.model.localeCompare(b.model),
+      (a, b) => b.count - a.count || a.modelLabel.localeCompare(b.modelLabel, "de-DE", { numeric: true, sensitivity: "base" }),
     );
   }, [filteredHosts]);
 
@@ -632,7 +646,7 @@ export default function Hardware() {
   const modelBarData = useMemo(
     () =>
       modelGroups.map((g) => ({
-        name: `${g.model || "Unknown"} · ${g.totalCores || 0}C · ${Math.round((g.memoryMiB || 0) / 1024)} GiB`,
+        name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${Math.round((g.memoryMiB || 0) / 1024)} GiB`,
         count: g.count,
       })),
     [modelGroups]
