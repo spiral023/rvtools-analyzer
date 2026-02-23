@@ -11,6 +11,51 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYL
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedSnapshot } from "@/domain/models/types";
 
+function parseSnapshotDate(value: string | null): Date | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const serial = Number(raw);
+  if (Number.isFinite(serial) && raw.match(/^\d+(\.\d+)?$/)) {
+    const epochUtc = Date.UTC(1899, 11, 30);
+    return new Date(epochUtc + serial * 86400000);
+  }
+
+  const dotted = raw.match(/^(\d{4})\.(\d{2})\.(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (dotted) {
+    const [, y, m, d, hh, mm, ss] = dotted;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss)));
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateDe(date: Date): string {
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const y = String(date.getUTCFullYear());
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  const mm = String(date.getUTCMinutes()).padStart(2, "0");
+  const ss = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${d}.${m}.${y} ${hh}:${mm}:${ss}`;
+}
+
+function formatSnapshotCreated(value: string | null): string {
+  const date = parseSnapshotDate(value);
+  if (!date) return value || "—";
+  return formatDateDe(date);
+}
+
+function formatSinceCreation(value: string | null): string {
+  const date = parseSnapshotDate(value);
+  if (!date) return "—";
+  const diffDays = Math.max(0, Math.round((Date.now() - date.getTime()) / 86400000));
+  if (diffDays === 0) return "heute";
+  return `vor ${diffDays} ${diffDays === 1 ? "Tag" : "Tagen"}`;
+}
+
 const issueColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
   { accessorKey: "configStatus", header: "Config Status", cell: ({ getValue }) => {
@@ -28,7 +73,8 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
   { accessorKey: "snapshotName", header: "Snapshot" },
   { accessorKey: "description", header: "Beschreibung" },
-  { accessorKey: "dateTaken", header: "Erstellt" },
+  { accessorKey: "dateTaken", header: "Erstellt", cell: ({ getValue }) => formatSnapshotCreated((getValue() as string | null) ?? null) },
+  { accessorKey: "dateTaken", id: "ageDays", header: "Seit Erstellung", cell: ({ getValue }) => formatSinceCreation((getValue() as string | null) ?? null) },
   { accessorKey: "sizeMiB", header: "Größe (MiB)", cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";

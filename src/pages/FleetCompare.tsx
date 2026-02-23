@@ -94,7 +94,7 @@ export default function FleetCompare() {
         snapshotCount: snaps.length, securityDrift: secDrift,
         riskScore: Math.min(riskScore, 100),
       };
-    }), [latestSnapshots, allVms, allHosts, allClusters, allDatastores, allHealth, allSnaps, rawDvPort]);
+    }).sort((a, b) => a.displayName.localeCompare(b.displayName, "de-DE", { numeric: true, sensitivity: "base" })), [latestSnapshots, allVms, allHosts, allClusters, allDatastores, allHealth, allSnaps, rawDvPort]);
 
   const compareChart = useMemo(() => summaries.map((s) => ({ name: s.displayName.length > 15 ? s.displayName.slice(0, 12) + "…" : s.displayName, VMs: s.vmCount, Hosts: s.hostCount, Datastores: s.datastoreCount })), [summaries]);
 

@@ -186,7 +186,8 @@ export default function ComplianceLifecycle() {
         version: String(r.data["Version"] || ""),
         build: String(r.data["Build"] || ""),
         apiVersion: String(r.data["API version"] || ""),
-      })),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" })),
     [rawVSource],
   );
 
