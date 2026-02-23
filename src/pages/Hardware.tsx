@@ -23,36 +23,9 @@ import {
   ChevronRight, Layers, MonitorCog, CircuitBoard,
 } from "lucide-react";
 import type { SheetRow, NormalizedVm } from "@/domain/models/types";
+import { buildHostDetails, bool, str, type HostDetail } from "@/lib/conversion";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-export interface HostDetail {
-  host: string;
-  datacenter: string | null;
-  cluster: string | null;
-  model: string;
-  vendor: string;
-  serial: string;
-  cpuModel: string;
-  cpuSockets: number;
-  coresPerCpu: number;
-  totalCores: number;
-  threads: number;
-  speedMHz: number;
-  memoryMiB: number;
-  esxVersion: string;
-  biosVendor: string;
-  biosVersion: string;
-  biosDate: string;
-  vmCount: number;
-  nicCount: number;
-  hbaCount: number;
-  htActive: boolean;
-  maintenanceMode: boolean;
-  serviceTag: string;
-}
+export type { HostDetail } from "@/lib/conversion";
 
 interface ModelGroup {
   signature: string;
@@ -94,79 +67,6 @@ interface NicEntry {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-function str(v: unknown): string {
-  if (v == null) return "";
-  return String(v).trim();
-}
-
-function num(v: unknown): number {
-  if (v == null) return 0;
-  const n = Number(String(v).replace(/,/g, ""));
-  return isNaN(n) ? 0 : n;
-}
-
-function bool(v: unknown): boolean {
-  if (v == null) return false;
-  const s = String(v).toLowerCase().trim();
-  return s === "true" || s === "1";
-}
-
-function normalizeHardwareModel(vendor: string, model: string): string {
-  const cleaned = model.trim().replace(/^"+|"+$/g, "").replace(/\s+/g, " ");
-  const isHitachi = vendor.toLowerCase().includes("hitachi");
-  if (!isHitachi) return cleaned;
-
-  // Examples:
-  // "Advanced Server DS120 G2 1HY1ZZZ043T" -> "Advanced Server DS120 G2"
-  // "Advanced Server DS220 G2 01" -> "Advanced Server DS220 G2"
-  // "Advanced Server DS220 G2-01" -> "Advanced Server DS220 G2"
-  const advancedServerMatch = cleaned.match(
-    /^advanced server ds(\d+)\s+g2(?:[\s\-_]+#?([a-z0-9]+))?$/i,
-  );
-  if (advancedServerMatch) {
-    const canonicalBase = `Advanced Server DS${advancedServerMatch[1]} G2`;
-    const suffix = advancedServerMatch[2];
-    if (!suffix) return canonicalBase;
-    if (/^\d+$/.test(suffix)) return canonicalBase;
-    if (/^[a-z0-9]{8,}$/i.test(suffix)) return canonicalBase;
-  }
-
-  return cleaned;
-}
-
-function buildHostDetails(hostRows: SheetRow[]): HostDetail[] {
-  return hostRows.map((r) => {
-    const d = r.data;
-    const vendor = str(d["Vendor"]);
-    const rawModel = str(d["Model"]);
-    return {
-      host: str(d["Host"]),
-      datacenter: str(d["Datacenter"]) || null,
-      cluster: str(d["Cluster"]) || null,
-      model: normalizeHardwareModel(vendor, rawModel),
-      vendor,
-      serial: str(d["Serial number"]),
-      cpuModel: str(d["CPU Model"]),
-      cpuSockets: num(d["# CPU"]),
-      coresPerCpu: num(d["Cores per CPU"]),
-      totalCores: num(d["# Cores"]),
-      threads: num(d["NumCpuThreads"]) || num(d["# Cores"]) * 2,
-      speedMHz: num(d["Speed"]),
-      memoryMiB: num(d["# Memory"]),
-      esxVersion: str(d["ESX Version"]),
-      biosVendor: str(d["BIOS Vendor"]),
-      biosVersion: str(d["BIOS Version"]),
-      biosDate: str(d["BIOS Date"]),
-      vmCount: num(d["# VMs"]),
-      nicCount: num(d["# NICs"]),
-      hbaCount: num(d["# HBAs"]),
-      htActive: bool(d["HT Active"]),
-      maintenanceMode: bool(d["in Maintenance Mode"]),
-      serviceTag: str(d["Service tag"]),
-    };
-  });
-}
 
 function buildHbaEntries(rows: SheetRow[], hostName: string): HbaEntry[] {
   return rows

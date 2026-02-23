@@ -114,12 +114,12 @@ export function useHealthEvents() {
   });
 }
 
-export function useRawSheet(sheetName: string) {
+export function useRawSheet(sheetName: string, enabled = true) {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["rawSheet", sheetName, activeSnapshotIds],
     queryFn: () => getRawSheetRows(activeSnapshotIds, sheetName),
-    enabled: activeSnapshotIds.length > 0,
+    enabled: activeSnapshotIds.length > 0 && enabled,
     staleTime: STALE_MS,
   });
 }

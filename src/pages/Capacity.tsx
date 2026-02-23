@@ -8,6 +8,7 @@ import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "luci
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
+import { toBoolLoose, toNumLoose } from "@/lib/conversion";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedDatastore } from "@/domain/models/types";
 
@@ -169,19 +170,6 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     return <span className={abs > 5 ? "text-warning font-semibold" : "text-success"}>{v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`}</span>;
   }},
 ];
-
-function toNumLoose(v: unknown): number {
-  if (v === null || v === undefined || v === "") return 0;
-  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-  const n = Number(String(v).replace(/,/g, "").trim());
-  return Number.isFinite(n) ? n : 0;
-}
-
-function toBoolLoose(v: unknown): boolean {
-  if (v === null || v === undefined || v === "") return false;
-  const s = String(v).toLowerCase().trim();
-  return s === "true" || s === "1" || s === "yes";
-}
 
 export default function Capacity() {
   const { snapshots, filters } = useActiveSnapshotIds();
