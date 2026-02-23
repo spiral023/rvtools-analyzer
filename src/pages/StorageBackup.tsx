@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Database, HardDrive, AlertTriangle, Shield, Clock, FileWarning, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PartitionRow { vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
@@ -167,7 +167,7 @@ export default function StorageBackup() {
             <BarChart data={partChart} layout="vertical">
               <XAxis type="number" domain={[0, 30]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" width={180} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
                 {partChart.map((e, i) => <Cell key={i} fill={e.freePct < 10 ? CHART_COLORS.danger : e.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
               </Bar>

@@ -17,7 +17,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from "recharts";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
   Server, Cpu, MemoryStick, HardDrive, Network as NetworkIcon,
   ChevronRight, Layers, MonitorCog, CircuitBoard,
@@ -690,7 +690,7 @@ export default function Hardware() {
                   width={280}
                   tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }}
                 />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={24}>
                   {modelBarData.map((_, i) => (
                     <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
@@ -724,7 +724,7 @@ export default function Hardware() {
                     <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

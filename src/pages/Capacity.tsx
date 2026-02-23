@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedDatastore } from "@/domain/models/types";
 
@@ -510,7 +510,7 @@ export default function Capacity() {
             <BarChart data={dsChart} layout="vertical">
               <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
                 {dsChart.map((entry, i) => <Cell key={i} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
               </Bar>
@@ -525,7 +525,7 @@ export default function Capacity() {
               <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
               <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
               <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} cursor={{ strokeDasharray: "3 3" }} />
               <Scatter data={hostDensity} fill={CHART_COLORS.primary} />
             </ScatterChart>
           </ResponsiveContainer>
@@ -539,7 +539,7 @@ export default function Capacity() {
             <BarChart data={clusterRiskChart} layout="vertical">
               <XAxis type="number" domain={[0, "dataMax + 5"]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" width={240} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="riskScore" radius={[0, 4, 4, 0]}>
                 {clusterRiskChart.map((entry, i) => (
                   <Cell key={i} fill={entry.riskScore >= 60 ? CHART_COLORS.danger : entry.riskScore >= 30 ? CHART_COLORS.warning : CHART_COLORS.success} />

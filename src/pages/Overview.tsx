@@ -9,7 +9,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
@@ -84,7 +84,7 @@ export default function Overview() {
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
                 {powerData.map((_, i) => <Cell key={i} fill={SEVERITY_COLORS[i]} />)}
               </Pie>
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
             </PieChart>
           </ResponsiveContainer>
@@ -95,7 +95,7 @@ export default function Overview() {
             <BarChart data={clusterData}>
               <XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="hosts" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

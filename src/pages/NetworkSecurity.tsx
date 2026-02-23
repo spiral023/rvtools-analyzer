@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Network, ShieldAlert, Wifi, Router, Cable, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PolicyRow { name: string; type: string; vlan: string; promiscuous: boolean; macChanges: boolean; forgedTransmits: boolean; policy: string }
@@ -186,14 +186,16 @@ export default function NetworkSecurity() {
               <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 content={({ active, payload }) => {
                   if (!active || !payload || payload.length === 0) return null;
                   const row = payload[0].payload as VlanChartRow;
                   return (
-                    <div style={CHART_TOOLTIP_STYLE}>
-                      <div className="text-xs font-semibold">VLAN Name</div>
-                      <div className="text-xs">{row.vlanName}</div>
-                      <div className="mt-1 text-xs">Anzahl: <span className="font-semibold">{row.count}</span></div>
+                    <div style={{ ...CHART_TOOLTIP_STYLE, padding: "8px 12px" }}>
+                      <div className="text-xs font-semibold" style={{ color: "hsl(var(--popover-foreground))" }}>VLAN Name</div>
+                      <div className="text-xs" style={{ color: "hsl(var(--popover-foreground))" }}>{row.vlanName}</div>
+                      <div className="mt-1 text-xs" style={{ color: "hsl(var(--popover-foreground))" }}>Anzahl: <span className="font-semibold">{row.count}</span></div>
                     </div>
                   );
                 }}
@@ -205,7 +207,7 @@ export default function NetworkSecurity() {
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Link Speed Verteilung</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={speedChart}><XAxis dataKey="speed" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /></BarChart>
+            <BarChart data={speedChart}><XAxis dataKey="speed" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /></BarChart>
           </ResponsiveContainer>
         </div>
       </div>

@@ -6,6 +6,15 @@ export const CHART_TOOLTIP_STYLE = {
   fontSize: "12px",
 };
 
+export const CHART_TOOLTIP_ITEM_STYLE = {
+  color: "hsl(var(--popover-foreground))",
+};
+
+export const CHART_TOOLTIP_LABEL_STYLE = {
+  color: "hsl(var(--popover-foreground))",
+  fontWeight: 600,
+};
+
 export const CHART_AXIS_STYLE = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
 export const CHART_GRID_STYLE = { stroke: "hsl(var(--border))", strokeDasharray: "3 3" };
 export const CHART_AXIS_LABEL_STYLE = { fill: "hsl(var(--muted-foreground))", fontSize: 11 };

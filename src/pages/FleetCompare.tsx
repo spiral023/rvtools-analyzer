@@ -8,7 +8,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GitCompare, Server, Cpu, AlertTriangle, ShieldAlert, Database } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, NormalizedCluster, NormalizedDatastore, NormalizedHealth, NormalizedSnapshot as NormSnap, SnapshotMeta, SheetRow } from "@/domain/models/types";
 
@@ -131,7 +131,7 @@ export default function FleetCompare() {
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">vCenter Vergleich</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={compareChart}><XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} /><Legend wrapperStyle={{ fontSize: "12px" }} /><Bar dataKey="VMs" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /><Bar dataKey="Hosts" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /><Bar dataKey="Datastores" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} /></BarChart>
+          <BarChart data={compareChart}><XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "12px" }} /><Bar dataKey="VMs" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /><Bar dataKey="Hosts" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /><Bar dataKey="Datastores" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} /></BarChart>
         </ResponsiveContainer>
       </div>
 
