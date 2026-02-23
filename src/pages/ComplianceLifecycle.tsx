@@ -1,21 +1,91 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVms, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { HostDetailDialog, type HostDetail } from "@/pages/Hardware";
 import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { NormalizedVm, NormalizedHost } from "@/domain/models/types";
+import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 
 interface ComplianceVm { vmName: string; hwVersion: string | null; firmware: string | null; secureBoot: boolean | null; cbt: boolean | null; osConfig: string | null; osTools: string | null; osDrift: boolean; toolsStatus: string | null; cluster: string | null; uuidMissing: boolean; annotationEmpty: boolean; latencySensitivity: string; ftState: string; haRestart: string }
 interface DriverRow { host: string; cluster: string; device: string; type: string; driver: string; model: string }
 interface NtpRow { host: string; ntpServers: string; ntpdRunning: boolean; dnsServers: string; dhcp: boolean; issues: string }
 interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: number; pct: number }
 interface HwUpgradeRow { vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
+
+function str(v: unknown): string {
+  if (v == null) return "";
+  return String(v).trim();
+}
+
+function num(v: unknown): number {
+  if (v == null) return 0;
+  const n = Number(String(v).replace(/,/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function bool(v: unknown): boolean {
+  if (v == null) return false;
+  const s = String(v).toLowerCase().trim();
+  return s === "true" || s === "1";
+}
+
+function normalizeHardwareModel(vendor: string, model: string): string {
+  const cleaned = model.trim().replace(/^"+|"+$/g, "").replace(/\s+/g, " ");
+  const isHitachi = vendor.toLowerCase().includes("hitachi");
+  if (!isHitachi) return cleaned;
+
+  const advancedServerMatch = cleaned.match(
+    /^advanced server ds(\d+)\s+g2(?:[\s\-_]+#?([a-z0-9]+))?$/i,
+  );
+  if (advancedServerMatch) {
+    const canonicalBase = `Advanced Server DS${advancedServerMatch[1]} G2`;
+    const suffix = advancedServerMatch[2];
+    if (!suffix) return canonicalBase;
+    if (/^\d+$/.test(suffix)) return canonicalBase;
+    if (/^[a-z0-9]{8,}$/i.test(suffix)) return canonicalBase;
+  }
+
+  return cleaned;
+}
+
+function buildHostDetails(hostRows: SheetRow[]): HostDetail[] {
+  return hostRows.map((r) => {
+    const d = r.data;
+    const vendor = str(d["Vendor"]);
+    const rawModel = str(d["Model"]);
+    return {
+      host: str(d["Host"]),
+      datacenter: str(d["Datacenter"]) || null,
+      cluster: str(d["Cluster"]) || null,
+      model: normalizeHardwareModel(vendor, rawModel),
+      vendor,
+      serial: str(d["Serial number"]),
+      cpuModel: str(d["CPU Model"]),
+      cpuSockets: num(d["# CPU"]),
+      coresPerCpu: num(d["Cores per CPU"]),
+      totalCores: num(d["# Cores"]),
+      threads: num(d["NumCpuThreads"]) || num(d["# Cores"]) * 2,
+      speedMHz: num(d["Speed"]),
+      memoryMiB: num(d["# Memory"]),
+      esxVersion: str(d["ESX Version"]),
+      biosVendor: str(d["BIOS Vendor"]),
+      biosVersion: str(d["BIOS Version"]),
+      biosDate: str(d["BIOS Date"]),
+      vmCount: num(d["# VMs"]),
+      nicCount: num(d["# NICs"]),
+      hbaCount: num(d["# HBAs"]),
+      htActive: bool(d["HT Active"]),
+      maintenanceMode: bool(d["in Maintenance Mode"]),
+      serviceTag: str(d["Service tag"]),
+    };
+  });
+}
 
 const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
@@ -30,16 +100,30 @@ const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster" },
 ];
 
-const hostColumns: ColumnDef<NormalizedHost, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "version", header: "ESXi Version" },
-  { accessorKey: "build", header: "Build" },
-  { accessorKey: "cpuModel", header: "CPU Model" },
-  { accessorKey: "vendor", header: "Vendor" },
-  { accessorKey: "model", header: "Model" },
-  { accessorKey: "maintenanceMode", header: "Maintenance", cell: ({ getValue }) => { const v = getValue() as string; return v === "True" ? <span className="text-warning">Ja</span> : "Nein"; }},
-];
+function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<NormalizedHost, unknown>[] {
+  return [
+    {
+      accessorKey: "host",
+      header: "Host",
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="font-mono-data text-primary hover:underline"
+          onClick={() => onSelectHost(row.original.host)}
+        >
+          {row.original.host}
+        </button>
+      ),
+    },
+    { accessorKey: "cluster", header: "Cluster" },
+    { accessorKey: "version", header: "ESXi Version" },
+    { accessorKey: "build", header: "Build" },
+    { accessorKey: "cpuModel", header: "CPU Model" },
+    { accessorKey: "vendor", header: "Vendor" },
+    { accessorKey: "model", header: "Model" },
+    { accessorKey: "maintenanceMode", header: "Maintenance", cell: ({ getValue }) => { const v = getValue() as string; return v === "True" ? <span className="text-warning">Ja</span> : "Nein"; }},
+  ];
+}
 
 const driverColumns: ColumnDef<DriverRow, unknown>[] = [
   { accessorKey: "host", header: "Host" },
@@ -77,7 +161,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
 
 export default function ComplianceLifecycle() {
   const { snapshots, filters } = useActiveSnapshotIds();
-  const { vms } = useVms();
+  const { vms, allVms } = useVms();
   const { data: hosts = [] } = useHosts();
   const { data: rawVTools = [] } = useRawSheet("vTools");
   const { data: rawVInfo = [] } = useRawSheet("vInfo");
@@ -85,6 +169,7 @@ export default function ComplianceLifecycle() {
   const { data: rawHBA = [] } = useRawSheet("vHBA");
   const { data: rawNIC = [] } = useRawSheet("vNIC");
   const { data: rawVHost = [] } = useRawSheet("vHost");
+  const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
 
   const complianceVms = useMemo<ComplianceVm[]>(() =>
     vms.map((v) => {
@@ -124,6 +209,24 @@ export default function ComplianceLifecycle() {
       return { ...h, version: h.version || fallback.version, build: h.build || fallback.build };
     });
   }, [hosts, rawVHost]);
+
+  const hostDetailsByName = useMemo(() => {
+    const map = new Map<string, HostDetail>();
+    for (const hostDetail of buildHostDetails(rawVHost)) {
+      const key = hostDetail.host.trim().toLowerCase();
+      if (key && !map.has(key)) map.set(key, hostDetail);
+    }
+    return map;
+  }, [rawVHost]);
+
+  const hostColumns = useMemo(
+    () =>
+      makeHostColumns((hostName: string) => {
+        const hostDetail = hostDetailsByName.get(hostName.trim().toLowerCase());
+        if (hostDetail) setSelectedHost(hostDetail);
+      }),
+    [hostDetailsByName],
+  );
 
   const maintenanceHosts = hostsWithEsxVersion.filter((h) => h.maintenanceMode === "True").length;
 
@@ -288,6 +391,15 @@ export default function ComplianceLifecycle() {
           <div className="space-y-1">{complianceVms.filter((v) => v.latencySensitivity !== "normal" && v.latencySensitivity !== "").map((v) => (<div key={v.vmName} className="flex gap-3 text-sm"><span className="font-mono-data">{v.vmName}</span><span className="text-warning">{v.latencySensitivity}</span><span className="text-muted-foreground">{v.cluster}</span></div>))}</div>
         </div>
       )}
+
+      <HostDetailDialog
+        host={selectedHost}
+        hbaRows={rawHBA}
+        nicRows={rawNIC}
+        vmRows={allVms}
+        open={!!selectedHost}
+        onClose={() => setSelectedHost(null)}
+      />
     </div>
   );
 }

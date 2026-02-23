@@ -28,7 +28,7 @@ import type { SheetRow, NormalizedVm } from "@/domain/models/types";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface HostDetail {
+export interface HostDetail {
   host: string;
   datacenter: string | null;
   cluster: string | null;
@@ -324,7 +324,7 @@ function ModelCard({
 /*  Host Detail Dialog                                                 */
 /* ------------------------------------------------------------------ */
 
-function HostDetailDialog({
+export function HostDetailDialog({
   host,
   hbaRows,
   nicRows,
