@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedDatastore } from "@/domain/models/types";
 
@@ -217,9 +217,9 @@ export default function Capacity() {
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3>
           <ResponsiveContainer width="100%" height={300}>
             <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 12%, 18%)" />
-              <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: { fill: "hsl(215, 12%, 55%)", fontSize: 11 } }} />
-              <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: { fill: "hsl(215, 12%, 55%)", fontSize: 11 } }} />
+              <CartesianGrid {...CHART_GRID_STYLE} />
+              <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
+              <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
               <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
               <Scatter data={hostDensity} fill={CHART_COLORS.primary} />

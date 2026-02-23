@@ -17,8 +17,9 @@ export function FilterBar() {
 
   useEffect(() => {
     getSnapshots().then((snaps) => {
-      setSnapshots(snaps);
-      const vcs = [...new Set(snaps.map((s) => s.vcenterId))];
+      const sorted = [...snaps].sort((a, b) => b.exportTs.localeCompare(a.exportTs));
+      setSnapshots(sorted);
+      const vcs = [...new Set(sorted.map((s) => s.vcenterId))];
       setVcenters(vcs);
     });
   }, []);
@@ -30,7 +31,7 @@ export function FilterBar() {
 
   const handleVcenterChange = useCallback((value: string) => {
     if (value === "all") setFilters({ vcenterIds: [], snapshotIds: [] });
-    else setFilters({ vcenterIds: [value] });
+    else setFilters({ vcenterIds: [value], snapshotIds: [] });
   }, [setFilters]);
 
   const handleSnapshotChange = useCallback((value: string) => {

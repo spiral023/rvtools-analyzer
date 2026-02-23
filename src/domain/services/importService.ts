@@ -1,5 +1,5 @@
 import { getSnapshotsByChecksum, putSnapshot, batchPut } from "@/data/db";
-import { computeChecksum, toNumber, toBool, toStr } from "@/lib/xlsx/parseHelpers";
+import { computeChecksum, toNumber, toBool, toStr, parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 import type {
   ImportResult,
   NormalizedVm,
@@ -213,7 +213,10 @@ export async function importRvtoolsXlsx(
     report("Sheets erkannt", 30, `${parsed.sheets.length} Sheets, ${totalRows.toLocaleString("de-DE")} Zeilen`);
 
     const snapshotId = crypto.randomUUID();
-    const vcenterId = parsed.vcenterName.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
+    const fileMeta = parseRvtoolsExportFileName(file.name);
+    const vcenterDisplayName = (fileMeta?.vcenterName || parsed.vcenterName || "unknown-vcenter").trim();
+    const exportTs = fileMeta?.exportTs || parsed.exportTs || new Date().toISOString();
+    const vcenterId = vcenterDisplayName.toLowerCase().replace(/[^a-z0-9.-]/g, "_") || "unknown-vcenter";
 
     const sheetStats: Record<string, SheetStats> = {};
     for (const sheet of parsed.sheets) {
@@ -223,8 +226,8 @@ export async function importRvtoolsXlsx(
     report("Metadaten speichern", 35);
     await putSnapshot({
       snapshotId, vcenterId,
-      vcenterDisplayName: parsed.vcenterName,
-      exportTs: parsed.exportTs,
+      vcenterDisplayName,
+      exportTs,
       importedAt: new Date().toISOString(),
       fileName: file.name,
       fileChecksum: checksum,
@@ -266,19 +269,24 @@ export async function importRvtoolsXlsx(
     const healthEvents = normalizeHealth(findSheet(parsed.sheets, "vHealth"), snapshotId, vcenterId);
 
     // Write normalized entities with progress
-    const entityBatches: Array<{ name: string; store: any; items: any[]; pctStart: number; pctEnd: number }> = [
+    const entityBatches = [
       { name: "VMs", store: "entities_vm", items: vms, pctStart: 82, pctEnd: 90 },
       { name: "Hosts", store: "entities_host", items: hosts, pctStart: 90, pctEnd: 92 },
       { name: "Cluster", store: "entities_cluster", items: clusters, pctStart: 92, pctEnd: 93 },
       { name: "Datastores", store: "entities_datastore", items: datastores, pctStart: 93, pctEnd: 95 },
       { name: "Snapshots", store: "entities_snapshot", items: vmSnapshots, pctStart: 95, pctEnd: 97 },
       { name: "Health", store: "entities_health", items: healthEvents, pctStart: 97, pctEnd: 99 },
-    ];
+    ] as const;
 
     for (const eb of entityBatches) {
       if (eb.items.length > 0) {
         report("Entitäten speichern", eb.pctStart, `${eb.items.length.toLocaleString("de-DE")} ${eb.name}`);
-        await batchPut(eb.store, eb.items, 3000);
+        if (eb.store === "entities_vm") await batchPut("entities_vm", eb.items, 3000);
+        if (eb.store === "entities_host") await batchPut("entities_host", eb.items, 3000);
+        if (eb.store === "entities_cluster") await batchPut("entities_cluster", eb.items, 3000);
+        if (eb.store === "entities_datastore") await batchPut("entities_datastore", eb.items, 3000);
+        if (eb.store === "entities_snapshot") await batchPut("entities_snapshot", eb.items, 3000);
+        if (eb.store === "entities_health") await batchPut("entities_health", eb.items, 3000);
       }
     }
 

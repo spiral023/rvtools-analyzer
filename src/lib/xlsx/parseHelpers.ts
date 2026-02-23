@@ -10,6 +10,44 @@ export function excelSerialToIso(serial: number): string {
   return new Date(ms).toISOString();
 }
 
+export interface ParsedRvtoolsFileName {
+  vcenterName: string;
+  exportTs: string;
+}
+
+/**
+ * Parse RVTools export file names like:
+ * RVTools_export_all_2026_02_22_07_05_vcenter9910.xlsx
+ */
+export function parseRvtoolsExportFileName(fileName: string): ParsedRvtoolsFileName | null {
+  const baseName = fileName.split(/[\\/]/).pop() || fileName;
+  const match = baseName.match(
+    /^RVTools_export_all_(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(.+)\.(xlsx|xls)$/i,
+  );
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const vcenterName = match[6]?.trim();
+  if (!vcenterName) return null;
+
+  const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    dt.getFullYear() !== year ||
+    dt.getMonth() !== month - 1 ||
+    dt.getDate() !== day ||
+    dt.getHours() !== hour ||
+    dt.getMinutes() !== minute
+  ) {
+    return null;
+  }
+
+  return { vcenterName, exportTs: dt.toISOString() };
+}
+
 /** Try to parse a value as a number. Returns null if not parseable. */
 export function toNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;

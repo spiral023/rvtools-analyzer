@@ -1,13 +1,14 @@
-/** Shared Recharts tooltip style for dark theme */
 export const CHART_TOOLTIP_STYLE = {
-  backgroundColor: "hsl(222, 15%, 11%)",
-  border: "1px solid hsl(222, 12%, 18%)",
+  backgroundColor: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
-  color: "hsl(210, 20%, 93%)",
+  color: "hsl(var(--popover-foreground))",
   fontSize: "12px",
 };
 
-export const CHART_AXIS_STYLE = { fontSize: 11, fill: "hsl(215, 12%, 55%)" };
+export const CHART_AXIS_STYLE = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
+export const CHART_GRID_STYLE = { stroke: "hsl(var(--border))", strokeDasharray: "3 3" };
+export const CHART_AXIS_LABEL_STYLE = { fill: "hsl(var(--muted-foreground))", fontSize: 11 };
 
 export const CHART_COLORS = {
   primary: "hsl(190, 85%, 48%)",

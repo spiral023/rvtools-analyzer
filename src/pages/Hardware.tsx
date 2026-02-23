@@ -53,6 +53,20 @@ interface HostDetail {
   serviceTag: string;
 }
 
+interface ModelGroup {
+  signature: string;
+  model: string;
+  vendor: string;
+  cpuModel: string;
+  cpuSockets: number;
+  coresPerCpu: number;
+  totalCores: number;
+  speedMHz: number;
+  memoryMiB: number;
+  hosts: HostDetail[];
+  count: number;
+}
+
 interface HbaEntry {
   device: string;
   type: string;
@@ -163,25 +177,52 @@ function formatMemory(mib: number): string {
   return `${mib} MiB`;
 }
 
+function formatCpuClock(mhz: number): string {
+  if (!mhz) return "—";
+  if (mhz >= 1000) return `${(mhz / 1000).toFixed(2)} GHz`;
+  return `${mhz} MHz`;
+}
+
+function buildHardwareSignature(host: HostDetail): string {
+  return [
+    host.model || "Unknown",
+    host.vendor || "Unknown",
+    host.cpuModel || "Unknown CPU",
+    host.speedMHz || 0,
+    host.cpuSockets || 0,
+    host.coresPerCpu || 0,
+    host.totalCores || 0,
+    host.memoryMiB || 0,
+  ].join("|");
+}
+
 /* ------------------------------------------------------------------ */
 /*  Sub-Components                                                     */
 /* ------------------------------------------------------------------ */
 
 function ModelCard({
-  model,
-  count,
-  vendor,
-  hosts,
+  group,
   onSelect,
 }: {
-  model: string;
-  count: number;
-  vendor: string;
-  hosts: HostDetail[];
+  group: ModelGroup;
   onSelect: (h: HostDetail) => void;
 }) {
+  const {
+    model,
+    count,
+    vendor,
+    hosts,
+    cpuModel,
+    cpuSockets,
+    coresPerCpu,
+    totalCores,
+    speedMHz,
+    memoryMiB,
+  } = group;
+  const ramLabel = memoryMiB ? formatMemory(memoryMiB) : "RAM n/a";
+  const coreLabel = totalCores ? `${totalCores} Cores` : "Cores n/a";
+  const socketLabel = cpuSockets ? `${cpuSockets} Sockel` : "Sockel n/a";
   const clusters = [...new Set(hosts.map((h) => h.cluster).filter(Boolean))];
-  const avgMem = hosts.reduce((s, h) => s + h.memoryMiB, 0) / hosts.length;
   const totalVms = hosts.reduce((s, h) => s + h.vmCount, 0);
 
   return (
@@ -195,6 +236,9 @@ function ModelCard({
             <div>
               <CardTitle className="text-base font-semibold">{model || "Unknown Model"}</CardTitle>
               <p className="text-xs text-muted-foreground">{vendor}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {cpuModel || "Unknown CPU"} · {socketLabel} · {coreLabel} · {formatCpuClock(speedMHz)} · {ramLabel}
+              </p>
             </div>
           </div>
           <Badge variant="secondary" className="text-sm font-mono-data">
@@ -213,8 +257,8 @@ function ModelCard({
             <p className="text-[10px] uppercase text-muted-foreground">VMs</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2">
-            <p className="text-lg font-bold font-mono-data">{formatMemory(avgMem)}</p>
-            <p className="text-[10px] uppercase text-muted-foreground">Ø RAM</p>
+            <p className="text-lg font-bold font-mono-data">{coresPerCpu || 0}</p>
+            <p className="text-[10px] uppercase text-muted-foreground">Cores/CPU</p>
           </div>
         </div>
         {clusters.length > 0 && (
@@ -280,7 +324,7 @@ function HostDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden p-0">
+      <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -453,17 +497,34 @@ export default function Hardware() {
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
 
-  // Group by model
-  const modelGroups = useMemo(() => {
-    const map = new Map<string, HostDetail[]>();
+  // Group by model + hardware profile (CPU, speed, cores, RAM)
+  const modelGroups = useMemo<ModelGroup[]>(() => {
+    const map = new Map<string, ModelGroup>();
     for (const h of hosts) {
-      const key = h.model || "Unknown";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(h);
+      const signature = buildHardwareSignature(h);
+      const existing = map.get(signature);
+      if (existing) {
+        existing.hosts.push(h);
+        existing.count += 1;
+        continue;
+      }
+      map.set(signature, {
+        signature,
+        model: h.model || "Unknown",
+        vendor: h.vendor || "Unknown",
+        cpuModel: h.cpuModel || "Unknown CPU",
+        cpuSockets: h.cpuSockets || 0,
+        coresPerCpu: h.coresPerCpu || 0,
+        totalCores: h.totalCores || 0,
+        speedMHz: h.speedMHz || 0,
+        memoryMiB: h.memoryMiB || 0,
+        hosts: [h],
+        count: 1,
+      });
     }
-    return [...map.entries()]
-      .sort((a, b) => b[1].length - a[1].length)
-      .map(([model, hosts]) => ({ model, hosts, count: hosts.length }));
+    return [...map.values()].sort(
+      (a, b) => b.count - a.count || a.model.localeCompare(b.model),
+    );
   }, [hosts]);
 
   // Vendor distribution for pie chart
@@ -478,7 +539,11 @@ export default function Hardware() {
 
   // Model bar chart
   const modelBarData = useMemo(
-    () => modelGroups.map((g) => ({ name: g.model, count: g.count })),
+    () =>
+      modelGroups.map((g) => ({
+        name: `${g.model || "Unknown"} · ${g.totalCores || 0}C · ${Math.round((g.memoryMiB || 0) / 1024)} GiB`,
+        count: g.count,
+      })),
     [modelGroups]
   );
 
@@ -511,7 +576,7 @@ export default function Hardware() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Hardware-Modelle" value={uniqueModels} icon={<Layers className="h-4 w-4" />} />
+        <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} />
         <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} />
         <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} />
       </div>
@@ -521,7 +586,7 @@ export default function Hardware() {
         {/* Model distribution bar */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Host-Modell Verteilung</CardTitle>
+            <CardTitle className="text-sm font-semibold">Host-Modellvarianten Verteilung</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={Math.max(200, modelBarData.length * 38)}>
@@ -530,7 +595,7 @@ export default function Hardware() {
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={180}
+                  width={280}
                   tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }}
                 />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
@@ -576,15 +641,12 @@ export default function Hardware() {
 
       {/* Model cards grid */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Modelle im Detail</h2>
+        <h2 className="text-lg font-semibold mb-3">Modelle und Varianten im Detail</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {modelGroups.map((g) => (
             <ModelCard
-              key={g.model}
-              model={g.model}
-              count={g.count}
-              vendor={g.hosts[0]?.vendor || ""}
-              hosts={g.hosts}
+              key={g.signature}
+              group={g}
               onSelect={setSelectedHost}
             />
           ))}
