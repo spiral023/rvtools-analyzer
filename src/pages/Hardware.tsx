@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useHosts, useRawSheet, useActiveSnapshotIds } from "@/hooks/useActiveSnapshots";
+import { useRawSheet, useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { FilterBar } from "@/components/dashboard/FilterBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import {
   Server, Cpu, MemoryStick, HardDrive, Network as NetworkIcon,
   ChevronRight, Layers, MonitorCog, CircuitBoard,
 } from "lucide-react";
-import type { SheetRow } from "@/domain/models/types";
+import type { SheetRow, NormalizedVm } from "@/domain/models/types";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -111,14 +112,25 @@ function bool(v: unknown): boolean {
 }
 
 function normalizeHardwareModel(vendor: string, model: string): string {
-  const cleaned = model.trim().replace(/^"+|"+$/g, "");
+  const cleaned = model.trim().replace(/^"+|"+$/g, "").replace(/\s+/g, " ");
   const isHitachi = vendor.toLowerCase().includes("hitachi");
   if (!isHitachi) return cleaned;
 
-  // Example: "Advanced Server DS120 G2 1HY1ZZZ043T" -> "Advanced Server DS120 G2"
-  const base = "Advanced Server DS120 G2";
-  const rx = new RegExp(`^${base}\\s+[A-Z0-9]{8,}$`, "i");
-  if (rx.test(cleaned)) return base;
+  // Examples:
+  // "Advanced Server DS120 G2 1HY1ZZZ043T" -> "Advanced Server DS120 G2"
+  // "Advanced Server DS220 G2 01" -> "Advanced Server DS220 G2"
+  // "Advanced Server DS220 G2-01" -> "Advanced Server DS220 G2"
+  const advancedServerMatch = cleaned.match(
+    /^advanced server ds(\d+)\s+g2(?:[\s\-_]+#?([a-z0-9]+))?$/i,
+  );
+  if (advancedServerMatch) {
+    const canonicalBase = `Advanced Server DS${advancedServerMatch[1]} G2`;
+    const suffix = advancedServerMatch[2];
+    if (!suffix) return canonicalBase;
+    if (/^\d+$/.test(suffix)) return canonicalBase;
+    if (/^[a-z0-9]{8,}$/i.test(suffix)) return canonicalBase;
+  }
+
   return cleaned;
 }
 
@@ -308,12 +320,14 @@ function HostDetailDialog({
   host,
   hbaRows,
   nicRows,
+  vmRows,
   open,
   onClose,
 }: {
   host: HostDetail | null;
   hbaRows: SheetRow[];
   nicRows: SheetRow[];
+  vmRows: NormalizedVm[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -321,6 +335,15 @@ function HostDetailDialog({
 
   const hbas = buildHbaEntries(hbaRows, host.host);
   const nics = buildNicEntries(nicRows, host.host);
+  const hostKey = host.host.trim().toLowerCase();
+  const runningVms = vmRows
+    .filter((vm) => {
+      const vmHost = (vm.host || "").trim().toLowerCase();
+      if (!vmHost || vmHost !== hostKey) return false;
+      const power = (vm.powerState || "").replace(/\s+/g, "").toLowerCase();
+      return power === "poweredon" || power === "on";
+    })
+    .sort((a, b) => a.vmName.localeCompare(b.vmName));
 
   const statusColor = (s: string) => {
     const l = s.toLowerCase();
@@ -483,6 +506,47 @@ function HostDetailDialog({
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            {/* Running VMs */}
+            <section>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <HardDrive className="h-3.5 w-3.5" /> Virtuelle Maschinen ({runningVms.length})
+              </h4>
+              {runningVms.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Keine laufenden VMs auf diesem Host gefunden</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-left text-[10px] uppercase text-muted-foreground">
+                        <th className="py-2 pr-3">VM</th>
+                        <th className="py-2 pr-3">Power</th>
+                        <th className="py-2 pr-3">vCPU</th>
+                        <th className="py-2 pr-3">RAM</th>
+                        <th className="py-2 pr-3">Cluster</th>
+                        <th className="py-2 pr-3">Resource Pool</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {runningVms.map((vm) => (
+                        <tr key={`${vm.vmKey}::${vm.snapshotId}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                          <td className="py-2 pr-3 font-mono-data font-semibold">{vm.vmName}</td>
+                          <td className="py-2 pr-3">
+                            <Badge variant="secondary" className="text-[10px]">PoweredOn</Badge>
+                          </td>
+                          <td className="py-2 pr-3 font-mono-data">{vm.cpuCount ?? "—"}</td>
+                          <td className="py-2 pr-3 font-mono-data">{vm.memoryMiB ? formatMemory(vm.memoryMiB) : "—"}</td>
+                          <td className="py-2 pr-3">{vm.cluster || "—"}</td>
+                          <td className="py-2 pr-3">{vm.resourcePool || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
         </ScrollArea>
       </DialogContent>
@@ -495,19 +559,39 @@ function HostDetailDialog({
 /* ------------------------------------------------------------------ */
 
 export default function Hardware() {
-  const { activeSnapshotIds } = useActiveSnapshotIds();
+  const { activeSnapshotIds, filters } = useActiveSnapshotIds();
   const { data: hostRows = [] } = useRawSheet("vHost");
   const { data: hbaRows = [] } = useRawSheet("vHBA");
   const { data: nicRows = [] } = useRawSheet("vNIC");
+  const { allVms = [] } = useVms();
 
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
+  const filteredHosts = useMemo(() => {
+    const q = filters.search.trim().toLowerCase();
+    return hosts.filter((h) => {
+      if (filters.clusters.length > 0 && (!h.cluster || !filters.clusters.includes(h.cluster))) return false;
+      if (filters.hosts.length > 0 && !filters.hosts.includes(h.host)) return false;
+      if (!q) return true;
+      return [
+        h.host,
+        h.model,
+        h.vendor,
+        h.cluster,
+        h.datacenter,
+        h.cpuModel,
+        h.esxVersion,
+        h.serial,
+        h.serviceTag,
+      ].some((v) => (v || "").toLowerCase().includes(q));
+    });
+  }, [hosts, filters.clusters, filters.hosts, filters.search]);
 
   // Group by model + hardware profile (CPU, speed, cores, RAM)
   const modelGroups = useMemo<ModelGroup[]>(() => {
     const map = new Map<string, ModelGroup>();
-    for (const h of hosts) {
+    for (const h of filteredHosts) {
       const signature = buildHardwareSignature(h);
       const existing = map.get(signature);
       if (existing) {
@@ -532,17 +616,17 @@ export default function Hardware() {
     return [...map.values()].sort(
       (a, b) => b.count - a.count || a.model.localeCompare(b.model),
     );
-  }, [hosts]);
+  }, [filteredHosts]);
 
   // Vendor distribution for pie chart
   const vendorData = useMemo(() => {
     const map = new Map<string, number>();
-    for (const h of hosts) {
+    for (const h of filteredHosts) {
       const v = h.vendor || "Unknown";
       map.set(v, (map.get(v) || 0) + 1);
     }
     return [...map.entries()].map(([name, value]) => ({ name, value }));
-  }, [hosts]);
+  }, [filteredHosts]);
 
   // Model bar chart
   const modelBarData = useMemo(
@@ -555,9 +639,9 @@ export default function Hardware() {
   );
 
   const uniqueModels = modelGroups.length;
-  const totalHosts = hosts.length;
-  const totalVms = hosts.reduce((s, h) => s + h.vmCount, 0);
-  const uniqueVendors = new Set(hosts.map((h) => h.vendor)).size;
+  const totalHosts = filteredHosts.length;
+  const totalVms = filteredHosts.reduce((s, h) => s + h.vmCount, 0);
+  const uniqueVendors = new Set(filteredHosts.map((h) => h.vendor)).size;
 
   if (activeSnapshotIds.length === 0) {
     return (
@@ -579,6 +663,7 @@ export default function Hardware() {
           ESXi-Host-Hardware-Modelle, Komponenten und Konfiguration
         </p>
       </div>
+      <FilterBar />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -665,6 +750,7 @@ export default function Hardware() {
         host={selectedHost}
         hbaRows={hbaRows}
         nicRows={nicRows}
+        vmRows={allVms}
         open={!!selectedHost}
         onClose={() => setSelectedHost(null)}
       />

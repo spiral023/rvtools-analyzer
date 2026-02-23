@@ -26,7 +26,7 @@ const dsColumns: ColumnDef<NormalizedDatastore, unknown>[] = [
 
 interface ClusterMetric {
   name: string; cpuRatio: number; ramRatio: number; vCpuSum: number;
-  threads: number; ramAllocGiB: number; ramTotalGiB: number;
+  cores: number; ramAllocGiB: number; ramTotalGiB: number;
 }
 
 interface RpRow { name: string; path: string; status: string; vms: number; cpuLimit: string; cpuReservation: number; cpuExpandable: boolean; memLimit: string; memReservation: number; memExpandable: boolean; risk: string }
@@ -64,7 +64,7 @@ const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
   { accessorKey: "cpuRatio", header: "CPU Overcommit", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
   { accessorKey: "ramRatio", header: "RAM Overcommit", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 1.5 ? "text-destructive font-semibold" : v > 1.0 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
   { accessorKey: "vCpuSum", header: "vCPUs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "threads", header: "Threads", cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "cores", header: "Cores", cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "ramAllocGiB", header: "RAM Alloc", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
   { accessorKey: "ramTotalGiB", header: "RAM Total", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
 ];
@@ -198,11 +198,12 @@ export default function Capacity() {
   const clusterMetrics = useMemo<ClusterMetric[]>(() => {
     return clusters.map((c) => {
       const clusterVms = vms.filter((v) => v.cluster === c.name && v.powerState === "poweredOn");
+      const totalCores = c.numCpuCores || 0;
       const vCpuSum = clusterVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
       const ramAllocMiB = clusterVms.reduce((s, v) => s + (v.memoryMiB || 0), 0);
-      const cpuRatio = c.numCpuThreads ? vCpuSum / c.numCpuThreads : 0;
+      const cpuRatio = totalCores > 0 ? vCpuSum / totalCores : 0;
       const ramRatio = c.totalMemoryMiB ? ramAllocMiB / c.totalMemoryMiB : 0;
-      return { name: c.name, cpuRatio: Math.round(cpuRatio * 100) / 100, ramRatio: Math.round(ramRatio * 100) / 100, vCpuSum, threads: c.numCpuThreads || 0, ramAllocGiB: ramAllocMiB / 1024, ramTotalGiB: (c.totalMemoryMiB || 0) / 1024 };
+      return { name: c.name, cpuRatio: Math.round(cpuRatio * 100) / 100, ramRatio: Math.round(ramRatio * 100) / 100, vCpuSum, cores: totalCores, ramAllocGiB: ramAllocMiB / 1024, ramTotalGiB: (c.totalMemoryMiB || 0) / 1024 };
     }).sort((a, b) => b.cpuRatio - a.cpuRatio);
   }, [clusters, vms]);
 

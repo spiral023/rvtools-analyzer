@@ -191,6 +191,7 @@ function normalizeClusters(sheet: ParsedSheetData | undefined, snapshotId: strin
       haEnabled: toBool(row["HA enabled"]),
       drsEnabled: toBool(row["DRS enabled"]),
       numHosts: toNumber(row["NumHosts"] || row["# Hosts"]),
+      numCpuCores: toNumber(row["NumCpuCores"] || row["# Cores"]),
       numCpuThreads: toNumber(row["NumCpuThreads"] || row["# CPU Threads"]),
       totalMemoryMiB: toNumber(row["TotalMemory"] || row["Total Memory"]),
       totalCpuMHz: toNumber(row["TotalCpu"] || row["Total CPU"]),

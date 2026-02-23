@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useVmsWithTechInfo } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -49,30 +49,74 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
 
 export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
-  const { vmsWithTechInfo } = useVmsWithTechInfo();
+  const { allVms } = useVms();
+
+  const scopeVms = useMemo(
+    () =>
+      allVms.filter((vm) => {
+        if (filters.clusters.length > 0 && (!vm.cluster || !filters.clusters.includes(vm.cluster))) return false;
+        if (filters.hosts.length > 0 && (!vm.host || !filters.hosts.includes(vm.host))) return false;
+        return true;
+      }),
+    [allVms, filters.clusters, filters.hosts],
+  );
+
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));
+
+  const byVmName = useMemo(() => {
+    const map = new Map<string, (typeof techInfoLatest)[number]>();
+    for (const entry of techInfoLatest) map.set(entry.vmNameNorm, entry);
+    return map;
+  }, [techInfoLatest]);
 
   const rows = useMemo<TechInfoVmRow[]>(
     () =>
-      vmsWithTechInfo.map((vm) => ({
-        vmName: vm.vmName,
-        maintenanceWindow: vm.techInfo?.maintenanceWindow ?? null,
-        operatingSystem: vm.techInfo?.operatingSystem ?? null,
-        comment: vm.techInfo?.comment ?? null,
-        sysv: vm.techInfo?.sysv ?? null,
-        sysvDepartment: vm.techInfo?.sysvDepartment ?? null,
-        sysvDeputy: vm.techInfo?.sysvDeputy ?? null,
-        sysvDeputyDepartment: vm.techInfo?.sysvDeputyDepartment ?? null,
-        bz: vm.techInfo?.bz ?? null,
-        clusterFromTechInfo: vm.techInfo?.clusterFromTechInfo ?? null,
-        cvBackup: vm.techInfo?.cvBackup ?? null,
-        az: vm.techInfo?.az ?? null,
-        hasTechInfo: vm.techInfo !== null,
-      })),
-    [vmsWithTechInfo],
+      scopeVms.map((vm) => {
+        const techInfo = byVmName.get(vm.vmName.trim().toLowerCase()) ?? null;
+        return {
+          vmName: vm.vmName,
+          maintenanceWindow: techInfo?.maintenanceWindow ?? null,
+          operatingSystem: techInfo?.operatingSystem ?? null,
+          comment: techInfo?.comment ?? null,
+          sysv: techInfo?.sysv ?? null,
+          sysvDepartment: techInfo?.sysvDepartment ?? null,
+          sysvDeputy: techInfo?.sysvDeputy ?? null,
+          sysvDeputyDepartment: techInfo?.sysvDeputyDepartment ?? null,
+          bz: techInfo?.bz ?? null,
+          clusterFromTechInfo: techInfo?.clusterFromTechInfo ?? null,
+          cvBackup: techInfo?.cvBackup ?? null,
+          az: techInfo?.az ?? null,
+          hasTechInfo: techInfo !== null,
+        };
+      }),
+    [scopeVms, byVmName],
   );
 
-  const vmTotal = rows.length;
-  const vmWithTechInfo = rows.filter((row) => row.hasTechInfo).length;
+  const searchedRows = useMemo(() => {
+    const q = filters.search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const values = [
+        row.vmName,
+        row.maintenanceWindow,
+        row.operatingSystem,
+        row.comment,
+        row.sysv,
+        row.sysvDepartment,
+        row.sysvDeputy,
+        row.sysvDeputyDepartment,
+        row.bz,
+        row.clusterFromTechInfo,
+        row.az,
+        row.hasTechInfo ? "mit tech-info" : "ohne tech-info",
+        row.cvBackup === null ? "—" : row.cvBackup ? "ja" : "nein",
+      ];
+      return values.some((v) => String(v ?? "").toLowerCase().includes(q));
+    });
+  }, [rows, filters.search]);
+
+  const vmTotal = searchedRows.length;
+  const vmWithTechInfo = searchedRows.filter((row) => row.hasTechInfo).length;
   const vmWithoutTechInfo = vmTotal - vmWithTechInfo;
 
   if (snapshots.length === 0) {
@@ -100,8 +144,8 @@ export default function TechInfo() {
         <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfo)} severity={vmWithoutTechInfo > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} />
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info ({rows.length})</h3>
-        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={460} />
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info ({searchedRows.length})</h3>
+        <VirtualTable data={searchedRows} columns={columns} height={460} />
       </div>
     </div>
   );

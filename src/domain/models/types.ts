@@ -147,6 +147,7 @@ export interface NormalizedCluster {
   haEnabled: boolean | null;
   drsEnabled: boolean | null;
   numHosts: number | null;
+  numCpuCores: number | null;
   numCpuThreads: number | null;
   totalMemoryMiB: number | null;
   totalCpuMHz: number | null;
