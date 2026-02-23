@@ -16,6 +16,7 @@ interface NicRow { host: string; device: string; speed: number; duplex: boolean;
 interface UplinkRow { port: string; switchName: string; activeUplinks: string; standbyUplinks: string; redundant: boolean; risk: string }
 interface DvDriftRow { port: string; switchName: string; field: string; value: string; expected: string }
 interface TeamingRow { name: string; type: string; policy: string; rollingOrder: boolean; notifySwitch: boolean; issues: string }
+interface VlanChartRow { vlan: string; count: number; vlanName: string }
 
 const policyColumns: ColumnDef<PolicyRow, unknown>[] = [
   { accessorKey: "name", header: "Port/Switch" },
@@ -92,10 +93,19 @@ export default function NetworkSecurity() {
     rawNIC.map((r) => ({ host: String(r.data["Host"] || ""), device: String(r.data["Network Device"] || ""), speed: Number(String(r.data["Speed"] || "0").replace(/,/g, "")), duplex: String(r.data["Duplex"] || "").toLowerCase() === "true", driver: String(r.data["Driver"] || ""), mac: String(r.data["MAC"] || "") })), [rawNIC]);
 
   // VLAN chart
-  const vlanChart = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of policies) { if (p.vlan) map.set(p.vlan, (map.get(p.vlan) || 0) + 1); }
-    return [...map.entries()].map(([vlan, count]) => ({ vlan, count })).sort((a, b) => b.count - a.count).slice(0, 20);
+  const vlanChart = useMemo<VlanChartRow[]>(() => {
+    const map = new Map<string, { count: number; names: Set<string> }>();
+    for (const p of policies) {
+      if (!p.vlan) continue;
+      if (!map.has(p.vlan)) map.set(p.vlan, { count: 0, names: new Set<string>() });
+      const entry = map.get(p.vlan)!;
+      entry.count += 1;
+      if (p.name) entry.names.add(p.name);
+    }
+    return [...map.entries()]
+      .map(([vlan, entry]) => ({ vlan, count: entry.count, vlanName: [...entry.names].join(", ") || "—" }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
   }, [policies]);
 
   // NIC Speed Histogram
@@ -171,7 +181,25 @@ export default function NetworkSecurity() {
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VLAN Verteilung (Top 20)</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={vlanChart}><XAxis dataKey="vlan" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /></BarChart>
+            <BarChart data={vlanChart}>
+              <XAxis dataKey="vlan" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE}
+                content={({ active, payload }) => {
+                  if (!active || !payload || payload.length === 0) return null;
+                  const row = payload[0].payload as VlanChartRow;
+                  return (
+                    <div style={CHART_TOOLTIP_STYLE}>
+                      <div className="text-xs font-semibold">VLAN Name</div>
+                      <div className="text-xs">{row.vlanName}</div>
+                      <div className="mt-1 text-xs">Anzahl: <span className="font-semibold">{row.count}</span></div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="count" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

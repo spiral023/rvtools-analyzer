@@ -61,7 +61,7 @@ interface ClusterCapacityRow {
 
 const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
   { accessorKey: "name", header: "Cluster" },
-  { accessorKey: "cpuRatio", header: "CPU Overcommit", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
+  { accessorKey: "cpuRatio", header: "vCPU/Core", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}</span>; }},
   { accessorKey: "ramRatio", header: "RAM Overcommit", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 1.5 ? "text-destructive font-semibold" : v > 1.0 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
   { accessorKey: "vCpuSum", header: "vCPUs", cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "cores", header: "Cores", cell: ({ getValue }) => formatNum(getValue() as number) },
@@ -198,14 +198,17 @@ export default function Capacity() {
   const clusterMetrics = useMemo<ClusterMetric[]>(() => {
     return clusters.map((c) => {
       const clusterVms = vms.filter((v) => v.cluster === c.name && v.powerState === "poweredOn");
-      const totalCores = c.numCpuCores || 0;
+      const totalCoresFromHosts = hosts
+        .filter((h) => h.cluster === c.name)
+        .reduce((sum, h) => sum + (h.cpuCores || 0), 0);
+      const totalCores = totalCoresFromHosts > 0 ? totalCoresFromHosts : (c.numCpuCores || 0);
       const vCpuSum = clusterVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
       const ramAllocMiB = clusterVms.reduce((s, v) => s + (v.memoryMiB || 0), 0);
       const cpuRatio = totalCores > 0 ? vCpuSum / totalCores : 0;
       const ramRatio = c.totalMemoryMiB ? ramAllocMiB / c.totalMemoryMiB : 0;
       return { name: c.name, cpuRatio: Math.round(cpuRatio * 100) / 100, ramRatio: Math.round(ramRatio * 100) / 100, vCpuSum, cores: totalCores, ramAllocGiB: ramAllocMiB / 1024, ramTotalGiB: (c.totalMemoryMiB || 0) / 1024 };
     }).sort((a, b) => b.cpuRatio - a.cpuRatio);
-  }, [clusters, vms]);
+  }, [clusters, hosts, vms]);
 
   const hostDensity = useMemo(() => {
     return hosts.map((h) => {
@@ -302,7 +305,7 @@ export default function Capacity() {
       e.cpuWeight += cpuWeight;
       e.memWeight += memWeight;
 
-      if (cpuUsagePct > 85 || memUsagePct > 90) e.hotHosts += 1;
+      if (cpuUsagePct > 60 || memUsagePct > 75) e.hotHosts += 1;
       if (htAvailable && !htActive) e.htInactiveHosts += 1;
       e.cpuMin = Math.min(e.cpuMin, cpuUsagePct);
       e.cpuMax = Math.max(e.cpuMax, cpuUsagePct);
