@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { useActiveSnapshotIds, useVms, useHosts, useDatastores, useHealthEvents } from "@/hooks/useActiveSnapshots";
+import { useMemo, useState } from "react";
+import { useActiveSnapshotIds, useVms, useHosts, useDatastores, useHealthEvents, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { Server, Cpu, HardDrive, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -34,6 +35,15 @@ export default function Overview() {
   const { data: hosts = [] } = useHosts();
   const { data: datastores = [] } = useDatastores();
   const { data: healthEvents = [] } = useHealthEvents();
+  const { data: rawCpuRows = [] } = useRawSheet("vCPU");
+  const { data: rawMemoryRows = [] } = useRawSheet("vMemory");
+  const { data: rawDiskRows = [] } = useRawSheet("vDisk");
+  const { data: rawPartitionRows = [] } = useRawSheet("vPartition");
+  const { data: rawNetworkRows = [] } = useRawSheet("vNetwork");
+  const { data: rawSnapshotRows = [] } = useRawSheet("vSnapshot");
+  const { data: rawToolsRows = [] } = useRawSheet("vTools");
+
+  const [selectedVm, setSelectedVm] = useState<NormalizedVm | null>(null);
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -111,8 +121,26 @@ export default function Overview() {
       </div>
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
-        <VirtualTable data={vmsForTable} columns={vmColumns} globalFilter={filters.search} height={400} />
+        <VirtualTable
+          data={vmsForTable}
+          columns={vmColumns}
+          globalFilter={filters.search}
+          height={400}
+          onRowClick={setSelectedVm}
+        />
       </div>
+      <VmDetailDialog
+        vm={selectedVm}
+        open={!!selectedVm}
+        onClose={() => setSelectedVm(null)}
+        rawCpuRows={rawCpuRows}
+        rawMemoryRows={rawMemoryRows}
+        rawDiskRows={rawDiskRows}
+        rawPartitionRows={rawPartitionRows}
+        rawNetworkRows={rawNetworkRows}
+        rawSnapshotRows={rawSnapshotRows}
+        rawToolsRows={rawToolsRows}
+      />
     </div>
   );
 }

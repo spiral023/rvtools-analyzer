@@ -18,6 +18,7 @@ interface VirtualTableProps<T> {
   globalFilter?: string;
   height?: number;
   className?: string;
+  onRowClick?: (row: T) => void;
 }
 
 export function VirtualTable<T>({
@@ -26,6 +27,7 @@ export function VirtualTable<T>({
   globalFilter = "",
   height = 500,
   className,
+  onRowClick,
 }: VirtualTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -105,7 +107,11 @@ export function VirtualTable<T>({
               return (
                 <tr
                   key={row.id}
-                  className="border-b border-border/30 transition-colors hover:bg-muted/30"
+                  className={cn(
+                    "border-b border-border/30 transition-colors hover:bg-muted/30",
+                    onRowClick && "cursor-pointer",
+                  )}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
