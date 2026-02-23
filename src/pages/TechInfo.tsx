@@ -33,7 +33,6 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
   { accessorKey: "sysvDepartment", header: "SysV Abteilung", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "sysvDeputy", header: "SysVStv", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "sysvDeputyDepartment", header: "SysVStv Abteilung", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "bz", header: "BZ", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "clusterFromTechInfo", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
   {
     accessorKey: "cvBackup",
@@ -44,6 +43,7 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
       return val ? "Ja" : "Nein";
     },
   },
+  { accessorKey: "bz", header: "BZ", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "az", header: "AZ", cell: ({ getValue }) => getValue() || "—" },
 ];
 

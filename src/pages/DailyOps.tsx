@@ -151,7 +151,7 @@ export default function DailyOps() {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={healthByType} layout="vertical">
               <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={140} interval={0} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="count" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} />
             </BarChart>

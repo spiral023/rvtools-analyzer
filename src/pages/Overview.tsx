@@ -52,6 +52,14 @@ export default function Overview() {
     return [...map.entries()].map(([name, count]) => ({ name, hosts: count })).slice(0, 10);
   }, [hosts]);
 
+  const vmsForTable = useMemo(
+    () =>
+      [...filteredVms].sort((a, b) =>
+        a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" }),
+      ),
+    [filteredVms],
+  );
+
   if (snapshots.length === 0) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -103,7 +111,7 @@ export default function Overview() {
       </div>
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
-        <VirtualTable data={filteredVms} columns={vmColumns} globalFilter={filters.search} height={400} />
+        <VirtualTable data={vmsForTable} columns={vmColumns} globalFilter={filters.search} height={400} />
       </div>
     </div>
   );

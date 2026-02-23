@@ -59,6 +59,13 @@ interface ClusterCapacityRow {
   risk: "hoch" | "mittel" | "niedrig";
 }
 
+interface HostDensityPoint {
+  name: string;
+  vms: number;
+  vcpuPerCore: number;
+  ramGiB: number;
+}
+
 const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
   { accessorKey: "name", header: "Cluster" },
   { accessorKey: "cpuRatio", header: "vCPU/Core", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}</span>; }},
@@ -210,13 +217,32 @@ export default function Capacity() {
     }).sort((a, b) => b.cpuRatio - a.cpuRatio);
   }, [clusters, hosts, vms]);
 
-  const hostDensity = useMemo(() => {
+  const hostDensity = useMemo<HostDensityPoint[]>(() => {
     return hosts.map((h) => {
       const hostVms = vms.filter((v) => v.host === h.host && v.powerState === "poweredOn");
       const vCpuSum = hostVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
       return { name: h.host, vms: hostVms.length, vcpuPerCore: h.cpuCores ? Math.round((vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024) };
     }).filter((h) => h.vms > 0);
   }, [hosts, vms]);
+
+  const renderHostDensityTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload?: HostDensityPoint }>;
+  }) => {
+    if (!active || !payload?.length || !payload[0]?.payload) return null;
+    const point = payload[0].payload;
+    return (
+      <div style={CHART_TOOLTIP_STYLE}>
+        <p style={CHART_TOOLTIP_LABEL_STYLE}>Host: {point.name}</p>
+        <p style={CHART_TOOLTIP_ITEM_STYLE}>VMs: {formatNum(point.vms)}</p>
+        <p style={CHART_TOOLTIP_ITEM_STYLE}>vCPU/Core: {point.vcpuPerCore.toFixed(2)}</p>
+        <p style={CHART_TOOLTIP_ITEM_STYLE}>RAM: {formatNum(point.ramGiB)} GiB</p>
+      </div>
+    );
+  };
 
   const clusterCapacity = useMemo<ClusterCapacityRow[]>(() => {
     const grouped = new Map<string, {
@@ -525,7 +551,7 @@ export default function Capacity() {
               <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
               <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
               <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} cursor={{ strokeDasharray: "3 3" }} />
+              <Tooltip content={renderHostDensityTooltip} cursor={{ strokeDasharray: "3 3" }} />
               <Scatter data={hostDensity} fill={CHART_COLORS.primary} />
             </ScatterChart>
           </ResponsiveContainer>

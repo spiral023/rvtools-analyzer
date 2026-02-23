@@ -17,10 +17,22 @@ export function FilterBar() {
 
   useEffect(() => {
     getSnapshots().then((snaps) => {
-      const sorted = [...snaps].sort((a, b) => b.exportTs.localeCompare(a.exportTs));
-      setSnapshots(sorted);
-      const vcs = [...new Set(sorted.map((s) => s.vcenterId))];
-      setVcenters(vcs);
+      const compareByName = (a: string, b: string) =>
+        a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" });
+
+      const sortedSnapshots = [...snaps].sort((a, b) => compareByName(a.fileName, b.fileName));
+      setSnapshots(sortedSnapshots);
+
+      const vcenterById = new Map<string, string>();
+      for (const snap of sortedSnapshots) {
+        if (!vcenterById.has(snap.vcenterId)) vcenterById.set(snap.vcenterId, snap.vcenterDisplayName || snap.vcenterId);
+      }
+
+      const sortedVcenters = [...vcenterById.entries()]
+        .sort(([, nameA], [, nameB]) => compareByName(nameA, nameB))
+        .map(([id]) => id);
+
+      setVcenters(sortedVcenters);
     });
   }, []);
 
