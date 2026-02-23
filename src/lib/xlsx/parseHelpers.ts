@@ -15,6 +15,74 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
+export type ParsedFileKind = "rvtools" | "tech-info";
+
+const RVTOOLS_CANONICAL_SHEETS = new Set([
+  "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
+  "vCD", "vUSB", "vSnapshot", "vTools", "vSource", "vRP",
+  "vCluster", "vHost", "vHBA", "vNIC", "vSwitch", "vPort",
+  "dvSwitch", "dvPort", "vSC_VMK", "vDatastore", "vMultiPath",
+  "vLicense", "vFileInfo", "vHealth", "vMetaData",
+]);
+
+const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
+
+export interface SheetShapeForDetection {
+  sheetName: string;
+  headers: string[];
+}
+
+export interface TechInfoDisplayFields {
+  maintenanceWindow: string | null;
+  operatingSystem: string | null;
+  comment: string | null;
+  sysv: string | null;
+  sysvDepartment: string | null;
+  sysvDeputy: string | null;
+  sysvDeputyDepartment: string | null;
+  bz: string | null;
+  clusterFromTechInfo: string | null;
+  cvBackup: boolean | null;
+  az: string | null;
+}
+
+export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFileKind {
+  const hasRvtoolsSheet = sheets.some((sheet) => RVTOOLS_CANONICAL_SHEETS.has(sheet.sheetName));
+  if (hasRvtoolsSheet) return "rvtools";
+
+  const hasTechInfoHeaders = sheets.some((sheet) =>
+    TECH_INFO_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasTechInfoHeaders) return "tech-info";
+
+  return "rvtools";
+}
+
+export function normalizeVmNameForMatch(vmName: string): string {
+  return vmName.trim().toLowerCase();
+}
+
+export function mapTechInfoDisplayFields(row: Record<string, unknown>): TechInfoDisplayFields {
+  return {
+    maintenanceWindow: toStr(row["Wartungsfenster"]),
+    operatingSystem: toStr(row["Betriebssystem"]),
+    comment: toStr(row["Kommentar"]),
+    sysv: toStr(row["SysV"]),
+    sysvDepartment: toStr(row["SysV Abteilung"]),
+    sysvDeputy: toStr(row["SysVStv"]),
+    sysvDeputyDepartment: toStr(row["SysVStv Abteilung"]),
+    bz: toStr(row["BZ"]),
+    clusterFromTechInfo: toStr(row["Schrankreihe"]),
+    cvBackup: toBool(row["CV-Backup"]),
+    az: toStr(row["AZ"]),
+  };
+}
+
+export function isTechInfoNewerOrEqual(candidateImportedAt: string, currentImportedAt: string | null | undefined): boolean {
+  if (!currentImportedAt) return true;
+  return candidateImportedAt >= currentImportedAt;
+}
+
 /**
  * Parse RVTools export file names like:
  * RVTools_export_all_2026_02_22_07_05_vcenter9910.xlsx

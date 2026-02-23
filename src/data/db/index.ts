@@ -10,6 +10,9 @@ import type {
   NormalizedHealth,
   AnalysisMetric,
   UiState,
+  TechInfoImportMeta,
+  TechInfoRow,
+  TechInfoLatest,
 } from "@/domain/models/types";
 
 /* ---------- schema ---------- */
@@ -32,18 +35,35 @@ interface RVToolsDBSchema extends DBSchema {
   entities_health: { key: number; value: NormalizedHealth & { id?: number }; indexes: { snapshotId: string } };
   metrics_cache: { key: [string, string]; value: AnalysisMetric; indexes: { snapshotId: string } };
   ui_state: { key: string; value: UiState };
+  techinfo_imports: {
+    key: string;
+    value: TechInfoImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  techinfo_rows: {
+    key: [string, number];
+    value: TechInfoRow;
+    indexes: { techInfoImportId: string; vmNameNorm: string };
+  };
+  techinfo_latest: {
+    key: string;
+    value: TechInfoLatest;
+    indexes: { importedAt: string };
+  };
 }
 
 type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
-  | "entities_health" | "metrics_cache" | "ui_state";
+  | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
+  | "techinfo_rows" | "techinfo_latest";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
+  "techinfo_imports", "techinfo_rows", "techinfo_latest",
 ];
 
 let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
@@ -94,6 +114,20 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         if (!db.objectStoreNames.contains("ui_state")) {
           db.createObjectStore("ui_state", { keyPath: "id" });
         }
+        if (!db.objectStoreNames.contains("techinfo_imports")) {
+          const imports = db.createObjectStore("techinfo_imports", { keyPath: "techInfoImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("techinfo_rows")) {
+          const rows = db.createObjectStore("techinfo_rows", { keyPath: ["techInfoImportId", "rowIndex"] });
+          rows.createIndex("techInfoImportId", "techInfoImportId");
+          rows.createIndex("vmNameNorm", "vmNameNorm");
+        }
+        if (!db.objectStoreNames.contains("techinfo_latest")) {
+          const latest = db.createObjectStore("techinfo_latest", { keyPath: "vmNameNorm" });
+          latest.createIndex("importedAt", "importedAt");
+        }
       },
     });
   }
@@ -115,6 +149,16 @@ export async function getSnapshotsByChecksum(checksum: string): Promise<Snapshot
 export async function putSnapshot(snap: SnapshotMeta): Promise<void> {
   const db = await getDb();
   await db.put("snapshots", snap);
+}
+
+export async function getTechInfoImportByChecksum(checksum: string): Promise<TechInfoImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("techinfo_imports", "fileChecksum", checksum);
+}
+
+export async function putTechInfoImport(meta: TechInfoImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("techinfo_imports", meta);
 }
 
 export async function getBySnapshotIds<T>(
@@ -146,6 +190,19 @@ export async function getRawSheetRows(
   return results;
 }
 
+export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
+  const db = await getDb();
+  return db.getAll("techinfo_latest");
+}
+
+export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<TechInfoLatest[]> {
+  if (vmNames.length === 0) return [];
+  const db = await getDb();
+  const uniqueNorm = [...new Set(vmNames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
+  const values = await Promise.all(uniqueNorm.map((vmNameNorm) => db.get("techinfo_latest", vmNameNorm)));
+  return values.filter((v): v is TechInfoLatest => Boolean(v));
+}
+
 export async function batchPut<S extends StoreName>(
   storeName: S,
   items: RVToolsDBSchema[S]["value"][],
@@ -157,10 +214,22 @@ export async function batchPut<S extends StoreName>(
     const batch = items.slice(i, i + batchSize);
     const tx = db.transaction(storeName, "readwrite");
     for (const item of batch) {
-      tx.store.put(item as any);
+      tx.store.put(item);
     }
     await tx.done;
   }
+}
+
+export async function batchPutTechInfoImports(items: TechInfoImportMeta[], batchSize = 1000): Promise<void> {
+  await batchPut("techinfo_imports", items, batchSize);
+}
+
+export async function batchPutTechInfoRows(items: TechInfoRow[], batchSize = 5000): Promise<void> {
+  await batchPut("techinfo_rows", items, batchSize);
+}
+
+export async function batchPutTechInfoLatest(items: TechInfoLatest[], batchSize = 5000): Promise<void> {
+  await batchPut("techinfo_latest", items, batchSize);
 }
 
 /* ---------- delete helpers ---------- */

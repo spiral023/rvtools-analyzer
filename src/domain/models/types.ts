@@ -1,5 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
+export type ImportFileKind = "rvtools" | "tech-info";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -44,6 +45,44 @@ export interface SheetRow {
   sheetName: string;
   rowIndex: number;
   data: Record<string, string | number | boolean | null>;
+}
+
+export interface TechInfoImportMeta {
+  techInfoImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  sheetName: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+export interface TechInfoRow {
+  techInfoImportId: string;
+  rowIndex: number;
+  vmName: string;
+  vmNameNorm: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface TechInfoLatest {
+  vmNameNorm: string;
+  vmName: string;
+  importedAt: string;
+  techInfoImportId: string;
+  rowIndex: number;
+  maintenanceWindow: string | null;
+  operatingSystem: string | null;
+  comment: string | null;
+  sysv: string | null;
+  sysvDepartment: string | null;
+  sysvDeputy: string | null;
+  sysvDeputyDepartment: string | null;
+  bz: string | null;
+  clusterFromTechInfo: string | null;
+  cvBackup: boolean | null;
+  az: string | null;
 }
 
 export interface NormalizedVm {
@@ -185,6 +224,7 @@ export interface FilterPreset {
 
 export interface ImportResult {
   success: boolean;
+  fileKind?: ImportFileKind;
   snapshotId?: SnapshotId;
   warnings: string[];
   errors: string[];
@@ -205,6 +245,7 @@ export interface ParsedSheetData {
 }
 
 export interface WorkerParseResult {
+  fileKind: ImportFileKind;
   vcenterName: string;
   exportTs: string;
   sheets: ParsedSheetData[];

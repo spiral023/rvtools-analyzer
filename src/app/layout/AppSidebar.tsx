@@ -23,6 +23,7 @@ import {
   GitCompare,
   Lock,
   Server,
+  ClipboardList,
 } from "lucide-react";
 
 const mainNav = [
@@ -39,6 +40,7 @@ const analysisNav = [
   { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
   { title: "Licensing", url: "/licensing", icon: Key },
+  { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 
 const compareNav = [

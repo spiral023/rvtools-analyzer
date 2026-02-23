@@ -38,8 +38,9 @@ export default function UploadSnapshots() {
         setProgress({ step: "Vorbereitung", percent: 0, detail: file.name });
         const result = await importRvtoolsXlsx(file, setProgress);
         setLastResult(result);
-        if (result.success) toast.success(`"${file.name}" erfolgreich importiert.`);
-        else toast.error(`Fehler bei "${file.name}": ${result.errors.join(", ")}`);
+        const kindLabel = result.fileKind === "tech-info" ? "Tech-Info" : "RVTools";
+        if (result.success) toast.success(`"${file.name}" (${kindLabel}) erfolgreich importiert.`);
+        else toast.error(`Fehler bei "${file.name}" (${kindLabel}): ${result.errors.join(", ")}`);
       } catch (err) {
         toast.error(`Import fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -99,7 +100,7 @@ export default function UploadSnapshots() {
       >
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools XLSX-Datei hierher ziehen oder klicken"}</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools oder Tech-Info XLSX-Datei hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
       </div>
 
@@ -125,6 +126,7 @@ export default function UploadSnapshots() {
             <div className="flex items-center gap-2 mb-2">
               {lastResult.success ? <CheckCircle2 className="h-5 w-5 text-success" /> : <AlertCircle className="h-5 w-5 text-destructive" />}
               <span className="font-semibold text-sm">{lastResult.success ? "Import erfolgreich" : "Import fehlgeschlagen"}</span>
+              {lastResult.fileKind && <span className="text-xs text-muted-foreground">({lastResult.fileKind === "tech-info" ? "Tech-Info" : "RVTools"})</span>}
             </div>
             {lastResult.sheetStats && (
               <p className="text-xs text-muted-foreground mb-2">

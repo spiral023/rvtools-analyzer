@@ -17,6 +17,7 @@ import ComplianceLifecycle from "@/pages/ComplianceLifecycle";
 import Licensing from "@/pages/Licensing";
 import FleetCompare from "@/pages/FleetCompare";
 import Hardware from "@/pages/Hardware";
+import TechInfo from "@/pages/TechInfo";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -49,6 +50,7 @@ const App = () => (
                 <Route path="/compliance" element={<ComplianceLifecycle />} />
                 <Route path="/hardware" element={<Hardware />} />
                 <Route path="/licensing" element={<Licensing />} />
+                <Route path="/tech-info" element={<TechInfo />} />
                 <Route path="/fleet-compare" element={<FleetCompare />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

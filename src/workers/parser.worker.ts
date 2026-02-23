@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { detectParsedFileKind } from "@/lib/xlsx/parseHelpers";
 
 const KNOWN_SHEETS = [
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -8,7 +9,6 @@ const KNOWN_SHEETS = [
   "vLicense", "vFileInfo", "vHealth", "vMetaData",
 ];
 
-// Map alternate sheet names to canonical names
 const SHEET_ALIASES: Record<string, string> = {
   "vSC+VMK": "vSC_VMK",
   "tabvInfo": "vInfo",
@@ -28,10 +28,7 @@ const SHEET_ALIASES: Record<string, string> = {
 
 function resolveSheetName(name: string): string {
   if (SHEET_ALIASES[name]) return SHEET_ALIASES[name];
-  // Try exact match from known sheets
-  const match = KNOWN_SHEETS.find(
-    (s) => s.toLowerCase() === name.toLowerCase()
-  );
+  const match = KNOWN_SHEETS.find((s) => s.toLowerCase() === name.toLowerCase());
   return match || name;
 }
 
@@ -51,7 +48,6 @@ self.onmessage = async (e: MessageEvent) => {
       rows: Record<string, unknown>[];
     }> = [];
 
-    // Detect which known sheets are present
     const foundSheets = new Set<string>();
     for (const rawName of wb.SheetNames) {
       const canonical = resolveSheetName(rawName);
@@ -77,35 +73,34 @@ self.onmessage = async (e: MessageEvent) => {
       sheets.push({ sheetName: canonical, headers, rows: jsonData });
     }
 
-    // Warn about missing expected sheets
-    for (const expected of KNOWN_SHEETS) {
-      const canon = SHEET_ALIASES[expected] || expected;
-      if (!foundSheets.has(canon) && !foundSheets.has(expected)) {
-        warnings.push(`Expected sheet "${expected}" not found.`);
+    const fileKind = detectParsedFileKind(sheets.map((s) => ({ sheetName: s.sheetName, headers: s.headers })));
+
+    if (fileKind === "rvtools") {
+      for (const expected of KNOWN_SHEETS) {
+        const canonical = SHEET_ALIASES[expected] || expected;
+        if (!foundSheets.has(canonical) && !foundSheets.has(expected)) {
+          warnings.push(`Expected sheet "${expected}" not found.`);
+        }
       }
     }
 
-    // Extract vCenter name from vSource or vMetaData
     let vcenterName = "unknown-vcenter";
     const vSource = sheets.find((s) => s.sheetName === "vSource");
     const vMetaData = sheets.find((s) => s.sheetName === "vMetaData");
 
     if (vSource && vSource.rows.length > 0) {
       const row = vSource.rows[0];
-      vcenterName =
-        String(row["Name"] || row["Fullname"] || row["Server"] || "unknown-vcenter");
+      vcenterName = String(row["Name"] || row["Fullname"] || row["Server"] || "unknown-vcenter");
     } else if (vMetaData && vMetaData.rows.length > 0) {
       const row = vMetaData.rows[0];
       vcenterName = String(row["Server"] || row["Name"] || "unknown-vcenter");
     }
 
-    // Extract export timestamp from vMetaData
     let exportTs = new Date().toISOString();
     if (vMetaData && vMetaData.rows.length > 0) {
       const row = vMetaData.rows[0];
       const val = row["xlsx creation datetime"] || row["Creation date"];
       if (typeof val === "number") {
-        // Excel serial date
         const epoch = new Date(Date.UTC(1899, 11, 30));
         const ms = epoch.getTime() + val * 86400000;
         exportTs = new Date(ms).toISOString();
@@ -117,7 +112,7 @@ self.onmessage = async (e: MessageEvent) => {
 
     self.postMessage({
       type: "PARSE_COMPLETE",
-      payload: { vcenterName, exportTs, sheets, warnings, errors },
+      payload: { fileKind, vcenterName, exportTs, sheets, warnings, errors },
     });
   } catch (err) {
     self.postMessage({

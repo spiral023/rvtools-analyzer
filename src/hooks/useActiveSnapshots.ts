@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
   NormalizedDatastore, NormalizedSnapshot, NormalizedHealth,
   SheetRow,
+  TechInfoLatest,
 } from "@/domain/models/types";
 
 // Shared staleTime: avoid refetching unchanged data on every page switch
@@ -121,4 +122,42 @@ export function useRawSheet(sheetName: string) {
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
+}
+
+export function useTechInfoLatestByVmNames(vmNames: string[]) {
+  const normalizedVmNames = useMemo(
+    () => [...new Set(vmNames.map((name) => name.trim()).filter(Boolean))].sort(),
+    [vmNames],
+  );
+
+  return useQuery({
+    queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
+    queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
+    enabled: normalizedVmNames.length > 0,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useVmsWithTechInfo() {
+  const { vms, allVms } = useVms();
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(vms.map((vm) => vm.vmName));
+
+  const byVmName = useMemo(() => {
+    const map = new Map<string, TechInfoLatest>();
+    for (const entry of techInfoLatest) {
+      map.set(entry.vmNameNorm, entry);
+    }
+    return map;
+  }, [techInfoLatest]);
+
+  const vmsWithTechInfo = useMemo(
+    () =>
+      vms.map((vm) => ({
+        ...vm,
+        techInfo: byVmName.get(vm.vmName.trim().toLowerCase()) ?? null,
+      })),
+    [vms, byVmName],
+  );
+
+  return { vmsWithTechInfo, vms, allVms, techInfoLatest };
 }
