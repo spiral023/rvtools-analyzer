@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
+import { parseEsxVersionBuild, parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 
 describe("parseRvtoolsExportFileName", () => {
   it("parses vcenter and timestamp from RVTools export file name", () => {
@@ -27,5 +27,19 @@ describe("parseRvtoolsExportFileName", () => {
 
   it("returns null for non-matching names", () => {
     expect(parseRvtoolsExportFileName("my-export.xlsx")).toBeNull();
+  });
+});
+
+describe("parseEsxVersionBuild", () => {
+  it("parses ESXi version/build from vHost style text", () => {
+    const parsed = parseEsxVersionBuild("VMware ESXi 8.0.3 build-24784735");
+    expect(parsed.version).toBe("8.0.3");
+    expect(parsed.build).toBe("24784735");
+  });
+
+  it("returns nulls for non-version text", () => {
+    const parsed = parseEsxVersionBuild("n/a");
+    expect(parsed.version).toBeNull();
+    expect(parsed.build).toBeNull();
   });
 });

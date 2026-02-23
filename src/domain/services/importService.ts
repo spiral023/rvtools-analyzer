@@ -13,6 +13,7 @@ import {
   toNumber,
   toBool,
   toStr,
+  parseEsxVersionBuild,
   parseRvtoolsExportFileName,
   mapTechInfoDisplayFields,
   normalizeVmNameForMatch,
@@ -154,6 +155,8 @@ function normalizeHosts(sheet: ParsedSheetData | undefined, snapshotId: string, 
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const host = String(row["Host"] || row["Name"] || "unknown");
+    const esxVersion = toStr(row["ESX Version"]);
+    const parsedEsx = parseEsxVersionBuild(esxVersion);
     return {
       snapshotId,
       vcenterId,
@@ -166,13 +169,13 @@ function normalizeHosts(sheet: ParsedSheetData | undefined, snapshotId: string, 
       cpuCores: toNumber(row["# Cores"] || row["Cores"]),
       cpuThreads: toNumber(row["# Threads"]),
       memoryTotalMiB: toNumber(row["Memory"] || row["# Memory"]),
-      version: toStr(row["Version"]),
-      build: toStr(row["Build"]),
+      version: toStr(row["Version"]) || parsedEsx.version,
+      build: toStr(row["Build"]) || parsedEsx.build,
       vendor: toStr(row["Vendor"]),
       model: toStr(row["Model"]),
       connectionState: toStr(row["Connection state"]),
       powerState: toStr(row["Power state"]),
-      maintenanceMode: toStr(row["Maintenance Mode"]),
+      maintenanceMode: toStr(row["Maintenance Mode"] || row["in Maintenance Mode"]),
       vmCount: toNumber(row["# VMs"]),
     };
   });

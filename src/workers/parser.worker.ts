@@ -90,7 +90,14 @@ self.onmessage = async (e: MessageEvent) => {
 
     if (vSource && vSource.rows.length > 0) {
       const row = vSource.rows[0];
-      vcenterName = String(row["Name"] || row["Fullname"] || row["Server"] || "unknown-vcenter");
+      vcenterName = String(
+        row["VI SDK Server"] ||
+          row["VI DSK Server"] ||
+          row["Server"] ||
+          row["Name"] ||
+          row["Fullname"] ||
+          "unknown-vcenter",
+      );
     } else if (vMetaData && vMetaData.rows.length > 0) {
       const row = vMetaData.rows[0];
       vcenterName = String(row["Server"] || row["Name"] || "unknown-vcenter");

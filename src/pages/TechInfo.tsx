@@ -93,8 +93,10 @@ export default function TechInfo() {
   );
 
   const searchedRows = useMemo(() => {
+    const byVmNameAsc = (a: TechInfoVmRow, b: TechInfoVmRow) =>
+      a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" });
     const q = filters.search.trim().toLowerCase();
-    if (!q) return rows;
+    if (!q) return [...rows].sort(byVmNameAsc);
     return rows.filter((row) => {
       const values = [
         row.vmName,
@@ -112,7 +114,7 @@ export default function TechInfo() {
         row.cvBackup === null ? "—" : row.cvBackup ? "ja" : "nein",
       ];
       return values.some((v) => String(v ?? "").toLowerCase().includes(q));
-    });
+    }).sort(byVmNameAsc);
   }, [rows, filters.search]);
 
   const vmTotal = searchedRows.length;

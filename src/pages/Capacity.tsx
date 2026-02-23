@@ -214,7 +214,7 @@ export default function Capacity() {
     return hosts.map((h) => {
       const hostVms = vms.filter((v) => v.host === h.host && v.powerState === "poweredOn");
       const vCpuSum = hostVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
-      return { name: h.host, vms: hostVms.length, vcpuPerCore: h.cpuCores ? Math.round((vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: (h.memoryTotalMiB || 0) / 1024 };
+      return { name: h.host, vms: hostVms.length, vcpuPerCore: h.cpuCores ? Math.round((vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024) };
     }).filter((h) => h.vms > 0);
   }, [hosts, vms]);
 

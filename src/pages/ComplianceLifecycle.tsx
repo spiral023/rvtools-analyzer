@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost } from "@/domain/models/types";
@@ -108,21 +108,45 @@ export default function ComplianceLifecycle() {
   const uuidMissing = complianceVms.filter((v) => v.uuidMissing).length;
   const annotationEmpty = complianceVms.filter((v) => v.annotationEmpty).length;
   const latencyNonNormal = complianceVms.filter((v) => v.latencySensitivity !== "normal" && v.latencySensitivity !== "").length;
-  const maintenanceHosts = hosts.filter((h) => h.maintenanceMode === "True").length;
+
+  const hostsWithEsxVersion = useMemo<NormalizedHost[]>(() => {
+    const fallbackByHost = new Map<string, { version: string | null; build: string | null }>();
+    for (const r of rawVHost) {
+      const host = String(r.data["Host"] || "").trim();
+      if (!host || fallbackByHost.has(host)) continue;
+      fallbackByHost.set(host, parseEsxVersionBuild(r.data["ESX Version"]));
+    }
+
+    return hosts.map((h) => {
+      if (h.version || h.build) return h;
+      const fallback = fallbackByHost.get(h.host);
+      if (!fallback || (!fallback.version && !fallback.build)) return h;
+      return { ...h, version: h.version || fallback.version, build: h.build || fallback.build };
+    });
+  }, [hosts, rawVHost]);
+
+  const maintenanceHosts = hostsWithEsxVersion.filter((h) => h.maintenanceMode === "True").length;
 
   // HW version distribution
   const hwVersionChart = useMemo(() => {
     const map = new Map<string, number>();
     for (const v of complianceVms) { const hw = v.hwVersion || "Unknown"; map.set(hw, (map.get(hw) || 0) + 1); }
-    return [...map.entries()].map(([name, value]) => ({ name: `vmx-${name}`, value })).sort((a, b) => a.name.localeCompare(b.name));
+    const parseHwSortKey = (hw: string): number => {
+      const m = hw.match(/\d+/);
+      return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
+    };
+    return [...map.entries()]
+      .map(([hw, value]) => ({ hw, name: hw === "Unknown" ? "Unknown" : `vmx-${hw}`, value }))
+      .sort((a, b) => parseHwSortKey(a.hw) - parseHwSortKey(b.hw) || a.name.localeCompare(b.name))
+      .map(({ name, value }) => ({ name, value }));
   }, [complianceVms]);
 
   // ESXi build drift
   const buildChart = useMemo(() => {
     const map = new Map<string, number>();
-    for (const h of hosts) { const ver = `${h.version || "?"} (${h.build || "?"})`; map.set(ver, (map.get(ver) || 0) + 1); }
+    for (const h of hostsWithEsxVersion) { const ver = `${h.version || "?"} (${h.build || "?"})`; map.set(ver, (map.get(ver) || 0) + 1); }
     return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [hosts]);
+  }, [hostsWithEsxVersion]);
 
   // Tools upgrade candidates per cluster
   const toolsUpgradeable = useMemo(() => rawVTools.filter((r) => { const u = String(r.data["Upgradeable"] || "").toLowerCase(); return u === "yes" || u === "true"; }).length, [rawVTools]);
@@ -148,7 +172,23 @@ export default function ComplianceLifecycle() {
   }, [hosts]);
 
   // vCenter Version
-  const vcenterVersions = useMemo(() => rawVSource.map((r) => ({ name: String(r.data["Name"] || ""), fullname: String(r.data["Fullname"] || ""), version: String(r.data["Version"] || ""), build: String(r.data["Build"] || ""), apiVersion: String(r.data["API version"] || "") })), [rawVSource]);
+  const vcenterVersions = useMemo(
+    () =>
+      rawVSource.map((r) => ({
+        name: String(
+          r.data["VI SDK Server"] ||
+            r.data["VI DSK Server"] ||
+            r.data["Server"] ||
+            r.data["Name"] ||
+            "",
+        ),
+        fullname: String(r.data["Fullname"] || ""),
+        version: String(r.data["Version"] || ""),
+        build: String(r.data["Build"] || ""),
+        apiVersion: String(r.data["API version"] || ""),
+      })),
+    [rawVSource],
+  );
 
   // HBA/NIC Driver inventory
   const driverInventory = useMemo<DriverRow[]>(() => {
@@ -224,7 +264,7 @@ export default function ComplianceLifecycle() {
       </div>
 
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3><VirtualTable data={complianceVms} columns={compColumns} globalFilter={filters.search} /></div>
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Inventar ({hosts.length})</h3><VirtualTable data={hosts} columns={hostColumns} globalFilter={filters.search} height={350} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={filters.search} height={350} /></div>
 
       {ntpDnsData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={filters.search} height={300} /></div>)}
 

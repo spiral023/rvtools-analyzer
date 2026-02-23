@@ -46,6 +46,11 @@ export interface TechInfoDisplayFields {
   az: string | null;
 }
 
+export interface ParsedEsxVersionBuild {
+  version: string | null;
+  build: string | null;
+}
+
 export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFileKind {
   const hasRvtoolsSheet = sheets.some((sheet) => RVTOOLS_CANONICAL_SHEETS.has(sheet.sheetName));
   if (hasRvtoolsSheet) return "rvtools";
@@ -114,6 +119,24 @@ export function parseRvtoolsExportFileName(fileName: string): ParsedRvtoolsFileN
   }
 
   return { vcenterName, exportTs: dt.toISOString() };
+}
+
+/**
+ * Parse values like:
+ * "VMware ESXi 8.0.3 build-24784735"
+ * into version/build parts.
+ */
+export function parseEsxVersionBuild(v: unknown): ParsedEsxVersionBuild {
+  const text = toStr(v);
+  if (!text) return { version: null, build: null };
+
+  const esxiToken = text.match(/\bESXi\s+([^\s]+)/i)?.[1] || null;
+  const genericVersion = text.match(/\b([0-9]+\.[0-9]+(?:\.[0-9A-Za-z]+)?)\b/)?.[1] || null;
+  const rawVersion = esxiToken || genericVersion;
+  const version = rawVersion ? rawVersion.replace(/[),;]+$/, "") : null;
+  const build = text.match(/\bbuild[-\s]*([0-9]+)\b/i)?.[1] || null;
+
+  return { version, build };
 }
 
 /** Try to parse a value as a number. Returns null if not parseable. */
