@@ -110,15 +110,29 @@ function bool(v: unknown): boolean {
   return s === "true" || s === "1";
 }
 
+function normalizeHardwareModel(vendor: string, model: string): string {
+  const cleaned = model.trim().replace(/^"+|"+$/g, "");
+  const isHitachi = vendor.toLowerCase().includes("hitachi");
+  if (!isHitachi) return cleaned;
+
+  // Example: "Advanced Server DS120 G2 1HY1ZZZ043T" -> "Advanced Server DS120 G2"
+  const base = "Advanced Server DS120 G2";
+  const rx = new RegExp(`^${base}\\s+[A-Z0-9]{8,}$`, "i");
+  if (rx.test(cleaned)) return base;
+  return cleaned;
+}
+
 function buildHostDetails(hostRows: SheetRow[]): HostDetail[] {
   return hostRows.map((r) => {
     const d = r.data;
+    const vendor = str(d["Vendor"]);
+    const rawModel = str(d["Model"]);
     return {
       host: str(d["Host"]),
       datacenter: str(d["Datacenter"]) || null,
       cluster: str(d["Cluster"]) || null,
-      model: str(d["Model"]),
-      vendor: str(d["Vendor"]),
+      model: normalizeHardwareModel(vendor, rawModel),
+      vendor,
       serial: str(d["Serial number"]),
       cpuModel: str(d["CPU Model"]),
       cpuSockets: num(d["# CPU"]),
@@ -189,8 +203,6 @@ function buildHardwareSignature(host: HostDetail): string {
     host.vendor || "Unknown",
     host.cpuModel || "Unknown CPU",
     host.speedMHz || 0,
-    host.cpuSockets || 0,
-    host.coresPerCpu || 0,
     host.totalCores || 0,
     host.memoryMiB || 0,
   ].join("|");
