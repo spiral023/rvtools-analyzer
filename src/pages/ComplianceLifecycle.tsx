@@ -108,7 +108,7 @@ function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<No
       cell: ({ row }) => (
         <button
           type="button"
-          className="font-mono-data text-primary hover:underline"
+          className="font-mono-data hover:underline"
           onClick={() => onSelectHost(row.original.host)}
         >
           {row.original.host}
