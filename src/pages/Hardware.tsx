@@ -263,16 +263,11 @@ function ModelCard({
         </div>
         {clusters.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {clusters.slice(0, 4).map((c) => (
+            {clusters.map((c) => (
               <Badge key={c} variant="outline" className="text-[10px] font-normal">
                 {c}
               </Badge>
             ))}
-            {clusters.length > 4 && (
-              <Badge variant="outline" className="text-[10px] font-normal">
-                +{clusters.length - 4}
-              </Badge>
-            )}
           </div>
         )}
         <Separator />

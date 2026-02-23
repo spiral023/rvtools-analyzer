@@ -31,6 +31,33 @@ interface ClusterMetric {
 
 interface RpRow { name: string; path: string; status: string; vms: number; cpuLimit: string; cpuReservation: number; cpuExpandable: boolean; memLimit: string; memReservation: number; memExpandable: boolean; risk: string }
 interface ThinRiskRow { datastore: string; freePct: number; thinDisks: number; totalThinMiB: number; risk: string }
+interface ClusterCapacityRow {
+  cluster: string;
+  datacenter: string;
+  hosts: number;
+  totalCores: number;
+  totalMemoryMiB: number;
+  totalVms: number;
+  totalVcpus: number;
+  cpuUsagePct: number;
+  memoryUsagePct: number;
+  vcpuPerCore: number;
+  vcpuPerThread: number | null;
+  vmsPerCore: number;
+  ramCommitPct: number;
+  ramActivePct: number;
+  swapBalloonPct: number;
+  hotHosts: number;
+  htInactiveHosts: number;
+  cpuSpread: number;
+  memorySpread: number;
+  drsEnabled: boolean | null;
+  haEnabled: boolean | null;
+  clusterHostDelta: number | null;
+  clusterMemoryDeltaPct: number | null;
+  riskScore: number;
+  risk: "hoch" | "mittel" | "niedrig";
+}
 
 const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
   { accessorKey: "name", header: "Cluster" },
@@ -64,12 +91,98 @@ const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
   { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
+const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
+  { accessorKey: "cluster", header: "Cluster" },
+  { accessorKey: "datacenter", header: "Datacenter" },
+  { accessorKey: "risk", header: "Risiko", cell: ({ row }) => {
+    const risk = row.original.risk;
+    const score = row.original.riskScore;
+    return <span className={risk === "hoch" ? "text-destructive font-semibold" : risk === "mittel" ? "text-warning font-semibold" : "text-success"}>{risk} ({score})</span>;
+  }},
+  { accessorKey: "hosts", header: "Hosts" },
+  { accessorKey: "totalCores", header: "Cores" },
+  { accessorKey: "totalVms", header: "VMs" },
+  { accessorKey: "cpuUsagePct", header: "CPU %", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 85 ? "text-destructive font-semibold" : v > 75 ? "text-warning" : "text-success"}>{v.toFixed(1)}%</span>;
+  }},
+  { accessorKey: "memoryUsagePct", header: "RAM %", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 90 ? "text-destructive font-semibold" : v > 80 ? "text-warning" : "text-success"}>{v.toFixed(1)}%</span>;
+  }},
+  { accessorKey: "vcpuPerCore", header: "vCPU/Core", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 6 ? "text-destructive font-semibold" : v > 4 ? "text-warning" : ""}>{v.toFixed(2)}</span>;
+  }},
+  { accessorKey: "vcpuPerThread", header: "vCPU/Thread", cell: ({ getValue }) => {
+    const v = getValue() as number | null;
+    return v === null ? "—" : v.toFixed(2);
+  }},
+  { accessorKey: "vmsPerCore", header: "VMs/Core", cell: ({ getValue }) => (getValue() as number).toFixed(2) },
+  { accessorKey: "ramCommitPct", header: "RAM Commit %", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 180 ? "text-destructive font-semibold" : v > 140 ? "text-warning" : ""}>{v.toFixed(1)}%</span>;
+  }},
+  { accessorKey: "ramActivePct", header: "RAM Active %", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 90 ? "text-destructive font-semibold" : v > 80 ? "text-warning" : ""}>{v.toFixed(1)}%</span>;
+  }},
+  { accessorKey: "swapBalloonPct", header: "Swap+Balloon %", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 5 ? "text-destructive font-semibold" : v > 2 ? "text-warning" : "text-success"}>{v.toFixed(2)}%</span>;
+  }},
+  { accessorKey: "hotHosts", header: "Hot Hosts", cell: ({ row }) => {
+    const hotHosts = row.original.hotHosts;
+    const hosts = row.original.hosts || 1;
+    return `${hotHosts}/${hosts}`;
+  }},
+  { accessorKey: "htInactiveHosts", header: "HT Off", cell: ({ getValue }) => {
+    const v = getValue() as number;
+    return <span className={v > 0 ? "text-warning font-semibold" : "text-success"}>{v}</span>;
+  }},
+  { accessorKey: "drsEnabled", header: "DRS", cell: ({ getValue }) => {
+    const v = getValue() as boolean | null;
+    if (v === null) return "—";
+    return <span className={v ? "text-success" : "text-warning"}>{v ? "An" : "Aus"}</span>;
+  }},
+  { accessorKey: "haEnabled", header: "HA", cell: ({ getValue }) => {
+    const v = getValue() as boolean | null;
+    if (v === null) return "—";
+    return <span className={v ? "text-success" : "text-muted-foreground"}>{v ? "An" : "Aus"}</span>;
+  }},
+  { accessorKey: "clusterHostDelta", header: "Δ Hosts", cell: ({ getValue }) => {
+    const v = getValue() as number | null;
+    if (v === null) return "—";
+    return <span className={v !== 0 ? "text-warning font-semibold" : "text-success"}>{v > 0 ? `+${v}` : v}</span>;
+  }},
+  { accessorKey: "clusterMemoryDeltaPct", header: "Δ RAM %", cell: ({ getValue }) => {
+    const v = getValue() as number | null;
+    if (v === null) return "—";
+    const abs = Math.abs(v);
+    return <span className={abs > 5 ? "text-warning font-semibold" : "text-success"}>{v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`}</span>;
+  }},
+];
+
+function toNumLoose(v: unknown): number {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const n = Number(String(v).replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toBoolLoose(v: unknown): boolean {
+  if (v === null || v === undefined || v === "") return false;
+  const s = String(v).toLowerCase().trim();
+  return s === "true" || s === "1" || s === "yes";
+}
+
 export default function Capacity() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { data: clusters = [] } = useClusters();
   const { data: datastores = [] } = useDatastores();
   const { data: hosts = [] } = useHosts();
+  const { data: rawVHost = [] } = useRawSheet("vHost");
   const { data: rawRP = [] } = useRawSheet("vRP");
   const { data: rawDisks = [] } = useRawSheet("vDisk");
 
@@ -100,6 +213,167 @@ export default function Capacity() {
       return { name: h.host, vms: hostVms.length, vcpuPerCore: h.cpuCores ? Math.round((vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: (h.memoryTotalMiB || 0) / 1024 };
     }).filter((h) => h.vms > 0);
   }, [hosts, vms]);
+
+  const clusterCapacity = useMemo<ClusterCapacityRow[]>(() => {
+    const grouped = new Map<string, {
+      snapshotId: string;
+      cluster: string;
+      datacenter: string;
+      hosts: number;
+      totalCores: number;
+      totalMemoryMiB: number;
+      totalVms: number;
+      totalVcpus: number;
+      totalVRamMiB: number;
+      totalVmUsedMiB: number;
+      totalSwapBalloonMiB: number;
+      weightedCpuUsage: number;
+      weightedMemUsage: number;
+      cpuWeight: number;
+      memWeight: number;
+      hotHosts: number;
+      htInactiveHosts: number;
+      cpuMin: number;
+      cpuMax: number;
+      memMin: number;
+      memMax: number;
+    }>();
+
+    for (const r of rawVHost) {
+      const d = r.data;
+      const clusterName = String(d["Cluster"] || "").trim();
+      const hostName = String(d["Host"] || "").trim();
+      if (!clusterName || !hostName) continue;
+      const key = `${r.snapshotId}::${clusterName}`;
+      const cpuCores = toNumLoose(d["# Cores"]);
+      const memMiB = toNumLoose(d["# Memory"]);
+      const cpuUsagePct = toNumLoose(d["CPU usage %"]);
+      const memUsagePct = toNumLoose(d["Memory usage %"]);
+      const vms = toNumLoose(d["# VMs"]);
+      const vcpus = toNumLoose(d["# vCPUs"]);
+      const vRamMiB = toNumLoose(d["vRAM"]);
+      const vmUsedMiB = toNumLoose(d["VM Used memory"]);
+      const vmSwappedMiB = toNumLoose(d["VM Memory Swapped"]);
+      const vmBalloonedMiB = toNumLoose(d["VM Memory Ballooned"]);
+      const htAvailable = toBoolLoose(d["HT Available"]);
+      const htActive = toBoolLoose(d["HT Active"]);
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          snapshotId: r.snapshotId,
+          cluster: clusterName,
+          datacenter: String(d["Datacenter"] || "").trim(),
+          hosts: 0,
+          totalCores: 0,
+          totalMemoryMiB: 0,
+          totalVms: 0,
+          totalVcpus: 0,
+          totalVRamMiB: 0,
+          totalVmUsedMiB: 0,
+          totalSwapBalloonMiB: 0,
+          weightedCpuUsage: 0,
+          weightedMemUsage: 0,
+          cpuWeight: 0,
+          memWeight: 0,
+          hotHosts: 0,
+          htInactiveHosts: 0,
+          cpuMin: Number.POSITIVE_INFINITY,
+          cpuMax: Number.NEGATIVE_INFINITY,
+          memMin: Number.POSITIVE_INFINITY,
+          memMax: Number.NEGATIVE_INFINITY,
+        });
+      }
+
+      const e = grouped.get(key)!;
+      e.hosts += 1;
+      e.totalCores += cpuCores;
+      e.totalMemoryMiB += memMiB;
+      e.totalVms += vms;
+      e.totalVcpus += vcpus;
+      e.totalVRamMiB += vRamMiB;
+      e.totalVmUsedMiB += vmUsedMiB;
+      e.totalSwapBalloonMiB += vmSwappedMiB + vmBalloonedMiB;
+
+      const cpuWeight = cpuCores > 0 ? cpuCores : 1;
+      const memWeight = memMiB > 0 ? memMiB : 1;
+      e.weightedCpuUsage += cpuUsagePct * cpuWeight;
+      e.weightedMemUsage += memUsagePct * memWeight;
+      e.cpuWeight += cpuWeight;
+      e.memWeight += memWeight;
+
+      if (cpuUsagePct > 85 || memUsagePct > 90) e.hotHosts += 1;
+      if (htAvailable && !htActive) e.htInactiveHosts += 1;
+      e.cpuMin = Math.min(e.cpuMin, cpuUsagePct);
+      e.cpuMax = Math.max(e.cpuMax, cpuUsagePct);
+      e.memMin = Math.min(e.memMin, memUsagePct);
+      e.memMax = Math.max(e.memMax, memUsagePct);
+    }
+
+    const clusterMap = new Map(clusters.map((c) => [`${c.snapshotId}::${c.name}`, c]));
+    return [...grouped.values()].map((g) => {
+      const clusterRef = clusterMap.get(`${g.snapshotId}::${g.cluster}`);
+      const cpuUsagePct = g.cpuWeight > 0 ? g.weightedCpuUsage / g.cpuWeight : 0;
+      const memoryUsagePct = g.memWeight > 0 ? g.weightedMemUsage / g.memWeight : 0;
+      const vcpuPerCore = g.totalCores > 0 ? g.totalVcpus / g.totalCores : 0;
+      const vcpuPerThread = clusterRef?.numCpuThreads ? g.totalVcpus / clusterRef.numCpuThreads : null;
+      const vmsPerCore = g.totalCores > 0 ? g.totalVms / g.totalCores : 0;
+      const ramCommitPct = g.totalMemoryMiB > 0 ? (g.totalVRamMiB / g.totalMemoryMiB) * 100 : 0;
+      const ramActivePct = g.totalMemoryMiB > 0 ? (g.totalVmUsedMiB / g.totalMemoryMiB) * 100 : 0;
+      const swapBalloonPct = g.totalMemoryMiB > 0 ? (g.totalSwapBalloonMiB / g.totalMemoryMiB) * 100 : 0;
+      const cpuSpread = Number.isFinite(g.cpuMin) && Number.isFinite(g.cpuMax) ? g.cpuMax - g.cpuMin : 0;
+      const memorySpread = Number.isFinite(g.memMin) && Number.isFinite(g.memMax) ? g.memMax - g.memMin : 0;
+      const clusterHostDelta = clusterRef?.numHosts !== null && clusterRef?.numHosts !== undefined ? g.hosts - clusterRef.numHosts : null;
+      const clusterMemoryDeltaPct = clusterRef?.totalMemoryMiB ? ((g.totalMemoryMiB - clusterRef.totalMemoryMiB) / clusterRef.totalMemoryMiB) * 100 : null;
+
+      let riskScore = 0;
+      if (cpuUsagePct > 85) riskScore += 25;
+      else if (cpuUsagePct > 75) riskScore += 12;
+      if (memoryUsagePct > 90) riskScore += 25;
+      else if (memoryUsagePct > 80) riskScore += 12;
+      if (vcpuPerCore > 6) riskScore += 20;
+      else if (vcpuPerCore > 4) riskScore += 10;
+      if (ramCommitPct > 180) riskScore += 15;
+      else if (ramCommitPct > 140) riskScore += 8;
+      if (swapBalloonPct > 5) riskScore += 20;
+      else if (swapBalloonPct > 2) riskScore += 10;
+      const hotRatio = g.hosts > 0 ? g.hotHosts / g.hosts : 0;
+      if (hotRatio > 0.5) riskScore += 10;
+      else if (hotRatio > 0.3) riskScore += 5;
+      if (clusterRef?.drsEnabled === false && (cpuSpread > 30 || memorySpread > 30)) riskScore += 8;
+      if (g.htInactiveHosts > 0) riskScore += 5;
+      if (clusterHostDelta !== null && clusterHostDelta !== 0) riskScore += 3;
+      if (clusterMemoryDeltaPct !== null && Math.abs(clusterMemoryDeltaPct) > 5) riskScore += 3;
+
+      const risk: ClusterCapacityRow["risk"] = riskScore >= 60 ? "hoch" : riskScore >= 30 ? "mittel" : "niedrig";
+      return {
+        cluster: g.cluster,
+        datacenter: g.datacenter || "—",
+        hosts: g.hosts,
+        totalCores: g.totalCores,
+        totalMemoryMiB: g.totalMemoryMiB,
+        totalVms: g.totalVms,
+        totalVcpus: g.totalVcpus,
+        cpuUsagePct: Math.round(cpuUsagePct * 10) / 10,
+        memoryUsagePct: Math.round(memoryUsagePct * 10) / 10,
+        vcpuPerCore: Math.round(vcpuPerCore * 100) / 100,
+        vcpuPerThread: vcpuPerThread === null ? null : Math.round(vcpuPerThread * 100) / 100,
+        vmsPerCore: Math.round(vmsPerCore * 100) / 100,
+        ramCommitPct: Math.round(ramCommitPct * 10) / 10,
+        ramActivePct: Math.round(ramActivePct * 10) / 10,
+        swapBalloonPct: Math.round(swapBalloonPct * 100) / 100,
+        hotHosts: g.hotHosts,
+        htInactiveHosts: g.htInactiveHosts,
+        cpuSpread: Math.round(cpuSpread * 10) / 10,
+        memorySpread: Math.round(memorySpread * 10) / 10,
+        drsEnabled: clusterRef?.drsEnabled ?? null,
+        haEnabled: clusterRef?.haEnabled ?? null,
+        clusterHostDelta,
+        clusterMemoryDeltaPct: clusterMemoryDeltaPct === null ? null : Math.round(clusterMemoryDeltaPct * 10) / 10,
+        riskScore,
+        risk,
+      };
+    }).sort((a, b) => b.riskScore - a.riskScore || b.vcpuPerCore - a.vcpuPerCore);
+  }, [rawVHost, clusters]);
 
   const dsChart = useMemo(() => {
     return datastores.filter((d) => d.freePct !== null).map((d) => ({ name: d.name.length > 20 ? d.name.slice(0, 18) + "…" : d.name, freePct: Math.round(d.freePct! * 10) / 10 })).sort((a, b) => a.freePct - b.freePct).slice(0, 15);
@@ -179,6 +453,21 @@ export default function Capacity() {
 
   const maxCpuOC = clusterMetrics.length > 0 ? Math.max(...clusterMetrics.map((c) => c.cpuRatio)) : 0;
   const maxRamOC = clusterMetrics.length > 0 ? Math.max(...clusterMetrics.map((c) => c.ramRatio)) : 0;
+  const criticalCapacityClusters = clusterCapacity.filter((c) => c.risk === "hoch").length;
+  const mediumCapacityClusters = clusterCapacity.filter((c) => c.risk === "mittel").length;
+  const hotHostsTotal = clusterCapacity.reduce((sum, c) => sum + c.hotHosts, 0);
+  const htInactiveHostsTotal = clusterCapacity.reduce((sum, c) => sum + c.htInactiveHosts, 0);
+  const maxSwapBalloonPct = clusterCapacity.length > 0 ? Math.max(...clusterCapacity.map((c) => c.swapBalloonPct)) : 0;
+  const avgVcpuPerCore = clusterCapacity.length > 0
+    ? clusterCapacity.reduce((sum, c) => sum + c.vcpuPerCore, 0) / clusterCapacity.length
+    : 0;
+  const clusterRiskChart = useMemo(
+    () => clusterCapacity.slice(0, 12).map((c) => ({
+      name: c.cluster.length > 24 ? `${c.cluster.slice(0, 22)}…` : c.cluster,
+      riskScore: c.riskScore,
+    })),
+    [clusterCapacity],
+  );
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Capacity</h1><EmptyState icon={<HardDrive className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
@@ -198,6 +487,17 @@ export default function Capacity() {
         <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} />
         <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} />
       </div>
+
+      {clusterCapacity.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+          <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
+          <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
+          <KpiCard title="HT nicht aktiv" value={formatNum(htInactiveHostsTotal)} severity={htInactiveHostsTotal > 0 ? "warn" : "ok"} />
+          <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
+          <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -227,6 +527,31 @@ export default function Capacity() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {clusterRiskChart.length > 0 && (
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Risk Score (vHost + vCluster)</h3>
+          <ResponsiveContainer width="100%" height={Math.max(240, clusterRiskChart.length * 34)}>
+            <BarChart data={clusterRiskChart} layout="vertical">
+              <XAxis type="number" domain={[0, "dataMax + 5"]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={240} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Bar dataKey="riskScore" radius={[0, 4, 4, 0]}>
+                {clusterRiskChart.map((entry, i) => (
+                  <Cell key={i} fill={entry.riskScore >= 60 ? CHART_COLORS.danger : entry.riskScore >= 30 ? CHART_COLORS.warning : CHART_COLORS.success} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {clusterCapacity.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster)</h3>
+          <VirtualTable data={clusterCapacity} columns={clusterCapacityColumns} globalFilter={filters.search} height={340} />
+        </div>
+      )}
 
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit</h3><VirtualTable data={clusterMetrics} columns={clusterColumns} globalFilter={filters.search} height={300} /></div>
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={filters.search} /></div>
