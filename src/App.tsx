@@ -18,6 +18,7 @@ import Licensing from "@/pages/Licensing";
 import FleetCompare from "@/pages/FleetCompare";
 import Hardware from "@/pages/Hardware";
 import TechInfo from "@/pages/TechInfo";
+import VmwareVersions from "@/pages/VmwareVersions";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="/hardware" element={<Hardware />} />
                 <Route path="/licensing" element={<Licensing />} />
                 <Route path="/tech-info" element={<TechInfo />} />
+                <Route path="/vmware-versions" element={<VmwareVersions />} />
                 <Route path="/fleet-compare" element={<FleetCompare />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

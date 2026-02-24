@@ -21,16 +21,35 @@ interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: nu
 interface HwUpgradeRow { vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
 type ComplianceTab = "compliance" | "operations" | "infrastructure";
 
+function parseVmHwVersion(value: string | null | undefined): number | null {
+  const raw = (value || "").trim().toLowerCase();
+  if (!raw) return null;
+  const match = raw.match(/(\d+)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "hwVersion", header: "HW Version" },
+  {
+    accessorKey: "hwVersion",
+    header: "HW Version",
+    cell: ({ getValue }) => {
+      const raw = getValue() as string | null;
+      const hwVersion = parseVmHwVersion(raw);
+      if (hwVersion !== null && hwVersion < 20) {
+        return <span className="text-destructive font-semibold">{raw || "—"}</span>;
+      }
+      return raw || "—";
+    },
+  },
   { accessorKey: "firmware", header: "Firmware" },
   { accessorKey: "secureBoot", header: "Secure Boot", cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
   { accessorKey: "cbt", header: "CBT", cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
   { accessorKey: "osDrift", header: "OS Drift", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
   { accessorKey: "uuidMissing", header: "UUID fehlt", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
   { accessorKey: "annotationEmpty", header: "Annotation leer", cell: ({ getValue }) => getValue() ? <span className="text-muted-foreground">Ja</span> : "Nein" },
-  { accessorKey: "latencySensitivity", header: "Latency Sens." },
   { accessorKey: "cluster", header: "Cluster" },
 ];
 

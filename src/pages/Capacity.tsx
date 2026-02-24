@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVms, useClusters, useDatastores, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
@@ -43,13 +44,10 @@ interface ClusterCapacityRow {
   cpuUsagePct: number;
   memoryUsagePct: number;
   vcpuPerCore: number;
-  vcpuPerThread: number | null;
-  vmsPerCore: number;
   ramCommitPct: number;
   ramActivePct: number;
   swapBalloonPct: number;
   hotHosts: number;
-  htInactiveHosts: number;
   cpuSpread: number;
   memorySpread: number;
   drsEnabled: boolean | null;
@@ -122,11 +120,6 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     const v = getValue() as number;
     return <span className={v > 6 ? "text-destructive font-semibold" : v > 4 ? "text-warning" : ""}>{v.toFixed(2)}</span>;
   }},
-  { accessorKey: "vcpuPerThread", header: "vCPU/Thread", cell: ({ getValue }) => {
-    const v = getValue() as number | null;
-    return v === null ? "—" : v.toFixed(2);
-  }},
-  { accessorKey: "vmsPerCore", header: "VMs/Core", cell: ({ getValue }) => (getValue() as number).toFixed(2) },
   { accessorKey: "ramCommitPct", header: "RAM Commit %", cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 180 ? "text-destructive font-semibold" : v > 140 ? "text-warning" : ""}>{v.toFixed(1)}%</span>;
@@ -143,10 +136,6 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     const hotHosts = row.original.hotHosts;
     const hosts = row.original.hosts || 1;
     return `${hotHosts}/${hosts}`;
-  }},
-  { accessorKey: "htInactiveHosts", header: "HT Off", cell: ({ getValue }) => {
-    const v = getValue() as number;
-    return <span className={v > 0 ? "text-warning font-semibold" : "text-success"}>{v}</span>;
   }},
   { accessorKey: "drsEnabled", header: "DRS", cell: ({ getValue }) => {
     const v = getValue() as boolean | null;
@@ -180,6 +169,12 @@ export default function Capacity() {
   const { data: rawVHost = [] } = useRawSheet("vHost");
   const { data: rawRP = [] } = useRawSheet("vRP");
   const { data: rawDisks = [] } = useRawSheet("vDisk");
+  const [selectedClusterName, setSelectedClusterName] = useState<string | null>(null);
+
+  const openClusterDetail = (clusterName: string | null | undefined) => {
+    const normalized = (clusterName || "").trim();
+    if (normalized) setSelectedClusterName(normalized);
+  };
 
   const avgFreePct = useMemo(() => {
     const withPct = datastores.filter((d) => d.freePct !== null);
@@ -333,8 +328,6 @@ export default function Capacity() {
       const cpuUsagePct = g.cpuWeight > 0 ? g.weightedCpuUsage / g.cpuWeight : 0;
       const memoryUsagePct = g.memWeight > 0 ? g.weightedMemUsage / g.memWeight : 0;
       const vcpuPerCore = g.totalCores > 0 ? g.totalVcpus / g.totalCores : 0;
-      const vcpuPerThread = clusterRef?.numCpuThreads ? g.totalVcpus / clusterRef.numCpuThreads : null;
-      const vmsPerCore = g.totalCores > 0 ? g.totalVms / g.totalCores : 0;
       const ramCommitPct = g.totalMemoryMiB > 0 ? (g.totalVRamMiB / g.totalMemoryMiB) * 100 : 0;
       const ramActivePct = g.totalMemoryMiB > 0 ? (g.totalVmUsedMiB / g.totalMemoryMiB) * 100 : 0;
       const swapBalloonPct = g.totalMemoryMiB > 0 ? (g.totalSwapBalloonMiB / g.totalMemoryMiB) * 100 : 0;
@@ -374,13 +367,10 @@ export default function Capacity() {
         cpuUsagePct: Math.round(cpuUsagePct * 10) / 10,
         memoryUsagePct: Math.round(memoryUsagePct * 10) / 10,
         vcpuPerCore: Math.round(vcpuPerCore * 100) / 100,
-        vcpuPerThread: vcpuPerThread === null ? null : Math.round(vcpuPerThread * 100) / 100,
-        vmsPerCore: Math.round(vmsPerCore * 100) / 100,
         ramCommitPct: Math.round(ramCommitPct * 10) / 10,
         ramActivePct: Math.round(ramActivePct * 10) / 10,
         swapBalloonPct: Math.round(swapBalloonPct * 100) / 100,
         hotHosts: g.hotHosts,
-        htInactiveHosts: g.htInactiveHosts,
         cpuSpread: Math.round(cpuSpread * 10) / 10,
         memorySpread: Math.round(memorySpread * 10) / 10,
         drsEnabled: clusterRef?.drsEnabled ?? null,
@@ -474,7 +464,6 @@ export default function Capacity() {
   const criticalCapacityClusters = clusterCapacity.filter((c) => c.risk === "hoch").length;
   const mediumCapacityClusters = clusterCapacity.filter((c) => c.risk === "mittel").length;
   const hotHostsTotal = clusterCapacity.reduce((sum, c) => sum + c.hotHosts, 0);
-  const htInactiveHostsTotal = clusterCapacity.reduce((sum, c) => sum + c.htInactiveHosts, 0);
   const maxSwapBalloonPct = clusterCapacity.length > 0 ? Math.max(...clusterCapacity.map((c) => c.swapBalloonPct)) : 0;
   const avgVcpuPerCore = clusterCapacity.length > 0
     ? clusterCapacity.reduce((sum, c) => sum + c.vcpuPerCore, 0) / clusterCapacity.length
@@ -511,7 +500,6 @@ export default function Capacity() {
           <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
           <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
           <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
-          <KpiCard title="HT nicht aktiv" value={formatNum(htInactiveHostsTotal)} severity={htInactiveHostsTotal > 0 ? "warn" : "ok"} />
           <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
           <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
         </div>
@@ -566,12 +554,27 @@ export default function Capacity() {
 
       {clusterCapacity.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster)</h3>
-          <VirtualTable data={clusterCapacity} columns={clusterCapacityColumns} globalFilter={filters.search} height={340} />
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3>
+          <VirtualTable
+            data={clusterCapacity}
+            columns={clusterCapacityColumns}
+            globalFilter={filters.search}
+            height={340}
+            onRowClick={(row) => openClusterDetail(row.cluster)}
+          />
         </div>
       )}
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit</h3><VirtualTable data={clusterMetrics} columns={clusterColumns} globalFilter={filters.search} height={300} /></div>
+      <div>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3>
+        <VirtualTable
+          data={clusterMetrics}
+          columns={clusterColumns}
+          globalFilter={filters.search}
+          height={300}
+          onRowClick={(row) => openClusterDetail(row.name)}
+        />
+      </div>
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={filters.search} /></div>
 
       {rpData.length > 0 && (
@@ -581,6 +584,17 @@ export default function Capacity() {
       {thinRiskData.length > 0 && (
         <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={filters.search} height={250} /></div>
       )}
+
+      <ClusterDetailDialog
+        clusterName={selectedClusterName}
+        open={!!selectedClusterName}
+        onClose={() => setSelectedClusterName(null)}
+        clusters={clusters}
+        hosts={hosts}
+        vms={vms}
+        datastores={datastores}
+        rawVHostRows={rawVHost}
+      />
     </div>
   );
 }

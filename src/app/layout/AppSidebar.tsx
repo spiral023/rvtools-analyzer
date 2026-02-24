@@ -24,6 +24,7 @@ import {
   Lock,
   Server,
   ClipboardList,
+  BarChart3,
 } from "lucide-react";
 
 const mainNav = [
@@ -41,6 +42,7 @@ const analysisNav = [
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
   { title: "Licensing", url: "/licensing", icon: Key },
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
+  { title: "VMware Versions", url: "/vmware-versions", icon: BarChart3 },
 ];
 
 const compareNav = [
