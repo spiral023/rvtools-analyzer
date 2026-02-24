@@ -16,23 +16,25 @@ type ReleaseType = "vcenter" | "esxi";
 interface KnownRelease {
   type: ReleaseType;
   title: string;
-  releaseDate: string;
+  releaseDateIso: string;
   build: string;
 }
 
 interface ReleaseUsageRow extends KnownRelease {
+  releaseDateLabel: string;
+  releaseTimestamp: number;
   usageCount: number;
   totalAssets: number;
   adoptionPct: number;
 }
 
 const KNOWN_RELEASES: KnownRelease[] = [
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3i", releaseDate: "24 FEB 2026", build: "25197330" },
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3h", releaseDate: "15 DEC 2025", build: "25092719" },
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3g", releaseDate: "29 JUL 2025", build: "24853646" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3i", releaseDate: "24 FEB 2026", build: "25205845" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3h", releaseDate: "15 DEC 2025", build: "25067014" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3g", releaseDate: "29 JUL 2025", build: "24859861" },
+  { type: "vcenter", title: "VMware vCenter 8.0 Update 3i", releaseDateIso: "2026-02-24", build: "25197330" },
+  { type: "vcenter", title: "VMware vCenter 8.0 Update 3h", releaseDateIso: "2025-12-15", build: "25092719" },
+  { type: "vcenter", title: "VMware vCenter 8.0 Update 3g", releaseDateIso: "2025-07-29", build: "24853646" },
+  { type: "esxi", title: "VMware ESXi 8.0 Update 3h", releaseDateIso: "2025-12-15", build: "25067014" },
+  { type: "esxi", title: "VMware ESXi 8.0 Update 3i", releaseDateIso: "2026-02-24", build: "25205845" },
+  { type: "esxi", title: "VMware ESXi 8.0 Update 3g", releaseDateIso: "2025-07-29", build: "24859861" },
 ];
 
 function extractBuild(value: unknown): string | null {
@@ -43,9 +45,21 @@ function extractBuild(value: unknown): string | null {
   return matches[matches.length - 1];
 }
 
+function toReleaseTimestamp(releaseDateIso: string): number {
+  return new Date(`${releaseDateIso}T00:00:00Z`).getTime();
+}
+
+function formatReleaseDate(releaseDateIso: string): string {
+  return new Date(`${releaseDateIso}T00:00:00Z`).toLocaleDateString("de-DE");
+}
+
 const releaseColumns: ColumnDef<ReleaseUsageRow, unknown>[] = [
   { accessorKey: "title", header: "Release" },
-  { accessorKey: "releaseDate", header: "Release Date" },
+  {
+    accessorKey: "releaseTimestamp",
+    header: "Release Date",
+    cell: ({ row }) => <span className="font-mono-data">{row.original.releaseDateLabel}</span>,
+  },
   { accessorKey: "build", header: "ISO Build", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "usageCount", header: "In Nutzung", cell: ({ row }) => `${formatNum(row.original.usageCount)} / ${formatNum(row.original.totalAssets)}` },
   {
@@ -118,11 +132,14 @@ export default function VmwareVersions() {
           const usageCount = vcenterBuildCounts.get(release.build) || 0;
           return {
             ...release,
+            releaseDateLabel: formatReleaseDate(release.releaseDateIso),
+            releaseTimestamp: toReleaseTimestamp(release.releaseDateIso),
             usageCount,
             totalAssets: totalActiveVcenters,
             adoptionPct: totalActiveVcenters > 0 ? Math.round((usageCount / totalActiveVcenters) * 1000) / 10 : 0,
           };
-        }),
+        })
+        .sort((a, b) => b.releaseTimestamp - a.releaseTimestamp),
     [vcenterBuildCounts, totalActiveVcenters],
   );
 
@@ -134,11 +151,14 @@ export default function VmwareVersions() {
           const usageCount = esxiBuildCounts.get(release.build) || 0;
           return {
             ...release,
+            releaseDateLabel: formatReleaseDate(release.releaseDateIso),
+            releaseTimestamp: toReleaseTimestamp(release.releaseDateIso),
             usageCount,
             totalAssets: totalActiveHosts,
             adoptionPct: totalActiveHosts > 0 ? Math.round((usageCount / totalActiveHosts) * 1000) / 10 : 0,
           };
-        }),
+        })
+        .sort((a, b) => b.releaseTimestamp - a.releaseTimestamp),
     [esxiBuildCounts, totalActiveHosts],
   );
 

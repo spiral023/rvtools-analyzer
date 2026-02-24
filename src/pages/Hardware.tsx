@@ -79,7 +79,10 @@ function buildHbaEntries(rows: SheetRow[], hostName: string): HbaEntry[] {
       model: str(r.data["Model"]),
       wwn: str(r.data["WWN"]),
       pci: str(r.data["Pci"]),
-    }));
+    }))
+    .sort((a, b) =>
+      a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
+    );
 }
 
 function buildNicEntries(rows: SheetRow[], hostName: string): NicEntry[] {
@@ -95,7 +98,10 @@ function buildNicEntries(rows: SheetRow[], hostName: string): NicEntry[] {
       uplinkPort: str(r.data["Uplink port"]),
       pci: str(r.data["PCI"]),
       wakeOn: bool(r.data["WakeOn"]),
-    }));
+    }))
+    .sort((a, b) =>
+      a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
+    );
 }
 
 function formatMemory(mib: number): string {
@@ -251,7 +257,7 @@ export function HostDetailDialog({
       const power = (vm.powerState || "").replace(/\s+/g, "").toLowerCase();
       return power === "poweredon" || power === "on";
     })
-    .sort((a, b) => a.vmName.localeCompare(b.vmName));
+    .sort((a, b) => a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" }));
 
   const statusColor = (s: string) => {
     const l = s.toLowerCase();
