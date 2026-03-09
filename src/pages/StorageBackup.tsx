@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Database, HardDrive, AlertTriangle, Shield, Clock, FileWarning, Layers } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -169,7 +169,7 @@ export default function StorageBackup() {
               <YAxis type="category" dataKey="name" width={180} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
-                {partChart.map((e, i) => <Cell key={i} fill={e.freePct < 10 ? CHART_COLORS.danger : e.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
+                {partChart.map((entry) => <Cell key={entry.name} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

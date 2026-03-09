@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSnapshots, deleteSnapshot, deleteAllData } from "@/data/db";
 import { importRvtoolsXlsx } from "@/domain/services/importService";
@@ -12,13 +12,48 @@ import { toast } from "sonner";
 import type { ImportResult } from "@/domain/models/types";
 
 export default function UploadSnapshots() {
+  type UploadState = {
+    importing: boolean;
+    dragOver: boolean;
+    lastResult: ImportResult | null;
+    deleteAllOpen: boolean;
+    progress: ImportProgress | null;
+  };
+  type UploadAction =
+    | { type: "set-importing"; value: boolean }
+    | { type: "set-drag-over"; value: boolean }
+    | { type: "set-last-result"; value: ImportResult | null }
+    | { type: "set-delete-all-open"; value: boolean }
+    | { type: "set-progress"; value: ImportProgress | null };
+
+  const uploadReducer = (state: UploadState, action: UploadAction): UploadState => {
+    switch (action.type) {
+      case "set-importing":
+        return { ...state, importing: action.value };
+      case "set-drag-over":
+        return { ...state, dragOver: action.value };
+      case "set-last-result":
+        return { ...state, lastResult: action.value };
+      case "set-delete-all-open":
+        return { ...state, deleteAllOpen: action.value };
+      case "set-progress":
+        return { ...state, progress: action.value };
+      default:
+        return state;
+    }
+  };
+
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const [lastResult, setLastResult] = useState<ImportResult | null>(null);
-  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const fileInputId = "snapshot-upload-input";
+  const [uploadState, dispatch] = useReducer(uploadReducer, {
+    importing: false,
+    dragOver: false,
+    lastResult: null,
+    deleteAllOpen: false,
+    progress: null,
+  });
+  const { importing, dragOver, lastResult, deleteAllOpen, progress } = uploadState;
 
   const { data: snapshots = [], refetch } = useQuery({
     queryKey: ["snapshots"],
@@ -32,12 +67,12 @@ export default function UploadSnapshots() {
       f.name.endsWith(".xlsx") || f.name.endsWith(".xls") || f.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
     if (xlsxFiles.length === 0) { toast.error("Keine gültige XLSX-Datei ausgewählt."); return; }
-    setImporting(true);
+    dispatch({ type: "set-importing", value: true });
     for (const file of xlsxFiles) {
       try {
-        setProgress({ step: "Vorbereitung", percent: 0, detail: file.name });
-        const result = await importRvtoolsXlsx(file, setProgress);
-        setLastResult(result);
+        dispatch({ type: "set-progress", value: { step: "Vorbereitung", percent: 0, detail: file.name } });
+        const result = await importRvtoolsXlsx(file, (nextProgress) => dispatch({ type: "set-progress", value: nextProgress }));
+        dispatch({ type: "set-last-result", value: result });
         const kindLabel = result.fileKind === "tech-info" ? "Tech-Info" : "RVTools";
         if (result.success) toast.success(`"${file.name}" (${kindLabel}) erfolgreich importiert.`);
         else toast.error(`Fehler bei "${file.name}" (${kindLabel}): ${result.errors.join(", ")}`);
@@ -45,13 +80,13 @@ export default function UploadSnapshots() {
         toast.error(`Import fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    setImporting(false);
-    setProgress(null);
+    dispatch({ type: "set-importing", value: false });
+    dispatch({ type: "set-progress", value: null });
     invalidateAll();
   }, [invalidateAll]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); setDragOver(false);
+    e.preventDefault(); dispatch({ type: "set-drag-over", value: false });
     if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
@@ -63,7 +98,7 @@ export default function UploadSnapshots() {
 
   const handleDeleteAll = useCallback(async () => {
     await deleteAllData();
-    setDeleteAllOpen(false);
+    dispatch({ type: "set-delete-all-open", value: false });
     toast.success("Alle lokalen Daten wurden gelöscht.");
     invalidateAll();
   }, [invalidateAll]);
@@ -72,7 +107,7 @@ export default function UploadSnapshots() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Uploads & Snapshots</h1>
-        <Dialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
               <Trash2 className="mr-1 h-4 w-4" />Alle Daten löschen
@@ -84,25 +119,25 @@ export default function UploadSnapshots() {
               <DialogDescription>Dies löscht alle importierten Snapshots, Analysedaten und gespeicherten Einstellungen unwiderruflich aus Ihrem Browser.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleteAllOpen(false)}>Abbrechen</Button>
+              <Button variant="outline" onClick={() => dispatch({ type: "set-delete-all-open", value: false })}>Abbrechen</Button>
               <Button variant="destructive" onClick={handleDeleteAll}>Endgültig löschen</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div
+      <label
+        htmlFor={fileInputId}
         className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 transition-colors cursor-pointer ${dragOver ? "border-primary bg-primary/5" : "border-border/60 bg-card/30 hover:border-primary/40"}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
+        onDragOver={(e) => { e.preventDefault(); dispatch({ type: "set-drag-over", value: true }); }}
+        onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
-        onClick={() => !importing && fileInputRef.current?.click()}
       >
-        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple disabled={importing} className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools oder Tech-Info XLSX-Datei hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
-      </div>
+      </label>
 
       {/* Progress bar during import */}
       {importing && progress && (
@@ -135,16 +170,16 @@ export default function UploadSnapshots() {
             )}
             {lastResult.warnings.length > 0 && (
               <div className="mt-2 space-y-1">
-                {lastResult.warnings.slice(0, 10).map((w, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-xs text-warning"><AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" /><span>{w}</span></div>
+                {lastResult.warnings.slice(0, 10).map((warning) => (
+                  <div key={warning} className="flex items-start gap-1.5 text-xs text-warning"><AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" /><span>{warning}</span></div>
                 ))}
                 {lastResult.warnings.length > 10 && <p className="text-xs text-muted-foreground">...und {lastResult.warnings.length - 10} weitere Warnungen</p>}
               </div>
             )}
             {lastResult.errors.length > 0 && (
               <div className="mt-2 space-y-1">
-                {lastResult.errors.map((e, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-xs text-destructive"><AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{e}</span></div>
+                {lastResult.errors.map((error) => (
+                  <div key={error} className="flex items-start gap-1.5 text-xs text-destructive"><AlertCircle className="h-3 w-3 mt-0.5 shrink-0" /><span>{error}</span></div>
                 ))}
               </div>
             )}

@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Gauge, MemoryStick, Activity, Network, Shield, Zap } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -104,7 +104,7 @@ export default function PerformancePage() {
       .sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
   }, [rawVMemory]);
 
-  const multipathIssues = useMemo(() => rawMultiPath.filter((r) => { const s = String(r.data["Oper. State"] || "").toLowerCase(); return s !== "" && s !== "ok"; }).length, [rawMultiPath]);
+  const multipathIssues = rawMultiPath.filter((r) => { const s = String(r.data["Oper. State"] || "").toLowerCase(); return s !== "" && s !== "ok"; }).length;
 
   // Entitlement Gaps
   const entitlementGaps = useMemo<EntitlementRow[]>(() => {
@@ -230,7 +230,7 @@ export default function PerformancePage() {
               <YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Bar dataKey="cpuReady" radius={[0, 4, 4, 0]}>
-                {topChart.map((entry, i) => <Cell key={i} fill={(entry.cpuReady || 0) > 10 ? CHART_COLORS.danger : (entry.cpuReady || 0) > 5 ? CHART_COLORS.warning : CHART_COLORS.primary} />)}
+                {topChart.map((entry) => <Cell key={entry.name} fill={(entry.cpuReady || 0) > 10 ? CHART_COLORS.danger : (entry.cpuReady || 0) > 5 ? CHART_COLORS.warning : CHART_COLORS.primary} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

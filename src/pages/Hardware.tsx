@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
-} from "recharts";
+} from "@/components/charts/recharts";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
   Server, Cpu, MemoryStick, HardDrive, Network as NetworkIcon,
@@ -612,8 +612,8 @@ export default function Hardware() {
                 />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={24}>
-                  {modelBarData.map((_, i) => (
-                    <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
+                  {modelBarData.map((entry, index) => (
+                    <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -640,8 +640,8 @@ export default function Hardware() {
                   nameKey="name"
                   label={({ name, value }) => `${name} (${value})`}
                 >
-                  {vendorData.map((_, i) => (
-                    <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
+                  {vendorData.map((entry, index) => (
+                    <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />

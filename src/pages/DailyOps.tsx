@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc, Monitor } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -97,16 +97,14 @@ export default function DailyOps() {
   const disconnectedVms = useMemo(() => vms.filter((v) => v.connectionState && v.connectionState !== "connected"), [vms]);
 
   // Tools hygiene
-  const toolsIssues = useMemo(() => {
-    return rawVTools.filter((r) => {
-      const tools = String(r.data["Tools"] || "");
-      return tools !== "" && tools !== "toolsOk";
-    }).length;
-  }, [rawVTools]);
+  const toolsIssues = rawVTools.filter((r) => {
+    const tools = String(r.data["Tools"] || "");
+    return tools !== "" && tools !== "toolsOk";
+  }).length;
 
   // CD/USB connected
-  const connectedCD = useMemo(() => rawVCD.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length, [rawVCD]);
-  const connectedUSB = useMemo(() => rawVUSB.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length, [rawVUSB]);
+  const connectedCD = rawVCD.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
+  const connectedUSB = rawVUSB.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
 
   // Health by type
   const healthByType = useMemo(() => {
@@ -162,7 +160,7 @@ export default function DailyOps() {
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
-                {powerData.map((_, i) => <Cell key={i} fill={SEVERITY_COLORS[i]} />)}
+                {powerData.map((entry, index) => <Cell key={entry.name} fill={SEVERITY_COLORS[index]} />)}
               </Pie>
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { BarChart3, Cpu, Server } from "lucide-react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useActiveSnapshotIds, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -118,10 +118,7 @@ export default function VmwareVersions() {
     return counts;
   }, [hosts]);
 
-  const totalActiveVcenters = useMemo(
-    () => new Set(activeSnapshots.map((snapshot) => snapshot.vcenterId)).size,
-    [activeSnapshots],
-  );
+  const totalActiveVcenters = new Set(activeSnapshots.map((snapshot) => snapshot.vcenterId)).size;
   const totalActiveHosts = hosts.length;
 
   const vcenterRows = useMemo<ReleaseUsageRow[]>(
@@ -244,8 +241,8 @@ export default function VmwareVersions() {
                 <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
                 <Bar dataKey="usage" radius={[4, 4, 0, 0]}>
-                  {vcenterChartData.map((_, index) => (
-                    <Cell key={index} fill={index === 0 ? CHART_COLORS.success : CHART_COLORS.primary} />
+                  {vcenterChartData.map((entry, index) => (
+                    <Cell key={entry.name} fill={index === 0 ? CHART_COLORS.success : CHART_COLORS.primary} />
                   ))}
                 </Bar>
               </BarChart>
@@ -264,8 +261,8 @@ export default function VmwareVersions() {
                 <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
                 <Bar dataKey="usage" radius={[4, 4, 0, 0]}>
-                  {esxiChartData.map((_, index) => (
-                    <Cell key={index} fill={index === 0 ? CHART_COLORS.success : CHART_COLORS.info} />
+                  {esxiChartData.map((entry, index) => (
+                    <Cell key={entry.name} fill={index === 0 ? CHART_COLORS.success : CHART_COLORS.info} />
                   ))}
                 </Bar>
               </BarChart>

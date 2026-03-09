@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { Server, Cpu, HardDrive, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
@@ -100,7 +100,7 @@ export default function Overview() {
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
-                {powerData.map((_, i) => <Cell key={i} fill={SEVERITY_COLORS[i]} />)}
+                {powerData.map((entry, index) => <Cell key={entry.name} fill={SEVERITY_COLORS[index]} />)}
               </Pie>
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />

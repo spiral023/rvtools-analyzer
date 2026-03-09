@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useActiveSnapshotIds, useVms, useClusters, useDatastores, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
@@ -63,6 +63,181 @@ interface HostDensityPoint {
   vms: number;
   vcpuPerCore: number;
   ramGiB: number;
+}
+
+function CapacityOverviewCards({
+  datastoresCount,
+  avgFreePct,
+  critDs,
+  warnDs,
+  maxCpuOC,
+  maxRamOC,
+  rpRisks,
+  storageEfficiency,
+}: {
+  datastoresCount: number;
+  avgFreePct: number | null;
+  critDs: number;
+  warnDs: number;
+  maxCpuOC: number;
+  maxRamOC: number;
+  rpRisks: number;
+  storageEfficiency: { provGiB: number; inUseGiB: number; ratio: number };
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
+      <KpiCard title="Datastores" value={formatNum(datastoresCount)} icon={<HardDrive className="h-4 w-4" />} />
+      <KpiCard title="Ø Frei %" value={avgFreePct !== null ? formatPct(avgFreePct) : "—"} severity={avgFreePct !== null && avgFreePct < 15 ? "crit" : avgFreePct !== null && avgFreePct < 25 ? "warn" : "ok"} />
+      <KpiCard title="Kritisch (<10%)" value={formatNum(critDs)} severity={critDs > 0 ? "crit" : "ok"} />
+      <KpiCard title="Warnung (<20%)" value={formatNum(warnDs)} severity={warnDs > 0 ? "warn" : "ok"} />
+      <KpiCard title="Max CPU OC" value={`${maxCpuOC.toFixed(1)}:1`} severity={maxCpuOC > 5 ? "crit" : maxCpuOC > 3 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
+      <KpiCard title="Max RAM OC" value={`${maxRamOC.toFixed(1)}:1`} severity={maxRamOC > 1.5 ? "crit" : maxRamOC > 1.0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
+      <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} />
+      <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} />
+    </div>
+  );
+}
+
+function CapacityRiskCards({
+  criticalCapacityClusters,
+  mediumCapacityClusters,
+  hotHostsTotal,
+  maxSwapBalloonPct,
+  avgVcpuPerCore,
+}: {
+  criticalCapacityClusters: number;
+  mediumCapacityClusters: number;
+  hotHostsTotal: number;
+  maxSwapBalloonPct: number;
+  avgVcpuPerCore: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+      <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
+      <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
+      <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
+      <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
+    </div>
+  );
+}
+
+function CapacityChartSection({
+  dsChart,
+  hostDensity,
+  renderHostDensityTooltip,
+  clusterRiskChart,
+}: {
+  dsChart: Array<{ name: string; freePct: number }>;
+  hostDensity: HostDensityPoint[];
+  renderHostDensityTooltip: (props: { active?: boolean; payload?: Array<{ payload?: HostDensityPoint }> }) => ReactNode;
+  clusterRiskChart: Array<{ name: string; riskScore: number }>;
+}) {
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Headroom (Frei %)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={dsChart} layout="vertical">
+              <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+              <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
+                {dsChart.map((entry) => <Cell key={entry.name} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <ScatterChart>
+              <CartesianGrid {...CHART_GRID_STYLE} />
+              <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
+              <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
+              <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
+              <Tooltip content={renderHostDensityTooltip} cursor={{ strokeDasharray: "3 3" }} />
+              <Scatter data={hostDensity} fill={CHART_COLORS.primary} />
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {clusterRiskChart.length > 0 && (
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Risk Score (vHost + vCluster)</h3>
+          <ResponsiveContainer width="100%" height={Math.max(240, clusterRiskChart.length * 34)}>
+            <BarChart data={clusterRiskChart} layout="vertical">
+              <XAxis type="number" domain={[0, "dataMax + 5"]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={240} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+              <Bar dataKey="riskScore" radius={[0, 4, 4, 0]}>
+                {clusterRiskChart.map((entry) => (
+                  <Cell key={entry.name} fill={entry.riskScore >= 60 ? CHART_COLORS.danger : entry.riskScore >= 30 ? CHART_COLORS.warning : CHART_COLORS.success} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </>
+  );
+}
+
+function CapacityTablesSection({
+  clusterCapacity,
+  clusterMetrics,
+  datastores,
+  globalFilter,
+  rpData,
+  thinRiskData,
+  onOpenClusterDetail,
+}: {
+  clusterCapacity: ClusterCapacityRow[];
+  clusterMetrics: ClusterMetric[];
+  datastores: NormalizedDatastore[];
+  globalFilter: string;
+  rpData: RpRow[];
+  thinRiskData: ThinRiskRow[];
+  onOpenClusterDetail: (clusterName: string | null | undefined) => void;
+}) {
+  return (
+    <>
+      {clusterCapacity.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3>
+          <VirtualTable
+            data={clusterCapacity}
+            columns={clusterCapacityColumns}
+            globalFilter={globalFilter}
+            height={340}
+            onRowClick={(row) => onOpenClusterDetail(row.cluster)}
+          />
+        </div>
+      )}
+
+      <div>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3>
+        <VirtualTable
+          data={clusterMetrics}
+          columns={clusterColumns}
+          globalFilter={globalFilter}
+          height={300}
+          onRowClick={(row) => onOpenClusterDetail(row.name)}
+        />
+      </div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={globalFilter} /></div>
+
+      {rpData.length > 0 && (
+        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rpData.length})</h3><VirtualTable data={rpData} columns={rpColumns} globalFilter={globalFilter} height={300} /></div>
+      )}
+
+      {thinRiskData.length > 0 && (
+        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={globalFilter} height={250} /></div>
+      )}
+    </>
+  );
 }
 
 const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
@@ -160,7 +335,7 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   }},
 ];
 
-export default function Capacity() {
+function useCapacityPageData() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { data: clusters = [] } = useClusters();
@@ -476,6 +651,74 @@ export default function Capacity() {
     [clusterCapacity],
   );
 
+  return {
+    snapshots,
+    filters,
+    clusters,
+    datastores,
+    hosts,
+    rawVHost,
+    vms,
+    selectedClusterName,
+    setSelectedClusterName,
+    openClusterDetail,
+    avgFreePct,
+    critDs,
+    warnDs,
+    clusterMetrics,
+    hostDensity,
+    renderHostDensityTooltip,
+    clusterCapacity,
+    dsChart,
+    rpData,
+    rpRisks,
+    thinRiskData,
+    storageEfficiency,
+    maxCpuOC,
+    maxRamOC,
+    criticalCapacityClusters,
+    mediumCapacityClusters,
+    hotHostsTotal,
+    maxSwapBalloonPct,
+    avgVcpuPerCore,
+    clusterRiskChart,
+  };
+}
+
+export default function Capacity() {
+  const {
+    snapshots,
+    filters,
+    clusters,
+    datastores,
+    hosts,
+    rawVHost,
+    vms,
+    selectedClusterName,
+    setSelectedClusterName,
+    openClusterDetail,
+    avgFreePct,
+    critDs,
+    warnDs,
+    clusterMetrics,
+    hostDensity,
+    renderHostDensityTooltip,
+    clusterCapacity,
+    dsChart,
+    rpData,
+    rpRisks,
+    thinRiskData,
+    storageEfficiency,
+    maxCpuOC,
+    maxRamOC,
+    criticalCapacityClusters,
+    mediumCapacityClusters,
+    hotHostsTotal,
+    maxSwapBalloonPct,
+    avgVcpuPerCore,
+    clusterRiskChart,
+  } = useCapacityPageData();
+
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Capacity</h1><EmptyState icon={<HardDrive className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
@@ -484,106 +727,43 @@ export default function Capacity() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Capacity</h1>
       <FilterBar />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
-        <KpiCard title="Datastores" value={formatNum(datastores.length)} icon={<HardDrive className="h-4 w-4" />} />
-        <KpiCard title="Ø Frei %" value={avgFreePct !== null ? formatPct(avgFreePct) : "—"} severity={avgFreePct !== null && avgFreePct < 15 ? "crit" : avgFreePct !== null && avgFreePct < 25 ? "warn" : "ok"} />
-        <KpiCard title="Kritisch (<10%)" value={formatNum(critDs)} severity={critDs > 0 ? "crit" : "ok"} />
-        <KpiCard title="Warnung (<20%)" value={formatNum(warnDs)} severity={warnDs > 0 ? "warn" : "ok"} />
-        <KpiCard title="Max CPU OC" value={`${maxCpuOC.toFixed(1)}:1`} severity={maxCpuOC > 5 ? "crit" : maxCpuOC > 3 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
-        <KpiCard title="Max RAM OC" value={`${maxRamOC.toFixed(1)}:1`} severity={maxRamOC > 1.5 ? "crit" : maxRamOC > 1.0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
-        <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} />
-        <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} />
-      </div>
+      <CapacityOverviewCards
+        datastoresCount={datastores.length}
+        avgFreePct={avgFreePct}
+        critDs={critDs}
+        warnDs={warnDs}
+        maxCpuOC={maxCpuOC}
+        maxRamOC={maxRamOC}
+        rpRisks={rpRisks}
+        storageEfficiency={storageEfficiency}
+      />
 
       {clusterCapacity.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-          <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
-          <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
-          <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
-          <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
-        </div>
-      )}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Headroom (Frei %)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={dsChart} layout="vertical">
-              <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
-                {dsChart.map((entry, i) => <Cell key={i} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <ScatterChart>
-              <CartesianGrid {...CHART_GRID_STYLE} />
-              <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
-              <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
-              <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
-              <Tooltip content={renderHostDensityTooltip} cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter data={hostDensity} fill={CHART_COLORS.primary} />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {clusterRiskChart.length > 0 && (
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Risk Score (vHost + vCluster)</h3>
-          <ResponsiveContainer width="100%" height={Math.max(240, clusterRiskChart.length * 34)}>
-            <BarChart data={clusterRiskChart} layout="vertical">
-              <XAxis type="number" domain={[0, "dataMax + 5"]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={240} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="riskScore" radius={[0, 4, 4, 0]}>
-                {clusterRiskChart.map((entry, i) => (
-                  <Cell key={i} fill={entry.riskScore >= 60 ? CHART_COLORS.danger : entry.riskScore >= 30 ? CHART_COLORS.warning : CHART_COLORS.success} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {clusterCapacity.length > 0 && (
-        <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3>
-          <VirtualTable
-            data={clusterCapacity}
-            columns={clusterCapacityColumns}
-            globalFilter={filters.search}
-            height={340}
-            onRowClick={(row) => openClusterDetail(row.cluster)}
-          />
-        </div>
-      )}
-
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3>
-        <VirtualTable
-          data={clusterMetrics}
-          columns={clusterColumns}
-          globalFilter={filters.search}
-          height={300}
-          onRowClick={(row) => openClusterDetail(row.name)}
+        <CapacityRiskCards
+          criticalCapacityClusters={criticalCapacityClusters}
+          mediumCapacityClusters={mediumCapacityClusters}
+          hotHostsTotal={hotHostsTotal}
+          maxSwapBalloonPct={maxSwapBalloonPct}
+          avgVcpuPerCore={avgVcpuPerCore}
         />
-      </div>
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={filters.search} /></div>
-
-      {rpData.length > 0 && (
-        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rpData.length})</h3><VirtualTable data={rpData} columns={rpColumns} globalFilter={filters.search} height={300} /></div>
       )}
 
-      {thinRiskData.length > 0 && (
-        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={filters.search} height={250} /></div>
-      )}
+      <CapacityChartSection
+        dsChart={dsChart}
+        hostDensity={hostDensity}
+        renderHostDensityTooltip={renderHostDensityTooltip}
+        clusterRiskChart={clusterRiskChart}
+      />
+
+      <CapacityTablesSection
+        clusterCapacity={clusterCapacity}
+        clusterMetrics={clusterMetrics}
+        datastores={datastores}
+        globalFilter={filters.search}
+        rpData={rpData}
+        thinRiskData={thinRiskData}
+        onOpenClusterDetail={openClusterDetail}
+      />
 
       <ClusterDetailDialog
         clusterName={selectedClusterName}

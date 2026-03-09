@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Network, ShieldAlert, Wifi, Router, Cable, AlertTriangle } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -86,7 +86,7 @@ export default function NetworkSecurity() {
   const vmkAdapters = useMemo<VmkRow[]>(() =>
     rawVmk.map((r) => ({ host: String(r.data["Host"] || ""), portGroup: String(r.data["Port Group"] || ""), device: String(r.data["Device"] || ""), ip: String(r.data["IP Address"] || ""), subnet: String(r.data["Subnet mask"] || ""), mtu: Number(String(r.data["MTU"] || "0").replace(/,/g, "")), dhcp: String(r.data["DHCP"] || "").toLowerCase() === "true" })), [rawVmk]);
 
-  const mtuValues = useMemo(() => new Set(vmkAdapters.map((v) => v.mtu)).size, [vmkAdapters]);
+  const mtuValues = new Set(vmkAdapters.map((v) => v.mtu)).size;
   const dhcpVmk = vmkAdapters.filter((v) => v.dhcp).length;
 
   const nics = useMemo<NicRow[]>(() =>
@@ -217,7 +217,7 @@ export default function NetworkSecurity() {
       {uplinkData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Uplink Redundanz Risiken ({uplinkData.length})</h3><VirtualTable data={uplinkData} columns={uplinkColumns} globalFilter={filters.search} height={300} /></div>)}
       {teamingData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">NIC Teaming Auffälligkeiten ({teamingData.length})</h3><VirtualTable data={teamingData} columns={teamingColumns} globalFilter={filters.search} height={300} /></div>)}
       {dvSwitchDrift.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">dVSwitch Config Drift ({dvSwitchDrift.length})</h3>
-        <div className="space-y-1">{dvSwitchDrift.map((d, i) => (<div key={i} className="flex gap-3 text-sm rounded bg-muted/30 px-3 py-1.5"><span className="font-mono-data">{d.port}</span><span className="text-warning">{d.field}</span><span>Ist: <span className="font-mono-data">{d.value}</span></span><span className="text-muted-foreground">Soll: <span className="font-mono-data">{d.expected}</span></span></div>))}</div>
+        <div className="space-y-1">{dvSwitchDrift.map((drift) => (<div key={`${drift.port}-${drift.field}-${drift.expected}`} className="flex gap-3 text-sm rounded bg-muted/30 px-3 py-1.5"><span className="font-mono-data">{drift.port}</span><span className="text-warning">{drift.field}</span><span>Ist: <span className="font-mono-data">{drift.value}</span></span><span className="text-muted-foreground">Soll: <span className="font-mono-data">{drift.expected}</span></span></div>))}</div>
       </div>)}
 
       {vmkAdapters.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMkernel Adapter ({vmkAdapters.length})</h3><VirtualTable data={vmkAdapters} columns={vmkColumns} globalFilter={filters.search} height={350} /></div>)}
