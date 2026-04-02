@@ -4,7 +4,9 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
@@ -338,12 +340,14 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
 function useCapacityPageData() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms } = useVms();
+  const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: clusters = [] } = useClusters();
   const { data: datastores = [] } = useDatastores();
   const { data: hosts = [] } = useHosts();
   const { data: rawVHost = [] } = useRawSheet("vHost");
   const { data: rawRP = [] } = useRawSheet("vRP");
   const { data: rawDisks = [] } = useRawSheet("vDisk");
+  const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
   const [selectedClusterName, setSelectedClusterName] = useState<string | null>(null);
 
   const openClusterDetail = (clusterName: string | null | undefined) => {
@@ -601,7 +605,7 @@ function useCapacityPageData() {
       if (ds.freePct !== null) dsMap.set(ds.name, { freePct: ds.freePct, thinDisks: 0, totalThinMiB: 0 });
     }
     // We don't have DS name on vDisk directly, but we can count thin disks globally
-    for (const r of rawDisks) {
+    for (const r of filteredRawDisks) {
       const thin = String(r.data["Thin"] || "").toLowerCase() === "true";
       if (thin) {
         // Count globally for now
@@ -624,7 +628,7 @@ function useCapacityPageData() {
       })
       .filter((r) => r.risk !== "niedrig" || r.thinDisks > 0)
       .sort((a, b) => a.freePct - b.freePct);
-  }, [datastores, rawDisks]);
+  }, [datastores, filteredRawDisks]);
 
   // Unshared vs Provisioned
   const storageEfficiency = useMemo(() => {
@@ -727,6 +731,7 @@ export default function Capacity() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Capacity</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Thin-Provisioning und VM-basierte Capacity-Kennzahlen folgen dem globalen Filter; Host-, Cluster- und Datastore-Inventar bleibt unverändert." />
       <CapacityOverviewCards
         datastoresCount={datastores.length}
         avgFreePct={avgFreePct}

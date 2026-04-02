@@ -4,6 +4,8 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Gauge, MemoryStick, Activity, Network, Shield, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
@@ -87,28 +89,32 @@ const nicQualityColumns: ColumnDef<NicQualityRow, unknown>[] = [
 export default function PerformancePage() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms } = useVms();
+  const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: rawVMemory = [] } = useRawSheet("vMemory");
   const { data: rawVCPU = [] } = useRawSheet("vCPU");
   const { data: rawMultiPath = [] } = useRawSheet("vMultiPath");
   const { data: rawVNetwork = [] } = useRawSheet("vNetwork");
   const { data: rawNIC = [] } = useRawSheet("vNIC");
   const { data: datastores = [] } = useDatastores();
+  const filteredRawVMemory = useMemo(() => filterVmRows(rawVMemory), [filterVmRows, rawVMemory]);
+  const filteredRawVCPU = useMemo(() => filterVmRows(rawVCPU), [filterVmRows, rawVCPU]);
+  const filteredRawVNetwork = useMemo(() => filterVmRows(rawVNetwork), [filterVmRows, rawVNetwork]);
 
   const cpuReadyVms = useMemo(() => vms.filter((v) => v.cpuReady !== null && v.cpuReady > 0).sort((a, b) => (b.cpuReady || 0) - (a.cpuReady || 0)), [vms]);
   const hotspots = cpuReadyVms.filter((v) => (v.cpuReady || 0) > 5).length;
   const topChart = useMemo(() => cpuReadyVms.slice(0, 15).map((v) => ({ name: v.vmName.length > 18 ? v.vmName.slice(0, 16) + "…" : v.vmName, cpuReady: v.cpuReady })), [cpuReadyVms]);
 
   const memoryIssues = useMemo<MemoryIssueVm[]>(() => {
-    return rawVMemory.filter((r) => { const sw = Number(r.data["Swapped"] || 0); const bl = Number(r.data["Ballooned"] || 0); return sw > 0 || bl > 0; })
+    return filteredRawVMemory.filter((r) => { const sw = Number(r.data["Swapped"] || 0); const bl = Number(r.data["Ballooned"] || 0); return sw > 0 || bl > 0; })
       .map((r) => ({ vmName: String(r.data["VM"] || ""), cluster: r.data["Cluster"] as string | null, host: r.data["Host"] as string | null, sizeMiB: Number(r.data["Size MiB"] || 0), swapped: Number(r.data["Swapped"] || 0), ballooned: Number(r.data["Ballooned"] || 0), active: Number(r.data["Active"] || 0) }))
       .sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
-  }, [rawVMemory]);
+  }, [filteredRawVMemory]);
 
   const multipathIssues = rawMultiPath.filter((r) => { const s = String(r.data["Oper. State"] || "").toLowerCase(); return s !== "" && s !== "ok"; }).length;
 
   // Entitlement Gaps
   const entitlementGaps = useMemo<EntitlementRow[]>(() => {
-    return rawVCPU.filter((r) => String(r.data["Powerstate"] || "").toLowerCase() === "poweredon")
+    return filteredRawVCPU.filter((r) => String(r.data["Powerstate"] || "").toLowerCase() === "poweredon")
       .map((r) => {
         const cpuEnt = Number(r.data["Entitlement"] || 0);
         const cpuDrs = Number(r.data["DRS Entitlement"] || 0);
@@ -118,12 +124,12 @@ export default function PerformancePage() {
       })
       .filter((e) => Math.abs(e.cpuDelta) > 200)
       .sort((a, b) => Math.abs(b.cpuDelta) - Math.abs(a.cpuDelta));
-  }, [rawVCPU]);
+  }, [filteredRawVCPU]);
 
   // Enrich with memory entitlement
   const entitlementFull = useMemo<EntitlementRow[]>(() => {
     const memMap = new Map<string, { ent: number; active: number }>();
-    for (const r of rawVMemory) {
+    for (const r of filteredRawVMemory) {
       const vm = String(r.data["VM"] || "");
       memMap.set(vm, { ent: Number(r.data["Entitlement"] || 0), active: Number(r.data["Active"] || 0) });
     }
@@ -132,22 +138,23 @@ export default function PerformancePage() {
       if (m) { e.memEntitlement = m.ent; e.memActive = m.active; e.memDelta = m.ent - m.active; }
       return e;
     });
-  }, [entitlementGaps, rawVMemory]);
+  }, [entitlementGaps, filteredRawVMemory]);
 
   // FT Latency
   const ftVms = useMemo<FtRow[]>(() => {
     return vms.filter((v) => v.powerState === "poweredOn").map((v) => {
-      const raw = rawVCPU.find((r) => String(r.data["VM"]) === v.vmName);
+      const raw = filteredRawVCPU.find((r) => String(r.data["VM"]) === v.vmName);
       if (!raw) return null;
       // FT data is in vInfo
       return null;
     }).filter(Boolean) as FtRow[];
-  }, [vms, rawVCPU]);
+  }, [vms, filteredRawVCPU]);
 
   // Actually get FT from raw vInfo
   const { data: rawVInfo = [] } = useRawSheet("vInfo");
+  const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
   const ftData = useMemo<FtRow[]>(() => {
-    return rawVInfo.filter((r) => {
+    return filteredRawVInfo.filter((r) => {
       const ftState = String(r.data["FT State"] || "");
       return ftState && ftState !== "notConfigured" && ftState !== "";
     }).map((r) => {
@@ -158,11 +165,11 @@ export default function PerformancePage() {
       if (lat > 10 || secLat > 10) risk = "hoch";
       return { vm: String(r.data["VM"] || ""), ftState: String(r.data["FT State"] || ""), ftRole: String(r.data["FT Role"] || ""), ftLatency: lat, ftSecLatency: secLat, ftBandwidth: Number(r.data["FT Bandwidth"] || 0), risk };
     });
-  }, [rawVInfo]);
+  }, [filteredRawVInfo]);
 
   // VM Network Anomalies
   const vmNetAnomalies = useMemo<VmNetAnomalyRow[]>(() => {
-    return rawVNetwork.filter((r) => {
+    return filteredRawVNetwork.filter((r) => {
       const connected = String(r.data["Connected"] || "").toLowerCase() === "true";
       const ip = String(r.data["IPv4 Address"] || "");
       const powerState = String(r.data["Powerstate"] || "").toLowerCase();
@@ -175,7 +182,7 @@ export default function PerformancePage() {
       if (!ip) issues.push("Keine IPv4");
       return { vm: String(r.data["VM"] || ""), nic: String(r.data["NIC label"] || ""), network: String(r.data["Network"] || ""), connected, ipv4: ip || "—", issue: issues.join(", ") };
     });
-  }, [rawVNetwork]);
+  }, [filteredRawVNetwork]);
 
   // SIOC Congestion Context
   const siocData = useMemo<SiocRow[]>(() => {
@@ -211,6 +218,7 @@ export default function PerformancePage() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Performance</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Multipath, Datastore-SIOC und Host-NIC-Qualität bleiben unverändert; VM-bezogene Performance-Sichten folgen dem globalen Filter." />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
         <KpiCard title="CPU Ready Hotspots" value={formatNum(hotspots)} severity={hotspots > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} subtitle="> 5% Ready" />
         <KpiCard title="Memory Pressure" value={formatNum(memoryIssues.length)} severity={memoryIssues.length > 0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />

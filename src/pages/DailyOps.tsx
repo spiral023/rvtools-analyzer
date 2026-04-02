@@ -4,9 +4,12 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc, Monitor } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedSnapshot } from "@/domain/models/types";
@@ -86,25 +89,36 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
 export default function DailyOps() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms } = useVms();
+  const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const { data: healthEvents = [] } = useHealthEvents();
   const { data: vmSnapshots = [] } = useVmSnapshots();
   const { data: rawVTools = [] } = useRawSheet("vTools");
   const { data: rawVCD = [] } = useRawSheet("vCD");
   const { data: rawVUSB = [] } = useRawSheet("vUSB");
+  const filteredVmSnapshots = useMemo(
+    () =>
+      matchingVmJoinKeys
+        ? vmSnapshots.filter((snapshot) => matchingVmJoinKeys.has(buildVmJoinKey(snapshot.snapshotId, snapshot.vmName)))
+        : vmSnapshots,
+    [matchingVmJoinKeys, vmSnapshots],
+  );
+  const filteredRawVTools = useMemo(() => filterVmRows(rawVTools), [filterVmRows, rawVTools]);
+  const filteredRawVCD = useMemo(() => filterVmRows(rawVCD), [filterVmRows, rawVCD]);
+  const filteredRawVUSB = useMemo(() => filterVmRows(rawVUSB), [filterVmRows, rawVUSB]);
 
   const configIssues = useMemo(() => vms.filter((v) => v.configStatus && v.configStatus !== "green"), [vms]);
   const consolidationNeeded = useMemo(() => vms.filter((v) => v.consolidationNeeded === true), [vms]);
   const disconnectedVms = useMemo(() => vms.filter((v) => v.connectionState && v.connectionState !== "connected"), [vms]);
 
   // Tools hygiene
-  const toolsIssues = rawVTools.filter((r) => {
+  const toolsIssues = filteredRawVTools.filter((r) => {
     const tools = String(r.data["Tools"] || "");
     return tools !== "" && tools !== "toolsOk";
   }).length;
 
   // CD/USB connected
-  const connectedCD = rawVCD.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
-  const connectedUSB = rawVUSB.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
+  const connectedCD = filteredRawVCD.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
+  const connectedUSB = filteredRawVUSB.filter((r) => String(r.data["Connected"]).toLowerCase() === "true").length;
 
   // Health by type
   const healthByType = useMemo(() => {
@@ -133,12 +147,13 @@ export default function DailyOps() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Daily Ops</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Health-Events ohne sicheren VM-Bezug bleiben unverändert; Snapshots, Tools sowie CD/USB folgen dem globalen Filter." />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />
         <KpiCard title="Consolidation" value={formatNum(consolidationNeeded.length)} severity={consolidationNeeded.length > 0 ? "warn" : "ok"} />
         <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} />
-        <KpiCard title="VM Snapshots" value={formatNum(vmSnapshots.length)} severity={vmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} />
+        <KpiCard title="VM Snapshots" value={formatNum(filteredVmSnapshots.length)} severity={filteredVmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} />
         <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} />
         <KpiCard title="CD/USB verb." value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} />
       </div>
@@ -174,10 +189,10 @@ export default function DailyOps() {
         <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} />
       </div>
 
-      {vmSnapshots.length > 0 && (
+      {filteredVmSnapshots.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Snapshots ({vmSnapshots.length})</h3>
-          <VirtualTable data={vmSnapshots} columns={snapshotColumns} globalFilter={filters.search} />
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
+          <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} />
         </div>
       )}
     </div>

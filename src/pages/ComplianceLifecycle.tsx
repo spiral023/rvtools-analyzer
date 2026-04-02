@@ -4,6 +4,8 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostDetailDialog } from "@/pages/Hardware";
 import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
@@ -276,6 +278,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
 export default function ComplianceLifecycle() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms, allVms } = useVms();
+  const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
   const [activeTab, setActiveTab] = useState<ComplianceTab>("compliance");
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
@@ -293,10 +296,12 @@ export default function ComplianceLifecycle() {
   const { data: rawHBA = [] } = useRawSheet("vHBA", loadHba);
   const { data: rawNIC = [] } = useRawSheet("vNIC", loadNic);
   const { data: rawVHost = [] } = useRawSheet("vHost", loadVHost);
+  const filteredRawVTools = useMemo(() => filterVmRows(rawVTools), [filterVmRows, rawVTools]);
+  const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
 
   const complianceVms = useMemo<ComplianceVm[]>(() =>
     vms.map((v) => {
-      const raw = rawVInfo.find((r) => String(r.data["VM"]) === v.vmName);
+      const raw = filteredRawVInfo.find((r) => String(r.data["VM"]) === v.vmName);
       return {
         vmName: v.vmName, hwVersion: v.hwVersion, firmware: v.firmware, secureBoot: v.efiSecureBoot, cbt: v.cbt,
         osConfig: v.osConfig, osTools: v.osTools, osDrift: !!(v.osConfig && v.osTools && v.osConfig !== v.osTools),
@@ -307,7 +312,7 @@ export default function ComplianceLifecycle() {
         ftState: raw ? String(raw.data["FT State"] || "") : "",
         haRestart: raw ? String(raw.data["HA Restart Priority"] || "") : "",
       };
-    }), [vms, rawVInfo]);
+    }), [filteredRawVInfo, vms]);
 
   const complianceStats = useMemo(
     () =>
@@ -396,11 +401,11 @@ export default function ComplianceLifecycle() {
   }, [hostsWithEsxVersion]);
 
   // Tools upgrade candidates per cluster
-  const toolsUpgradeable = rawVTools.filter((r) => { const u = String(r.data["Upgradeable"] || "").toLowerCase(); return u === "yes" || u === "true"; }).length;
+  const toolsUpgradeable = filteredRawVTools.filter((r) => { const u = String(r.data["Upgradeable"] || "").toLowerCase(); return u === "yes" || u === "true"; }).length;
 
   const toolsWavePlan = useMemo<ToolsWaveRow[]>(() => {
     const clusterMap = new Map<string, { upgradeable: number; total: number }>();
-    for (const r of rawVTools) {
+    for (const r of filteredRawVTools) {
       const cluster = String(r.data["Cluster"] || "Unknown");
       if (!clusterMap.has(cluster)) clusterMap.set(cluster, { upgradeable: 0, total: 0 });
       const e = clusterMap.get(cluster)!;
@@ -409,7 +414,7 @@ export default function ComplianceLifecycle() {
       if (u === "yes" || u === "true") e.upgradeable++;
     }
     return [...clusterMap.entries()].map(([cluster, v]) => ({ cluster, upgradeableCount: v.upgradeable, totalVms: v.total, pct: v.total > 0 ? (v.upgradeable / v.total) * 100 : 0 })).filter((r) => r.upgradeableCount > 0).sort((a, b) => b.upgradeableCount - a.upgradeableCount);
-  }, [rawVTools]);
+  }, [filteredRawVTools]);
 
   // CPU generation mix
   const cpuMix = useMemo(() => {
@@ -463,11 +468,11 @@ export default function ComplianceLifecycle() {
 
   // HW Upgrade Backlog
   const hwUpgradeBacklog = useMemo<HwUpgradeRow[]>(() => {
-    return rawVInfo.filter((r) => {
+    return filteredRawVInfo.filter((r) => {
       const status = String(r.data["HW upgrade status"] || "");
       return status && status !== "none" && status !== "";
     }).map((r) => ({ vm: String(r.data["VM"] || ""), hwVersion: String(r.data["HW version"] || ""), upgradeStatus: String(r.data["HW upgrade status"] || ""), upgradePolicy: String(r.data["HW upgrade policy"] || ""), target: String(r.data["HW target"] || ""), cluster: String(r.data["Cluster"] || "") }));
-  }, [rawVInfo]);
+  }, [filteredRawVInfo]);
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Compliance / Lifecycle</h1><EmptyState icon={<Shield className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
@@ -477,6 +482,7 @@ export default function ComplianceLifecycle() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Compliance / Lifecycle</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Compliance- und VM-Operations-Bereiche folgen dem globalen Filter; Infrastruktur-Tab, Hostdaten und Treiberinventar bleiben unverändert." />
       <Tabs
         value={activeTab}
         onValueChange={(value) => {

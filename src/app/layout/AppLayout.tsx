@@ -4,6 +4,7 @@ import { AppSidebar } from "./AppSidebar";
 import { useTheme } from "./ThemeProvider";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GlobalFilterControl } from "@/components/global-filter/GlobalFilterControl";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
@@ -16,6 +17,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-sm">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
             <div className="flex items-center gap-2">
+              <GlobalFilterControl />
               <Button
                 variant="ghost"
                 size="icon"

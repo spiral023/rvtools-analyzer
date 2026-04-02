@@ -5,6 +5,8 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, HardDrive, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -37,6 +39,7 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
 export default function Overview() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
+  const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
   const { data: datastores = [] } = useDatastores();
   const { data: healthEvents = [] } = useHealthEvents();
@@ -49,6 +52,13 @@ export default function Overview() {
   const { data: rawToolsRows = [] } = useRawSheet("vTools");
 
   const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
+  const filteredRawCpuRows = useMemo(() => filterVmRows(rawCpuRows), [filterVmRows, rawCpuRows]);
+  const filteredRawMemoryRows = useMemo(() => filterVmRows(rawMemoryRows), [filterVmRows, rawMemoryRows]);
+  const filteredRawDiskRows = useMemo(() => filterVmRows(rawDiskRows), [filterVmRows, rawDiskRows]);
+  const filteredRawPartitionRows = useMemo(() => filterVmRows(rawPartitionRows), [filterVmRows, rawPartitionRows]);
+  const filteredRawNetworkRows = useMemo(() => filterVmRows(rawNetworkRows), [filterVmRows, rawNetworkRows]);
+  const filteredRawSnapshotRows = useMemo(() => filterVmRows(rawSnapshotRows), [filterVmRows, rawSnapshotRows]);
+  const filteredRawToolsRows = useMemo(() => filterVmRows(rawToolsRows), [filterVmRows, rawToolsRows]);
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -94,6 +104,7 @@ export default function Overview() {
         <span className="text-xs text-muted-foreground">{snapshots.length} Snapshot{snapshots.length !== 1 && "s"} geladen</span>
       </div>
       <FilterBar />
+      <GlobalFilterScopeHint text="Hosts, Datastores und Health-Events bleiben in dieser Übersicht unverändert; der globale Filter wirkt hier auf VM-bezogene Bereiche." />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} />
         <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} />
@@ -141,13 +152,13 @@ export default function Overview() {
         vm={selectedVm}
         open={!!selectedVm}
         onClose={() => setSelectedVm(null)}
-        rawCpuRows={rawCpuRows}
-        rawMemoryRows={rawMemoryRows}
-        rawDiskRows={rawDiskRows}
-        rawPartitionRows={rawPartitionRows}
-        rawNetworkRows={rawNetworkRows}
-        rawSnapshotRows={rawSnapshotRows}
-        rawToolsRows={rawToolsRows}
+        rawCpuRows={filteredRawCpuRows}
+        rawMemoryRows={filteredRawMemoryRows}
+        rawDiskRows={filteredRawDiskRows}
+        rawPartitionRows={filteredRawPartitionRows}
+        rawNetworkRows={filteredRawNetworkRows}
+        rawSnapshotRows={filteredRawSnapshotRows}
+        rawToolsRows={filteredRawToolsRows}
       />
     </div>
   );

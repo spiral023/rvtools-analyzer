@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { Key, AlertTriangle, CheckCircle2, Power, Database, Server } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
@@ -105,6 +106,7 @@ export default function Licensing() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Licensing & Effizienz</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Idle-VM-Kandidaten folgen dem globalen Filter; Lizenz-, Cluster- und Datastore-Übersichten bleiben unverändert." />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
         <KpiCard title="Lizenzen" value={formatNum(totalLicenses)} icon={<Key className="h-4 w-4" />} />
         <KpiCard title="Hoch (>85%)" value={formatNum(highUtil)} severity={highUtil > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />

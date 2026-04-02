@@ -162,6 +162,16 @@ export async function putTechInfoImport(meta: TechInfoImportMeta): Promise<void>
   await db.put("techinfo_imports", meta);
 }
 
+export async function getUiState(id: string): Promise<UiState | undefined> {
+  const db = await getDb();
+  return db.get("ui_state", id);
+}
+
+export async function putUiState(state: UiState): Promise<void> {
+  const db = await getDb();
+  await db.put("ui_state", state);
+}
+
 export async function getBySnapshotIds<T>(
   store: "entities_vm" | "entities_host" | "entities_cluster" | "entities_datastore" | "entities_snapshot" | "entities_health",
   snapshotIds: string[],

@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Monitor, ClipboardList, Link2Off } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -52,15 +53,17 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
 export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
+  const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
 
   const scopeVms = useMemo(
     () =>
       allVms.filter((vm) => {
+        if (hasActiveFilter && matchingVmKeys && !matchingVmKeys.has(vm.vmKey)) return false;
         if (filters.clusters.length > 0 && (!vm.cluster || !filters.clusters.includes(vm.cluster))) return false;
         if (filters.hosts.length > 0 && (!vm.host || !filters.hosts.includes(vm.host))) return false;
         return true;
       }),
-    [allVms, filters.clusters, filters.hosts],
+    [allVms, filters.clusters, filters.hosts, hasActiveFilter, matchingVmKeys],
   );
 
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));

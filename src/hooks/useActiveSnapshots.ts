@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
   NormalizedDatastore, NormalizedSnapshot, NormalizedHealth,
@@ -36,17 +38,28 @@ export function useActiveSnapshotIds() {
   return { snapshots, activeSnapshotIds, filters };
 }
 
-export function useVms() {
-  const { activeSnapshotIds, filters } = useActiveSnapshotIds();
+export function useBaseVms(enabled = true) {
+  const { activeSnapshotIds } = useActiveSnapshotIds();
   const { data: vms = [] } = useQuery({
     queryKey: ["vms", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds),
-    enabled: activeSnapshotIds.length > 0,
+    enabled: enabled && activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
 
+  return { vms, allVms: vms };
+}
+
+export function useVms() {
+  const { filters } = useActiveSnapshotIds();
+  const { allVms: vms } = useBaseVms();
+  const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine(hasGlobalFilterDefinition(filters.globalFilter));
+
   const filtered = useMemo(() => {
     let result = vms;
+    if (hasActiveFilter && matchingVmKeys) {
+      result = result.filter((vm) => matchingVmKeys.has(vm.vmKey));
+    }
     if (filters.clusters.length) result = result.filter((v) => v.cluster && filters.clusters.includes(v.cluster));
     if (filters.hosts.length) result = result.filter((v) => v.host && filters.hosts.includes(v.host));
     if (filters.search) {
@@ -59,7 +72,7 @@ export function useVms() {
       );
     }
     return result;
-  }, [vms, filters]);
+  }, [filters, hasActiveFilter, matchingVmKeys, vms]);
 
   return { vms: filtered, allVms: vms };
 }
@@ -124,7 +137,7 @@ export function useRawSheet(sheetName: string, enabled = true) {
   });
 }
 
-export function useTechInfoLatestByVmNames(vmNames: string[]) {
+export function useTechInfoLatestByVmNames(vmNames: string[], enabled = true) {
   const normalizedVmNames = useMemo(
     () => [...new Set(vmNames.map((name) => name.trim()).filter(Boolean))].sort(),
     [vmNames],
@@ -133,7 +146,7 @@ export function useTechInfoLatestByVmNames(vmNames: string[]) {
   return useQuery({
     queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
     queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
-    enabled: normalizedVmNames.length > 0,
+    enabled: enabled && normalizedVmNames.length > 0,
     staleTime: STALE_MS,
   });
 }

@@ -189,6 +189,72 @@ export interface NormalizedHealth {
   message: string | null;
 }
 
+export type GlobalFilterDataType = "text" | "number" | "boolean";
+
+export type GlobalFilterOperator =
+  | "eq"
+  | "neq"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "ends_with"
+  | "wildcard"
+  | "empty"
+  | "not_empty"
+  | "lt"
+  | "lte"
+  | "gt"
+  | "gte"
+  | "between"
+  | "is_true"
+  | "is_false";
+
+export type GlobalFilterLogicalOperator = "and" | "or";
+
+export type GlobalFilterSourceScope =
+  | "root"
+  | "vm"
+  | "techInfo"
+  | "vInfo"
+  | "vCPU"
+  | "vMemory"
+  | "vDisk"
+  | "vPartition"
+  | "vNetwork"
+  | "vSnapshot"
+  | "vTools"
+  | "vCD"
+  | "vUSB";
+
+export interface GlobalFilterRule {
+  id: string;
+  type: "rule";
+  field: string;
+  operator: GlobalFilterOperator;
+  value?: string;
+  valueTo?: string;
+  unit?: "MiB" | "GiB" | "TiB";
+}
+
+export interface GlobalFilterGroup {
+  id: string;
+  type: "group";
+  operator: GlobalFilterLogicalOperator;
+  sourceScope: GlobalFilterSourceScope;
+  children: GlobalFilterNode[];
+}
+
+export type GlobalFilterNode = GlobalFilterGroup | GlobalFilterRule;
+
+export interface GlobalFilterField {
+  source: Exclude<GlobalFilterSourceScope, "root">;
+  key: string;
+  label: string;
+  dataType: GlobalFilterDataType;
+  unit?: "MiB";
+  isRepeated?: boolean;
+}
+
 export interface AnalysisMetric {
   id: string;
   category: string;
@@ -215,6 +281,7 @@ export interface FilterState {
   hosts: string[];
   datastores: string[];
   search: string;
+  globalFilter: GlobalFilterGroup | null;
 }
 
 export interface FilterPreset {

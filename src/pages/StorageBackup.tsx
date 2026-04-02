@@ -4,9 +4,12 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Database, HardDrive, AlertTriangle, Shield, Clock, FileWarning, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
+import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -83,6 +86,7 @@ const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
 
 export default function StorageBackup() {
   const { snapshots, filters } = useActiveSnapshotIds();
+  const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const { data: datastores = [] } = useDatastores();
   const { data: rawPartitions = [] } = useRawSheet("vPartition");
   const { data: rawMultiPath = [] } = useRawSheet("vMultiPath");
@@ -90,9 +94,19 @@ export default function StorageBackup() {
   const { data: rawVInfo = [] } = useRawSheet("vInfo");
   const { data: rawDatastore = [] } = useRawSheet("vDatastore");
   const { data: vmSnapshots = [] } = useVmSnapshots();
+  const filteredRawPartitions = useMemo(() => filterVmRows(rawPartitions), [filterVmRows, rawPartitions]);
+  const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
+  const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
+  const filteredVmSnapshots = useMemo(
+    () =>
+      matchingVmJoinKeys
+        ? vmSnapshots.filter((snapshot) => matchingVmJoinKeys.has(buildVmJoinKey(snapshot.snapshotId, snapshot.vmName)))
+        : vmSnapshots,
+    [matchingVmJoinKeys, vmSnapshots],
+  );
 
   const partitions = useMemo<PartitionRow[]>(() =>
-    rawPartitions.map((r) => { const cap = Number(r.data["Capacity MiB"] || 0); const free = Number(r.data["Free MiB"] || 0); return { vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: cap, consumedMiB: Number(r.data["Consumed MiB"] || 0), freeMiB: free, freePct: cap > 0 ? (free / cap) * 100 : 100 }; }).sort((a, b) => a.freePct - b.freePct), [rawPartitions]);
+    filteredRawPartitions.map((r) => { const cap = Number(r.data["Capacity MiB"] || 0); const free = Number(r.data["Free MiB"] || 0); return { vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: cap, consumedMiB: Number(r.data["Consumed MiB"] || 0), freeMiB: free, freePct: cap > 0 ? (free / cap) * 100 : 100 }; }).sort((a, b) => a.freePct - b.freePct), [filteredRawPartitions]);
 
   const critParts = partitions.filter((p) => p.freePct < 10).length;
   const warnParts = partitions.filter((p) => p.freePct >= 10 && p.freePct < 20).length;
@@ -103,7 +117,7 @@ export default function StorageBackup() {
   const mpIssues = multipaths.filter((m) => m.state !== "ok").length;
 
   const disks = useMemo<DiskRow[]>(() =>
-    rawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [rawDisks]);
+    filteredRawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [filteredRawDisks]);
 
   const thinDisks = disks.filter((d) => d.thin).length;
   const rdmDisks = disks.filter((d) => d.raw).length;
@@ -111,7 +125,7 @@ export default function StorageBackup() {
   // Backup Freshness/Coverage
   const backupData = useMemo<BackupRow[]>(() => {
     const now = Date.now();
-    return rawVInfo.map((r) => {
+    return filteredRawVInfo.map((r) => {
       const vm = String(r.data["VM"] || "");
       const status = String(r.data["Backup Status"] || "");
       const lastBackupStr = String(r.data["Last Backup"] || "");
@@ -126,14 +140,14 @@ export default function StorageBackup() {
       else if (ageDays > 3) risk = "mittel";
       return { vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk };
     }).filter((b) => b.risk !== "niedrig").sort((a, b) => b.ageDays - a.ageDays);
-  }, [rawVInfo]);
+  }, [filteredRawVInfo]);
 
   const noBackup = backupData.filter((b) => b.risk === "kein Backup").length;
   const staleBackup = backupData.filter((b) => b.ageDays > 7).length;
 
   // SCSI/Controller Mapping
   const scsiMapping = useMemo<ScsiRow[]>(() =>
-    rawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), mode: String(r.data["Disk Mode"] || "") })), [rawDisks]);
+    filteredRawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), mode: String(r.data["Disk Mode"] || "") })), [filteredRawDisks]);
 
   // MHA/VMFS Lifecycle
   const dsLifecycle = useMemo<DsLifecycleRow[]>(() =>
@@ -143,9 +157,9 @@ export default function StorageBackup() {
 
   // Snapshot + Backup Conflict
   const snapshotBackupConflicts = useMemo(() => {
-    const snapVms = new Set(vmSnapshots.map((s) => s.vmName));
+    const snapVms = new Set(filteredVmSnapshots.map((s) => s.vmName));
     return backupData.filter((b) => snapVms.has(b.vm) && b.risk !== "niedrig");
-  }, [vmSnapshots, backupData]);
+  }, [filteredVmSnapshots, backupData]);
 
   const partChart = useMemo(() =>
     partitions.filter((p) => p.freePct < 30).slice(0, 15).map((p) => ({ name: `${p.vm}:${p.disk}`.slice(0, 25), freePct: Math.round(p.freePct * 10) / 10 })), [partitions]);
@@ -158,6 +172,7 @@ export default function StorageBackup() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Storage / Backup</h1>
       <FilterBar />
+      <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
         <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} />
         <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} />
