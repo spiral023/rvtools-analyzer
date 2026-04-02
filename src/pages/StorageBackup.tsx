@@ -12,7 +12,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 interface PartitionRow { vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
 interface MultipathRow { host: string; datastore: string; disk: string; policy: string; state: string; paths: number; activePaths: number }
-interface DiskRow { vm: string; disk: string; capacityMiB: number; thin: boolean; mode: string; raw: boolean; controller: string; scsiUnit: string }
+interface DiskRow { vm: string; disk: string; diskPath: string; capacityMiB: number; thin: boolean; mode: string; raw: boolean; controller: string; scsiUnit: string }
 interface BackupRow { vm: string; backupStatus: string; lastBackup: string; ageDays: number; risk: string }
 interface ScsiRow { vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
@@ -21,6 +21,7 @@ const partColumns: ColumnDef<PartitionRow, unknown>[] = [
   { accessorKey: "vm", header: "VM" },
   { accessorKey: "disk", header: "Partition" },
   { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "consumedMiB", header: "Konsumiert", cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "freeMiB", header: "Frei", cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : "text-success"}>{formatPct(v)}</span>; }},
 ];
@@ -37,6 +38,14 @@ const mpColumns: ColumnDef<MultipathRow, unknown>[] = [
 const diskColumns: ColumnDef<DiskRow, unknown>[] = [
   { accessorKey: "vm", header: "VM" },
   { accessorKey: "disk", header: "Disk" },
+  {
+    accessorKey: "diskPath",
+    header: "Disk Path",
+    cell: ({ getValue }) => {
+      const value = getValue() as string;
+      return <div className="max-w-[360px] truncate" title={value || "—"}>{value || "—"}</div>;
+    },
+  },
   { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "thin", header: "Thin", cell: ({ getValue }) => getValue() ? "Ja" : "Nein" },
   { accessorKey: "mode", header: "Mode" },
@@ -94,7 +103,7 @@ export default function StorageBackup() {
   const mpIssues = multipaths.filter((m) => m.state !== "ok").length;
 
   const disks = useMemo<DiskRow[]>(() =>
-    rawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [rawDisks]);
+    rawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [rawDisks]);
 
   const thinDisks = disks.filter((d) => d.thin).length;
   const rdmDisks = disks.filter((d) => d.raw).length;
