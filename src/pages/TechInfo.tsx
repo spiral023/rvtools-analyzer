@@ -10,6 +10,7 @@ import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 interface TechInfoVmRow {
   vmName: string;
+  serverType: string | null;
   maintenanceWindow: string | null;
   operatingSystem: string | null;
   comment: string | null;
@@ -26,6 +27,7 @@ interface TechInfoVmRow {
 
 const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
+  { accessorKey: "serverType", header: "Servertyp", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "maintenanceWindow", header: "Wartungsfenster", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "comment", header: "Kommentar", cell: ({ getValue }) => getValue() || "—" },
@@ -75,6 +77,7 @@ export default function TechInfo() {
         const techInfo = byVmName.get(vm.vmName.trim().toLowerCase()) ?? null;
         return {
           vmName: vm.vmName,
+          serverType: techInfo?.serverType ?? null,
           maintenanceWindow: techInfo?.maintenanceWindow ?? null,
           operatingSystem: techInfo?.operatingSystem ?? null,
           comment: techInfo?.comment ?? null,
@@ -100,6 +103,7 @@ export default function TechInfo() {
     return rows.filter((row) => {
       const values = [
         row.vmName,
+        row.serverType,
         row.maintenanceWindow,
         row.operatingSystem,
         row.comment,

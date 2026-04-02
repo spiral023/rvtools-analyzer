@@ -24,6 +24,7 @@ describe("tech-info helpers", () => {
 
   it("maps requested tech-info columns correctly", () => {
     const mapped = mapTechInfoDisplayFields({
+      Servertyp: "Applikationsserver",
       Wartungsfenster: "SRVSTD1",
       Betriebssystem: "W2022",
       Kommentar: "Testserver",
@@ -37,6 +38,7 @@ describe("tech-info helpers", () => {
       AZ: "FTZ",
     });
 
+    expect(mapped.serverType).toBe("Applikationsserver");
     expect(mapped.maintenanceWindow).toBe("SRVSTD1");
     expect(mapped.operatingSystem).toBe("W2022");
     expect(mapped.comment).toBe("Testserver");

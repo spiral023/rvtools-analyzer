@@ -72,6 +72,7 @@ export interface TechInfoLatest {
   importedAt: string;
   techInfoImportId: string;
   rowIndex: number;
+  serverType: string | null;
   maintenanceWindow: string | null;
   operatingSystem: string | null;
   comment: string | null;

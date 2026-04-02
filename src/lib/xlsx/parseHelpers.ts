@@ -33,6 +33,7 @@ export interface SheetShapeForDetection {
 }
 
 export interface TechInfoDisplayFields {
+  serverType: string | null;
   maintenanceWindow: string | null;
   operatingSystem: string | null;
   comment: string | null;
@@ -69,6 +70,7 @@ export function normalizeVmNameForMatch(vmName: string): string {
 
 export function mapTechInfoDisplayFields(row: Record<string, unknown>): TechInfoDisplayFields {
   return {
+    serverType: toStr(row["Servertyp"]),
     maintenanceWindow: toStr(row["Wartungsfenster"]),
     operatingSystem: toStr(row["Betriebssystem"]),
     comment: toStr(row["Kommentar"]),

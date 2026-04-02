@@ -14,6 +14,7 @@ import type {
   TechInfoRow,
   TechInfoLatest,
 } from "@/domain/models/types";
+import { toStr } from "@/lib/xlsx/parseHelpers";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -192,7 +193,8 @@ export async function getRawSheetRows(
 
 export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
   const db = await getDb();
-  return db.getAll("techinfo_latest");
+  const values = await db.getAll("techinfo_latest");
+  return Promise.all(values.map((value) => hydrateTechInfoLatest(db, value)));
 }
 
 export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<TechInfoLatest[]> {
@@ -200,7 +202,23 @@ export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<Tec
   const db = await getDb();
   const uniqueNorm = [...new Set(vmNames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
   const values = await Promise.all(uniqueNorm.map((vmNameNorm) => db.get("techinfo_latest", vmNameNorm)));
-  return values.filter((v): v is TechInfoLatest => Boolean(v));
+  const presentValues = values.filter((v): v is TechInfoLatest => Boolean(v));
+  return Promise.all(presentValues.map((value) => hydrateTechInfoLatest(db, value)));
+}
+
+async function hydrateTechInfoLatest(
+  db: IDBPDatabase<RVToolsDBSchema>,
+  value: TechInfoLatest,
+): Promise<TechInfoLatest> {
+  if (value.serverType !== undefined) {
+    return { ...value, serverType: value.serverType ?? null };
+  }
+
+  const rawRow = await db.get("techinfo_rows", [value.techInfoImportId, value.rowIndex]);
+  return {
+    ...value,
+    serverType: toStr(rawRow?.rawData?.["Servertyp"]),
+  };
 }
 
 export async function batchPut<S extends StoreName>(

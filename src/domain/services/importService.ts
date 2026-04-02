@@ -74,6 +74,7 @@ function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
 
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
 const TECH_INFO_UI_HEADERS = [
+  "Servertyp",
   "Wartungsfenster",
   "Betriebssystem",
   "Kommentar",
