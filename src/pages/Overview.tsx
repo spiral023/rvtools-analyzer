@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useActiveSnapshotIds, useVms, useHosts, useDatastores, useHealthEvents, useRawSheet } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useVmsWithTechInfo, useHosts, useDatastores, useHealthEvents, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -12,8 +12,13 @@ import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 
-const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
+interface OverviewVmRow extends NormalizedVm {
+  sysv: string | null;
+}
+
+const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
   { accessorKey: "vmName", header: "VM" },
+  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "powerState", header: "Power", cell: ({ getValue }) => {
     const v = getValue() as string;
     return <span className={v === "poweredOn" ? "text-success" : v === "poweredOff" ? "text-muted-foreground" : "text-warning"}>{v || "—"}</span>;
@@ -31,7 +36,7 @@ const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
 
 export default function Overview() {
   const { snapshots, filters } = useActiveSnapshotIds();
-  const { vms: filteredVms } = useVms();
+  const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
   const { data: hosts = [] } = useHosts();
   const { data: datastores = [] } = useDatastores();
   const { data: healthEvents = [] } = useHealthEvents();
@@ -43,7 +48,7 @@ export default function Overview() {
   const { data: rawSnapshotRows = [] } = useRawSheet("vSnapshot");
   const { data: rawToolsRows = [] } = useRawSheet("vTools");
 
-  const [selectedVm, setSelectedVm] = useState<NormalizedVm | null>(null);
+  const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -62,11 +67,14 @@ export default function Overview() {
     return [...map.entries()].map(([name, count]) => ({ name, hosts: count })).slice(0, 10);
   }, [hosts]);
 
-  const vmsForTable = useMemo(
+  const vmsForTable = useMemo<OverviewVmRow[]>(
     () =>
       [...filteredVms].sort((a, b) =>
         a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" }),
-      ),
+      ).map((vm) => ({
+        ...vm,
+        sysv: vm.techInfo?.sysv ?? null,
+      })),
     [filteredVms],
   );
 

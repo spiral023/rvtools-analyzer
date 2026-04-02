@@ -58,8 +58,12 @@ function compactValue(value: string | null | undefined): string {
   return v || "—";
 }
 
+type VmDetailVm = NormalizedVm & {
+  sysv?: string | null;
+};
+
 interface VmDetailDialogProps {
-  vm: NormalizedVm | null;
+  vm: VmDetailVm | null;
   open: boolean;
   onClose: () => void;
   rawCpuRows: SheetRow[];
@@ -120,6 +124,7 @@ export function VmDetailDialog({
   const vmPower = compactValue(vm.powerState);
   const vmConfig = compactValue(vm.configStatus);
   const vmConnection = compactValue(vm.connectionState);
+  const vmSysv = compactValue(vm.sysv);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -145,6 +150,9 @@ export function VmDetailDialog({
                 </Badge>
                 <Badge variant="outline" className={`text-[10px] ${statusTextClass(vm.connectionState)}`}>
                   Connection: {vmConnection}
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  SysV: {vmSysv}
                 </Badge>
               </div>
             </div>
