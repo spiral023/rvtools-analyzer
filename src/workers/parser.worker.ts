@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { detectParsedFileKind } from "@/lib/xlsx/parseHelpers";
 
 const KNOWN_SHEETS = [
