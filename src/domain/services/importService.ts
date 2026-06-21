@@ -72,6 +72,27 @@ function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
 
 /* ---------- helpers ---------- */
 
+/**
+ * Sheets (kanonische Namen), deren Rohdaten im Frontend tatsächlich gelesen werden.
+ * Quelle: alle `useRawSheet("...")`-Aufrufe in `src/pages/*`.
+ *
+ * Nur diese Sheets werden roh in `rawSheets` persistiert. Alle anderen Sheets
+ * (unbekannte Extra-Sheets, `vFileInfo`, `vMetaData` sowie die roh nicht gelesenen,
+ * aber normalisierten `vCluster`/`vHealth`) werden NICHT roh gespeichert – das
+ * reduziert Schreibvolumen und Heap beim Import erheblich.
+ *
+ * WICHTIG: Wird in einer Seite ein neues `useRawSheet("xyz")` ergänzt, muss der
+ * kanonische Sheet-Name hier eingetragen werden, sonst kommt die Abfrage leer zurück.
+ * Die Normalisierung (entities_*) ist davon unabhängig – sie liest direkt aus den
+ * geparsten Sheets, nicht aus `rawSheets`.
+ */
+const RAW_SHEET_ALLOWLIST: ReadonlySet<string> = new Set([
+  "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
+  "vCD", "vUSB", "vSnapshot", "vTools", "vSource", "vRP",
+  "vHost", "vHBA", "vNIC", "vSwitch", "vPort", "dvSwitch",
+  "dvPort", "vSC_VMK", "vDatastore", "vLicense", "vMultiPath",
+]);
+
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
 const TECH_INFO_UI_HEADERS = [
   "Servertyp",
@@ -332,10 +353,10 @@ async function importRvtoolsParsed(
     sheetStats,
   });
 
-  report("Rohdaten speichern", 40, `${totalRows.toLocaleString("de-DE")} Zeilen...`);
   const CHUNK = 5000;
   const rawRows: SheetRow[] = [];
   for (const sheet of parsed.sheets) {
+    if (!RAW_SHEET_ALLOWLIST.has(sheet.sheetName)) continue;
     for (let i = 0; i < sheet.rows.length; i++) {
       rawRows.push({
         snapshotId,
@@ -345,6 +366,7 @@ async function importRvtoolsParsed(
       });
     }
   }
+  report("Rohdaten speichern", 40, `${rawRows.length.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
 
   for (let i = 0; i < rawRows.length; i += CHUNK) {
     const batch = rawRows.slice(i, i + CHUNK);

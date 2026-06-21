@@ -24,7 +24,12 @@ Ziel ist, Änderungen konsistent, sicher und wartbar umzusetzen.
 ## Entwicklungsbefehle
 - `npm run dev`: lokaler Dev-Server
 - `npm run build`: Production-Build
+- `npm run build:dev`: Development-Build
 - `npm run preview`: Build lokal prüfen
+- `npm run cf:login`: Cloudflare-Login via Wrangler
+- `npm run cf:pages:create`: Cloudflare-Pages-Projekt `rvtools` anlegen
+- `npm run cf:pages:deploy`: Production-Deploy nach Cloudflare Pages
+- `npm run cf:pages:deploy:preview`: Preview-Deploy nach Cloudflare Pages
 - `npm run test`: Vitest Tests ausführen
 - `npm run lint`: ESLint ausführen
 
@@ -35,8 +40,11 @@ Ziel ist, Änderungen konsistent, sicher und wartbar umzusetzen.
   - Navigation in `src/app/layout/AppSidebar.tsx`
 - Datenzugriff nach Möglichkeit über die bestehenden Hooks in `src/hooks/useActiveSnapshots.ts` umsetzen, nicht ad hoc direkt in jeder Seite.
 - Import-Logik im Browser halten (Worker + IndexedDB). Keine Serverabhängigkeit einführen.
+- Deployment bleibt statisch/clientseitig. Keine serverseitigen Render- oder API-Abhängigkeiten einführen.
 - Bei Schemaänderungen in IndexedDB `DB_VERSION` erhöhen und Migration in `src/data/db/index.ts` pflegen.
 - `@/*`-Alias verwenden statt tiefer relativer Pfade, wenn möglich.
+- Bei Routing-Änderungen berücksichtigen, dass `BrowserRouter` einen SPA-Fallback des Hostings auf `index.html` benötigt.
+- Wenn ein Deployment unter einem Subpfad statt am Domain-Root geplant ist, muss zusätzlich die Vite-`base`-Konfiguration geprüft und angepasst werden.
 
 ## UI- und UX-Regeln
 - Bestehende Design-Tokens aus `src/index.css` und `tailwind.config.ts` weiterverwenden.
@@ -47,6 +55,7 @@ Ziel ist, Änderungen konsistent, sicher und wartbar umzusetzen.
 ## Qualitätssicherung
 - Nach Änderungen an produktivem Code mindestens `npm run test` ausführen.
 - Bei betroffenen TS/React-Dateien zusätzlich `npm run lint` ausführen und neue Lint-Probleme vermeiden.
+- Nach Änderungen mit Einfluss auf Build oder Hosting mindestens `npm run build` ausführen.
 - Bereits bestehende Lint-Baustellen nur dann anfassen, wenn sie im Scope der Änderung liegen.
 
 ## Sprach- und Encoding-Regeln
@@ -57,3 +66,4 @@ Ziel ist, Änderungen konsistent, sicher und wartbar umzusetzen.
 ## Nicht-Ziele
 - Keine unnötigen Framework-Wechsel oder großflächigen Refactors ohne klaren Auftrag.
 - Keine Einführung eines Backends für Persistenz; der aktuelle Ansatz ist bewusst lokal.
+- Keine implizite Umstellung des Deployments auf einen anderen Hosting-Provider ohne klaren Auftrag.

@@ -19,6 +19,7 @@ Die App importiert Snapshots, normalisiert die Daten clientseitig und stellt ope
 - [✨ Features](#-features)
 - [🧱 Tech Stack](#-tech-stack)
 - [🚀 Schnellstart](#-schnellstart)
+- [🚢 Deployment](#-deployment)
 - [🖥️ Dashboard-Bereiche](#️-dashboard-bereiche)
 - [🔄 Datenfluss](#-datenfluss)
 - [📁 Projektstruktur](#-projektstruktur)
@@ -74,9 +75,56 @@ Die App läuft anschließend lokal über Vite (Standard: `http://localhost:5173`
 |---|---|
 | `npm run dev` | Entwicklungsserver |
 | `npm run build` | Production-Build |
+| `npm run build:dev` | Development-Build |
 | `npm run preview` | Build lokal ansehen |
+| `npm run cf:login` | Cloudflare-Login via Wrangler |
+| `npm run cf:pages:create` | Cloudflare-Pages-Projekt `rvtools` anlegen |
+| `npm run cf:pages:deploy` | Production-Deploy nach Cloudflare Pages |
+| `npm run cf:pages:deploy:preview` | Preview-Deploy nach Cloudflare Pages |
 | `npm run test` | Unit-/Component-Tests (Vitest) |
 | `npm run lint` | ESLint ausführen |
+
+## 🚢 Deployment
+
+### Status
+
+- Im Repository ist ein manueller Deployment-Workflow für **Cloudflare Pages** vorbereitet.
+- Die relevanten Skripte liegen in `package.json` und deployen den Vite-Build aus `dist`.
+- Eine CI/CD-Pipeline ist im aktuellen Stand **nicht** im Repository hinterlegt.
+
+### Voraussetzungen
+
+- Cloudflare-Account mit Zugriff auf Pages
+- Ein bestehendes oder neu anzulegendes Pages-Projekt namens `rvtools`
+- Lokale Authentifizierung mit Wrangler
+
+### Erstes Setup
+
+```bash
+npm install
+npm run cf:login
+npm run cf:pages:create
+```
+
+Hinweis: `npm run cf:pages:create` legt das Pages-Projekt `rvtools` mit `main` als Production-Branch an.
+
+### Deployment ausführen
+
+```bash
+npm run cf:pages:deploy
+```
+
+Für einen Preview-Deploy:
+
+```bash
+npm run cf:pages:deploy:preview
+```
+
+### Hosting-Hinweise
+
+- Die App ist eine clientseitige Single-Page-App mit `BrowserRouter`. Das Zielhosting muss daher einen **SPA-Fallback auf `index.html`** unterstützen.
+- Die Vite-Konfiguration setzt aktuell keinen `base`-Pfad. Der Build ist damit für Deployment am Domain-Root ausgelegt.
+- Die Anwendung bleibt `local-first`: Importierte Daten werden pro Origin lokal in IndexedDB gespeichert. Unterschiedliche Domains/Subdomains haben daher getrennte lokale Datenbestände.
 
 ## 🖥️ Dashboard-Bereiche
 
