@@ -42,7 +42,20 @@ import type {
 } from "@/domain/models/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ClipboardCopy, ClipboardPaste, Filter, GitBranchPlus, Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ClipboardCopy, ClipboardPaste, Filter, Plus, Trash2 } from "lucide-react";
+
+const RVTOOLS_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = [
+  "vm", "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork", "vSnapshot", "vTools", "vCD", "vUSB",
+];
+const TECHINFO_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = ["techInfo"];
 
 const TEXT_OPERATORS: { value: GlobalFilterOperator; label: string }[] = [
   { value: "eq", label: "ist" },
@@ -77,7 +90,10 @@ export function GlobalFilterControl() {
   const { filters, setFilters } = useFilterState();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<GlobalFilterGroup>(filters.globalFilter ?? createGlobalFilterGroup("root"));
-  const { fields, summary } = useGlobalVmFilterEngine(open || hasGlobalFilterDefinition(filters.globalFilter));
+  const { fields, summary, previewMatchingCount, totalVmCount } = useGlobalVmFilterEngine(
+    open || hasGlobalFilterDefinition(filters.globalFilter),
+    open ? draft : undefined,
+  );
 
   const activeRuleCount = countGlobalFilterRules(filters.globalFilter);
   const draftRuleCount = countGlobalFilterRules(draft);
@@ -156,9 +172,17 @@ export function GlobalFilterControl() {
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-5">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 px-4 py-3">
             <div>
-              <p className="text-sm font-medium">Aktiver Ausdruck</p>
+              <p className="text-sm font-medium">
+                {draftRuleCount > 0
+                  ? `${draftRuleCount} Bedingung${draftRuleCount === 1 ? "" : "en"}`
+                  : "Keine Bedingungen"}
+              </p>
               <p className="text-xs text-muted-foreground">
-                {draftRuleCount > 0 ? `${draftRuleCount} Bedingung${draftRuleCount === 1 ? "" : "en"} im Entwurf` : "Noch keine Bedingungen definiert"}
+                {previewMatchingCount !== null && totalVmCount > 0
+                  ? `${previewMatchingCount} von ${totalVmCount} Systemen entsprechen dem Filter`
+                  : activeRuleCount > 0
+                    ? `Aktiv: ${activeRuleCount} Bedingung${activeRuleCount === 1 ? "" : "en"}`
+                    : "Noch keine Bedingungen definiert"}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -170,8 +194,6 @@ export function GlobalFilterControl() {
                 <ClipboardCopy className="h-3.5 w-3.5" />
                 Kopieren
               </Button>
-              {activeRuleCount > 0 && <Badge variant="secondary">Aktiv: {activeRuleCount}</Badge>}
-              {draftRuleCount > 0 && <Badge variant="outline">Entwurf: {draftRuleCount}</Badge>}
             </div>
           </div>
 
@@ -208,11 +230,19 @@ function FilterGroupEditor({
   onRemove?: () => void;
   isRoot?: boolean;
 }) {
-  const [pendingRootSource, setPendingRootSource] = useState<Exclude<GlobalFilterSourceScope, "root">>("vm");
-
   const sourceFields = useMemo(
     () => fields.filter((field) => field.source === group.sourceScope),
     [fields, group.sourceScope],
+  );
+
+  const addedSourceScopes = useMemo(
+    () => new Set(group.children.filter((c) => c.type === "group").map((c) => (c as GlobalFilterGroup).sourceScope)),
+    [group.children],
+  );
+
+  const availableSources = useMemo(
+    () => ROOT_GROUP_SOURCE_OPTIONS.filter((source) => !addedSourceScopes.has(source)),
+    [addedSourceScopes],
   );
 
   const updateChild = (childId: string, nextChild: GlobalFilterNode) => {
@@ -236,64 +266,40 @@ function FilterGroupEditor({
   };
 
   const addSubGroup = (sourceScope: GlobalFilterSourceScope) => {
-    onChange({
-      ...group,
-      children: [...group.children, createGlobalFilterGroup(sourceScope)],
-    });
+    const newGroup = createGlobalFilterGroup(sourceScope);
+    const scopeFields = fields.filter((f) => f.source === sourceScope);
+    const firstRule = scopeFields.length > 0
+      ? createGlobalFilterRule(scopeFields[0].key, scopeFields[0].dataType)
+      : null;
+    const groupWithFirstRule = firstRule
+      ? { ...newGroup, children: [firstRule] }
+      : newGroup;
+    onChange({ ...group, children: [...group.children, groupWithFirstRule] });
   };
 
-  const insertBelow = (
-    logicalOperator: GlobalFilterLogicalOperator,
-    nodeKind: "rule" | "group",
-  ) => {
-    const node = nodeKind === "rule"
-      ? createGlobalFilterRule(sourceFields[0]?.key ?? "", sourceFields[0]?.dataType ?? "text")
-      : createGlobalFilterGroup(group.sourceScope);
-
-    if (group.children.length <= 1) {
-      onChange({
-        ...group,
-        operator: logicalOperator,
-        children: [...group.children, node],
-      });
-      return;
-    }
-
-    if (logicalOperator === group.operator) {
-      onChange({
-        ...group,
-        children: [...group.children, node],
-      });
-      return;
-    }
-
-    const wrappedGroup: GlobalFilterGroup = {
-      id: crypto.randomUUID(),
-      type: "group",
-      operator: logicalOperator,
-      sourceScope: group.sourceScope,
-      children: [...group.children, node],
-    };
-
-    onChange(wrappedGroup);
+  const toggleOperator = () => {
+    onChange({ ...group, operator: group.operator === "and" ? "or" : "and" });
   };
 
   return (
     <div className={cn("space-y-4 rounded-xl border border-border/50 bg-card/40 p-4", isRoot && "bg-card/60")}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={isRoot ? "default" : "secondary"}>{SOURCE_LABELS[group.sourceScope]}</Badge>
-        <Select
-          value={group.operator}
-          onValueChange={(value) => onChange({ ...group, operator: value as GlobalFilterLogicalOperator })}
-        >
-          <SelectTrigger className="h-8 w-[110px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="and">UND</SelectItem>
-            <SelectItem value="or">ODER</SelectItem>
-          </SelectContent>
-        </Select>
+
+        {group.children.length > 1 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={toggleOperator}
+                className="inline-flex h-8 items-center rounded-md border border-border/50 bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {group.operator === "and" ? "UND" : "ODER"}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Verknüpfung aller Bedingungen umschalten</TooltipContent>
+          </Tooltip>
+        )}
 
         {!isRoot && onRemove && (
           <Button variant="ghost" size="icon" onClick={onRemove} className="ml-auto h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -302,54 +308,13 @@ function FilterGroupEditor({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {isRoot ? (
-          <>
-            <Select
-              value={pendingRootSource}
-              onValueChange={(value) => setPendingRootSource(value as Exclude<GlobalFilterSourceScope, "root">)}
-            >
-              <SelectTrigger className="h-8 w-[180px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROOT_GROUP_SOURCE_OPTIONS.map((source) => (
-                  <SelectItem key={source} value={source}>{SOURCE_LABELS[source]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={() => addSubGroup(pendingRootSource)} className="h-8">
-              <GitBranchPlus className="h-3.5 w-3.5" />
-              Quelle hinzufügen
-            </Button>
-          </>
-        ) : (
-          group.children.length === 0 ? (
-            <>
-              <Button variant="outline" size="sm" onClick={addRule} className="h-8" disabled={sourceFields.length === 0}>
-                <Plus className="h-3.5 w-3.5" />
-                Erste Regel
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => addSubGroup(group.sourceScope)} className="h-8">
-                <GitBranchPlus className="h-3.5 w-3.5" />
-                Erste Untergruppe
-              </Button>
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Regeln werden unter der jeweiligen Zeile mit <span className="font-medium text-foreground">UND</span> oder <span className="font-medium text-foreground">ODER</span> ergänzt.
-            </p>
-          )
-        )}
-      </div>
-
       {group.children.length === 0 && (
         <div className="rounded-lg border border-dashed border-border/60 px-4 py-5 text-sm text-muted-foreground">
           {isRoot
-            ? "Fügen Sie eine Quelle hinzu, z. B. System, Tech-Info, Disk oder Partition."
+            ? "Fügen Sie eine Quelle hinzu, um zu beginnen."
             : sourceFields.length === 0
               ? "Für diese Quelle sind in den aktiven Snapshots derzeit keine Felder verfügbar."
-              : "Fügen Sie Regeln oder eine Untergruppe hinzu."}
+              : "Fügen Sie eine Bedingung hinzu."}
         </div>
       )}
 
@@ -357,7 +322,10 @@ function FilterGroupEditor({
         {group.children.map((child, index) => (
           <div key={child.id} className="space-y-3">
             {index > 0 && (
-              <GroupConnector operator={group.operator} />
+              <GroupConnector
+                operator={group.operator}
+                onToggle={group.children.length > 1 ? toggleOperator : undefined}
+              />
             )}
 
             <div className="relative">
@@ -382,13 +350,58 @@ function FilterGroupEditor({
         ))}
       </div>
 
-      {!isRoot && group.children.length > 0 && (
-        <InsertBelowControls
-          canAddRule={sourceFields.length > 0}
-          onAddRule={(operator) => insertBelow(operator, "rule")}
-          onAddGroup={(operator) => insertBelow(operator, "group")}
-        />
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {isRoot ? (
+          availableSources.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8">
+                  <Plus className="h-3.5 w-3.5" />
+                  Quelle hinzufügen
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {availableSources.some((s) => RVTOOLS_SOURCES.includes(s)) && (
+                  <>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-semibold text-blue-500">
+                      <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+                      RVTools
+                    </DropdownMenuLabel>
+                    {availableSources.filter((s) => RVTOOLS_SOURCES.includes(s)).map((source) => (
+                      <DropdownMenuItem key={source} onClick={() => addSubGroup(source)} className="pl-6">
+                        {SOURCE_LABELS[source]}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+                {availableSources.some((s) => RVTOOLS_SOURCES.includes(s)) && availableSources.some((s) => TECHINFO_SOURCES.includes(s)) && (
+                  <DropdownMenuSeparator />
+                )}
+                {availableSources.some((s) => TECHINFO_SOURCES.includes(s)) && (
+                  <>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-semibold text-amber-500">
+                      <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                      Tech-Info
+                    </DropdownMenuLabel>
+                    {availableSources.filter((s) => TECHINFO_SOURCES.includes(s)).map((source) => (
+                      <DropdownMenuItem key={source} onClick={() => addSubGroup(source)} className="pl-6">
+                        {SOURCE_LABELS[source]}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        ) : (
+          sourceFields.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={addRule} className="h-8 text-muted-foreground hover:text-foreground">
+              <Plus className="h-3.5 w-3.5" />
+              Bedingung hinzufügen
+            </Button>
+          )
+        )}
+      </div>
     </div>
   );
 }
@@ -527,47 +540,37 @@ function getOperatorsForType(dataType: GlobalFilterDataType) {
   return TEXT_OPERATORS;
 }
 
-function GroupConnector({ operator }: { operator: GlobalFilterLogicalOperator }) {
+function GroupConnector({
+  operator,
+  onToggle,
+}: {
+  operator: GlobalFilterLogicalOperator;
+  onToggle?: () => void;
+}) {
+  const label = operator === "and" ? "UND" : "ODER";
+
   return (
     <div className="flex items-center gap-3 pl-2">
       <div className="h-px flex-1 bg-border/50" />
-      <Badge variant="outline" className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
-        {operator === "and" ? "UND" : "ODER"}
-      </Badge>
+      {onToggle ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onToggle}
+              className="inline-flex items-center rounded border border-border/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Verknüpfung umschalten</TooltipContent>
+        </Tooltip>
+      ) : (
+        <Badge variant="outline" className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+          {label}
+        </Badge>
+      )}
       <div className="h-px flex-1 bg-border/50" />
-    </div>
-  );
-}
-
-function InsertBelowControls({
-  canAddRule,
-  onAddRule,
-  onAddGroup,
-}: {
-  canAddRule: boolean;
-  onAddRule: (operator: GlobalFilterLogicalOperator) => void;
-  onAddGroup: (operator: GlobalFilterLogicalOperator) => void;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border/50 bg-muted/10 px-3 py-3">
-      <div className="flex flex-wrap justify-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => onAddRule("and")} className="h-8" disabled={!canAddRule}>
-          <Plus className="h-3.5 w-3.5" />
-          UND Regel
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onAddRule("or")} className="h-8" disabled={!canAddRule}>
-          <Plus className="h-3.5 w-3.5" />
-          ODER Regel
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onAddGroup("and")} className="h-8">
-          <GitBranchPlus className="h-3.5 w-3.5" />
-          UND Gruppe
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onAddGroup("or")} className="h-8">
-          <GitBranchPlus className="h-3.5 w-3.5" />
-          ODER Gruppe
-        </Button>
-      </div>
     </div>
   );
 }

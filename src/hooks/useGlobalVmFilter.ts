@@ -13,7 +13,7 @@ import {
   type VmGlobalFilterContextEntry,
   type VmRawFilterSource,
 } from "@/lib/globalFilter";
-import type { GlobalFilterField, NormalizedVm, SheetRow } from "@/domain/models/types";
+import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow } from "@/domain/models/types";
 
 const STALE_MS = 5 * 60 * 1000;
 
@@ -24,9 +24,14 @@ export interface GlobalVmFilterEngineResult {
   hasActiveFilter: boolean;
   summary: string;
   filterVmRows: (rows: SheetRow[]) => SheetRow[];
+  totalVmCount: number;
+  previewMatchingCount: number | null;
 }
 
-export function useGlobalVmFilterEngine(enabled = true): GlobalVmFilterEngineResult {
+export function useGlobalVmFilterEngine(
+  enabled = true,
+  previewFilter?: GlobalFilterGroup | null,
+): GlobalVmFilterEngineResult {
   const { filters } = useFilterState();
   const { data: snapshots = [] } = useQuery({
     queryKey: ["snapshots"],
@@ -153,6 +158,14 @@ export function useGlobalVmFilterEngine(enabled = true): GlobalVmFilterEngineRes
     [matchingVmJoinKeys],
   );
 
+  const totalVmCount = allVms.length;
+
+  const previewMatchingCount = useMemo(() => {
+    if (previewFilter === undefined) return null;
+    if (!hasGlobalFilterDefinition(previewFilter)) return totalVmCount;
+    return contexts.filter((entry) => evaluateGlobalFilter(previewFilter, entry, fields)).length;
+  }, [contexts, fields, previewFilter, totalVmCount]);
+
   return {
     fields,
     matchingVmKeys,
@@ -160,5 +173,7 @@ export function useGlobalVmFilterEngine(enabled = true): GlobalVmFilterEngineRes
     hasActiveFilter,
     summary,
     filterVmRows,
+    totalVmCount,
+    previewMatchingCount,
   };
 }
