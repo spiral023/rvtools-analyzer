@@ -32,10 +32,10 @@ Die App importiert Snapshots, normalisiert die Daten clientseitig und stellt ope
 
 | Bereich | Highlights |
 |---|---|
-| 📥 Import | Upload von RVTools-Excel-Dateien (`.xlsx`, `.xls`), Duplikaterkennung via SHA-256, Fortschrittsanzeige |
+| 📥 Import | Upload von RVTools-Excel-Dateien (`.xlsx`, `.xls`), Duplikaterkennung via SHA-256, Fortschrittsanzeige, nur tatsächlich genutzte Sheets werden roh gespeichert |
 | 🧠 Verarbeitung | Parsing im Web Worker, Normalisierung in Domain-Modelle, Speicherung in IndexedDB |
-| 📊 Analyse | Mehrere Fachseiten (Overview, Daily Ops, Capacity, Performance, Storage/Backup, Network/Security, Hardware, Compliance, Licensing, Fleet Compare) |
-| 🔍 Filterung | Snapshot-, vCenter- und Textfilter, automatische Auswahl des neuesten Snapshots je vCenter |
+| 📊 Analyse | Mehrere Fachseiten (Overview, Daily Ops, Capacity, Performance, Storage/Backup, Network/Security, Hardware, Compliance, Licensing, Tech-Info, VMware Versions, Fleet Compare) |
+| 🔍 Filterung | Globaler VM-Filter (feldbasiert, persistiert), Snapshot-, vCenter- und Textfilter, automatische Auswahl des neuesten Snapshots je vCenter |
 | ⚡ Performance | Virtuelle Tabellen (`@tanstack/react-virtual`) für große Datenmengen |
 | 🎨 UI | React + Tailwind + shadcn/ui, helles/dunkles Theme |
 | 🛡️ Lokalität | Kein Backend notwendig, Daten bleiben im Browser |
@@ -130,16 +130,18 @@ npm run cf:pages:deploy:preview
 
 | Route | Seite | Zweck |
 |---|---|---|
-| `/overview` | Overview | Globaler Überblick (VMs, Hosts, Datastores, Health) |
+| `/overview` | Overview | Globaler Überblick (VMs, Hosts, Datastores, Health), VM-Detaildialog per Klick |
 | `/upload` | Uploads & Snapshots | Import, Fortschritt, Snapshot-Verwaltung |
 | `/daily-ops` | Daily Ops | Operative Auffälligkeiten (Config, Tools, Snapshots, Health) |
 | `/capacity` | Capacity | Overcommit, Datastore-Headroom, Kapazitätsrisiken |
 | `/performance` | Performance | CPU-Ready, Memory-Pressure, Entitlement-Gaps, NIC-/FT-Indikatoren |
-| `/storage-backup` | Storage / Backup | Storage- und Backup-relevante Sicht |
+| `/storage-backup` | Storage / Backup | Storage- und Backup-relevante Sicht (inkl. Consumed & Disk Path) |
 | `/network-security` | Network / Security | Netzwerk- und Security-Perspektive |
-| `/hardware` | Hardware | Host-/Hardware-bezogene Analyse |
-| `/compliance` | Compliance / Lifecycle | Lifecycle- und Compliance-Indikatoren |
+| `/hardware` | Hardware | Host-/Hardware-bezogene Analyse, Gruppierung nach normalisiertem Hardware-Profil |
+| `/compliance` | Compliance / Lifecycle | Lifecycle- und Compliance-Indikatoren, Host-Detaildialog |
 | `/licensing` | Licensing | Lizenz- und Effizienzsicht |
+| `/tech-info` | Tech-Info | CMDB-Daten je VM (Servertyp, Wartungsfenster, SysV, Abteilung, Backup-Flag) |
+| `/vmware-versions` | VMware Versions | vCenter-/ESXi-Versionsverteilung und Adoptionsrate bekannter Releases |
 | `/fleet-compare` | Fleet Compare | Vergleich mehrerer Umgebungen/Snapshots |
 
 ## 🔄 Datenfluss
@@ -162,13 +164,16 @@ src/
   app/layout/                 # Layout, Sidebar, ThemeProvider
   components/
     dashboard/                # KPI-Karten, Filterbar, Empty State
+    global-filter/            # GlobalFilterControl, GlobalFilterScopeHint
     tables/                   # VirtualTable
     ui/                       # shadcn/ui Komponenten
   data/db/                    # IndexedDB Schema + Zugriff
   domain/
     models/                   # Zentrale Typen
     services/                 # Import-Service (Parsing/Normalisierung)
-  hooks/                      # Daten- und Filter-Hooks
+  hooks/                      # Daten- und Filter-Hooks (inkl. useGlobalVmFilter)
+  lib/
+    globalFilter/             # Feldbasierter VM-Filter (Logik, Auswertung)
   pages/                      # Analyse-Seiten
   workers/                    # parser.worker.ts
 ```
