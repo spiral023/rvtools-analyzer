@@ -355,21 +355,38 @@ function useCapacityPageData() {
     if (normalized) setSelectedClusterName(normalized);
   };
 
-  const avgFreePct = useMemo(() => {
-    const withPct = datastores.filter((d) => d.freePct !== null);
-    if (!withPct.length) return null;
-    return withPct.reduce((s, d) => s + d.freePct!, 0) / withPct.length;
+  const { avgFreePct, critDs, warnDs } = useMemo(() => {
+    let sum = 0, withPctCount = 0, crit = 0, warn = 0;
+    for (const d of datastores) {
+      if (d.freePct === null) continue;
+      withPctCount += 1;
+      sum += d.freePct;
+      if (d.freePct < 10) crit += 1;
+      else if (d.freePct < 20) warn += 1;
+    }
+    return {
+      avgFreePct: withPctCount ? sum / withPctCount : null,
+      critDs: crit,
+      warnDs: warn,
+    };
   }, [datastores]);
 
-  const critDs = datastores.filter((d) => d.freePct !== null && d.freePct < 10).length;
-  const warnDs = datastores.filter((d) => d.freePct !== null && d.freePct >= 10 && d.freePct < 20).length;
-
   const clusterMetrics = useMemo<ClusterMetric[]>(() => {
+    // VMs (poweredOn) und Host-Cores einmalig nach Cluster indizieren → O(n+m) statt O(n*m)
+    const vmsByCluster = new Map<string, typeof vms>();
+    for (const v of vms) {
+      if (v.powerState !== "poweredOn" || !v.cluster) continue;
+      const arr = vmsByCluster.get(v.cluster);
+      if (arr) arr.push(v); else vmsByCluster.set(v.cluster, [v]);
+    }
+    const coresByCluster = new Map<string, number>();
+    for (const h of hosts) {
+      if (!h.cluster) continue;
+      coresByCluster.set(h.cluster, (coresByCluster.get(h.cluster) || 0) + (h.cpuCores || 0));
+    }
     return clusters.map((c) => {
-      const clusterVms = vms.filter((v) => v.cluster === c.name && v.powerState === "poweredOn");
-      const totalCoresFromHosts = hosts
-        .filter((h) => h.cluster === c.name)
-        .reduce((sum, h) => sum + (h.cpuCores || 0), 0);
+      const clusterVms = vmsByCluster.get(c.name) ?? [];
+      const totalCoresFromHosts = coresByCluster.get(c.name) ?? 0;
       const totalCores = totalCoresFromHosts > 0 ? totalCoresFromHosts : (c.numCpuCores || 0);
       const vCpuSum = clusterVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
       const ramAllocMiB = clusterVms.reduce((s, v) => s + (v.memoryMiB || 0), 0);
@@ -380,11 +397,21 @@ function useCapacityPageData() {
   }, [clusters, hosts, vms]);
 
   const hostDensity = useMemo<HostDensityPoint[]>(() => {
-    return hosts.map((h) => {
-      const hostVms = vms.filter((v) => v.host === h.host && v.powerState === "poweredOn");
-      const vCpuSum = hostVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
-      return { name: h.host, vms: hostVms.length, vcpuPerCore: h.cpuCores ? Math.round((vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024) };
-    }).filter((h) => h.vms > 0);
+    // poweredOn-VMs einmalig nach Host indizieren → O(n+m) statt O(n*m)
+    const vmsByHost = new Map<string, { count: number; vCpuSum: number }>();
+    for (const v of vms) {
+      if (v.powerState !== "poweredOn" || !v.host) continue;
+      const agg = vmsByHost.get(v.host);
+      if (agg) { agg.count += 1; agg.vCpuSum += v.cpuCount || 0; }
+      else vmsByHost.set(v.host, { count: 1, vCpuSum: v.cpuCount || 0 });
+    }
+    const result: HostDensityPoint[] = [];
+    for (const h of hosts) {
+      const agg = vmsByHost.get(h.host);
+      if (!agg) continue;
+      result.push({ name: h.host, vms: agg.count, vcpuPerCore: h.cpuCores ? Math.round((agg.vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024) });
+    }
+    return result;
   }, [hosts, vms]);
 
   const renderHostDensityTooltip = ({

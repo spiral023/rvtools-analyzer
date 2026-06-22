@@ -178,12 +178,10 @@ export async function getBySnapshotIds<T>(
 ): Promise<T[]> {
   if (snapshotIds.length === 0) return [];
   const db = await getDb();
-  const results: T[] = [];
-  for (const sid of snapshotIds) {
-    const items = await db.getAllFromIndex(store, "snapshotId", sid);
-    results.push(...(items as unknown as T[]));
-  }
-  return results;
+  const perId = await Promise.all(
+    snapshotIds.map((sid) => db.getAllFromIndex(store, "snapshotId", sid)),
+  );
+  return perId.flat() as unknown as T[];
 }
 
 /** Get raw sheet rows for specific snapshot+sheet combinations */
@@ -193,12 +191,10 @@ export async function getRawSheetRows(
 ): Promise<SheetRow[]> {
   if (snapshotIds.length === 0) return [];
   const db = await getDb();
-  const results: SheetRow[] = [];
-  for (const sid of snapshotIds) {
-    const items = await db.getAllFromIndex("rawSheets", "snapshotId_sheetName", [sid, sheetName]);
-    results.push(...items);
-  }
-  return results;
+  const perId = await Promise.all(
+    snapshotIds.map((sid) => db.getAllFromIndex("rawSheets", "snapshotId_sheetName", [sid, sheetName])),
+  );
+  return perId.flat();
 }
 
 export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
@@ -291,7 +287,5 @@ export async function deleteSnapshot(snapshotId: string): Promise<void> {
     "rawSheets", "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];
-  for (const store of entityStores) {
-    await deleteBySnapshotId(store, snapshotId);
-  }
+  await Promise.all(entityStores.map((store) => deleteBySnapshotId(store, snapshotId)));
 }

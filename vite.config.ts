@@ -18,4 +18,16 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Schwere, selten geänderte Libs in eigene Vendor-Chunks → bleiben über
+        // App-Updates hinweg im Browser-Cache.
+        manualChunks: {
+          "vendor-charts": ["recharts"],
+          "vendor-query": ["@tanstack/react-query", "@tanstack/react-table"],
+        },
+      },
+    },
+  },
 }));

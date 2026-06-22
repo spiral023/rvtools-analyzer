@@ -53,7 +53,7 @@ export default function FleetCompare() {
   const { data: allSnaps = [] } = useQuery({ queryKey: ["fleet-snaps", allSnapshotIds], queryFn: () => getBySnapshotIds<NormSnap>("entities_snapshot", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
 
   // Security drift per vcenter (check dvPort)
-  const { data: rawDvPort = [] } = useQuery({ queryKey: ["fleet-dvport", allSnapshotIds], queryFn: () => { const promises = allSnapshotIds.map((id) => getRawSheetRows([id], "dvPort")); return Promise.all(promises).then((r) => r.flat()); }, enabled: allSnapshotIds.length > 0 });
+  const { data: rawDvPort = [] } = useQuery({ queryKey: ["fleet-dvport", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
 
   const summaries = useMemo<VCenterSummary[]>(() =>
     latestSnapshots.map((snap) => {

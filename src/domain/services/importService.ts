@@ -19,6 +19,7 @@ import {
   normalizeVmNameForMatch,
   isTechInfoNewerOrEqual,
 } from "@/lib/xlsx/parseHelpers";
+import { shortId } from "@/lib/shortId";
 import type {
   ImportResult,
   NormalizedVm,
@@ -330,7 +331,7 @@ async function importRvtoolsParsed(
   const totalRows = parsed.sheets.reduce((s, sh) => s + sh.rows.length, 0);
   report("Sheets erkannt", 30, `${parsed.sheets.length} Sheets, ${totalRows.toLocaleString("de-DE")} Zeilen`);
 
-  const snapshotId = crypto.randomUUID();
+  const snapshotId = shortId();
   const fileMeta = parseRvtoolsExportFileName(file.name);
   const vcenterDisplayName = (fileMeta?.vcenterName || parsed.vcenterName || "unknown-vcenter").trim();
   const exportTs = fileMeta?.exportTs || parsed.exportTs || new Date().toISOString();
@@ -454,7 +455,7 @@ async function importTechInfoXlsx(
   }
 
   const importedAt = new Date().toISOString();
-  const techInfoImportId = crypto.randomUUID();
+  const techInfoImportId = shortId();
   const sheetStats: Record<string, SheetStats> = {
     [techSheet.sheetName]: { rowCount: techSheet.rows.length, columnCount: techSheet.headers.length },
   };
