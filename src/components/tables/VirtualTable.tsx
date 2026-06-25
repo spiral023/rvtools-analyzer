@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,7 +10,20 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  buildExportData,
+  exportExcelTable,
+  exportMarkdownTable,
+} from "@/lib/export/tableExport";
+import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { toast } from "sonner";
 
 interface VirtualTableProps<T> {
   data: T[];
@@ -19,6 +32,14 @@ interface VirtualTableProps<T> {
   height?: number;
   className?: string;
   onRowClick?: (row: T) => void;
+  exportFileName?: string;
+}
+
+function getDefaultExportFileName(): string {
+  if (typeof window === "undefined") return "rvtools-table-export";
+  const routeSegment = window.location.pathname.split("/").filter(Boolean).pop() ?? "table";
+  const date = new Date().toISOString().slice(0, 10);
+  return `rvtools-${routeSegment}-${date}`;
 }
 
 export function VirtualTable<T>({
@@ -28,6 +49,7 @@ export function VirtualTable<T>({
   height = 500,
   className,
   onRowClick,
+  exportFileName,
 }: VirtualTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -43,6 +65,33 @@ export function VirtualTable<T>({
   });
 
   const { rows } = table.getRowModel();
+
+  const handleExport = async (format: "excel" | "markdown") => {
+    const exportData = buildExportData(
+      table.getVisibleLeafColumns().map((column) => ({
+        id: column.id,
+        header: column.columnDef.header,
+      })),
+      rows.map((row) => ({
+        getValue: (columnId) => row.getValue(columnId),
+      })),
+    );
+
+    const filename = exportFileName ?? getDefaultExportFileName();
+
+    try {
+      if (format === "excel") {
+        await exportExcelTable(exportData, filename);
+        toast.success("Tabelle als Excel-Datei exportiert.");
+        return;
+      }
+
+      exportMarkdownTable(exportData, filename);
+      toast.success("Tabelle als Markdown exportiert.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export fehlgeschlagen.");
+    }
+  };
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -99,7 +148,11 @@ export function VirtualTable<T>({
           <tbody>
             {paddingTop > 0 && (
               <tr>
-                <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
+                <td
+                  aria-label="Abstand vor sichtbaren Tabellenzeilen"
+                  style={{ height: `${paddingTop}px` }}
+                  colSpan={columns.length}
+                />
               </tr>
             )}
             {virtualItems.map((virtualRow) => {
@@ -129,14 +182,43 @@ export function VirtualTable<T>({
             })}
             {paddingBottom > 0 && (
               <tr>
-                <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
+                <td
+                  aria-label="Abstand nach sichtbaren Tabellenzeilen"
+                  style={{ height: `${paddingBottom}px` }}
+                  colSpan={columns.length}
+                />
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      <div className="border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
-        {rows.length.toLocaleString("de-DE")} Einträge
+      <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+        <span>{rows.length.toLocaleString("de-DE")} Einträge</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              disabled={rows.length === 0}
+              aria-label="Aktuell sichtbare Tabelle exportieren"
+              title="Aktuell sichtbare Tabelle exportieren"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => void handleExport("excel")}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("markdown")}>
+              <FileText className="mr-2 h-4 w-4" />
+              Markdown
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
