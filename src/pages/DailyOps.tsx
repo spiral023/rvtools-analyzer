@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc, Monitor } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -88,7 +89,8 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
 
 export default function DailyOps() {
   const { snapshots, filters } = useActiveSnapshotIds();
-  const { vms } = useVms();
+  const { vms, allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const { data: healthEvents = [] } = useHealthEvents();
   const { data: vmSnapshots = [] } = useVmSnapshots();
@@ -186,15 +188,16 @@ export default function DailyOps() {
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3>
-        <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} />
+        <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
       </div>
 
       {filteredVmSnapshots.length > 0 && (
         <div>
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
-          <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} />
+          <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
         </div>
       )}
+      {vmDetailDialog}
     </div>
   );
 }

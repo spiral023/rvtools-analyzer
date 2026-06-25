@@ -1,11 +1,13 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useDatastores, useRawSheet, useVmSnapshots } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useDatastores, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Database, HardDrive, AlertTriangle, Shield, Clock, FileWarning, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
@@ -13,12 +15,12 @@ import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 
-interface PartitionRow { vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
+interface PartitionRow { snapshotId: string; vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
 interface MultipathRow { host: string; datastore: string; disk: string; policy: string; state: string; paths: number; activePaths: number; deadPaths: number }
 interface DeadPathHostRow { host: string; affectedDevices: number; deadPaths: number; datastores: string }
-interface DiskRow { vm: string; disk: string; diskPath: string; capacityMiB: number; thin: boolean; mode: string; raw: boolean; controller: string; scsiUnit: string }
-interface BackupRow { vm: string; backupStatus: string; lastBackup: string; ageDays: number; risk: string }
-interface ScsiRow { vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
+interface DiskRow { snapshotId: string; vm: string; disk: string; diskPath: string; capacityMiB: number; thin: boolean; mode: string; raw: boolean; controller: string; scsiUnit: string }
+interface BackupRow { snapshotId: string; vm: string; backupStatus: string; lastBackup: string; ageDays: number; risk: string }
+interface ScsiRow { snapshotId: string; vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
@@ -95,6 +97,9 @@ const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
 
 export default function StorageBackup() {
   const { snapshots, filters } = useActiveSnapshotIds();
+  const { allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const { data: datastores = [] } = useDatastores();
   const { data: rawPartitions = [] } = useRawSheet("vPartition");
@@ -115,7 +120,7 @@ export default function StorageBackup() {
   );
 
   const partitions = useMemo<PartitionRow[]>(() =>
-    filteredRawPartitions.map((r) => { const cap = Number(r.data["Capacity MiB"] || 0); const free = Number(r.data["Free MiB"] || 0); return { vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: cap, consumedMiB: Number(r.data["Consumed MiB"] || 0), freeMiB: free, freePct: cap > 0 ? (free / cap) * 100 : 100 }; }).sort((a, b) => a.freePct - b.freePct), [filteredRawPartitions]);
+    filteredRawPartitions.map((r) => { const cap = Number(r.data["Capacity MiB"] || 0); const free = Number(r.data["Free MiB"] || 0); return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: cap, consumedMiB: Number(r.data["Consumed MiB"] || 0), freeMiB: free, freePct: cap > 0 ? (free / cap) * 100 : 100 }; }).sort((a, b) => a.freePct - b.freePct), [filteredRawPartitions]);
 
   const critParts = partitions.filter((p) => p.freePct < 10).length;
   const warnParts = partitions.filter((p) => p.freePct >= 10 && p.freePct < 20).length;
@@ -142,7 +147,7 @@ export default function StorageBackup() {
   }, [multipaths]);
 
   const disks = useMemo<DiskRow[]>(() =>
-    filteredRawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [filteredRawDisks]);
+    filteredRawDisks.map((r) => ({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [filteredRawDisks]);
 
   const thinDisks = disks.filter((d) => d.thin).length;
   const rdmDisks = disks.filter((d) => d.raw).length;
@@ -163,7 +168,7 @@ export default function StorageBackup() {
       if (!status && !lastBackupStr) risk = "kein Backup";
       else if (ageDays > 7) risk = "hoch";
       else if (ageDays > 3) risk = "mittel";
-      return { vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk };
+      return { snapshotId: r.snapshotId, vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk };
     }).filter((b) => b.risk !== "niedrig").sort((a, b) => b.ageDays - a.ageDays);
   }, [filteredRawVInfo]);
 
@@ -172,7 +177,7 @@ export default function StorageBackup() {
 
   // SCSI/Controller Mapping
   const scsiMapping = useMemo<ScsiRow[]>(() =>
-    filteredRawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), mode: String(r.data["Disk Mode"] || "") })), [filteredRawDisks]);
+    filteredRawDisks.map((r) => ({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || ""), disk: String(r.data["Disk"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), mode: String(r.data["Disk Mode"] || "") })), [filteredRawDisks]);
 
   // MHA/VMFS Lifecycle
   const dsLifecycle = useMemo<DsLifecycleRow[]>(() =>
@@ -226,15 +231,15 @@ export default function StorageBackup() {
         </div>
       )}
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Gast-Partitionen</h3><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Gast-Partitionen</h3><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-      {backupData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} /></div>)}
+      {backupData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
 
       {snapshotBackupConflicts.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
           <h3 className="mb-2 text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
           <p className="text-xs text-muted-foreground mb-3">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
-          <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} />
+          <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
         </div>
       )}
 
@@ -242,14 +247,16 @@ export default function StorageBackup() {
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
           <h3 className="mb-2 text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
           <p className="text-xs text-muted-foreground mb-3">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit `Oper. State != ok` abgleichen für akute Device-Ausfälle.</p>
-          <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} />
+          <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
         </div>
       )}
 
-      {multipaths.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} /></div>)}
-      {disks.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} /></div>)}
-      {scsiMapping.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} /></div>)}
+      {multipaths.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {disks.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+      {scsiMapping.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
       {dsLifecycle.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
+      {vmDetailDialog}
+      {hostDetailDialog}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { Network, ShieldAlert, Wifi, Router, Cable, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -67,6 +68,7 @@ const teamingColumns: ColumnDef<TeamingRow, unknown>[] = [
 
 export default function NetworkSecurity() {
   const { snapshots, filters } = useActiveSnapshotIds();
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { data: rawVPort = [] } = useRawSheet("vPort");
   const { data: rawDvPort = [] } = useRawSheet("dvPort");
   const { data: rawVSwitch = [] } = useRawSheet("vSwitch");
@@ -220,8 +222,9 @@ export default function NetworkSecurity() {
         <div className="space-y-1">{dvSwitchDrift.map((drift) => (<div key={`${drift.port}-${drift.field}-${drift.expected}`} className="flex gap-3 text-sm rounded bg-muted/30 px-3 py-1.5"><span className="font-mono-data">{drift.port}</span><span className="text-warning">{drift.field}</span><span>Ist: <span className="font-mono-data">{drift.value}</span></span><span className="text-muted-foreground">Soll: <span className="font-mono-data">{drift.expected}</span></span></div>))}</div>
       </div>)}
 
-      {vmkAdapters.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMkernel Adapter ({vmkAdapters.length})</h3><VirtualTable data={vmkAdapters} columns={vmkColumns} globalFilter={filters.search} height={350} /></div>)}
-      {nics.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Physische NICs ({nics.length})</h3><VirtualTable data={nics} columns={nicColumns} globalFilter={filters.search} height={350} /></div>)}
+      {vmkAdapters.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMkernel Adapter ({vmkAdapters.length})</h3><VirtualTable data={vmkAdapters} columns={vmkColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {nics.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Physische NICs ({nics.length})</h3><VirtualTable data={nics} columns={nicColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {hostDetailDialog}
     </div>
   );
 }

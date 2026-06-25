@@ -5,6 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Key, AlertTriangle, CheckCircle2, Power, Database, Server } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
@@ -12,7 +13,7 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYL
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface LicenseRow { name: string; key: string; costUnit: string; total: number; used: number; usedPct: number; expiration: string; features: string }
-interface IdleRow { vm: string; powerState: string; cpuCount: number; memoryMiB: number; cluster: string; reason: string }
+interface IdleRow { snapshotId: string; vm: string; powerState: string; cpuCount: number; memoryMiB: number; cluster: string; reason: string }
 interface ClusterDensityRow { cluster: string; hosts: number; vmsPerHost: number; vcpuPerCore: number; ramUtilPct: number }
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 
@@ -55,7 +56,8 @@ const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
 export default function Licensing() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { data: rawLicense = [] } = useRawSheet("vLicense");
-  const { vms } = useVms();
+  const { vms, allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { data: clusters = [] } = useClusters();
   const { data: hosts = [] } = useHosts();
   const { data: datastores = [] } = useDatastores();
@@ -72,7 +74,7 @@ export default function Licensing() {
 
   // Idle/Shutdown Candidates
   const idleCandidates = useMemo<IdleRow[]>(() => {
-    return vms.filter((v) => v.powerState === "poweredOff").map((v) => ({ vm: v.vmName, powerState: v.powerState || "", cpuCount: v.cpuCount || 0, memoryMiB: v.memoryMiB || 0, cluster: v.cluster || "", reason: "Powered Off" }));
+    return vms.filter((v) => v.powerState === "poweredOff").map((v) => ({ snapshotId: v.snapshotId, vm: v.vmName, powerState: v.powerState || "", cpuCount: v.cpuCount || 0, memoryMiB: v.memoryMiB || 0, cluster: v.cluster || "", reason: "Powered Off" }));
   }, [vms]);
 
   const idleCpus = idleCandidates.reduce((s, v) => s + v.cpuCount, 0);
@@ -128,10 +130,11 @@ export default function Licensing() {
 
       {licenses.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Lizenz Details</h3><VirtualTable data={licenses} columns={licColumns} globalFilter={filters.search} /></div>)}
 
-      {idleCandidates.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Idle / Stilllegungskandidaten ({idleCandidates.length})</h3><VirtualTable data={idleCandidates} columns={idleColumns} globalFilter={filters.search} height={350} /></div>)}
+      {idleCandidates.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Idle / Stilllegungskandidaten ({idleCandidates.length})</h3><VirtualTable data={idleCandidates} columns={idleColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
 
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Dichte & Effizienz</h3><VirtualTable data={clusterDensity} columns={clusterDensityColumns} globalFilter={filters.search} height={300} /></div>
       <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Effizienz</h3><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
+      {vmDetailDialog}
     </div>
   );
 }

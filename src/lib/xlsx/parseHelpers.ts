@@ -68,6 +68,12 @@ export function normalizeVmNameForMatch(vmName: string): string {
   return vmName.trim().toLowerCase();
 }
 
+export function hasIdenticalSysvAndDeputy(sysv: string | null | undefined, sysvDeputy: string | null | undefined): boolean {
+  const normalizedSysv = sysv?.trim().toLowerCase() ?? "";
+  const normalizedDeputy = sysvDeputy?.trim().toLowerCase() ?? "";
+  return normalizedSysv !== "" && normalizedSysv === normalizedDeputy;
+}
+
 export function mapTechInfoDisplayFields(row: Record<string, unknown>): TechInfoDisplayFields {
   return {
     serverType: toStr(row["Servertyp"]),

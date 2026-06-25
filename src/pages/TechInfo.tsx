@@ -4,10 +4,12 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { Badge } from "@/components/ui/badge";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Monitor, ClipboardList, Link2Off } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 
 interface TechInfoVmRow {
   vmName: string;
@@ -18,6 +20,7 @@ interface TechInfoVmRow {
   sysv: string | null;
   sysvDepartment: string | null;
   sysvDeputy: string | null;
+  sysvDeputyConflict: boolean | null;
   sysvDeputyDepartment: string | null;
   bz: string | null;
   clusterFromTechInfo: string | null;
@@ -35,6 +38,16 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
   { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "sysvDepartment", header: "SysV Abteilung", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "sysvDeputy", header: "SysVStv", cell: ({ getValue }) => getValue() || "—" },
+  {
+    accessorKey: "sysvDeputyConflict",
+    header: "SysV = SysVStv",
+    cell: ({ getValue }) => {
+      const conflict = getValue() as boolean | null;
+      if (conflict === null) return "—";
+      if (!conflict) return <Badge variant="secondary">OK</Badge>;
+      return <Badge variant="destructive">Verstoß</Badge>;
+    },
+  },
   { accessorKey: "sysvDeputyDepartment", header: "SysVStv Abteilung", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "clusterFromTechInfo", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
   {
@@ -53,6 +66,7 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
 export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
 
   const scopeVms = useMemo(
@@ -87,6 +101,7 @@ export default function TechInfo() {
           sysv: techInfo?.sysv ?? null,
           sysvDepartment: techInfo?.sysvDepartment ?? null,
           sysvDeputy: techInfo?.sysvDeputy ?? null,
+          sysvDeputyConflict: techInfo ? hasIdenticalSysvAndDeputy(techInfo.sysv, techInfo.sysvDeputy) : null,
           sysvDeputyDepartment: techInfo?.sysvDeputyDepartment ?? null,
           bz: techInfo?.bz ?? null,
           clusterFromTechInfo: techInfo?.clusterFromTechInfo ?? null,
@@ -102,7 +117,7 @@ export default function TechInfo() {
     const byVmNameAsc = (a: TechInfoVmRow, b: TechInfoVmRow) =>
       a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" });
     const q = filters.search.trim().toLowerCase();
-    if (!q) return [...rows].sort(byVmNameAsc);
+    if (!q) return rows.slice().sort(byVmNameAsc);
     return rows.filter((row) => {
       const values = [
         row.vmName,
@@ -113,6 +128,7 @@ export default function TechInfo() {
         row.sysv,
         row.sysvDepartment,
         row.sysvDeputy,
+        row.sysvDeputyConflict === null ? "—" : row.sysvDeputyConflict ? "sysv sysvstv identisch verstoß" : "ok",
         row.sysvDeputyDepartment,
         row.bz,
         row.clusterFromTechInfo,
@@ -154,8 +170,9 @@ export default function TechInfo() {
       </div>
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info ({searchedRows.length})</h3>
-        <VirtualTable data={searchedRows} columns={columns} height={460} />
+        <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
       </div>
+      {vmDetailDialog}
     </div>
   );
 }

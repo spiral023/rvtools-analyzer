@@ -4,6 +4,7 @@ import {
   formatRvtoolsDate,
   matchRowsForVm,
   normalizeVmName,
+  resolveVmDetailTarget,
   summarizeSnapshots,
   summarizeStorage,
 } from "@/lib/vmDetail";
@@ -67,6 +68,17 @@ describe("vm detail helpers", () => {
     expect(matches).toHaveLength(1);
     expect(matches[0].snapshotId).toBe("snap-1");
     expect(matches[0].data["VM"]).toBe("srv-app-01");
+  });
+
+  it("resolves detail targets from direct and derived VM table rows", () => {
+    const otherSnapshotVm = { ...baseVm, snapshotId: "snap-2", vmKey: "vm-2::vc-1" };
+    const allVms = [baseVm, otherSnapshotVm];
+
+    expect(resolveVmDetailTarget(baseVm, allVms)).toBe(baseVm);
+    expect(resolveVmDetailTarget({ vmName: " srv-app-01 ", snapshotId: "snap-1" }, allVms)).toBe(baseVm);
+    expect(resolveVmDetailTarget({ vm: "SRV-APP-01", snapshotId: "snap-2" }, allVms)).toBe(otherSnapshotVm);
+    expect(resolveVmDetailTarget({ vm: "unknown" }, allVms)).toBeNull();
+    expect(resolveVmDetailTarget({ host: "esx01.local" }, allVms)).toBeNull();
   });
 
   it("formats RVTools excel serial dates", () => {

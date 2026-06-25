@@ -32,6 +32,18 @@ export function matchRowsForVm(rows: SheetRow[], vm: NormalizedVm | null): Sheet
   });
 }
 
+export function resolveVmDetailTarget(row: unknown, vms: NormalizedVm[]): NormalizedVm | null {
+  if (!row || typeof row !== "object") return null;
+  const candidate = row as Partial<NormalizedVm> & { vm?: unknown };
+  if (typeof candidate.vmName === "string" && typeof candidate.vmKey === "string") return candidate as NormalizedVm;
+
+  const vmName = normalizeVmName(candidate.vmName ?? candidate.vm);
+  if (!vmName) return null;
+
+  const snapshotId = typeof candidate.snapshotId === "string" ? candidate.snapshotId : null;
+  return vms.find((vm) => normalizeVmName(vm.vmName) === vmName && (!snapshotId || vm.snapshotId === snapshotId)) ?? null;
+}
+
 export function formatRvtoolsDate(value: unknown): string {
   if (value == null || value === "") return "—";
 

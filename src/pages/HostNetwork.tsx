@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { Network, Router, Cable, Server, GitCompare, AlertTriangle, Layers } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -83,6 +84,7 @@ function buildSummary(nics: HostConfig["nics"]): string {
 
 export default function HostNetwork() {
   const { snapshots, filters } = useActiveSnapshotIds();
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { data: rawNIC = [] } = useRawSheet("vNIC");
   const { data: rawVSwitch = [] } = useRawSheet("vSwitch");
   const { data: rawDvSwitch = [] } = useRawSheet("dvSwitch");
@@ -235,7 +237,7 @@ export default function HostNetwork() {
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
           <h3 className="mb-2 text-sm font-semibold text-destructive">Konfigurations-Abweichungen ({driftRows.length})</h3>
           <p className="text-xs text-muted-foreground mb-3">Hosts, deren vmnic-Belegung von der Mehrheit ihres Clusters abweicht — potenzieller Standardisierungs-Drift.</p>
-          <VirtualTable data={driftRows} columns={driftColumns} globalFilter={filters.search} height={Math.min(300, 80 + driftRows.length * 40)} />
+          <VirtualTable data={driftRows} columns={driftColumns} globalFilter={filters.search} height={Math.min(300, 80 + driftRows.length * 40)} onRowClick={openHostDetail} />
         </div>
       )}
 
@@ -253,8 +255,9 @@ export default function HostNetwork() {
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Layers className="h-4 w-4" /> Uplink-Belegung Detail ({nicDetail.length})</h3>
-        <VirtualTable data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} />
+        <VirtualTable data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} onRowClick={openHostDetail} />
       </div>
+      {hostDetailDialog}
     </div>
   );
 }

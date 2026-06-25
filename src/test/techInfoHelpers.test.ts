@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectParsedFileKind,
   mapTechInfoDisplayFields,
+  hasIdenticalSysvAndDeputy,
   isTechInfoNewerOrEqual,
   normalizeVmNameForMatch,
 } from "@/lib/xlsx/parseHelpers";
@@ -54,6 +55,13 @@ describe("tech-info helpers", () => {
 
   it("normalizes vm names for matching", () => {
     expect(normalizeVmNameForMatch("  MiChiAPP1101  ")).toBe("michiapp1101");
+  });
+
+  it("detects identical SysV and SysVStv values", () => {
+    expect(hasIdenticalSysvAndDeputy("ASANGER Philipp", "asanger philipp")).toBe(true);
+    expect(hasIdenticalSysvAndDeputy("ASANGER Philipp", "WINTER Simon")).toBe(false);
+    expect(hasIdenticalSysvAndDeputy("ASANGER Philipp", null)).toBe(false);
+    expect(hasIdenticalSysvAndDeputy("", "")).toBe(false);
   });
 
   it("uses newest-or-equal timestamp policy", () => {

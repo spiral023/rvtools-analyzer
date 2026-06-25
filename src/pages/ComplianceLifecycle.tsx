@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostDetailDialog } from "@/pages/Hardware";
 import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
@@ -16,11 +17,11 @@ import { buildHostDetails, bool, num, str, type HostDetail } from "@/lib/convers
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 
-interface ComplianceVm { vmName: string; hwVersion: string | null; firmware: string | null; secureBoot: boolean | null; cbt: boolean | null; osConfig: string | null; osTools: string | null; osDrift: boolean; toolsStatus: string | null; cluster: string | null; uuidMissing: boolean; annotationEmpty: boolean; latencySensitivity: string; ftState: string; haRestart: string }
+interface ComplianceVm { snapshotId: string; vmName: string; hwVersion: string | null; firmware: string | null; secureBoot: boolean | null; cbt: boolean | null; osConfig: string | null; osTools: string | null; osDrift: boolean; toolsStatus: string | null; cluster: string | null; uuidMissing: boolean; annotationEmpty: boolean; latencySensitivity: string; ftState: string; haRestart: string }
 interface DriverRow { host: string; cluster: string; device: string; type: string; driver: string; model: string }
 interface NtpRow { host: string; ntpServers: string; ntpdRunning: boolean; dnsServers: string; dhcp: boolean; issues: string }
 interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: number; pct: number }
-interface HwUpgradeRow { vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
+interface HwUpgradeRow { snapshotId: string; vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
 type ComplianceTab = "compliance" | "operations" | "infrastructure";
 
 function ComplianceTabPanel({
@@ -34,6 +35,7 @@ function ComplianceTabPanel({
   vcenterVersions,
   hwVersionChart,
   globalFilter,
+  onOpenVmDetail,
 }: {
   noSecureBoot: number;
   biosVms: number;
@@ -45,6 +47,7 @@ function ComplianceTabPanel({
   vcenterVersions: Array<{ name: string; fullname: string; apiVersion: string }>;
   hwVersionChart: Array<{ name: string; value: number }>;
   globalFilter: string;
+  onOpenVmDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="compliance" className="space-y-4">
@@ -71,7 +74,7 @@ function ComplianceTabPanel({
         </ResponsiveContainer>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3><VirtualTable data={complianceVms} columns={compColumns} globalFilter={globalFilter} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3><VirtualTable data={complianceVms} columns={compColumns} globalFilter={globalFilter} onRowClick={onOpenVmDetail} /></div>
     </TabsContent>
   );
 }
@@ -84,6 +87,8 @@ function OperationsTabPanel({
   toolsWavePlan,
   complianceVms,
   globalFilter,
+  onOpenVmDetail,
+  onOpenHostDetail,
 }: {
   toolsUpgradeable: number;
   ntpDnsData: NtpRow[];
@@ -92,6 +97,8 @@ function OperationsTabPanel({
   toolsWavePlan: ToolsWaveRow[];
   complianceVms: ComplianceVm[];
   globalFilter: string;
+  onOpenVmDetail: (row: unknown) => void;
+  onOpenHostDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="operations" className="space-y-4">
@@ -102,9 +109,9 @@ function OperationsTabPanel({
         <KpiCard title="Latency Sonderfälle" value={formatNum(latencyNonNormal)} severity={latencyNonNormal > 0 ? "warn" : "ok"} />
       </div>
 
-      {ntpDnsData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} /></div>)}
+      {ntpDnsData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenHostDetail} /></div>)}
 
-      {hwUpgradeBacklog.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} /></div>)}
+      {hwUpgradeBacklog.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} /></div>)}
 
       {toolsWavePlan.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3><VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={globalFilter} height={250} /></div>)}
 
@@ -131,6 +138,7 @@ function InfrastructureTabPanel({
   rawNIC,
   allVms,
   onCloseHostDetail,
+  onOpenHostDetail,
 }: {
   maintenanceHosts: number;
   hostsWithEsxVersion: NormalizedHost[];
@@ -144,6 +152,7 @@ function InfrastructureTabPanel({
   rawNIC: SheetRow[];
   allVms: NormalizedVm[];
   onCloseHostDetail: () => void;
+  onOpenHostDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="infrastructure" className="space-y-4">
@@ -161,9 +170,9 @@ function InfrastructureTabPanel({
         </ResponsiveContainer>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={globalFilter} height={350} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>
 
-      {driverInventory.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverInventory.length})</h3><VirtualTable data={driverInventory} columns={driverColumns} globalFilter={globalFilter} height={350} /></div>)}
+      {driverInventory.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverInventory.length})</h3><VirtualTable data={driverInventory} columns={driverColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>)}
 
       {cpuMix.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -278,6 +287,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
 export default function ComplianceLifecycle() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms, allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
   const [activeTab, setActiveTab] = useState<ComplianceTab>("compliance");
@@ -303,6 +313,7 @@ export default function ComplianceLifecycle() {
     vms.map((v) => {
       const raw = filteredRawVInfo.find((r) => String(r.data["VM"]) === v.vmName);
       return {
+        snapshotId: v.snapshotId,
         vmName: v.vmName, hwVersion: v.hwVersion, firmware: v.firmware, secureBoot: v.efiSecureBoot, cbt: v.cbt,
         osConfig: v.osConfig, osTools: v.osTools, osDrift: !!(v.osConfig && v.osTools && v.osConfig !== v.osTools),
         toolsStatus: v.toolsStatus, cluster: v.cluster,
@@ -376,6 +387,18 @@ export default function ComplianceLifecycle() {
       }),
     [hostDetailsByName],
   );
+
+  const openHostDetail = (row: unknown) => {
+    const hostName =
+      typeof row === "string"
+        ? row.trim()
+        : row && typeof row === "object" && typeof (row as { host?: unknown }).host === "string"
+          ? (row as { host: string }).host.trim()
+          : "";
+    if (!hostName) return;
+    const hostDetail = hostDetailsByName.get(hostName.toLowerCase());
+    if (hostDetail) setSelectedHost(hostDetail);
+  };
 
   const maintenanceHosts = hostsWithEsxVersion.filter((h) => h.maintenanceMode === "True").length;
 
@@ -471,7 +494,7 @@ export default function ComplianceLifecycle() {
     return filteredRawVInfo.filter((r) => {
       const status = String(r.data["HW upgrade status"] || "");
       return status && status !== "none" && status !== "";
-    }).map((r) => ({ vm: String(r.data["VM"] || ""), hwVersion: String(r.data["HW version"] || ""), upgradeStatus: String(r.data["HW upgrade status"] || ""), upgradePolicy: String(r.data["HW upgrade policy"] || ""), target: String(r.data["HW target"] || ""), cluster: String(r.data["Cluster"] || "") }));
+    }).map((r) => ({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), hwVersion: String(r.data["HW version"] || ""), upgradeStatus: String(r.data["HW upgrade status"] || ""), upgradePolicy: String(r.data["HW upgrade policy"] || ""), target: String(r.data["HW target"] || ""), cluster: String(r.data["Cluster"] || "") }));
   }, [filteredRawVInfo]);
 
   if (snapshots.length === 0) {
@@ -508,6 +531,7 @@ export default function ComplianceLifecycle() {
           vcenterVersions={vcenterVersions}
           hwVersionChart={hwVersionChart}
           globalFilter={filters.search}
+          onOpenVmDetail={openVmDetail}
         />
 
         <OperationsTabPanel
@@ -518,6 +542,8 @@ export default function ComplianceLifecycle() {
           toolsWavePlan={toolsWavePlan}
           complianceVms={complianceVms}
           globalFilter={filters.search}
+          onOpenVmDetail={openVmDetail}
+          onOpenHostDetail={openHostDetail}
         />
 
         <InfrastructureTabPanel
@@ -533,8 +559,10 @@ export default function ComplianceLifecycle() {
           rawNIC={rawNIC}
           allVms={allVms}
           onCloseHostDetail={() => setSelectedHost(null)}
+          onOpenHostDetail={openHostDetail}
         />
       </Tabs>
+      {vmDetailDialog}
     </div>
   );
 }

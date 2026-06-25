@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Gauge, MemoryStick, Activity, Network, Shield, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
@@ -13,10 +15,10 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYL
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 
-interface MemoryIssueVm { vmName: string; cluster: string | null; host: string | null; sizeMiB: number; swapped: number; ballooned: number; active: number }
-interface EntitlementRow { vm: string; cluster: string; cpuEntitlement: number; cpuDrsEntitlement: number; cpuOverall: number; cpuDelta: number; memEntitlement: number; memActive: number; memDelta: number }
-interface FtRow { vm: string; ftState: string; ftRole: string; ftLatency: number; ftSecLatency: number; ftBandwidth: number; risk: string }
-interface VmNetAnomalyRow { vm: string; nic: string; network: string; connected: boolean; ipv4: string; issue: string }
+interface MemoryIssueVm { snapshotId: string; vmName: string; cluster: string | null; host: string | null; sizeMiB: number; swapped: number; ballooned: number; active: number }
+interface EntitlementRow { snapshotId: string; vm: string; cluster: string; cpuEntitlement: number; cpuDrsEntitlement: number; cpuOverall: number; cpuDelta: number; memEntitlement: number; memActive: number; memDelta: number }
+interface FtRow { snapshotId: string; vm: string; ftState: string; ftRole: string; ftLatency: number; ftSecLatency: number; ftBandwidth: number; risk: string }
+interface VmNetAnomalyRow { snapshotId: string; vm: string; nic: string; network: string; connected: boolean; ipv4: string; issue: string }
 interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: number; freePct: number; risk: string }
 interface NicQualityRow { host: string; device: string; speed: number; duplex: boolean; issue: string }
 
@@ -88,7 +90,9 @@ const nicQualityColumns: ColumnDef<NicQualityRow, unknown>[] = [
 
 export default function PerformancePage() {
   const { snapshots, filters } = useActiveSnapshotIds();
-  const { vms } = useVms();
+  const { vms, allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: rawVMemory = [] } = useRawSheet("vMemory");
   const { data: rawVCPU = [] } = useRawSheet("vCPU");
@@ -106,7 +110,7 @@ export default function PerformancePage() {
 
   const memoryIssues = useMemo<MemoryIssueVm[]>(() => {
     return filteredRawVMemory.filter((r) => { const sw = Number(r.data["Swapped"] || 0); const bl = Number(r.data["Ballooned"] || 0); return sw > 0 || bl > 0; })
-      .map((r) => ({ vmName: String(r.data["VM"] || ""), cluster: r.data["Cluster"] as string | null, host: r.data["Host"] as string | null, sizeMiB: Number(r.data["Size MiB"] || 0), swapped: Number(r.data["Swapped"] || 0), ballooned: Number(r.data["Ballooned"] || 0), active: Number(r.data["Active"] || 0) }))
+      .map((r) => ({ snapshotId: r.snapshotId, vmName: String(r.data["VM"] || ""), cluster: r.data["Cluster"] as string | null, host: r.data["Host"] as string | null, sizeMiB: Number(r.data["Size MiB"] || 0), swapped: Number(r.data["Swapped"] || 0), ballooned: Number(r.data["Ballooned"] || 0), active: Number(r.data["Active"] || 0) }))
       .sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
   }, [filteredRawVMemory]);
 
@@ -125,7 +129,7 @@ export default function PerformancePage() {
         const cpuDrs = Number(r.data["DRS Entitlement"] || 0);
         const cpuOver = Number(r.data["Overall"] || 0);
         const cpuDelta = cpuEnt - cpuOver;
-        return { vm: String(r.data["VM"] || ""), cluster: String(r.data["Cluster"] || ""), cpuEntitlement: cpuEnt, cpuDrsEntitlement: cpuDrs, cpuOverall: cpuOver, cpuDelta, memEntitlement: 0, memActive: 0, memDelta: 0 };
+        return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), cluster: String(r.data["Cluster"] || ""), cpuEntitlement: cpuEnt, cpuDrsEntitlement: cpuDrs, cpuOverall: cpuOver, cpuDelta, memEntitlement: 0, memActive: 0, memDelta: 0 };
       })
       .filter((e) => Math.abs(e.cpuDelta) > 200)
       .sort((a, b) => Math.abs(b.cpuDelta) - Math.abs(a.cpuDelta));
@@ -168,7 +172,7 @@ export default function PerformancePage() {
       let risk = "niedrig";
       if (lat > 5 || secLat > 5) risk = "mittel";
       if (lat > 10 || secLat > 10) risk = "hoch";
-      return { vm: String(r.data["VM"] || ""), ftState: String(r.data["FT State"] || ""), ftRole: String(r.data["FT Role"] || ""), ftLatency: lat, ftSecLatency: secLat, ftBandwidth: Number(r.data["FT Bandwidth"] || 0), risk };
+      return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), ftState: String(r.data["FT State"] || ""), ftRole: String(r.data["FT Role"] || ""), ftLatency: lat, ftSecLatency: secLat, ftBandwidth: Number(r.data["FT Bandwidth"] || 0), risk };
     });
   }, [filteredRawVInfo]);
 
@@ -185,7 +189,7 @@ export default function PerformancePage() {
       const issues: string[] = [];
       if (!connected) issues.push("Disconnected");
       if (!ip) issues.push("Keine IPv4");
-      return { vm: String(r.data["VM"] || ""), nic: String(r.data["NIC label"] || ""), network: String(r.data["Network"] || ""), connected, ipv4: ip || "—", issue: issues.join(", ") };
+      return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), nic: String(r.data["NIC label"] || ""), network: String(r.data["Network"] || ""), connected, ipv4: ip || "—", issue: issues.join(", ") };
     });
   }, [filteredRawVNetwork]);
 
@@ -250,19 +254,21 @@ export default function PerformancePage() {
         </div>
       )}
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">CPU Ready Details</h3><VirtualTable data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">CPU Ready Details</h3><VirtualTable data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-      {memoryIssues.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3><VirtualTable data={memoryIssues} columns={memColumns} globalFilter={filters.search} /></div>)}
+      {memoryIssues.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3><VirtualTable data={memoryIssues} columns={memColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>)}
 
-      {entitlementFull.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3><VirtualTable data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} /></div>)}
+      {entitlementFull.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3><VirtualTable data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
 
-      {ftData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3><VirtualTable data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} /></div>)}
+      {ftData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3><VirtualTable data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} onRowClick={openVmDetail} /></div>)}
 
-      {vmNetAnomalies.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3><VirtualTable data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} /></div>)}
+      {vmNetAnomalies.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3><VirtualTable data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
 
       {siocData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
 
-      {nicQuality.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host NIC Link Qualität ({nicQuality.length})</h3><VirtualTable data={nicQuality} columns={nicQualityColumns} globalFilter={filters.search} height={250} /></div>)}
+      {nicQuality.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host NIC Link Qualität ({nicQuality.length})</h3><VirtualTable data={nicQuality} columns={nicQualityColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} /></div>)}
+      {vmDetailDialog}
+      {hostDetailDialog}
     </div>
   );
 }
