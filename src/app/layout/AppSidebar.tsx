@@ -25,6 +25,7 @@ import {
   Server,
   ClipboardList,
   BarChart3,
+  Cable,
 } from "lucide-react";
 
 const mainNav = [
@@ -38,6 +39,7 @@ const analysisNav = [
   { title: "Performance", url: "/performance", icon: Gauge },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
   { title: "Network / Security", url: "/network-security", icon: Network },
+  { title: "Host-Netzwerk", url: "/host-network", icon: Cable },
   { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
   { title: "Licensing", url: "/licensing", icon: Key },

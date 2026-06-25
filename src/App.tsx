@@ -17,6 +17,7 @@ const Capacity = lazy(() => import("@/pages/Capacity"));
 const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
 const NetworkSecurity = lazy(() => import("@/pages/NetworkSecurity"));
+const HostNetwork = lazy(() => import("@/pages/HostNetwork"));
 const ComplianceLifecycle = lazy(() => import("@/pages/ComplianceLifecycle"));
 const Licensing = lazy(() => import("@/pages/Licensing"));
 const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
@@ -61,6 +62,7 @@ const App = () => (
                   <Route path="/performance" element={<PerformancePage />} />
                   <Route path="/storage-backup" element={<StorageBackup />} />
                   <Route path="/network-security" element={<NetworkSecurity />} />
+                  <Route path="/host-network" element={<HostNetwork />} />
                   <Route path="/compliance" element={<ComplianceLifecycle />} />
                   <Route path="/hardware" element={<Hardware />} />
                   <Route path="/licensing" element={<Licensing />} />
