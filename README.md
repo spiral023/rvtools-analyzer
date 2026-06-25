@@ -23,6 +23,8 @@ RVTools Analyzer ist für den Alltag von VMware-Administratoren gebaut: Inventur
 
 Die Anwendung läuft vollständig clientseitig. Es gibt kein Backend, keinen Server-Upload und keine zentrale Datenbank. Importierte RVTools-Daten bleiben im Browser des jeweiligen Clients.
 
+Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Technisches IT-Konzept](TECHNISCHES_IT_KONZEPT.md).
+
 | Admin-Frage | Wo sie beantwortet wird |
 |---|---|
 | Welche VMs, Hosts, Cluster und Datastores sind im Scope? | **Overview** |
