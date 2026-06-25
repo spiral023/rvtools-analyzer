@@ -1,104 +1,216 @@
-# 📊 RVTools Analyzer
+# RVTools Analyzer
 
-<div align="left">
+<div align="center">
 
-![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?logo=vite&logoColor=white)
+**Lokales Analyse-Dashboard für RVTools-Exporte aus VMware-Umgebungen**
+
+Importiere RVTools-XLSX-Dateien, vergleiche Snapshots pro vCenter und finde operative Risiken, Kapazitätsengpässe, Lifecycle-Themen und Konfigurationsauffälligkeiten direkt im Browser.
+
+![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.x-149ECA?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.x-06B6D4?logo=tailwindcss&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest-Tests-6E9F18?logo=vitest&logoColor=white)
-![IndexedDB](https://img.shields.io/badge/Storage-IndexedDB-2E7D32)
+![Vitest](https://img.shields.io/badge/Tests-Vitest-6E9F18?logo=vitest&logoColor=white)
+![Storage](https://img.shields.io/badge/Daten-lokal%20in%20IndexedDB-2E7D32)
 
 </div>
 
-Lokales Analyse-Dashboard für RVTools-Exporte (`.xlsx`).
-Die App importiert Snapshots, normalisiert die Daten clientseitig und stellt operative, kapazitive und Compliance-relevante Kennzahlen in mehreren Dashboards dar.
+---
 
-## 🧭 Inhaltsverzeichnis
+## Für VMware-Admins
 
-- [✨ Features](#-features)
-- [🧱 Tech Stack](#-tech-stack)
-- [🚀 Schnellstart](#-schnellstart)
-- [🚢 Deployment](#-deployment)
-- [🖥️ Dashboard-Bereiche](#️-dashboard-bereiche)
-- [🔄 Datenfluss](#-datenfluss)
-- [📁 Projektstruktur](#-projektstruktur)
-- [🧪 Qualitätssicherung](#-qualitätssicherung)
-- [🔐 Datenschutz](#-datenschutz)
-- [🤝 Entwicklung & Beiträge](#-entwicklung--beiträge)
-- [📄 Lizenz](#-lizenz)
+RVTools Analyzer ist für den Alltag von VMware-Administratoren gebaut: Inventur prüfen, Health-Themen priorisieren, Kapazitätsrisiken sichtbar machen und mehrere vCenter- oder Zeitstände miteinander vergleichen.
 
-## ✨ Features
+Die Anwendung läuft vollständig clientseitig. Es gibt kein Backend, keinen Server-Upload und keine zentrale Datenbank. Importierte RVTools-Daten bleiben im Browser des jeweiligen Clients.
 
-| Bereich | Highlights |
+| Admin-Frage | Wo sie beantwortet wird |
 |---|---|
-| 📥 Import | Upload von RVTools-Excel-Dateien (`.xlsx`, `.xls`), Duplikaterkennung via SHA-256, Fortschrittsanzeige, nur tatsächlich genutzte Sheets werden roh gespeichert |
-| 🧠 Verarbeitung | Parsing im Web Worker, Normalisierung in Domain-Modelle, Speicherung in IndexedDB |
-| 📊 Analyse | Mehrere Fachseiten (Overview, Daily Ops, Capacity, Performance, Storage/Backup, Network/Security, Hardware, Compliance, Licensing, Tech-Info, VMware Versions, Fleet Compare) |
-| 🔍 Filterung | Globaler VM-Filter (feldbasiert, persistiert), Snapshot-, vCenter- und Textfilter, automatische Auswahl des neuesten Snapshots je vCenter |
-| ⚡ Performance | Virtuelle Tabellen (`@tanstack/react-virtual`) für große Datenmengen |
-| 🎨 UI | React + Tailwind + shadcn/ui, helles/dunkles Theme |
-| 🛡️ Lokalität | Kein Backend notwendig, Daten bleiben im Browser |
+| Welche VMs, Hosts, Cluster und Datastores sind im Scope? | **Overview** |
+| Welche VM-Snapshots, Tools- oder Config-Themen brauchen Aufmerksamkeit? | **Daily Ops** |
+| Wo werden Datastores knapp oder Cluster überbucht? | **Capacity** |
+| Welche VMs zeigen CPU Ready, Memory Pressure oder Netzwerkauffälligkeiten? | **Performance** |
+| Wo fehlen Backups, sind Pfade tot oder Partitionen voll? | **Storage / Backup** |
+| Welche Portgroups, VLANs, dvSwitches und Security-Settings sind auffällig? | **Network / Security** |
+| Welche Host-Uplinks, VMkernel-Adapter und pNICs sind relevant? | **Host-Netzwerk** |
+| Welche ESXi-/vCenter-Versionen und Lifecycle-Themen sind sichtbar? | **Compliance / Lifecycle**, **VMware Versions** |
+| Wie unterscheiden sich Umgebungen oder Snapshots? | **Fleet Compare** |
 
-## 🧱 Tech Stack
+## Highlights
 
-| Kategorie | Tools |
+| Bereich | Nutzen |
 |---|---|
-| Runtime/Build | Vite, TypeScript |
-| UI | React 18, Tailwind CSS, shadcn/ui (Radix) |
-| State/Data | TanStack Query, lokale Filter-States |
-| Tabellen/Charts | TanStack Table/Virtual, Recharts |
-| Storage | `idb` (IndexedDB) |
-| XLSX | `xlsx` |
-| Tests | Vitest, Testing Library |
-| Linting | ESLint + TypeScript ESLint |
+| **RVTools-Import** | Upload von `.xlsx`/`.xls`, Fortschritt, Duplikaterkennung per SHA-256 und Snapshot-Verwaltung |
+| **Local-first** | Analyse ohne Backend; Daten liegen lokal in IndexedDB pro Browser-Origin |
+| **Mehrere vCenter** | Snapshots werden pro vCenter verwaltet, gefiltert und vergleichbar gemacht |
+| **Admin-Dashboards** | Fokus auf Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware, Lifecycle und Licensing |
+| **Globale VM-Filter** | Feldbasierte Filter, Textsuche und automatische Auswahl des neuesten Snapshots je vCenter |
+| **Große Exporte** | XLSX-Parsing im Web Worker und virtuelle Tabellen für große RVTools-Dateien |
+| **Tech-Info-Erweiterung** | Optionale Zuordnung zusätzlicher CMDB-/Betriebsdaten wie Wartungsfenster, SysV, Standort und Backup-Flag |
 
-## 🚀 Schnellstart
+## Typischer Workflow
+
+```mermaid
+flowchart LR
+  A[RVTools Export ausführen] --> B[XLSX lokal importieren]
+  B --> C[Snapshot pro vCenter speichern]
+  C --> D[Filter setzen]
+  D --> E[Dashboards prüfen]
+  E --> F[Findings priorisieren]
+  F --> G[Späteren Export vergleichen]
+```
+
+1. RVTools-Export aus der VMware-Umgebung erzeugen.
+2. Datei unter **Uploads & Snapshots** importieren.
+3. Optional mehrere vCenter oder wiederholte Exporte importieren.
+4. Über globale Filter den Scope eingrenzen, z. B. Cluster, OS, Power-State oder VM-Name.
+5. Dashboards für Betrieb, Kapazität, Performance und Lifecycle prüfen.
+6. Bei Bedarf Snapshots im **Fleet Compare** gegenüberstellen.
+
+## Schnellstart
 
 ### Voraussetzungen
 
-- Node.js 18+
+- Node.js 18 oder neuer
 - npm
 
-### Installation & Start
+### Lokal starten
 
 ```bash
 npm install
 npm run dev
 ```
 
-Die App läuft anschließend lokal über Vite (Standard: `http://localhost:5173`).
+Vite startet die Anwendung standardmäßig unter:
 
-### Weitere Befehle
+```text
+http://localhost:5173
+```
+
+### Wichtige Befehle
 
 | Befehl | Zweck |
 |---|---|
-| `npm run dev` | Entwicklungsserver |
-| `npm run build` | Production-Build |
+| `npm run dev` | Lokaler Entwicklungsserver |
+| `npm run build` | Production-Build nach `dist` |
 | `npm run build:dev` | Development-Build |
-| `npm run preview` | Build lokal ansehen |
+| `npm run preview` | Gebauten Stand lokal prüfen |
+| `npm run test` | Vitest-Tests ausführen |
+| `npm run lint` | ESLint ausführen |
 | `npm run cf:login` | Cloudflare-Login via Wrangler |
 | `npm run cf:pages:create` | Cloudflare-Pages-Projekt `rvtools` anlegen |
 | `npm run cf:pages:deploy` | Production-Deploy nach Cloudflare Pages |
 | `npm run cf:pages:deploy:preview` | Preview-Deploy nach Cloudflare Pages |
-| `npm run test` | Unit-/Component-Tests (Vitest) |
-| `npm run lint` | ESLint ausführen |
 
-## 🚢 Deployment
+## Dashboard-Bereiche
 
-### Status
+| Route | Bereich | Fokus |
+|---|---|---|
+| `/overview` | Overview | Gesamtüberblick über VMs, Hosts, Cluster, Datastores und Health |
+| `/upload` | Uploads & Snapshots | RVTools-Import, Tech-Info-Import, Fortschritt und Snapshot-Verwaltung |
+| `/daily-ops` | Daily Ops | Health Events, VM-Snapshots, VMware Tools, Config Issues, verbundene Medien |
+| `/capacity` | Capacity | Datastore-Headroom, vCPU/Core, Overcommit, Resource Pools, Hot Hosts |
+| `/performance` | Performance | CPU Ready, Memory Pressure, Entitlement Gaps, FT und VM-Netzwerkauffälligkeiten |
+| `/storage-backup` | Storage / Backup | Partitionen, Multipath, Dead Paths, Backup-Frische, RDM/VMFS-Indikatoren |
+| `/network-security` | Network / Security | VM-Netzwerk, Portgroups, VLANs, Security-Policies und verwaiste Netze |
+| `/host-network` | Host-Netzwerk | pNICs, vSwitches, VMkernel, dvSwitch-/dvPort-Sicht |
+| `/hardware` | Hardware | Host-Hardware, Modelle, CPU-/RAM-Profile und Standardisierung |
+| `/compliance` | Compliance / Lifecycle | Secure Boot, CBT, OS Drift, Tools Upgrade, ESXi Build Drift, NTP/DNS |
+| `/licensing` | Licensing | Lizenznutzung, Editionen und Effizienzsicht |
+| `/tech-info` | Tech-Info | Betriebsdaten je VM, z. B. Servertyp, Wartungsfenster, SysV und Backup-Flag |
+| `/vmware-versions` | VMware Versions | Erkannte vCenter-/ESXi-Builds und Abdeckung bekannter Releases |
+| `/fleet-compare` | Fleet Compare | Vergleich mehrerer Snapshots oder Umgebungen |
 
-- Im Repository ist ein manueller Deployment-Workflow für **Cloudflare Pages** vorbereitet.
-- Die relevanten Skripte liegen in `package.json` und deployen den Vite-Build aus `dist`.
-- Eine CI/CD-Pipeline ist im aktuellen Stand **nicht** im Repository hinterlegt.
+## Unterstützte Daten
 
-### Voraussetzungen
+### RVTools-Sheets
 
-- Cloudflare-Account mit Zugriff auf Pages
-- Ein bestehendes oder neu anzulegendes Pages-Projekt namens `rvtools`
-- Lokale Authentifizierung mit Wrangler
+Der Import normalisiert zentrale RVTools-Daten und speichert nur Rohdaten, die in den Dashboards tatsächlich verwendet werden.
 
-### Erstes Setup
+| Kategorie | Sheets |
+|---|---|
+| VM-Inventar und Betrieb | `vInfo`, `vTools`, `vSnapshot`, `vCPU`, `vMemory`, `vDisk`, `vPartition`, `vCD`, `vUSB` |
+| Hosts und Cluster | `vHost`, `vHBA`, `vNIC`, `vSwitch`, `vPort`, `vSC_VMK` |
+| Netzwerk | `vNetwork`, `dvSwitch`, `dvPort` |
+| Storage | `vDatastore`, `vMultiPath` |
+| Ressourcen und Lizenzen | `vRP`, `vLicense` |
+| Quelle und Versionen | `vSource` |
+
+### Tech-Info-Import
+
+Zusätzlich kann eine Tech-Info-XLSX importiert werden. Erforderliche Spalten sind:
+
+```text
+Name, Wartungsfenster, Betriebssystem
+```
+
+Optionale Felder wie `Servertyp`, `Kommentar`, `SysV`, `SysV Abteilung`, `BZ`, `Schrankreihe`, `CV-Backup` und `AZ` werden in der Tech-Info-Sicht genutzt, sofern sie vorhanden sind.
+
+## Datenhaltung und Datenschutz
+
+| Thema | Verhalten |
+|---|---|
+| Speicherung | Lokal im Browser über IndexedDB |
+| Backend | Nicht vorhanden |
+| Upload zu Servern | Nicht vorhanden |
+| Datenumfang | Pro Browser-Origin getrennt |
+| Löschung | Einzelne Snapshots oder alle importierten Daten im Browser löschbar |
+| Duplikate | Wiederholte Dateien werden per SHA-256 erkannt |
+
+Wichtig für den Betrieb: Wenn die App unter einer anderen Domain, Subdomain oder einem anderen Port geöffnet wird, sieht der Browser dies als getrennten Origin. Die dort gespeicherten Snapshots sind deshalb separat.
+
+## Architektur
+
+```mermaid
+flowchart TB
+  A[React App] --> B[Upload UI]
+  B --> C[parser.worker.ts]
+  C --> D[Normalisierung im Import-Service]
+  D --> E[(IndexedDB)]
+  E --> F[TanStack Query Hooks]
+  F --> G[Dashboard-Seiten]
+  G --> H[Virtual Tables und Charts]
+```
+
+| Ebene | Dateien / Technik |
+|---|---|
+| App und Routing | `src/App.tsx`, `react-router-dom` |
+| Layout | `src/app/layout/*`, Sidebar, Theme |
+| Domain-Modell | `src/domain/models/types.ts` |
+| Import-Pipeline | `src/domain/services/importService.ts` |
+| XLSX-Parsing | `src/workers/parser.worker.ts`, `@e965/xlsx` |
+| Lokale Datenbank | `src/data/db/index.ts`, `idb` |
+| Datenzugriff | `src/hooks/useActiveSnapshots.ts`, TanStack Query |
+| Tabellen | `src/components/tables/VirtualTable.tsx`, TanStack Table/Virtual |
+| UI | Tailwind CSS, shadcn/ui, Radix UI, lucide-react |
+| Diagramme | Recharts |
+
+## Projektstruktur
+
+```text
+src/
+  app/layout/                 Layout, Sidebar, ThemeProvider
+  components/
+    dashboard/                KPI-Karten, Filterbar, Empty State
+    global-filter/            GlobalFilterControl, Scope-Hinweise
+    tables/                   VirtualTable
+    ui/                       shadcn/ui-Komponenten
+  data/db/                    IndexedDB-Schema und Zugriff
+  domain/
+    models/                   Zentrale Typen
+    services/                 Import-Service und Normalisierung
+  hooks/                      Daten- und Filter-Hooks
+  lib/
+    globalFilter/             Feldbasierter VM-Filter
+    xlsx/                     Parse-Helfer
+  pages/                      Analyse-Seiten
+  workers/                    XLSX-Web-Worker
+```
+
+## Deployment
+
+Das Projekt ist als statische Single-Page-App ausgelegt. Ein manueller Cloudflare-Pages-Workflow ist vorbereitet.
+
+### Erstes Cloudflare-Setup
 
 ```bash
 npm install
@@ -106,15 +218,15 @@ npm run cf:login
 npm run cf:pages:create
 ```
 
-Hinweis: `npm run cf:pages:create` legt das Pages-Projekt `rvtools` mit `main` als Production-Branch an.
+`npm run cf:pages:create` legt ein Pages-Projekt namens `rvtools` mit `main` als Production-Branch an.
 
-### Deployment ausführen
+### Production-Deploy
 
 ```bash
 npm run cf:pages:deploy
 ```
 
-Für einen Preview-Deploy:
+### Preview-Deploy
 
 ```bash
 npm run cf:pages:deploy:preview
@@ -122,85 +234,36 @@ npm run cf:pages:deploy:preview
 
 ### Hosting-Hinweise
 
-- Die App ist eine clientseitige Single-Page-App mit `BrowserRouter`. Das Zielhosting muss daher einen **SPA-Fallback auf `index.html`** unterstützen.
-- Die Vite-Konfiguration setzt aktuell keinen `base`-Pfad. Der Build ist damit für Deployment am Domain-Root ausgelegt.
-- Die Anwendung bleibt `local-first`: Importierte Daten werden pro Origin lokal in IndexedDB gespeichert. Unterschiedliche Domains/Subdomains haben daher getrennte lokale Datenbestände.
+- Die App nutzt `BrowserRouter`. Das Hosting muss einen SPA-Fallback auf `index.html` unterstützen.
+- Die Vite-Konfiguration ist aktuell für Deployment am Domain-Root ausgelegt.
+- Bei Deployment unter einem Subpfad muss die Vite-Option `base` geprüft und angepasst werden.
+- Importierte Daten bleiben immer lokal im Browser und werden nicht zwischen Domains oder Subdomains geteilt.
 
-## 🖥️ Dashboard-Bereiche
+## Qualitätssicherung
 
-| Route | Seite | Zweck |
-|---|---|---|
-| `/overview` | Overview | Globaler Überblick (VMs, Hosts, Datastores, Health), VM-Detaildialog per Klick |
-| `/upload` | Uploads & Snapshots | Import, Fortschritt, Snapshot-Verwaltung |
-| `/daily-ops` | Daily Ops | Operative Auffälligkeiten (Config, Tools, Snapshots, Health) |
-| `/capacity` | Capacity | Overcommit, Datastore-Headroom, Kapazitätsrisiken |
-| `/performance` | Performance | CPU-Ready, Memory-Pressure, Entitlement-Gaps, NIC-/FT-Indikatoren |
-| `/storage-backup` | Storage / Backup | Storage- und Backup-relevante Sicht (inkl. Consumed & Disk Path) |
-| `/network-security` | Network / Security | Netzwerk- und Security-Perspektive |
-| `/hardware` | Hardware | Host-/Hardware-bezogene Analyse, Gruppierung nach normalisiertem Hardware-Profil |
-| `/compliance` | Compliance / Lifecycle | Lifecycle- und Compliance-Indikatoren, Host-Detaildialog |
-| `/licensing` | Licensing | Lizenz- und Effizienzsicht |
-| `/tech-info` | Tech-Info | CMDB-Daten je VM (Servertyp, Wartungsfenster, SysV, Abteilung, Backup-Flag) |
-| `/vmware-versions` | VMware Versions | vCenter-/ESXi-Versionsverteilung und Adoptionsrate bekannter Releases |
-| `/fleet-compare` | Fleet Compare | Vergleich mehrerer Umgebungen/Snapshots |
-
-## 🔄 Datenfluss
-
-```mermaid
-flowchart LR
-  A[RVTools XLSX Upload] --> B[Web Worker Parser]
-  B --> C[Sheet-Rohdaten]
-  B --> D[Normalisierte Entitäten]
-  C --> E[(IndexedDB)]
-  D --> E[(IndexedDB)]
-  E --> F[Hooks mit TanStack Query]
-  F --> G[Dashboard-Seiten]
-```
-
-## 📁 Projektstruktur
-
-```text
-src/
-  app/layout/                 # Layout, Sidebar, ThemeProvider
-  components/
-    dashboard/                # KPI-Karten, Filterbar, Empty State
-    global-filter/            # GlobalFilterControl, GlobalFilterScopeHint
-    tables/                   # VirtualTable
-    ui/                       # shadcn/ui Komponenten
-  data/db/                    # IndexedDB Schema + Zugriff
-  domain/
-    models/                   # Zentrale Typen
-    services/                 # Import-Service (Parsing/Normalisierung)
-  hooks/                      # Daten- und Filter-Hooks (inkl. useGlobalVmFilter)
-  lib/
-    globalFilter/             # Feldbasierter VM-Filter (Logik, Auswertung)
-  pages/                      # Analyse-Seiten
-  workers/                    # parser.worker.ts
-```
-
-## 🧪 Qualitätssicherung
-
-| Check | Status im aktuellen Stand |
+| Check | Erwartung |
 |---|---|
-| `npm run test` | ✅ läuft |
-| `npm run lint` | ⚠️ aktuell mit bestehenden Lint-Fehlern/Warnungen |
+| `npm run test` | Tests mit Vitest ausführen |
+| `npm run lint` | ESLint ausführen und neue Lint-Probleme vermeiden |
+| `npm run build` | Production-Build prüfen, besonders bei Änderungen an Build, Routing oder Hosting |
 
-Hinweis: Die aktuellen Lint-Themen liegen u. a. bei `no-explicit-any`, `no-empty-object-type` und `no-require-imports`.
+Bekannte bestehende Lint-Themen können u. a. `no-explicit-any`, `no-empty-object-type` und `no-require-imports` betreffen. Neue Änderungen sollten keine zusätzlichen Probleme einführen.
 
-## 🔐 Datenschutz
+## Entwicklungsregeln
 
-- Alle importierten Daten werden lokal in IndexedDB gespeichert.
-- Es gibt keinen serverseitigen Upload-Pfad im aktuellen Projekt.
-- Snapshots können einzeln oder vollständig im Browser gelöscht werden.
+- Neue Seiten in `src/App.tsx` routen und in `src/app/layout/AppSidebar.tsx` verlinken.
+- Änderungen am Datenmodell in `src/domain/models/types.ts` beginnen und danach Import-Service, DB und Hooks synchron halten.
+- Bei IndexedDB-Schemaänderungen `DB_VERSION` erhöhen und Migrationen in `src/data/db/index.ts` pflegen.
+- Datenzugriff bevorzugt über bestehende Hooks in `src/hooks/useActiveSnapshots.ts` umsetzen.
+- Für große Tabellen `VirtualTable` verwenden.
+- Importlogik bleibt clientseitig: Web Worker plus IndexedDB, keine Serverpersistenz.
+- `@/*`-Alias statt tiefer relativer Pfade verwenden.
+- Dateien als UTF-8 pflegen und deutsche Umlaute normal schreiben.
 
-## 🤝 Entwicklung & Beiträge
+## Grenzen
 
-- Architekturregeln und Agenten-Kontext siehe `AGENTS.md`.
-- Für neue Seiten immer Route in `src/App.tsx` und Navigation in `src/app/layout/AppSidebar.tsx` ergänzen.
-- Domain-Änderungen zuerst in `src/domain/models/types.ts` umsetzen und danach Services/Hooks/DB nachziehen.
-- Kodierung grundsätzlich in **UTF-8** pflegen.
-- Umlaute normal schreiben (`ü`, `ä`, `ö`, `ß`), nicht als Umschreibung (`ue`, `ae`, `oe`, `ss`).
+RVTools Analyzer ersetzt kein Monitoring, kein vROps/Aria Operations und keine zentrale CMDB. Die App analysiert importierte RVTools- und Tech-Info-Snapshots. Aussagen hängen deshalb vom Stand und Umfang der importierten Dateien ab.
 
-## 📄 Lizenz
+## Lizenz
 
 Aktuell ist keine Lizenzdatei im Repository hinterlegt.
