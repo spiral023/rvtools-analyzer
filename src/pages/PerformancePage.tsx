@@ -110,7 +110,12 @@ export default function PerformancePage() {
       .sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
   }, [filteredRawVMemory]);
 
-  const multipathIssues = rawMultiPath.filter((r) => { const s = String(r.data["Oper. State"] || "").toLowerCase(); return s !== "" && s !== "ok"; }).length;
+  const multipathIssues = rawMultiPath.filter((r) => {
+    const s = String(r.data["Oper. State"] || "").toLowerCase();
+    if (s !== "" && s !== "ok") return true;
+    for (let i = 1; i <= 8; i++) { if (String(r.data[`Path ${i} state`] || "").toLowerCase() === "dead") return true; }
+    return false;
+  }).length;
 
   // Entitlement Gaps
   const entitlementGaps = useMemo<EntitlementRow[]>(() => {

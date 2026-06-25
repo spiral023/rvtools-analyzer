@@ -14,7 +14,8 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYL
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PartitionRow { vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
-interface MultipathRow { host: string; datastore: string; disk: string; policy: string; state: string; paths: number; activePaths: number }
+interface MultipathRow { host: string; datastore: string; disk: string; policy: string; state: string; paths: number; activePaths: number; deadPaths: number }
+interface DeadPathHostRow { host: string; affectedDevices: number; deadPaths: number; datastores: string }
 interface DiskRow { vm: string; disk: string; diskPath: string; capacityMiB: number; thin: boolean; mode: string; raw: boolean; controller: string; scsiUnit: string }
 interface BackupRow { vm: string; backupStatus: string; lastBackup: string; ageDays: number; risk: string }
 interface ScsiRow { vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
@@ -36,6 +37,14 @@ const mpColumns: ColumnDef<MultipathRow, unknown>[] = [
   { accessorKey: "state", header: "Status", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "ok" ? "text-success" : "text-destructive font-semibold"}>{v}</span>; }},
   { accessorKey: "paths", header: "Pfade" },
   { accessorKey: "activePaths", header: "Aktiv" },
+  { accessorKey: "deadPaths", header: "Tote Pfade", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{v}</span>; }},
+];
+
+const deadPathHostColumns: ColumnDef<DeadPathHostRow, unknown>[] = [
+  { accessorKey: "host", header: "Host" },
+  { accessorKey: "affectedDevices", header: "Betroffene Devices", cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
+  { accessorKey: "deadPaths", header: "Tote Pfade gesamt", cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
+  { accessorKey: "datastores", header: "Betroffene Datastores", cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[360px] truncate" title={v}>{v || "—"}</div>; }},
 ];
 
 const diskColumns: ColumnDef<DiskRow, unknown>[] = [
@@ -112,9 +121,25 @@ export default function StorageBackup() {
   const warnParts = partitions.filter((p) => p.freePct >= 10 && p.freePct < 20).length;
 
   const multipaths = useMemo<MultipathRow[]>(() =>
-    rawMultiPath.map((r) => { let active = 0; let total = 0; for (let i = 1; i <= 8; i++) { if (r.data[`Path ${i}`]) { total++; if (String(r.data[`Path ${i} state`] || "") === "active") active++; } } return { host: String(r.data["Host"] || ""), datastore: String(r.data["Datastore"] || ""), disk: String(r.data["Disk"] || ""), policy: String(r.data["Policy"] || ""), state: String(r.data["Oper. State"] || ""), paths: total, activePaths: active }; }), [rawMultiPath]);
+    rawMultiPath.map((r) => { let active = 0; let dead = 0; let total = 0; for (let i = 1; i <= 8; i++) { if (r.data[`Path ${i}`]) { total++; const ps = String(r.data[`Path ${i} state`] || "").toLowerCase(); if (ps === "active") active++; else if (ps === "dead") dead++; } } return { host: String(r.data["Host"] || ""), datastore: String(r.data["Datastore"] || ""), disk: String(r.data["Disk"] || ""), policy: String(r.data["Policy"] || ""), state: String(r.data["Oper. State"] || ""), paths: total, activePaths: active, deadPaths: dead }; }).sort((a, b) => (b.deadPaths - a.deadPaths) || (a.state === "ok" ? 1 : 0) - (b.state === "ok" ? 1 : 0)), [rawMultiPath]);
 
   const mpIssues = multipaths.filter((m) => m.state !== "ok").length;
+  const deadPathDevices = multipaths.filter((m) => m.deadPaths > 0).length;
+
+  const deadPathHosts = useMemo<DeadPathHostRow[]>(() => {
+    const map = new Map<string, { affectedDevices: number; deadPaths: number; datastores: Set<string> }>();
+    for (const m of multipaths) {
+      if (m.deadPaths <= 0) continue;
+      const entry = map.get(m.host) || { affectedDevices: 0, deadPaths: 0, datastores: new Set<string>() };
+      entry.affectedDevices += 1;
+      entry.deadPaths += m.deadPaths;
+      if (m.datastore) entry.datastores.add(m.datastore);
+      map.set(m.host, entry);
+    }
+    return [...map.entries()]
+      .map(([host, e]) => ({ host, affectedDevices: e.affectedDevices, deadPaths: e.deadPaths, datastores: [...e.datastores].sort((a, b) => a.localeCompare(b, "de-DE")).join(", ") }))
+      .sort((a, b) => (b.deadPaths - a.deadPaths) || (b.affectedDevices - a.affectedDevices));
+  }, [multipaths]);
 
   const disks = useMemo<DiskRow[]>(() =>
     filteredRawDisks.map((r) => ({ vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [filteredRawDisks]);
@@ -173,11 +198,12 @@ export default function StorageBackup() {
       <h1 className="text-2xl font-bold">Storage / Backup</h1>
       <FilterBar />
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-9">
         <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} />
         <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} />
         <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} />
         <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" />
         <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} />
         <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} />
         <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} />
@@ -209,6 +235,14 @@ export default function StorageBackup() {
           <h3 className="mb-2 text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
           <p className="text-xs text-muted-foreground mb-3">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
           <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} />
+        </div>
+      )}
+
+      {deadPathHosts.length > 0 && (
+        <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
+          <p className="text-xs text-muted-foreground mb-3">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit `Oper. State != ok` abgleichen für akute Device-Ausfälle.</p>
+          <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} />
         </div>
       )}
 
