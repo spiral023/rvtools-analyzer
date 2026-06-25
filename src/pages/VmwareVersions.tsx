@@ -9,33 +9,8 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
+import { buildReleaseUsageRows, getLatestRelease, type ReleaseUsageRow } from "@/lib/vmwareReleaseCatalog";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
-
-type ReleaseType = "vcenter" | "esxi";
-
-interface KnownRelease {
-  type: ReleaseType;
-  title: string;
-  releaseDateIso: string;
-  build: string;
-}
-
-interface ReleaseUsageRow extends KnownRelease {
-  releaseDateLabel: string;
-  releaseTimestamp: number;
-  usageCount: number;
-  totalAssets: number;
-  adoptionPct: number;
-}
-
-const KNOWN_RELEASES: KnownRelease[] = [
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3i", releaseDateIso: "2026-02-24", build: "25197330" },
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3h", releaseDateIso: "2025-12-15", build: "25092719" },
-  { type: "vcenter", title: "VMware vCenter 8.0 Update 3g", releaseDateIso: "2025-07-29", build: "24853646" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3h", releaseDateIso: "2025-12-15", build: "25067014" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3i", releaseDateIso: "2026-02-24", build: "25205845" },
-  { type: "esxi", title: "VMware ESXi 8.0 Update 3g", releaseDateIso: "2025-07-29", build: "24859861" },
-];
 
 function extractBuild(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -45,16 +20,22 @@ function extractBuild(value: unknown): string | null {
   return matches[matches.length - 1];
 }
 
-function toReleaseTimestamp(releaseDateIso: string): number {
-  return new Date(`${releaseDateIso}T00:00:00Z`).getTime();
-}
-
-function formatReleaseDate(releaseDateIso: string): string {
-  return new Date(`${releaseDateIso}T00:00:00Z`).toLocaleDateString("de-DE");
-}
-
 const releaseColumns: ColumnDef<ReleaseUsageRow, unknown>[] = [
-  { accessorKey: "title", header: "Release" },
+  {
+    accessorKey: "title",
+    header: "Release",
+    cell: ({ row }) => (
+      <a
+        href={row.original.releaseNotesUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {row.original.title}
+      </a>
+    ),
+  },
+  { accessorKey: "version", header: "Version", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   {
     accessorKey: "releaseTimestamp",
     header: "Release Date",
@@ -122,50 +103,24 @@ export default function VmwareVersions() {
   const totalActiveHosts = hosts.length;
 
   const vcenterRows = useMemo<ReleaseUsageRow[]>(
-    () =>
-      KNOWN_RELEASES
-        .filter((release) => release.type === "vcenter")
-        .map((release) => {
-          const usageCount = vcenterBuildCounts.get(release.build) || 0;
-          return {
-            ...release,
-            releaseDateLabel: formatReleaseDate(release.releaseDateIso),
-            releaseTimestamp: toReleaseTimestamp(release.releaseDateIso),
-            usageCount,
-            totalAssets: totalActiveVcenters,
-            adoptionPct: totalActiveVcenters > 0 ? Math.round((usageCount / totalActiveVcenters) * 1000) / 10 : 0,
-          };
-        })
-        .sort((a, b) => b.releaseTimestamp - a.releaseTimestamp),
+    () => buildReleaseUsageRows("vcenter", vcenterBuildCounts, totalActiveVcenters),
     [vcenterBuildCounts, totalActiveVcenters],
   );
 
   const esxiRows = useMemo<ReleaseUsageRow[]>(
-    () =>
-      KNOWN_RELEASES
-        .filter((release) => release.type === "esxi")
-        .map((release) => {
-          const usageCount = esxiBuildCounts.get(release.build) || 0;
-          return {
-            ...release,
-            releaseDateLabel: formatReleaseDate(release.releaseDateIso),
-            releaseTimestamp: toReleaseTimestamp(release.releaseDateIso),
-            usageCount,
-            totalAssets: totalActiveHosts,
-            adoptionPct: totalActiveHosts > 0 ? Math.round((usageCount / totalActiveHosts) * 1000) / 10 : 0,
-          };
-        })
-        .sort((a, b) => b.releaseTimestamp - a.releaseTimestamp),
+    () => buildReleaseUsageRows("esxi", esxiBuildCounts, totalActiveHosts),
     [esxiBuildCounts, totalActiveHosts],
   );
 
+  const latestVcenterLabel = getLatestRelease("vcenter")?.title.replace("VMware vCenter Server 8.0 Update ", "Update ") ?? "Latest";
+  const latestEsxiLabel = getLatestRelease("esxi")?.title.replace("VMware ESXi 8.0 Update ", "Update ") ?? "Latest";
   const vcenterLatestUsage = vcenterRows[0]?.usageCount || 0;
   const esxiLatestUsage = esxiRows[0]?.usageCount || 0;
   const trackedVcenterUsage = vcenterRows.reduce((sum, row) => sum + row.usageCount, 0);
   const trackedEsxiUsage = esxiRows.reduce((sum, row) => sum + row.usageCount, 0);
 
   const vcenterChartData = vcenterRows.map((row) => ({
-    name: row.title.replace("VMware vCenter ", ""),
+    name: row.title.replace("VMware vCenter Server ", ""),
     usage: row.usageCount,
   }));
 
@@ -204,13 +159,13 @@ export default function VmwareVersions() {
         <KpiCard title="Aktive vCenter" value={formatNum(totalActiveVcenters)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Aktive ESXi Hosts" value={formatNum(totalActiveHosts)} icon={<Cpu className="h-4 w-4" />} />
         <KpiCard
-          title="vCenter auf 3i"
+          title={`vCenter auf ${latestVcenterLabel}`}
           value={formatNum(vcenterLatestUsage)}
           subtitle={`${totalActiveVcenters > 0 ? Math.round((vcenterLatestUsage / totalActiveVcenters) * 100) : 0}%`}
           severity={totalActiveVcenters > 0 && vcenterLatestUsage < totalActiveVcenters ? "warn" : "ok"}
         />
         <KpiCard
-          title="ESXi auf 3i"
+          title={`ESXi auf ${latestEsxiLabel}`}
           value={formatNum(esxiLatestUsage)}
           subtitle={`${totalActiveHosts > 0 ? Math.round((esxiLatestUsage / totalActiveHosts) * 100) : 0}%`}
           severity={totalActiveHosts > 0 && esxiLatestUsage < totalActiveHosts ? "warn" : "ok"}
