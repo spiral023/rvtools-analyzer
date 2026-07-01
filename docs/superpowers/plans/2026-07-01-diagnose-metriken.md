@@ -28,7 +28,7 @@
 | `src/data/db/index.ts` | Ändern | Neue Funktionen `getStoreDiagnostics()`, `getStorageEstimate()`, `timeSampleQuery()` |
 | `src/data/db/index.test.ts` | Erstellen | Tests für die neuen DB-Diagnosefunktionen (mit `fake-indexeddb`) |
 | `src/hooks/useDiagnostics.ts` | Erstellen | React-Query-Hook, der alle Diagnosewerte on-demand sammelt |
-| `src/hooks/useDiagnostics.test.ts` | Erstellen | Tests für den Hook (Mocking der DB-/Browser-APIs) |
+| `src/hooks/useDiagnostics.test.ts` | Erstellen | Tests für die exportierte Helper-Funktion `getMemoryDiagnostics` (Verfügbarkeit von `performance.memory`) |
 | `src/pages/Diagnostics.tsx` | Erstellen | Neue Diagnose-Seite mit drei Abschnitten |
 | `src/App.tsx` | Ändern | Neue Route `/upload/diagnostics` registrieren |
 | `src/pages/UploadSnapshots.tsx` | Ändern | Link/Button zur Diagnose-Seite hinzufügen |
@@ -52,19 +52,18 @@
 npm install --save-dev fake-indexeddb
 ```
 
-- [ ] **Step 2: Aktuellen Inhalt von `src/test/setup.ts` lesen**
+- [ ] **Step 2: Polyfill-Import an den Anfang von `src/test/setup.ts` hinzufügen**
 
-Datei öffnen und bestehenden Inhalt notieren (wird im nächsten Schritt erweitert, nicht ersetzt).
-
-- [ ] **Step 3: Polyfill-Import an den Anfang von `src/test/setup.ts` hinzufügen**
-
-Füge als erste Zeile der Datei hinzu (vor allem bestehenden Code):
+Die Datei beginnt aktuell mit `import "@testing-library/jest-dom";`. Ersetze diese erste Zeile durch:
 
 ```typescript
 import "fake-indexeddb/auto";
+import "@testing-library/jest-dom";
 ```
 
-- [ ] **Step 4: Smoke-Test schreiben, dass IndexedDB in Tests verfügbar ist**
+Der Rest der Datei (das `matchMedia`-Mock ab `Object.defineProperty(window, "matchMedia", ...)`) bleibt unverändert.
+
+- [ ] **Step 3: Smoke-Test schreiben, dass IndexedDB in Tests verfügbar ist**
 
 Erstelle `src/test/indexeddb-smoke.test.ts`:
 
@@ -79,12 +78,12 @@ describe("fake-indexeddb setup", () => {
 });
 ```
 
-- [ ] **Step 5: Test ausführen**
+- [ ] **Step 4: Test ausführen**
 
 Run: `npm test -- src/test/indexeddb-smoke.test.ts`
 Expected: PASS (1 Test grün)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add package.json package-lock.json src/test/setup.ts src/test/indexeddb-smoke.test.ts
@@ -154,11 +153,13 @@ git commit -m "feat: add optional fileSizeBytes/importDurationMs to SnapshotMeta
 ### Task 3: Dateigröße und Importdauer beim Import erfassen
 
 **Files:**
-- Modify: `src/domain/services/importService.ts:281-356`
+- Modify: `src/domain/services/importService.ts:23-37` (Type-Import), `:281-356`, `:417-421`
 
 **Interfaces:**
 - Consumes: `SnapshotMeta.fileSizeBytes`, `SnapshotMeta.importDurationMs` aus Task 2.
-- Produces: `putSnapshot(...)`-Aufruf in `importRvtoolsParsed` enthält jetzt `fileSizeBytes` und `importDurationMs`.
+- Produces: In `importRvtoolsParsed` wird `fileSizeBytes` beim ersten `putSnapshot` geschrieben; `importDurationMs` wird am Ende des Imports (nach allen Schreibvorgängen) per zweitem `putSnapshot`-Upsert nachgetragen, sodass es die **gesamte** Importdauer abbildet.
+
+**Begründung:** `putSnapshot` ist ein Upsert auf den Keypath `snapshotId` (`db.put` in `src/data/db/index.ts:150-153`). Ein zweiter Aufruf mit demselben Objekt + `importDurationMs` am Ende überschreibt den Eintrag sauber. Die Dauer wird damit erst gemessen, wenn Rohdaten **und** Entities geschrieben sind — also inkl. der schwergewichtigen IndexedDB-Schreibphase, die für die Performance-Analyse gerade interessant ist. Ein einzelner zusätzlicher Single-Row-Write ist vernachlässigbar.
 
 - [ ] **Step 1: Startzeit in `importRvtoolsXlsx` erfassen**
 
@@ -233,7 +234,19 @@ export async function importRvtoolsXlsx(
 }
 ```
 
-- [ ] **Step 2: `importRvtoolsParsed` um `importStartedAt`-Parameter erweitern und beim `putSnapshot` mitschreiben**
+- [ ] **Step 2: `SnapshotMeta` zum Type-Import hinzufügen**
+
+In `src/domain/services/importService.ts` importiert der `import type { ... }`-Block aus `@/domain/models/types` aktuell u. a. `ImportResult`, `NormalizedVm`, … `WorkerParseResult`, aber **nicht** `SnapshotMeta`. Ergänze `SnapshotMeta` in dieser Importliste (z. B. direkt nach `ImportResult,`):
+
+```typescript
+import type {
+  ImportResult,
+  SnapshotMeta,
+  NormalizedVm,
+  // ... übrige bestehende Einträge unverändert
+```
+
+- [ ] **Step 3: `importRvtoolsParsed`-Signatur um `importStartedAt` erweitern**
 
 Finde die Funktionssignatur:
 
@@ -262,6 +275,8 @@ async function importRvtoolsParsed(
 ): Promise<ImportResult> {
 ```
 
+- [ ] **Step 4: Snapshot-Meta in eine Konstante hoisten und `fileSizeBytes` beim ersten Schreiben setzen**
+
 Finde den `putSnapshot`-Aufruf:
 
 ```typescript
@@ -281,8 +296,7 @@ Finde den `putSnapshot`-Aufruf:
 ersetze durch:
 
 ```typescript
-  report("Metadaten speichern", 35);
-  await putSnapshot({
+  const snapshotMeta: SnapshotMeta = {
     snapshotId,
     vcenterId,
     vcenterDisplayName,
@@ -292,23 +306,48 @@ ersetze durch:
     fileChecksum: checksum,
     sheetStats,
     fileSizeBytes: file.size,
-    importDurationMs: Math.round(performance.now() - importStartedAt),
-  });
+  };
+
+  report("Metadaten speichern", 35);
+  await putSnapshot(snapshotMeta);
 ```
 
-**Hinweis:** `importDurationMs` wird hier vor dem Schreiben der Rohdaten/Entities berechnet (Stand: "Metadaten speichern"-Schritt), erfasst also nur den Anteil bis dahin. Das ist für diese Funktion in Ordnung, weil `putSnapshot` danach nicht erneut aufgerufen wird — die Dauer bleibt als grobe Annäherung an die Gesamtimportzeit bis zum Start der Datenpersistierung gespeichert. Das ist bewusst so gewählt, um keine zweite Schreiboperation auf `snapshots` einzuführen.
+- [ ] **Step 5: Am Ende des Imports die volle Dauer per zweitem Upsert nachtragen**
 
-- [ ] **Step 3: TypeScript-Compiler prüfen**
+Finde das Ende von `importRvtoolsParsed`:
+
+```typescript
+  report("Abgeschlossen", 100, `${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
+
+  return { success: true, fileKind: "rvtools", snapshotId, warnings, errors, sheetStats };
+}
+```
+
+ersetze durch:
+
+```typescript
+  await putSnapshot({
+    ...snapshotMeta,
+    importDurationMs: Math.round(performance.now() - importStartedAt),
+  });
+
+  report("Abgeschlossen", 100, `${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
+
+  return { success: true, fileKind: "rvtools", snapshotId, warnings, errors, sheetStats };
+}
+```
+
+- [ ] **Step 6: TypeScript-Compiler prüfen**
 
 Run: `npx tsc --noEmit`
 Expected: Keine Fehler.
 
-- [ ] **Step 4: Bestehende Tests laufen lassen (falls vorhanden) und Build prüfen**
+- [ ] **Step 7: Bestehende Tests laufen lassen**
 
 Run: `npm test`
 Expected: Alle bisherigen Tests weiterhin grün (es gibt aktuell keine Tests für `importService.ts`, daher keine Regressions-Tests nötig — Verhalten wird in Task 6 indirekt über die Diagnoseseite sichtbar).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/domain/services/importService.ts
@@ -333,16 +372,25 @@ git commit -m "feat: record file size and import duration on snapshot metadata"
   - `export interface SampleQueryTiming { store: "entities_vm"; snapshotCount: number; durationMs: number; rowCount: number }`
   - `export async function timeSampleVmQuery(): Promise<SampleQueryTiming>`
 
-- [ ] **Step 1: Test für `getStoreDiagnostics` schreiben (leere DB)**
+- [ ] **Step 1: Test-Datei mit deterministischem DB-Reset und erstem (fehlschlagendem) Test anlegen**
+
+Wichtig zur Isolation: `src/data/db/index.ts:70` cached die DB-Verbindung in einem modul-globalen `dbPromise`. Damit jeder Test auf einer frischen, leeren IndexedDB läuft, setzen wir vor jedem Test (a) eine **neue** `IDBFactory` als globales `indexedDB` (frisches, leeres IndexedDB-Universum, kein `deleteDatabase`-Blocking) und (b) den Modul-Cache via `vi.resetModules()` zurück. Die getesteten Funktionen werden deshalb **pro Test dynamisch** importiert (`await import("./index")`), damit das frische `dbPromise=null` greift.
 
 Erstelle `src/data/db/index.test.ts`:
 
 ```typescript
-import { describe, it, expect, beforeEach } from "vitest";
-import { getStoreDiagnostics, getStorageEstimate, timeSampleVmQuery, putSnapshot, batchPut } from "./index";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
+
+beforeEach(() => {
+  vi.resetModules();
+  // Frische Factory => leere DB pro Test. Cast, falls die TS-Lib-Typen abweichen.
+  globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
+});
 
 describe("getStoreDiagnostics", () => {
   it("returns zero counts for all stores on an empty database", async () => {
+    const { getStoreDiagnostics } = await import("./index");
     const result = await getStoreDiagnostics();
     expect(result.length).toBeGreaterThan(0);
     for (const store of result) {
@@ -443,13 +491,14 @@ export async function timeSampleVmQuery(): Promise<SampleQueryTiming> {
 Run: `npm test -- src/data/db/index.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Test für nicht-leere Store-Diagnose hinzufügen**
+- [ ] **Step 5: Tests für nicht-leere Store-Diagnose, Storage-Estimate und Query-Timing hinzufügen**
 
-Ergänze in `src/data/db/index.test.ts`:
+Ergänze in `src/data/db/index.test.ts` (jeder Test importiert dank `beforeEach`-Reset seine Funktionen frisch und läuft auf einer eigenen leeren DB):
 
 ```typescript
 describe("getStoreDiagnostics with data", () => {
   it("counts entries and estimates a non-zero size after inserting snapshots", async () => {
+    const { putSnapshot, getStoreDiagnostics } = await import("./index");
     await putSnapshot({
       snapshotId: "snap-1",
       vcenterId: "vc-1",
@@ -472,6 +521,7 @@ describe("getStoreDiagnostics with data", () => {
 
 describe("getStorageEstimate", () => {
   it("returns a result shape indicating support or graceful fallback", async () => {
+    const { getStorageEstimate } = await import("./index");
     const result = await getStorageEstimate();
     expect(typeof result.supported).toBe("boolean");
     if (!result.supported) {
@@ -482,7 +532,8 @@ describe("getStorageEstimate", () => {
 });
 
 describe("timeSampleVmQuery", () => {
-  it("returns zero rows and zero duration-safe result on an empty database", async () => {
+  it("returns zero rows and a duration-safe result on an empty database", async () => {
+    const { timeSampleVmQuery } = await import("./index");
     const result = await timeSampleVmQuery();
     expect(result.store).toBe("entities_vm");
     expect(result.rowCount).toBe(0);
@@ -491,34 +542,12 @@ describe("timeSampleVmQuery", () => {
 });
 ```
 
-**Hinweis zur Testreihenfolge:** Da `fake-indexeddb` den State zwischen Tests innerhalb derselben Datei nicht automatisch zurücksetzt und `getDb()` die Verbindung cached, bauen diese Tests bewusst aufeinander auf (erst leer, dann mit einem Snapshot). Falls das zu Flakiness führt, in Schritt 6 `beforeEach` mit `indexedDB.deleteDatabase("rvtools-analyzer")` und Zurücksetzen des Modul-Caches ergänzen (siehe Step 6).
-
-- [ ] **Step 6: Isolations-Fix einbauen, falls Tests sich gegenseitig stören**
-
-Falls beim Ausführen Fehler durch zwischen Tests geteilten DB-State auftreten, füge am Anfang von `src/data/db/index.test.ts` ein:
-
-```typescript
-import { describe, it, expect, beforeEach, vi } from "vitest";
-
-beforeEach(async () => {
-  vi.resetModules();
-  await new Promise<void>((resolve) => {
-    const req = indexedDB.deleteDatabase("rvtools-analyzer");
-    req.onsuccess = () => resolve();
-    req.onerror = () => resolve();
-    req.onblocked = () => resolve();
-  });
-});
-```
-
-und importiere die getesteten Funktionen dann dynamisch pro Test mit `await import("./index")` statt eines statischen Top-Level-Imports, damit `vi.resetModules()` den `dbPromise`-Cache aus `src/data/db/index.ts:70` tatsächlich zurücksetzt.
-
-- [ ] **Step 7: Alle DB-Tests ausführen**
+- [ ] **Step 6: Alle DB-Tests ausführen**
 
 Run: `npm test -- src/data/db/index.test.ts`
 Expected: PASS (alle Tests grün)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/data/db/index.ts src/data/db/index.test.ts
@@ -718,7 +747,6 @@ git commit -m "feat: add useDiagnostics hook aggregating DB, storage, and memory
 - [ ] **Step 1: Neue Seite `src/pages/Diagnostics.tsx` erstellen**
 
 ```typescript
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDiagnostics } from "@/hooks/useDiagnostics";
 import { Button } from "@/components/ui/button";
@@ -734,11 +762,9 @@ function formatBytes(bytes: number | null): string {
 }
 
 export default function Diagnostics() {
-  const [enabled, setEnabled] = useState(true);
-  const { data, isFetching, refetch } = useDiagnostics(enabled);
+  const { data, isFetching, refetch } = useDiagnostics(true);
 
   const handleRefresh = () => {
-    setEnabled(true);
     refetch();
   };
 
@@ -877,37 +903,32 @@ import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, Al
 import { Link } from "react-router-dom";
 ```
 
-Finde den Header-Block:
+Ersetze den **kompletten** Header-Block in einem Zug. Finde exakt (entspricht `UploadSnapshots.tsx:108-127`):
 
 ```typescript
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Uploads & Snapshots</h1>
         <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
-```
-
-ersetze durch:
-
-```typescript
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Uploads & Snapshots</h1>
-        <div className="flex items-center gap-2">
-          <Link to="/upload/diagnostics">
-            <Button variant="ghost" size="sm">
-              <Activity className="mr-1 h-4 w-4" />Diagnose
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+              <Trash2 className="mr-1 h-4 w-4" />Alle Daten löschen
             </Button>
-          </Link>
-          <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
-```
-
-Und am Ende dieses Headers (vor dem schließenden `</div>` des äußeren Flex-Containers) muss das zusätzlich geöffnete `<div className="flex items-center gap-2">` wieder geschlossen werden. Finde:
-
-```typescript
-          </Button>
-            </DialogTrigger>
+          </DialogTrigger>
           <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Alle lokalen Daten löschen?</DialogTitle>
+              <DialogDescription>Dies löscht alle importierten Snapshots, Analysedaten und gespeicherten Einstellungen unwiderruflich aus Ihrem Browser.</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => dispatch({ type: "set-delete-all-open", value: false })}>Abbrechen</Button>
+              <Button variant="destructive" onClick={handleDeleteAll}>Endgültig löschen</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 ```
 
-(dies ist der bestehende `DialogTrigger`-Block aus `UploadSnapshots.tsx:111-115`) — stelle sicher, dass nach dem schließenden `</Dialog>` ein zusätzliches `</div>` für den neu eingefügten Wrapper-`div` steht. Die vollständige Stelle sieht danach so aus:
+ersetze durch (ein zusätzlicher Wrapper-`<div>` gruppiert den neuen Diagnose-Link und den bestehenden Dialog — Einrückung des Dialogs entsprechend angepasst):
 
 ```typescript
       <div className="flex items-center justify-between">
