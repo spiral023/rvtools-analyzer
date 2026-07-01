@@ -35,7 +35,7 @@ import {
   type MaintenanceClusterRow,
   type MaintenanceType,
 } from "@/lib/maintenance";
-import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
+import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type {
   MaintenanceClusterAssignment,
   MaintenanceClusterType,
@@ -221,28 +221,30 @@ function AssignmentPanel({
               </Button>
             ))}
           </div>
-          <div className="grid gap-2 md:grid-cols-5">
+          <div className="space-y-2">
             <Input
               placeholder="Label"
               value={customWindow.label}
               onChange={(event) => setCustomWindow((current) => ({ ...current, label: event.target.value }))}
             />
-            <SelectBox
-              ariaLabel="Start-Wochentag"
-              value={customWindow.dayFrom}
-              onChange={(value) => setCustomWindow((current) => ({ ...current, dayFrom: value as MaintenanceWeekday }))}
-            >
-              {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-            </SelectBox>
-            <SelectBox
-              ariaLabel="End-Wochentag"
-              value={customWindow.dayTo}
-              onChange={(value) => setCustomWindow((current) => ({ ...current, dayTo: value as MaintenanceWeekday }))}
-            >
-              {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-            </SelectBox>
-            <Input type="time" value={customWindow.startTime} onChange={(event) => setCustomWindow((current) => ({ ...current, startTime: event.target.value }))} />
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <SelectBox
+                ariaLabel="Start-Wochentag"
+                value={customWindow.dayFrom}
+                onChange={(value) => setCustomWindow((current) => ({ ...current, dayFrom: value as MaintenanceWeekday }))}
+              >
+                {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
+              </SelectBox>
+              <SelectBox
+                ariaLabel="End-Wochentag"
+                value={customWindow.dayTo}
+                onChange={(value) => setCustomWindow((current) => ({ ...current, dayTo: value as MaintenanceWeekday }))}
+              >
+                {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
+              </SelectBox>
+            </div>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+              <Input type="time" value={customWindow.startTime} onChange={(event) => setCustomWindow((current) => ({ ...current, startTime: event.target.value }))} />
               <Input type="time" value={customWindow.endTime} onChange={(event) => setCustomWindow((current) => ({ ...current, endTime: event.target.value }))} />
               <Button type="button" variant="outline" size="icon" onClick={addCustomWindow} aria-label="Eigenes Wartungsfenster hinzufügen">
                 <Plus className="h-4 w-4" />
@@ -569,16 +571,28 @@ export default function Wartungsankuendigung() {
         />
       ),
     },
-    { accessorKey: "name", header: "Name" },
-    { accessorKey: "hosts", header: "Hosts", cell: ({ getValue }) => formatNum(getValue() as number) },
-    { accessorKey: "cores", header: "Cores", cell: ({ getValue }) => formatNum(getValue() as number) },
-    { accessorKey: "totalCpuGhz", header: "Total GHz", cell: ({ getValue }) => `${formatNum(getValue() as number)} GHz` },
-    { accessorKey: "totalRamMiB", header: "Total RAM", cell: ({ getValue }) => formatBytes(getValue() as number) },
-    { accessorKey: "totalVms", header: "Anzahl VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
-    { accessorKey: "cpuAllocationPct", header: "CPU% Allok.", cell: ({ getValue }) => formatPct(getValue() as number | null) },
-    { accessorKey: "cpuUsagePct", header: "CPU% Ausl.", cell: ({ getValue }) => formatPct(getValue() as number | null) },
-    { accessorKey: "ramAllocationPct", header: "RAM% Allok.", cell: ({ getValue }) => formatPct(getValue() as number | null) },
-    { accessorKey: "ramUsagePct", header: "RAM% Ausl.", cell: ({ getValue }) => formatPct(getValue() as number | null) },
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ getValue }) => {
+        const value = getValue() as string;
+        return (
+          <span className="block max-w-[200px] truncate" title={value}>
+            {value}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "hosts",
+      header: "Hosts",
+      cell: ({ getValue }) => <span className="tabular-nums">{formatNum(getValue() as number)}</span>,
+    },
+    {
+      accessorKey: "totalVms",
+      header: "VMs",
+      cell: ({ getValue }) => <span className="tabular-nums">{formatNum(getValue() as number)}</span>,
+    },
     {
       accessorKey: "type",
       header: "Typ",
@@ -590,12 +604,26 @@ export default function Wartungsankuendigung() {
     {
       accessorKey: "windows",
       header: "Wartungsfenster",
-      cell: ({ row }) => row.original.windows.length ? row.original.windows.map(formatMaintenanceWindow).join(", ") : "—",
+      cell: ({ row }) => {
+        const value = row.original.windows.length ? row.original.windows.map(formatMaintenanceWindow).join(", ") : "—";
+        return (
+          <span className="block max-w-[220px] truncate" title={value}>
+            {value}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "contacts",
       header: "Verantwortliche",
-      cell: ({ row }) => joinContacts(row.original.contacts),
+      cell: ({ row }) => {
+        const value = joinContacts(row.original.contacts);
+        return (
+          <span className="block max-w-[160px] truncate" title={value}>
+            {value}
+          </span>
+        );
+      },
     },
   ], [searchedRows, selectedKeys]);
 
@@ -668,7 +696,7 @@ export default function Wartungsankuendigung() {
         </Alert>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,860px)_minmax(420px,1fr)]">
         <div>
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
             Cluster im aktiven Snapshot-Scope ({searchedRows.length})
