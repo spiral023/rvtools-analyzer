@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
+import { SelectionProvider } from "@/hooks/useSelection";
 import { AppLayout } from "@/app/layout/AppLayout";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
@@ -26,6 +27,7 @@ const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const VmwareVersions = lazy(() => import("@/pages/VmwareVersions"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
+const Planning = lazy(() => import("@/pages/Planning"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -54,6 +56,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <FilterProvider>
+            <SelectionProvider>
             <AppLayout>
               <Suspense fallback={<PageFallback />}>
                 <Routes>
@@ -73,12 +76,14 @@ const App = () => (
                   <Route path="/tech-info" element={<TechInfo />} />
                   <Route path="/vmware-versions" element={<VmwareVersions />} />
                   <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
+                  <Route path="/planning" element={<Planning />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/fleet-compare" element={<FleetCompare />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
             </AppLayout>
+            </SelectionProvider>
           </FilterProvider>
         </BrowserRouter>
       </TooltipProvider>

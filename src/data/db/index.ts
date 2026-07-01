@@ -15,6 +15,7 @@ import type {
   TechInfoLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
+  Scenario,
 } from "@/domain/models/types";
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 
@@ -62,22 +63,27 @@ interface RVToolsDBSchema extends DBSchema {
     value: MaintenanceClusterAssignment;
     indexes: { vcenterId: string; clusterName: string };
   };
+  scenarios: {
+    key: string;
+    value: Scenario;
+    indexes: { updatedAt: string };
+  };
 }
 
 export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest" | "maintenance_settings"
-  | "maintenance_cluster_assignments";
+  | "maintenance_cluster_assignments" | "scenarios";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
-  "maintenance_settings", "maintenance_cluster_assignments",
+  "maintenance_settings", "maintenance_cluster_assignments", "scenarios",
 ];
 
 let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
@@ -150,6 +156,10 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           assignments.createIndex("vcenterId", "vcenterId");
           assignments.createIndex("clusterName", "clusterName");
         }
+        if (!db.objectStoreNames.contains("scenarios")) {
+          const scenarios = db.createObjectStore("scenarios", { keyPath: "id" });
+          scenarios.createIndex("updatedAt", "updatedAt");
+        }
       },
     });
   }
@@ -197,6 +207,22 @@ export async function getUiState(id: string): Promise<UiState | undefined> {
 export async function putUiState(state: UiState): Promise<void> {
   const db = await getDb();
   await db.put("ui_state", state);
+}
+
+export async function getScenarios(): Promise<Scenario[]> {
+  const db = await getDb();
+  const all = await db.getAll("scenarios");
+  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function putScenario(scenario: Scenario): Promise<void> {
+  const db = await getDb();
+  await db.put("scenarios", scenario);
+}
+
+export async function deleteScenario(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("scenarios", id);
 }
 
 export async function getMaintenanceSettings(): Promise<MaintenanceSettings | undefined> {
