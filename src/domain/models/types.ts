@@ -38,6 +38,10 @@ export interface SnapshotMeta {
   fileName: string;
   fileChecksum: string;
   sheetStats: Record<string, SheetStats>;
+  /** Größe der importierten Datei in Bytes. Fehlt bei Snapshots, die vor Einführung dieses Felds importiert wurden. */
+  fileSizeBytes?: number;
+  /** Gesamtdauer des Imports in Millisekunden (Start bis "Abgeschlossen"). Fehlt bei älteren Snapshots. */
+  importDurationMs?: number;
 }
 
 export interface SheetRow {
