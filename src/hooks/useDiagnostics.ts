@@ -39,8 +39,6 @@ export interface CacheDiagnostics {
   entryCount: number;
 }
 
-const TRACKED_QUERY_KEYS = ["vms", "hosts", "clusters", "datastores", "vmSnapshots", "health", "techInfoLatestByVmNames"];
-
 export interface DiagnosticsResult {
   snapshots: SnapshotMeta[];
   stores: StoreDiagnostics[];
@@ -62,14 +60,16 @@ export function useDiagnostics(enabled: boolean) {
       timeSampleVmQuery(),
     ]);
     const memory = getMemoryDiagnostics(performance);
-    const cache: CacheDiagnostics[] = TRACKED_QUERY_KEYS.map((key) => {
-      const queries = queryClient.getQueryCache().findAll({ queryKey: [key] });
-      const entryCount = queries.reduce((sum, q) => {
-        const data = q.state.data;
-        return sum + (Array.isArray(data) ? data.length : data ? 1 : 0);
-      }, 0);
-      return { queryKey: key, entryCount };
-    });
+    const cacheCounts = new Map<string, number>();
+    for (const q of queryClient.getQueryCache().getAll()) {
+      const key = String(Array.isArray(q.queryKey) ? q.queryKey[0] : q.queryKey);
+      const data = q.state.data;
+      const count = Array.isArray(data) ? data.length : data ? 1 : 0;
+      cacheCounts.set(key, (cacheCounts.get(key) ?? 0) + count);
+    }
+    const cache: CacheDiagnostics[] = [...cacheCounts.entries()]
+      .map(([queryKey, entryCount]) => ({ queryKey, entryCount }))
+      .sort((a, b) => b.entryCount - a.entryCount);
 
     return { snapshots, stores, storage, sampleQuery, memory, cache };
   }, [queryClient]);
@@ -82,9 +82,9 @@ export function useDiagnostics(enabled: boolean) {
     gcTime: 0,
   });
 
-  const refetchManually = useCallback(() => {
+  const refresh = useCallback(() => {
     setFetchTrigger((n) => n + 1);
   }, []);
 
-  return { data: query.data, isFetching: query.isFetching, refetch: refetchManually };
+  return { data: query.data, isFetching: query.isFetching, refresh };
 }

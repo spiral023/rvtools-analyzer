@@ -13,10 +13,10 @@ function formatBytes(bytes: number | null): string {
 }
 
 export default function Diagnostics() {
-  const { data, isFetching, refetch } = useDiagnostics(true);
+  const { data, isFetching, refresh } = useDiagnostics(true);
 
   const handleRefresh = () => {
-    refetch();
+    refresh();
   };
 
   return (
@@ -67,7 +67,7 @@ export default function Diagnostics() {
             <CardContent className="space-y-3">
               <p className="text-sm">
                 Browser-Speicher gesamt: {data.storage.supported
-                  ? `${formatBytes(data.storage.usageBytes)} von ${formatBytes(data.storage.quotaBytes)} Kontingent`
+                  ? `${formatBytes(data.storage.usageBytes)} von ${formatBytes(data.storage.quotaBytes)} Kontingent (Schätzung)`
                   : "nicht verfügbar in diesem Browser"}
               </p>
               <div className="space-y-1">
