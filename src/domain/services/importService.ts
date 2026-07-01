@@ -22,6 +22,7 @@ import {
 import { shortId } from "@/lib/shortId";
 import type {
   ImportResult,
+  SnapshotMeta,
   NormalizedVm,
   NormalizedHost,
   NormalizedCluster,
@@ -286,6 +287,7 @@ export async function importRvtoolsXlsx(
   const errors: string[] = [];
   const report = (step: string, percent: number, detail?: string) =>
     onProgress?.({ step, percent, detail });
+  const importStartedAt = performance.now();
 
   try {
     report("Datei lesen", 5, `${(file.size / 1024 / 1024).toFixed(1)} MB`);
@@ -303,7 +305,7 @@ export async function importRvtoolsXlsx(
       return importTechInfoXlsx(file, checksum, parsed, warnings, errors, report);
     }
 
-    return importRvtoolsParsed(file, checksum, parsed, warnings, errors, report);
+    return importRvtoolsParsed(file, checksum, parsed, warnings, errors, report, importStartedAt);
   } catch (err) {
     return { success: false, warnings, errors: [...errors, err instanceof Error ? err.message : String(err)] };
   }
@@ -316,6 +318,7 @@ async function importRvtoolsParsed(
   warnings: string[],
   errors: string[],
   report: (step: string, percent: number, detail?: string) => void,
+  importStartedAt: number,
 ): Promise<ImportResult> {
   const existing = await getSnapshotsByChecksum(checksum);
   if (existing) {
@@ -342,8 +345,7 @@ async function importRvtoolsParsed(
     sheetStats[sheet.sheetName] = { rowCount: sheet.rows.length, columnCount: sheet.headers.length };
   }
 
-  report("Metadaten speichern", 35);
-  await putSnapshot({
+  const snapshotMeta: SnapshotMeta = {
     snapshotId,
     vcenterId,
     vcenterDisplayName,
@@ -352,7 +354,11 @@ async function importRvtoolsParsed(
     fileName: file.name,
     fileChecksum: checksum,
     sheetStats,
-  });
+    fileSizeBytes: file.size,
+  };
+
+  report("Metadaten speichern", 35);
+  await putSnapshot(snapshotMeta);
 
   const CHUNK = 5000;
   const rawRows: SheetRow[] = [];
@@ -414,6 +420,11 @@ async function importRvtoolsParsed(
       if (eb.store === "entities_health") await batchPut("entities_health", eb.items, 3000);
     }
   }
+
+  await putSnapshot({
+    ...snapshotMeta,
+    importDurationMs: Math.round(performance.now() - importStartedAt),
+  });
 
   report("Abgeschlossen", 100, `${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
 

@@ -12,6 +12,7 @@ import { AppLayout } from "@/app/layout/AppLayout";
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
 const Overview = lazy(() => import("@/pages/Overview"));
 const UploadSnapshots = lazy(() => import("@/pages/UploadSnapshots"));
+const Diagnostics = lazy(() => import("@/pages/Diagnostics"));
 const DailyOps = lazy(() => import("@/pages/DailyOps"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
 const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="/" element={<Navigate to="/overview" replace />} />
                   <Route path="/overview" element={<Overview />} />
                   <Route path="/upload" element={<UploadSnapshots />} />
+                  <Route path="/upload/diagnostics" element={<Diagnostics />} />
                   <Route path="/daily-ops" element={<DailyOps />} />
                   <Route path="/capacity" element={<Capacity />} />
                   <Route path="/performance" element={<PerformancePage />} />
