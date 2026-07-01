@@ -27,6 +27,7 @@ import {
   BarChart3,
   Cable,
   CalendarClock,
+  Map,
 } from "lucide-react";
 
 const mainNav = [
@@ -54,6 +55,7 @@ const compareNav = [
 
 const toolsNav = [
   { title: "Wartungsankündigung", url: "/wartungsankuendigung", icon: CalendarClock },
+  { title: "Planung", url: "/planning", icon: Map },
 ];
 
 function NavSection({
