@@ -12,6 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatte
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
+import { aggregateCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedDatastore } from "@/domain/models/types";
 
@@ -446,158 +447,52 @@ function useCapacityPageData() {
   };
 
   const clusterCapacity = useMemo<ClusterCapacityRow[]>(() => {
-    const grouped = new Map<string, {
-      snapshotId: string;
-      cluster: string;
-      datacenter: string;
-      hosts: number;
-      totalCores: number;
-      totalMemoryMiB: number;
-      totalVms: number;
-      totalVcpus: number;
-      totalVRamMiB: number;
-      totalVmUsedMiB: number;
-      totalSwapBalloonMiB: number;
-      weightedCpuUsage: number;
-      weightedMemUsage: number;
-      cpuWeight: number;
-      memWeight: number;
-      hotHosts: number;
-      htInactiveHosts: number;
-      cpuMin: number;
-      cpuMax: number;
-      memMin: number;
-      memMax: number;
-    }>();
-
+    const clusterNames = new Set<string>();
     for (const r of rawVHost) {
-      const d = r.data;
-      const clusterName = String(d["Cluster"] || "").trim();
-      const hostName = String(d["Host"] || "").trim();
-      if (!clusterName || !hostName) continue;
-      const key = `${r.snapshotId}::${clusterName}`;
-      const cpuCores = toNumLoose(d["# Cores"]);
-      const memMiB = toNumLoose(d["# Memory"]);
-      const cpuUsagePct = toNumLoose(d["CPU usage %"]);
-      const memUsagePct = toNumLoose(d["Memory usage %"]);
-      const vms = toNumLoose(d["# VMs"]);
-      const vcpus = toNumLoose(d["# vCPUs"]);
-      const vRamMiB = toNumLoose(d["vRAM"]);
-      const vmUsedMiB = toNumLoose(d["VM Used memory"]);
-      const vmSwappedMiB = toNumLoose(d["VM Memory Swapped"]);
-      const vmBalloonedMiB = toNumLoose(d["VM Memory Ballooned"]);
-      const htAvailable = toBoolLoose(d["HT Available"]);
-      const htActive = toBoolLoose(d["HT Active"]);
-
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          snapshotId: r.snapshotId,
-          cluster: clusterName,
-          datacenter: String(d["Datacenter"] || "").trim(),
-          hosts: 0,
-          totalCores: 0,
-          totalMemoryMiB: 0,
-          totalVms: 0,
-          totalVcpus: 0,
-          totalVRamMiB: 0,
-          totalVmUsedMiB: 0,
-          totalSwapBalloonMiB: 0,
-          weightedCpuUsage: 0,
-          weightedMemUsage: 0,
-          cpuWeight: 0,
-          memWeight: 0,
-          hotHosts: 0,
-          htInactiveHosts: 0,
-          cpuMin: Number.POSITIVE_INFINITY,
-          cpuMax: Number.NEGATIVE_INFINITY,
-          memMin: Number.POSITIVE_INFINITY,
-          memMax: Number.NEGATIVE_INFINITY,
-        });
-      }
-
-      const e = grouped.get(key)!;
-      e.hosts += 1;
-      e.totalCores += cpuCores;
-      e.totalMemoryMiB += memMiB;
-      e.totalVms += vms;
-      e.totalVcpus += vcpus;
-      e.totalVRamMiB += vRamMiB;
-      e.totalVmUsedMiB += vmUsedMiB;
-      e.totalSwapBalloonMiB += vmSwappedMiB + vmBalloonedMiB;
-
-      const cpuWeight = cpuCores > 0 ? cpuCores : 1;
-      const memWeight = memMiB > 0 ? memMiB : 1;
-      e.weightedCpuUsage += cpuUsagePct * cpuWeight;
-      e.weightedMemUsage += memUsagePct * memWeight;
-      e.cpuWeight += cpuWeight;
-      e.memWeight += memWeight;
-
-      if (cpuUsagePct > 60 || memUsagePct > 75) e.hotHosts += 1;
-      if (htAvailable && !htActive) e.htInactiveHosts += 1;
-      e.cpuMin = Math.min(e.cpuMin, cpuUsagePct);
-      e.cpuMax = Math.max(e.cpuMax, cpuUsagePct);
-      e.memMin = Math.min(e.memMin, memUsagePct);
-      e.memMax = Math.max(e.memMax, memUsagePct);
+      const name = String(r.data["Cluster"] ?? "").trim();
+      if (name) clusterNames.add(name);
     }
+    const clusterMap = new Map(clusters.map((c) => [c.name, c]));
 
-    const clusterMap = new Map(clusters.map((c) => [`${c.snapshotId}::${c.name}`, c]));
-    return [...grouped.values()].map((g) => {
-      const clusterRef = clusterMap.get(`${g.snapshotId}::${g.cluster}`);
-      const cpuUsagePct = g.cpuWeight > 0 ? g.weightedCpuUsage / g.cpuWeight : 0;
-      const memoryUsagePct = g.memWeight > 0 ? g.weightedMemUsage / g.memWeight : 0;
-      const vcpuPerCore = g.totalCores > 0 ? g.totalVcpus / g.totalCores : 0;
-      const ramCommitPct = g.totalMemoryMiB > 0 ? (g.totalVRamMiB / g.totalMemoryMiB) * 100 : 0;
-      const ramActivePct = g.totalMemoryMiB > 0 ? (g.totalVmUsedMiB / g.totalMemoryMiB) * 100 : 0;
-      const swapBalloonPct = g.totalMemoryMiB > 0 ? (g.totalSwapBalloonMiB / g.totalMemoryMiB) * 100 : 0;
-      const cpuSpread = Number.isFinite(g.cpuMin) && Number.isFinite(g.cpuMax) ? g.cpuMax - g.cpuMin : 0;
-      const memorySpread = Number.isFinite(g.memMin) && Number.isFinite(g.memMax) ? g.memMax - g.memMin : 0;
-      const clusterHostDelta = clusterRef?.numHosts !== null && clusterRef?.numHosts !== undefined ? g.hosts - clusterRef.numHosts : null;
-      const clusterMemoryDeltaPct = clusterRef?.totalMemoryMiB ? ((g.totalMemoryMiB - clusterRef.totalMemoryMiB) / clusterRef.totalMemoryMiB) * 100 : null;
+    return [...clusterNames].map((name) => {
+      const agg = aggregateCluster(name, rawVHost);
+      const clusterRef = clusterMap.get(name) ?? null;
+      const m = metricsFromAggregate(agg, { clusterName: name, clusterRef, projected: false });
+      const datacenter = (() => {
+        const row = rawVHost.find((r) => String(r.data["Cluster"] ?? "").trim() === name);
+        return row ? String(row.data["Datacenter"] ?? "").trim() || "—" : "—";
+      })();
+      const cpuSpread = Number.isFinite(agg.cpuMin) && Number.isFinite(agg.cpuMax) ? Math.round((agg.cpuMax - agg.cpuMin) * 10) / 10 : 0;
+      const memorySpread = Number.isFinite(agg.memMin) && Number.isFinite(agg.memMax) ? Math.round((agg.memMax - agg.memMin) * 10) / 10 : 0;
+      const clusterHostDelta = clusterRef?.numHosts != null ? agg.hosts - clusterRef.numHosts : null;
+      const clusterMemoryDeltaPct = clusterRef?.totalMemoryMiB
+        ? Math.round(((agg.totalMemoryMiB - clusterRef.totalMemoryMiB) / clusterRef.totalMemoryMiB) * 1000) / 10
+        : null;
 
-      let riskScore = 0;
-      if (cpuUsagePct > 85) riskScore += 25;
-      else if (cpuUsagePct > 75) riskScore += 12;
-      if (memoryUsagePct > 90) riskScore += 25;
-      else if (memoryUsagePct > 80) riskScore += 12;
-      if (vcpuPerCore > 6) riskScore += 20;
-      else if (vcpuPerCore > 4) riskScore += 10;
-      if (ramCommitPct > 180) riskScore += 15;
-      else if (ramCommitPct > 140) riskScore += 8;
-      if (swapBalloonPct > 5) riskScore += 20;
-      else if (swapBalloonPct > 2) riskScore += 10;
-      const hotRatio = g.hosts > 0 ? g.hotHosts / g.hosts : 0;
-      if (hotRatio > 0.5) riskScore += 10;
-      else if (hotRatio > 0.3) riskScore += 5;
-      if (clusterRef?.drsEnabled === false && (cpuSpread > 30 || memorySpread > 30)) riskScore += 8;
-      if (g.htInactiveHosts > 0) riskScore += 5;
-      if (clusterHostDelta !== null && clusterHostDelta !== 0) riskScore += 3;
-      if (clusterMemoryDeltaPct !== null && Math.abs(clusterMemoryDeltaPct) > 5) riskScore += 3;
-
-      const risk: ClusterCapacityRow["risk"] = riskScore >= 60 ? "hoch" : riskScore >= 30 ? "mittel" : "niedrig";
       return {
-        cluster: g.cluster,
-        datacenter: g.datacenter || "—",
-        hosts: g.hosts,
-        totalCores: g.totalCores,
-        totalMemoryMiB: g.totalMemoryMiB,
-        totalVms: g.totalVms,
-        totalVcpus: g.totalVcpus,
-        cpuUsagePct: Math.round(cpuUsagePct * 10) / 10,
-        memoryUsagePct: Math.round(memoryUsagePct * 10) / 10,
-        vcpuPerCore: Math.round(vcpuPerCore * 100) / 100,
-        ramCommitPct: Math.round(ramCommitPct * 10) / 10,
-        ramActivePct: Math.round(ramActivePct * 10) / 10,
-        swapBalloonPct: Math.round(swapBalloonPct * 100) / 100,
-        hotHosts: g.hotHosts,
-        cpuSpread: Math.round(cpuSpread * 10) / 10,
-        memorySpread: Math.round(memorySpread * 10) / 10,
+        cluster: name,
+        datacenter,
+        hosts: m.hosts,
+        totalCores: m.totalCores,
+        totalMemoryMiB: m.totalMemoryMiB,
+        totalVms: m.totalVms,
+        totalVcpus: m.totalVcpus,
+        cpuUsagePct: m.cpuUsagePct,
+        memoryUsagePct: m.memoryUsagePct,
+        vcpuPerCore: m.vcpuPerCore,
+        ramCommitPct: m.ramCommitPct,
+        ramActivePct: m.ramActivePct,
+        swapBalloonPct: m.swapBalloonPct,
+        hotHosts: agg.hotHosts,
+        cpuSpread,
+        memorySpread,
         drsEnabled: clusterRef?.drsEnabled ?? null,
         haEnabled: clusterRef?.haEnabled ?? null,
         clusterHostDelta,
-        clusterMemoryDeltaPct: clusterMemoryDeltaPct === null ? null : Math.round(clusterMemoryDeltaPct * 10) / 10,
-        riskScore,
-        risk,
-      };
+        clusterMemoryDeltaPct,
+        riskScore: m.riskScore,
+        risk: m.risk,
+      } satisfies ClusterCapacityRow;
     }).sort((a, b) => b.riskScore - a.riskScore || b.vcpuPerCore - a.vcpuPerCore);
   }, [rawVHost, clusters]);
 
