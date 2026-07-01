@@ -33,6 +33,10 @@ interface VirtualTableProps<T> {
   className?: string;
   onRowClick?: (row: T) => void;
   exportFileName?: string;
+  selectionEnabled?: boolean;
+  getRowId?: (row: T) => string;
+  selectedKeys?: Set<string>;
+  onToggleRow?: (vmKey: string, shiftKey: boolean, index: number) => void;
 }
 
 function getDefaultExportFileName(): string {
@@ -50,6 +54,10 @@ export function VirtualTable<T>({
   className,
   onRowClick,
   exportFileName,
+  selectionEnabled = false,
+  getRowId,
+  selectedKeys,
+  onToggleRow,
 }: VirtualTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -120,18 +128,22 @@ export function VirtualTable<T>({
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const sorted = header.column.getIsSorted();
+                  const isSelectionCol = selectionEnabled && header.id === "__selection";
                   return (
                     <th
                       key={header.id}
-                      className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none cursor-pointer hover:text-foreground transition-colors"
-                      onClick={header.column.getToggleSortingHandler()}
+                      className={cn(
+                        "whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none",
+                        !isSelectionCol && "cursor-pointer hover:text-foreground transition-colors",
+                      )}
+                      onClick={isSelectionCol ? undefined : header.column.getToggleSortingHandler()}
                     >
                       <div className="flex items-center gap-1">
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
                         )}
-                        {sorted === "asc" ? (
+                        {isSelectionCol ? null : sorted === "asc" ? (
                           <ArrowUp className="h-3 w-3 text-primary" />
                         ) : sorted === "desc" ? (
                           <ArrowDown className="h-3 w-3 text-primary" />
@@ -166,17 +178,41 @@ export function VirtualTable<T>({
                   )}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className="whitespace-nowrap px-3 py-1.5 text-sm"
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const isSelectionCell = selectionEnabled && cell.column.id === "__selection";
+                    if (isSelectionCell && getRowId) {
+                      const vmKey = getRowId(row.original);
+                      const checked = selectedKeys?.has(vmKey) ?? false;
+                      return (
+                        <td
+                          key={cell.id}
+                          className="whitespace-nowrap px-3 py-1.5 text-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleRow?.(vmKey, e.shiftKey, virtualRow.index);
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            readOnly
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                          />
+                        </td>
+                      );
+                    }
+                    return (
+                      <td
+                        key={cell.id}
+                        className="whitespace-nowrap px-3 py-1.5 text-sm"
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
