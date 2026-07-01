@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -20,27 +21,19 @@ import {
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
   Server, Cpu, MemoryStick, HardDrive, Network as NetworkIcon,
-  ChevronRight, Layers, MonitorCog, CircuitBoard,
+  ChevronRight, Layers, MonitorCog, CircuitBoard, Info, Copy,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { SheetRow, NormalizedVm } from "@/domain/models/types";
 import { buildHostDetails, bool, str, type HostDetail } from "@/lib/conversion";
+import { buildHostDetailMarkdown } from "@/lib/detailMarkdown";
+import {
+  buildHardwareModelGroups,
+  DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT,
+  type HardwareModelGroup,
+} from "@/lib/hardwareVariants";
 
 export type { HostDetail } from "@/lib/conversion";
-
-interface ModelGroup {
-  signature: string;
-  modelLabel: string;
-  models: string[];
-  vendor: string;
-  cpuModel: string;
-  cpuSockets: number;
-  coresPerCpu: number;
-  totalCores: number;
-  speedMHz: number;
-  memoryMiB: number;
-  hosts: HostDetail[];
-  count: number;
-}
 
 interface HbaEntry {
   device: string;
@@ -110,28 +103,25 @@ function formatMemory(mib: number): string {
   return `${mib} MiB`;
 }
 
+function formatMemorySummary(memoryValuesMiB: number[], fallbackMiB: number): string {
+  const values = memoryValuesMiB.length > 0 ? memoryValuesMiB : fallbackMiB ? [fallbackMiB] : [];
+  const labels = [...new Set(values.map(formatMemory))];
+  if (labels.length === 0) return "RAM n/a";
+  if (labels.length <= 3) return labels.join(" / ");
+  return `${labels[0]}-${labels[labels.length - 1]}`;
+}
+
 function formatCpuClock(mhz: number): string {
   if (!mhz) return "—";
   if (mhz >= 1000) return `${(mhz / 1000).toFixed(2)} GHz`;
   return `${mhz} MHz`;
 }
 
-function normalizeCpuModel(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function normalizeCpuClockForGrouping(mhz: number): number {
-  if (!mhz) return 0;
-  return Math.round((mhz / 1000) * 100) / 100;
-}
-
-function buildHardwareSignature(host: HostDetail): string {
-  return [
-    normalizeCpuModel(host.cpuModel || "Unknown CPU"),
-    host.totalCores || 0,
-    normalizeCpuClockForGrouping(host.speedMHz || 0),
-    host.memoryMiB || 0,
-  ].join("|");
+function statusColor(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "online" || normalized === "active") return "text-emerald-400";
+  if (normalized === "unknown") return "text-yellow-400";
+  return "text-red-400";
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,7 +132,7 @@ function ModelCard({
   group,
   onSelect,
 }: {
-  group: ModelGroup;
+  group: HardwareModelGroup;
   onSelect: (h: HostDetail) => void;
 }) {
   const {
@@ -156,8 +146,9 @@ function ModelCard({
     totalCores,
     speedMHz,
     memoryMiB,
+    memoryValuesMiB,
   } = group;
-  const ramLabel = memoryMiB ? formatMemory(memoryMiB) : "RAM n/a";
+  const ramLabel = formatMemorySummary(memoryValuesMiB, memoryMiB);
   const coreLabel = totalCores ? `${totalCores} Cores` : "Cores n/a";
   const socketLabel = cpuSockets ? `${cpuSockets} Sockel` : "Sockel n/a";
   const clusters = [...new Set(hosts.map((h) => h.cluster).filter(Boolean))];
@@ -212,6 +203,7 @@ function ModelCard({
         <div className="space-y-1">
           {hosts.map((h) => (
             <button
+              type="button"
               key={h.host}
               onClick={() => onSelect(h)}
               className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent/60 transition-colors group/row"
@@ -259,16 +251,35 @@ export function HostDetailDialog({
     })
     .sort((a, b) => a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" }));
 
-  const statusColor = (s: string) => {
-    const l = s.toLowerCase();
-    if (l === "online" || l === "active") return "text-emerald-400";
-    if (l === "unknown") return "text-yellow-400";
-    return "text-red-400";
+  const copyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        buildHostDetailMarkdown(host, {
+          hbas,
+          nics,
+          runningVms,
+        }),
+      );
+      toast.success("Host-Details als Markdown kopiert.");
+    } catch {
+      toast.error("Host-Details konnten nicht kopiert werden.");
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => void copyMarkdown()}
+          className="absolute right-10 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="Host-Details als Markdown kopieren"
+          title="Als Markdown kopieren"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -480,6 +491,7 @@ export default function Hardware() {
   const { allVms = [] } = useVms();
 
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
+  const [countRamAsVariant, setCountRamAsVariant] = useState(false);
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
   const filteredHosts = useMemo(() => {
@@ -502,41 +514,10 @@ export default function Hardware() {
     });
   }, [hosts, filters.clusters, filters.hosts, filters.search]);
 
-  // Group by hardware profile (CPU type, core count, GHz, RAM), independent of model name
-  const modelGroups = useMemo<ModelGroup[]>(() => {
-    const map = new Map<string, ModelGroup>();
-    for (const h of filteredHosts) {
-      const signature = buildHardwareSignature(h);
-      const existing = map.get(signature);
-      if (existing) {
-        existing.hosts.push(h);
-        existing.count += 1;
-        if (h.model && !existing.models.includes(h.model)) {
-          existing.models.push(h.model);
-          existing.models.sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }));
-          existing.modelLabel = existing.models.join(" / ");
-        }
-        continue;
-      }
-      map.set(signature, {
-        signature,
-        modelLabel: h.model || "Unknown",
-        models: h.model ? [h.model] : ["Unknown"],
-        vendor: h.vendor || "Unknown",
-        cpuModel: h.cpuModel || "Unknown CPU",
-        cpuSockets: h.cpuSockets || 0,
-        coresPerCpu: h.coresPerCpu || 0,
-        totalCores: h.totalCores || 0,
-        speedMHz: h.speedMHz || 0,
-        memoryMiB: h.memoryMiB || 0,
-        hosts: [h],
-        count: 1,
-      });
-    }
-    return [...map.values()].sort(
-      (a, b) => b.count - a.count || a.modelLabel.localeCompare(b.modelLabel, "de-DE", { numeric: true, sensitivity: "base" }),
-    );
-  }, [filteredHosts]);
+  const modelGroups = useMemo(
+    () => buildHardwareModelGroups(filteredHosts, { countRamAsVariant }),
+    [filteredHosts, countRamAsVariant],
+  );
 
   // Vendor distribution for pie chart
   const vendorData = useMemo(() => {
@@ -552,7 +533,7 @@ export default function Hardware() {
   const modelBarData = useMemo(
     () =>
       modelGroups.map((g) => ({
-        name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${Math.round((g.memoryMiB || 0) / 1024)} GiB`,
+        name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${formatMemorySummary(g.memoryValuesMiB, g.memoryMiB)}`,
         count: g.count,
       })),
     [modelGroups]
@@ -584,6 +565,31 @@ export default function Hardware() {
         </p>
       </div>
       <FilterBar />
+
+      <div className="flex flex-col gap-3 rounded-lg bg-muted/35 px-4 py-3 text-sm md:flex-row md:items-start md:justify-between">
+        <div className="flex gap-3 text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p>
+            Eine Hardware-Variante wird aus Hersteller, Modell, CPU-Modell, Core-Anzahl und CPU-Takt gebildet.
+            RAM-Größen werden standardmäßig zusammengefasst, weil Speicher bei Bedarf getauscht werden kann.
+            Die RAM-Werte bleiben in der Anzeige gerundet sichtbar.
+          </p>
+        </div>
+        <label htmlFor="count-ram-as-variant" className="flex min-w-fit cursor-pointer items-center gap-3 rounded-md bg-background/70 px-3 py-2 text-xs font-medium">
+          <span>RAM als Variante zählen</span>
+          <Switch
+            id="count-ram-as-variant"
+            checked={countRamAsVariant}
+            onCheckedChange={setCountRamAsVariant}
+            aria-label="RAM-Größe als Hardware-Variante zählen"
+          />
+        </label>
+      </div>
+      {countRamAsVariant && (
+        <p className="text-xs text-muted-foreground">
+          RAM-Modus aktiv: Hosts werden nur dann in derselben RAM-Variante zusammengefasst, wenn die RAM-Abweichung höchstens {DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT}% beträgt.
+        </p>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

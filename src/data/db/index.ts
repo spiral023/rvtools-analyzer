@@ -14,7 +14,7 @@ import type {
   TechInfoRow,
   TechInfoLatest,
 } from "@/domain/models/types";
-import { toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -155,6 +155,12 @@ export async function putSnapshot(snap: SnapshotMeta): Promise<void> {
 export async function getTechInfoImportByChecksum(checksum: string): Promise<TechInfoImportMeta | undefined> {
   const db = await getDb();
   return db.getFromIndex("techinfo_imports", "fileChecksum", checksum);
+}
+
+export async function getTechInfoImports(): Promise<TechInfoImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("techinfo_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
 
 export async function putTechInfoImport(meta: TechInfoImportMeta): Promise<void> {
@@ -362,4 +368,53 @@ export async function deleteSnapshot(snapshotId: string): Promise<void> {
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];
   await Promise.all(entityStores.map((store) => deleteBySnapshotId(store, snapshotId)));
+}
+
+async function deleteTechInfoRowsByImportId(techInfoImportId: string): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction("techinfo_rows", "readwrite");
+  const index = tx.store.index("techInfoImportId");
+  let cursor = await index.openCursor(techInfoImportId);
+  while (cursor) {
+    cursor.delete();
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+}
+
+function buildTechInfoLatestFromRow(row: TechInfoRow): TechInfoLatest {
+  return {
+    vmNameNorm: row.vmNameNorm,
+    vmName: row.vmName,
+    importedAt: row.importedAt,
+    techInfoImportId: row.techInfoImportId,
+    rowIndex: row.rowIndex,
+    ...mapTechInfoDisplayFields(row.rawData),
+  };
+}
+
+async function rebuildTechInfoLatestForVm(vmNameNorm: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("techinfo_rows", "vmNameNorm", vmNameNorm);
+  const latestRow = rows.reduce<TechInfoRow | null>((latest, row) => {
+    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
+    return latest;
+  }, null);
+
+  if (!latestRow) {
+    await db.delete("techinfo_latest", vmNameNorm);
+    return;
+  }
+
+  await db.put("techinfo_latest", buildTechInfoLatestFromRow(latestRow));
+}
+
+export async function deleteTechInfoImport(techInfoImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("techinfo_rows", "techInfoImportId", techInfoImportId);
+  const affectedVmNames = [...new Set(rows.map((row) => row.vmNameNorm).filter(Boolean))];
+
+  await db.delete("techinfo_imports", techInfoImportId);
+  await deleteTechInfoRowsByImportId(techInfoImportId);
+  await Promise.all(affectedVmNames.map((vmNameNorm) => rebuildTechInfoLatestForVm(vmNameNorm)));
 }

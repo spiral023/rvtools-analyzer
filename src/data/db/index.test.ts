@@ -63,3 +63,88 @@ describe("timeSampleVmQuery", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("Tech-Info import listing and deletion", () => {
+  it("lists Tech-Info imports and restores older latest rows after deleting the newest import", async () => {
+    const {
+      batchPutTechInfoLatest,
+      batchPutTechInfoRows,
+      deleteTechInfoImport,
+      getTechInfoImports,
+      getTechInfoLatestByVmNames,
+      putTechInfoImport,
+    } = await import("./index");
+
+    await putTechInfoImport({
+      techInfoImportId: "tech-old",
+      importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: "tech-old.xlsx",
+      fileChecksum: "old",
+      sheetName: "Tech-Info",
+      rowCount: 1,
+      columnCount: 3,
+    });
+    await putTechInfoImport({
+      techInfoImportId: "tech-new",
+      importedAt: "2026-01-02T00:00:00.000Z",
+      fileName: "tech-new.xlsx",
+      fileChecksum: "new",
+      sheetName: "Tech-Info",
+      rowCount: 1,
+      columnCount: 3,
+    });
+
+    await batchPutTechInfoRows([
+      {
+        techInfoImportId: "tech-old",
+        rowIndex: 0,
+        vmName: "APP01",
+        vmNameNorm: "app01",
+        importedAt: "2026-01-01T00:00:00.000Z",
+        rawData: { Name: "APP01", Servertyp: "alt", Betriebssystem: "Windows" },
+      },
+      {
+        techInfoImportId: "tech-new",
+        rowIndex: 0,
+        vmName: "APP01",
+        vmNameNorm: "app01",
+        importedAt: "2026-01-02T00:00:00.000Z",
+        rawData: { Name: "APP01", Servertyp: "neu", Betriebssystem: "Linux" },
+      },
+    ]);
+    await batchPutTechInfoLatest([
+      {
+        vmNameNorm: "app01",
+        vmName: "APP01",
+        importedAt: "2026-01-02T00:00:00.000Z",
+        techInfoImportId: "tech-new",
+        rowIndex: 0,
+        serverType: "neu",
+        maintenanceWindow: null,
+        operatingSystem: "Linux",
+        comment: null,
+        sysv: null,
+        sysvDepartment: null,
+        sysvDeputy: null,
+        sysvDeputyDepartment: null,
+        bz: null,
+        clusterFromTechInfo: null,
+        cvBackup: null,
+        az: null,
+      },
+    ]);
+
+    const imports = await getTechInfoImports();
+    expect(imports.map((entry) => entry.techInfoImportId)).toEqual(["tech-new", "tech-old"]);
+
+    await deleteTechInfoImport("tech-new");
+
+    const remainingImports = await getTechInfoImports();
+    expect(remainingImports.map((entry) => entry.techInfoImportId)).toEqual(["tech-old"]);
+
+    const [latest] = await getTechInfoLatestByVmNames(["APP01"]);
+    expect(latest.techInfoImportId).toBe("tech-old");
+    expect(latest.serverType).toBe("alt");
+    expect(latest.operatingSystem).toBe("Windows");
+  });
+});

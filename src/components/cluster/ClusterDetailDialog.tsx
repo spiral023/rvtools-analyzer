@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { Activity, Cpu, HardDrive, MemoryStick, Server } from "lucide-react";
+import { Activity, Copy, Cpu, HardDrive, MemoryStick, Server } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
+import { buildClusterDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import type {
   NormalizedCluster,
@@ -206,8 +209,8 @@ export function ClusterDetailDialog({
 
   const datacenters = useMemo(
     () =>
-      [
-        ...new Set(
+      Array.from(
+        new Set(
           [
             ...scopedClusters.map((cluster) => cluster.datacenter),
             ...scopedHosts.map((host) => host.datacenter),
@@ -215,7 +218,7 @@ export function ClusterDetailDialog({
             .filter((value): value is string => Boolean(value && value.trim()))
             .map((value) => value.trim()),
         ),
-      ].sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" })),
+      ).sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" })),
     [scopedClusters, scopedHosts],
   );
 
@@ -234,9 +237,36 @@ export function ClusterDetailDialog({
 
   if (!normalizedClusterName) return null;
 
+  const copyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        buildClusterDetailMarkdown(normalizedClusterName, {
+          clusters: scopedClusters,
+          hosts: scopedHosts,
+          runningVms,
+          datastores: scopedDatastores,
+        }),
+      );
+      toast.success("Cluster-Details als Markdown kopiert.");
+    } catch {
+      toast.error("Cluster-Details konnten nicht kopiert werden.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => void copyMarkdown()}
+          className="absolute right-10 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="Cluster-Details als Markdown kopieren"
+          title="Als Markdown kopieren"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">

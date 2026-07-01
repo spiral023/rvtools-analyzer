@@ -1,6 +1,6 @@
 import { useCallback, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSnapshots, deleteSnapshot, deleteAllData } from "@/data/db";
+import { getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport } from "@/data/db";
 import { importRvtoolsXlsx } from "@/domain/services/importService";
 import type { ImportProgress } from "@/domain/services/importService";
 import { Button } from "@/components/ui/button";
@@ -10,40 +10,62 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import type { ImportResult } from "@/domain/models/types";
+import type { ImportResult, SnapshotMeta, TechInfoImportMeta } from "@/domain/models/types";
+
+type StoredUpload =
+  | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
+  | { kind: "tech-info"; id: string; importedAt: string; techInfo: TechInfoImportMeta };
+
+type UploadState = {
+  importing: boolean;
+  dragOver: boolean;
+  lastResult: ImportResult | null;
+  deleteAllOpen: boolean;
+  progress: ImportProgress | null;
+};
+
+type UploadAction =
+  | { type: "set-importing"; value: boolean }
+  | { type: "set-drag-over"; value: boolean }
+  | { type: "set-last-result"; value: ImportResult | null }
+  | { type: "set-delete-all-open"; value: boolean }
+  | { type: "set-progress"; value: ImportProgress | null };
+
+function uploadReducer(state: UploadState, action: UploadAction): UploadState {
+  switch (action.type) {
+    case "set-importing":
+      return { ...state, importing: action.value };
+    case "set-drag-over":
+      return { ...state, dragOver: action.value };
+    case "set-last-result":
+      return { ...state, lastResult: action.value };
+    case "set-delete-all-open":
+      return { ...state, deleteAllOpen: action.value };
+    case "set-progress":
+      return { ...state, progress: action.value };
+    default:
+      return state;
+  }
+}
+
+function buildStoredUploads(snapshots: SnapshotMeta[], techInfoImports: TechInfoImportMeta[]): StoredUpload[] {
+  return [
+    ...snapshots.map((snapshot) => ({
+      kind: "rvtools" as const,
+      id: snapshot.snapshotId,
+      importedAt: snapshot.importedAt,
+      snapshot,
+    })),
+    ...techInfoImports.map((techInfo) => ({
+      kind: "tech-info" as const,
+      id: techInfo.techInfoImportId,
+      importedAt: techInfo.importedAt,
+      techInfo,
+    })),
+  ].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
 
 export default function UploadSnapshots() {
-  type UploadState = {
-    importing: boolean;
-    dragOver: boolean;
-    lastResult: ImportResult | null;
-    deleteAllOpen: boolean;
-    progress: ImportProgress | null;
-  };
-  type UploadAction =
-    | { type: "set-importing"; value: boolean }
-    | { type: "set-drag-over"; value: boolean }
-    | { type: "set-last-result"; value: ImportResult | null }
-    | { type: "set-delete-all-open"; value: boolean }
-    | { type: "set-progress"; value: ImportProgress | null };
-
-  const uploadReducer = (state: UploadState, action: UploadAction): UploadState => {
-    switch (action.type) {
-      case "set-importing":
-        return { ...state, importing: action.value };
-      case "set-drag-over":
-        return { ...state, dragOver: action.value };
-      case "set-last-result":
-        return { ...state, lastResult: action.value };
-      case "set-delete-all-open":
-        return { ...state, deleteAllOpen: action.value };
-      case "set-progress":
-        return { ...state, progress: action.value };
-      default:
-        return state;
-    }
-  };
-
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputId = "snapshot-upload-input";
@@ -56,9 +78,12 @@ export default function UploadSnapshots() {
   });
   const { importing, dragOver, lastResult, deleteAllOpen, progress } = uploadState;
 
-  const { data: snapshots = [], refetch } = useQuery({
-    queryKey: ["snapshots"],
-    queryFn: () => getSnapshots().then((s) => s.sort((a, b) => b.importedAt.localeCompare(a.importedAt))),
+  const { data: uploads = [], refetch } = useQuery({
+    queryKey: ["storedUploads"],
+    queryFn: async () => {
+      const [snapshots, techInfoImports] = await Promise.all([getSnapshots(), getTechInfoImports()]);
+      return buildStoredUploads(snapshots, techInfoImports);
+    },
   });
 
   const invalidateAll = useCallback(() => { queryClient.invalidateQueries(); refetch(); }, [queryClient, refetch]);
@@ -94,6 +119,12 @@ export default function UploadSnapshots() {
   const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
     await deleteSnapshot(snapshotId);
     toast.success("Snapshot gelöscht.");
+    invalidateAll();
+  }, [invalidateAll]);
+
+  const handleDeleteTechInfoImport = useCallback(async (techInfoImportId: string) => {
+    await deleteTechInfoImport(techInfoImportId);
+    toast.success("Tech-Info gelöscht.");
     invalidateAll();
   }, [invalidateAll]);
 
@@ -196,28 +227,61 @@ export default function UploadSnapshots() {
       )}
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gespeicherte Snapshots ({snapshots.length})</h2>
-        {snapshots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine Snapshots importiert.</p>
+        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gespeicherte Uploads ({uploads.length})</h2>
+        {uploads.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Noch keine RVTools- oder Tech-Info-Dateien importiert.</p>
         ) : (
           <div className="space-y-2">
-            {snapshots.map((s) => (
-              <Card key={s.snapshotId} className="group">
-                <CardContent className="flex items-center justify-between p-3">
-                  <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">{s.fileName}</p>
-                      <p className="text-xs text-muted-foreground">vCenter: {s.vcenterDisplayName} · Export: {new Date(s.exportTs).toLocaleString("de-DE")} · Import: {new Date(s.importedAt).toLocaleString("de-DE")}</p>
-                      <p className="text-xs text-muted-foreground">{Object.keys(s.sheetStats).length} Sheets, {Object.values(s.sheetStats).reduce((sum, v) => sum + v.rowCount, 0).toLocaleString("de-DE")} Zeilen</p>
+            {uploads.map((upload) => {
+              const isTechInfo = upload.kind === "tech-info";
+              const title = isTechInfo ? upload.techInfo.fileName : upload.snapshot.fileName;
+              const rowCount = isTechInfo
+                ? upload.techInfo.rowCount
+                : Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0);
+              const sheetCount = isTechInfo ? 1 : Object.keys(upload.snapshot.sheetStats).length;
+
+              return (
+                <Card key={`${upload.kind}-${upload.id}`} className="group">
+                  <CardContent className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3">
+                      <FileSpreadsheet className={`h-5 w-5 ${isTechInfo ? "text-info" : "text-primary"}`} />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium">{title}</p>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {isTechInfo ? "Tech-Info" : "RVTools"}
+                          </span>
+                        </div>
+                        {isTechInfo ? (
+                          <p className="text-xs text-muted-foreground">
+                            Sheet: {upload.techInfo.sheetName} · Import: {new Date(upload.techInfo.importedAt).toLocaleString("de-DE")}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            vCenter: {upload.snapshot.vcenterDisplayName} · Export: {new Date(upload.snapshot.exportTs).toLocaleString("de-DE")} · Import: {new Date(upload.snapshot.importedAt).toLocaleString("de-DE")}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {sheetCount.toLocaleString("de-DE")} {sheetCount === 1 ? "Sheet" : "Sheets"}, {rowCount.toLocaleString("de-DE")} Zeilen
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all" onClick={() => handleDeleteSnapshot(s.snapshotId)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      onClick={() => {
+                        if (isTechInfo) void handleDeleteTechInfoImport(upload.id);
+                        else void handleDeleteSnapshot(upload.id);
+                      }}
+                      aria-label={isTechInfo ? "Tech-Info löschen" : "Snapshot löschen"}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

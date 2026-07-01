@@ -6,8 +6,10 @@ import {
   Network as NetworkIcon,
   Wrench,
   Camera,
+  Copy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
+import { buildVmDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import {
   formatRvtoolsDate,
@@ -56,6 +60,10 @@ function statusTextClass(value: string | null | undefined): string {
 function compactValue(value: string | null | undefined): string {
   const v = (value || "").trim();
   return v || "—";
+}
+
+function sheetRowKey(row: SheetRow, fallback: string): string {
+  return `${row.snapshotId}:${row.sheetName}:${row.rowIndex}:${fallback}`;
 }
 
 type VmDetailVm = NormalizedVm & {
@@ -101,7 +109,7 @@ export function VmDetailDialog({
 
   const sortedSnapshots = useMemo(
     () =>
-      [...snapshotRows].sort((a, b) => {
+      snapshotRows.slice().sort((a, b) => {
         const av = toNumber(a.data["Date / time"]);
         const bv = toNumber(b.data["Date / time"]);
         if (av !== null && bv !== null) return bv - av;
@@ -126,9 +134,36 @@ export function VmDetailDialog({
   const vmConnection = compactValue(vm.connectionState);
   const vmSysv = compactValue(vm.sysv);
 
+  const copyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        buildVmDetailMarkdown(vm, {
+          diskRows,
+          networkRows,
+          snapshotRows: sortedSnapshots,
+          toolsRows,
+        }),
+      );
+      toast.success("VM-Details als Markdown kopiert.");
+    } catch {
+      toast.error("VM-Details konnten nicht kopiert werden.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => void copyMarkdown()}
+          className="absolute right-10 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="VM-Details als Markdown kopieren"
+          title="Als Markdown kopieren"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -260,8 +295,8 @@ export function VmDetailDialog({
                       </tr>
                     </thead>
                     <tbody>
-                      {diskRows.map((row, idx) => (
-                        <tr key={`${idx}-${str(row.data["Disk Key"])}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                      {diskRows.map((row) => (
+                        <tr key={sheetRowKey(row, str(row.data["Disk Key"]))} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
                           <td className="py-2 pr-3 font-mono-data font-semibold">{str(row.data["Disk"]) || "—"}</td>
                           <td className="py-2 pr-3 font-mono-data">{formatBytes(toNumber(row.data["Capacity MiB"]))}</td>
                           <td className="py-2 pr-3">{str(row.data["Disk Mode"]) || "—"}</td>
@@ -296,8 +331,8 @@ export function VmDetailDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {partitionRows.map((row, idx) => (
-                          <tr key={`${idx}-${str(row.data["Disk Key"])}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                        {partitionRows.map((row) => (
+                          <tr key={sheetRowKey(row, str(row.data["Disk Key"]))} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
                             <td className="py-2 pr-3 max-w-[260px] truncate" title={str(row.data["Disk"])}>
                               {str(row.data["Disk"]) || "—"}
                             </td>
@@ -344,8 +379,8 @@ export function VmDetailDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {networkRows.map((row, idx) => (
-                          <tr key={`${idx}-${str(row.data["NIC label"])}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                        {networkRows.map((row) => (
+                          <tr key={sheetRowKey(row, str(row.data["NIC label"]))} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
                             <td className="py-2 pr-3 font-mono-data">{str(row.data["NIC label"]) || "—"}</td>
                             <td className="py-2 pr-3">{str(row.data["Adapter"]) || "—"}</td>
                             <td className="py-2 pr-3">{str(row.data["Network"]) || "—"}</td>
@@ -401,8 +436,8 @@ export function VmDetailDialog({
                     <p className="text-sm text-muted-foreground italic">Keine Snapshot-Daten gefunden</p>
                   ) : (
                     <div className="space-y-2">
-                      {sortedSnapshots.map((row, idx) => (
-                        <div key={`${idx}-${str(row.data["Name"])}`} className="rounded bg-muted/40 px-2 py-1.5 text-xs">
+                      {sortedSnapshots.map((row) => (
+                        <div key={sheetRowKey(row, str(row.data["Name"]))} className="rounded bg-muted/40 px-2 py-1.5 text-xs">
                           <p className="font-medium truncate" title={str(row.data["Name"])}>
                             {str(row.data["Name"]) || "Unnamed Snapshot"}
                           </p>
