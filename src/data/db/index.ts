@@ -53,7 +53,7 @@ interface RVToolsDBSchema extends DBSchema {
   };
 }
 
-type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
+export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest";
@@ -254,6 +254,80 @@ export async function batchPutTechInfoRows(items: TechInfoRow[], batchSize = 500
 
 export async function batchPutTechInfoLatest(items: TechInfoLatest[], batchSize = 5000): Promise<void> {
   await batchPut("techinfo_latest", items, batchSize);
+}
+
+/* ---------- diagnostics ---------- */
+
+export interface StoreDiagnostics {
+  storeName: StoreName;
+  count: number;
+  /** Hochgerechnete Schätzung basierend auf einer Stichprobe — kein exakter Byte-Wert. */
+  estimatedSizeBytes: number;
+}
+
+export async function getStoreDiagnostics(sampleSize = 50): Promise<StoreDiagnostics[]> {
+  const db = await getDb();
+  const results: StoreDiagnostics[] = [];
+
+  for (const storeName of ALL_STORES) {
+    const count = await db.count(storeName);
+    let estimatedSizeBytes = 0;
+
+    if (count > 0) {
+      const tx = db.transaction(storeName, "readonly");
+      const sample: unknown[] = [];
+      let cursor = await tx.store.openCursor();
+      while (cursor && sample.length < sampleSize) {
+        sample.push(cursor.value);
+        cursor = await cursor.continue();
+      }
+      await tx.done;
+
+      if (sample.length > 0) {
+        const sampleBytes = sample.reduce((sum, value) => sum + JSON.stringify(value).length, 0);
+        const avgBytesPerEntry = sampleBytes / sample.length;
+        estimatedSizeBytes = Math.round(avgBytesPerEntry * count);
+      }
+    }
+
+    results.push({ storeName, count, estimatedSizeBytes });
+  }
+
+  return results;
+}
+
+export interface StorageEstimateResult {
+  supported: boolean;
+  usageBytes: number | null;
+  quotaBytes: number | null;
+}
+
+export async function getStorageEstimate(): Promise<StorageEstimateResult> {
+  if (!navigator.storage || typeof navigator.storage.estimate !== "function") {
+    return { supported: false, usageBytes: null, quotaBytes: null };
+  }
+  const estimate = await navigator.storage.estimate();
+  return {
+    supported: true,
+    usageBytes: estimate.usage ?? null,
+    quotaBytes: estimate.quota ?? null,
+  };
+}
+
+export interface SampleQueryTiming {
+  store: "entities_vm";
+  snapshotCount: number;
+  durationMs: number;
+  rowCount: number;
+}
+
+export async function timeSampleVmQuery(): Promise<SampleQueryTiming> {
+  const snapshots = await getSnapshots();
+  const snapshotIds = snapshots.map((s) => s.snapshotId);
+  const start = performance.now();
+  const rows = await getBySnapshotIds<unknown>("entities_vm", snapshotIds);
+  const durationMs = Math.round(performance.now() - start);
+  return { store: "entities_vm", snapshotCount: snapshotIds.length, durationMs, rowCount: rows.length };
 }
 
 /* ---------- delete helpers ---------- */
