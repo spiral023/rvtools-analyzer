@@ -256,7 +256,10 @@ export default function Planning() {
                         <p className="text-xs font-medium truncate">{c.clusterName}</p>
                         <p className="text-xs text-muted-foreground">Risk: {c.before.riskScore} → <span className={c.after.riskScore > c.before.riskScore ? "text-destructive font-semibold" : "text-success font-semibold"}>{c.after.riskScore}</span></p>
                         <p className="text-xs text-muted-foreground">CPU: {c.before.cpuUsagePct}% → {c.after.cpuUsagePct}%</p>
+                        <p className="text-xs text-muted-foreground">Cores: {c.before.totalCores} → {c.after.totalCores}</p>
+                        <p className="text-xs text-muted-foreground">vCPU/Core: {c.before.vcpuPerCore} → <span className={c.after.vcpuPerCore > c.before.vcpuPerCore ? "text-destructive" : "text-success"}>{c.after.vcpuPerCore}</span></p>
                         <p className="text-xs text-muted-foreground">RAM: {c.before.memoryUsagePct}% → {c.after.memoryUsagePct}%</p>
+                        <p className="text-xs text-muted-foreground">RAM GiB: {(c.before.totalMemoryMiB / 1024).toFixed(0)} → {(c.after.totalMemoryMiB / 1024).toFixed(0)}</p>
                       </Card>
                     ))}
                   </div>
@@ -293,4 +296,5 @@ export default function Planning() {
     </div>
   );
 }
+
 
