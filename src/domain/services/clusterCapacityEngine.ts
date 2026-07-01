@@ -37,6 +37,7 @@ export interface ClusterMetrics {
   totalMemoryMiB: number;
   totalVms: number;
   totalVcpus: number;
+  vRamMiB: number;
   cpuUsagePct: number;
   memoryUsagePct: number;
   vcpuPerCore: number;
@@ -153,6 +154,7 @@ export function metricsFromAggregate(
     totalMemoryMiB: agg.totalMemoryMiB,
     totalVms: agg.totalVms,
     totalVcpus: agg.vcpus,
+    vRamMiB: agg.vRamMiB,
     cpuUsagePct: round(cpuUsagePct, 1),
     memoryUsagePct: round(memoryUsagePct, 1),
     vcpuPerCore: round(vcpuPerCore, 2),
@@ -217,3 +219,4 @@ export function applyVmMoves(
   next.cpuUsedCoreEquiv = Math.max(0, next.cpuUsedCoreEquiv);
   return next;
 }
+

@@ -254,12 +254,12 @@ export default function Planning() {
                     {whatIfResult.clusters.slice(0, 4).map((c) => (
                       <Card key={c.clusterName} className="p-3 space-y-1">
                         <p className="text-xs font-medium truncate">{c.clusterName}</p>
-                        <p className="text-xs text-muted-foreground">Risk: {c.before.riskScore} → <span className={c.after.riskScore > c.before.riskScore ? "text-destructive font-semibold" : "text-success font-semibold"}>{c.after.riskScore}</span></p>
-                        <p className="text-xs text-muted-foreground">CPU: {c.before.cpuUsagePct}% → {c.after.cpuUsagePct}%</p>
-                        <p className="text-xs text-muted-foreground">Cores: {c.before.totalCores} → {c.after.totalCores}</p>
-                        <p className="text-xs text-muted-foreground">vCPU/Core: {c.before.vcpuPerCore} → <span className={c.after.vcpuPerCore > c.before.vcpuPerCore ? "text-destructive" : "text-success"}>{c.after.vcpuPerCore}</span></p>
-                        <p className="text-xs text-muted-foreground">RAM: {c.before.memoryUsagePct}% → {c.after.memoryUsagePct}%</p>
-                        <p className="text-xs text-muted-foreground">RAM GiB: {(c.before.totalMemoryMiB / 1024).toFixed(0)} → {(c.after.totalMemoryMiB / 1024).toFixed(0)}</p>
+                        <p className="text-xs text-muted-foreground" title="Gemessene CPU-Auslastung der ESX-Hosts (% der physischen Cores)">CPU-Auslastung: {c.before.cpuUsagePct}% → {c.after.cpuUsagePct}%</p>
+                        <p className="text-xs text-muted-foreground" title="Konfigurierte vCPUs aller VMs im Cluster">vCPUs: {c.before.totalVcpus} → <span className={c.after.totalVcpus > c.before.totalVcpus ? "text-destructive" : "text-success"}>{c.after.totalVcpus}</span></p>
+                        <p className="text-xs text-muted-foreground" title="Overcommit-Faktor: konfigurierte vCPUs geteilt durch physische Cores">vCPU/Core: {c.before.vcpuPerCore} → <span className={c.after.vcpuPerCore > c.before.vcpuPerCore ? "text-destructive" : "text-success"}>{c.after.vcpuPerCore}</span></p>
+                        <p className="text-xs text-muted-foreground" title="Gemessene Speicherauslastung der ESX-Hosts (% des physischen RAMs)">RAM-Auslastung: {c.before.memoryUsagePct}% → {c.after.memoryUsagePct}%</p>
+                        <p className="text-xs text-muted-foreground" title="Konfigurierter RAM aller VMs im Cluster (GiB)">VM-RAM GiB: {(c.before.totalMemoryMiB > 0 ? (c.before.vRamMiB / 1024).toFixed(1) : "0")} → <span className={c.after.vRamMiB > c.before.vRamMiB ? "text-destructive" : "text-success"}>{(c.after.totalMemoryMiB > 0 ? (c.after.vRamMiB / 1024).toFixed(1) : "0")}</span></p>
+                        <p className="text-xs text-muted-foreground" title="RAM-Commit: konfigurierter VM-RAM geteilt durch physisches RAM (%)">RAM-Commit: {c.before.ramCommitPct}% → <span className={c.after.ramCommitPct > c.before.ramCommitPct ? "text-destructive" : "text-success"}>{c.after.ramCommitPct}%</span></p>
                       </Card>
                     ))}
                   </div>
@@ -296,5 +296,6 @@ export default function Planning() {
     </div>
   );
 }
+
 
 
