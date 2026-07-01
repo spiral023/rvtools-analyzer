@@ -90,6 +90,43 @@ export interface TechInfoLatest {
   az: string | null;
 }
 
+export interface MaintenanceSettings {
+  id: "default";
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  updatedAt: string;
+}
+
+export type MaintenanceClusterType = "Normal" | "Spezial";
+
+export type MaintenanceWeekday = "MO" | "DI" | "MI" | "DO" | "FR" | "SA" | "SO";
+
+export interface MaintenanceWindow {
+  id: string;
+  label: string;
+  dayFrom: MaintenanceWeekday;
+  dayTo: MaintenanceWeekday;
+  startTime: string;
+  endTime: string;
+  presetId?: string;
+}
+
+export interface MaintenanceContact {
+  firstName: string;
+  lastName: string;
+}
+
+export interface MaintenanceClusterAssignment {
+  vcenterId: VCenterId;
+  clusterName: string;
+  type: MaintenanceClusterType;
+  windows: MaintenanceWindow[];
+  contacts: MaintenanceContact[];
+  updatedAt: string;
+  id?: string;
+}
+
 export interface NormalizedVm {
   snapshotId: SnapshotId;
   vcenterId: VCenterId;

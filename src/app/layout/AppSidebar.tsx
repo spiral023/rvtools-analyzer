@@ -26,6 +26,7 @@ import {
   ClipboardList,
   BarChart3,
   Cable,
+  CalendarClock,
 } from "lucide-react";
 
 const mainNav = [
@@ -49,6 +50,10 @@ const analysisNav = [
 
 const compareNav = [
   { title: "Fleet Compare", url: "/fleet-compare", icon: GitCompare },
+];
+
+const toolsNav = [
+  { title: "Wartungsankündigung", url: "/wartungsankuendigung", icon: CalendarClock },
 ];
 
 function NavSection({
@@ -101,6 +106,7 @@ export function AppSidebar() {
       <SidebarContent className="py-2">
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Analyse" items={analysisNav} />
+        <NavSection label="Tools" items={toolsNav} />
         <NavSection label="Vergleich" items={compareNav} />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">

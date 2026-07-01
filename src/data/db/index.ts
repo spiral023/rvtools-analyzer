@@ -13,6 +13,8 @@ import type {
   TechInfoImportMeta,
   TechInfoRow,
   TechInfoLatest,
+  MaintenanceSettings,
+  MaintenanceClusterAssignment,
 } from "@/domain/models/types";
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 
@@ -51,20 +53,31 @@ interface RVToolsDBSchema extends DBSchema {
     value: TechInfoLatest;
     indexes: { importedAt: string };
   };
+  maintenance_settings: {
+    key: string;
+    value: MaintenanceSettings;
+  };
+  maintenance_cluster_assignments: {
+    key: [string, string];
+    value: MaintenanceClusterAssignment;
+    indexes: { vcenterId: string; clusterName: string };
+  };
 }
 
 export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
-  | "techinfo_rows" | "techinfo_latest";
+  | "techinfo_rows" | "techinfo_latest" | "maintenance_settings"
+  | "maintenance_cluster_assignments";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
+  "maintenance_settings", "maintenance_cluster_assignments",
 ];
 
 let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
@@ -129,6 +142,14 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const latest = db.createObjectStore("techinfo_latest", { keyPath: "vmNameNorm" });
           latest.createIndex("importedAt", "importedAt");
         }
+        if (!db.objectStoreNames.contains("maintenance_settings")) {
+          db.createObjectStore("maintenance_settings", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("maintenance_cluster_assignments")) {
+          const assignments = db.createObjectStore("maintenance_cluster_assignments", { keyPath: ["vcenterId", "clusterName"] });
+          assignments.createIndex("vcenterId", "vcenterId");
+          assignments.createIndex("clusterName", "clusterName");
+        }
       },
     });
   }
@@ -176,6 +197,39 @@ export async function getUiState(id: string): Promise<UiState | undefined> {
 export async function putUiState(state: UiState): Promise<void> {
   const db = await getDb();
   await db.put("ui_state", state);
+}
+
+export async function getMaintenanceSettings(): Promise<MaintenanceSettings | undefined> {
+  const db = await getDb();
+  return db.get("maintenance_settings", "default");
+}
+
+export async function putMaintenanceSettings(settings: MaintenanceSettings): Promise<void> {
+  const db = await getDb();
+  await db.put("maintenance_settings", settings);
+}
+
+export async function getMaintenanceAssignments(): Promise<MaintenanceClusterAssignment[]> {
+  const db = await getDb();
+  return db.getAll("maintenance_cluster_assignments");
+}
+
+export async function getMaintenanceAssignmentsByVcenterIds(vcenterIds: string[]): Promise<MaintenanceClusterAssignment[]> {
+  if (vcenterIds.length === 0) return [];
+  const db = await getDb();
+  const uniqueIds = [...new Set(vcenterIds)];
+  const perVcenter = await Promise.all(
+    uniqueIds.map((vcenterId) => db.getAllFromIndex("maintenance_cluster_assignments", "vcenterId", vcenterId)),
+  );
+  return perVcenter.flat();
+}
+
+export async function putMaintenanceAssignment(assignment: MaintenanceClusterAssignment): Promise<void> {
+  const db = await getDb();
+  await db.put("maintenance_cluster_assignments", {
+    ...assignment,
+    id: assignment.id ?? `${assignment.vcenterId}::${assignment.clusterName}`,
+  });
 }
 
 export async function getBySnapshotIds<T>(

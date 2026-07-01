@@ -98,6 +98,57 @@ describe("getRawSheetFieldNames", () => {
   });
 });
 
+describe("maintenance settings and assignments", () => {
+  it("persists settings and overwrites cluster assignments by vCenter and cluster name", async () => {
+    const {
+      getMaintenanceAssignments,
+      getMaintenanceSettings,
+      putMaintenanceAssignment,
+      putMaintenanceSettings,
+    } = await import("./index");
+
+    await putMaintenanceSettings({
+      id: "default",
+      firstName: "Jörg",
+      lastName: "Weiß",
+      companyName: "Müller IT",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    await expect(getMaintenanceSettings()).resolves.toMatchObject({
+      firstName: "Jörg",
+      lastName: "Weiß",
+      companyName: "Müller IT",
+    });
+
+    await putMaintenanceAssignment({
+      vcenterId: "vc-1",
+      clusterName: "CL-Prod",
+      type: "Normal",
+      windows: [],
+      contacts: [],
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await putMaintenanceAssignment({
+      vcenterId: "vc-1",
+      clusterName: "CL-Prod",
+      type: "Spezial",
+      windows: [],
+      contacts: [{ firstName: "Max", lastName: "Mustermann" }],
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    });
+
+    const assignments = await getMaintenanceAssignments();
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0]).toMatchObject({
+      vcenterId: "vc-1",
+      clusterName: "CL-Prod",
+      type: "Spezial",
+      contacts: [{ firstName: "Max", lastName: "Mustermann" }],
+    });
+  });
+});
+
 describe("Tech-Info import listing and deletion", () => {
   it("lists Tech-Info imports and restores older latest rows after deleting the newest import", async () => {
     const {

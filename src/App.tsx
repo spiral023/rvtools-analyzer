@@ -25,6 +25,8 @@ const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
 const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const VmwareVersions = lazy(() => import("@/pages/VmwareVersions"));
+const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
+const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -70,6 +72,8 @@ const App = () => (
                   <Route path="/licensing" element={<Licensing />} />
                   <Route path="/tech-info" element={<TechInfo />} />
                   <Route path="/vmware-versions" element={<VmwareVersions />} />
+                  <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route path="/fleet-compare" element={<FleetCompare />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

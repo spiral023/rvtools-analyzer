@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { useTheme } from "./ThemeProvider";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Settings, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalFilterControl } from "@/components/global-filter/GlobalFilterControl";
+import { Link } from "react-router-dom";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
@@ -18,6 +19,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
             <div className="flex items-center gap-2">
               <GlobalFilterControl />
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                aria-label="Settings öffnen"
+                title="Settings"
+              >
+                <Link to="/settings">
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
