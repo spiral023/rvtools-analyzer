@@ -13,6 +13,7 @@ import type {
 
 // Shared staleTime: avoid refetching unchanged data on every page switch
 const STALE_MS = 5 * 60 * 1000; // 5 min
+const RAW_QUERY_GC_MS = 10 * 1000;
 
 export function useActiveSnapshotIds() {
   const { filters } = useFilterState();
@@ -134,6 +135,7 @@ export function useRawSheet(sheetName: string, enabled = true) {
     queryFn: () => getRawSheetRows(activeSnapshotIds, sheetName),
     enabled: activeSnapshotIds.length > 0 && enabled,
     staleTime: STALE_MS,
+    gcTime: RAW_QUERY_GC_MS,
   });
 }
 

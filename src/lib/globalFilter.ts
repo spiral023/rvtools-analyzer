@@ -206,6 +206,7 @@ export function buildGlobalFilterFields(
   vms: NormalizedVm[],
   techInfos: TechInfoLatest[],
   rawRowsBySource: Partial<Record<VmRawFilterSource, SheetRow[]>>,
+  rawFieldNamesBySource: Partial<Record<VmRawFilterSource, string[]>> = {},
 ): GlobalFilterField[] {
   const fields: GlobalFilterField[] = [];
   const seen = new Set<string>();
@@ -229,7 +230,7 @@ export function buildGlobalFilterFields(
 
   for (const source of RAW_VM_FILTER_SOURCES) {
     const rows = rawRowsBySource[source] ?? [];
-    const keys = new Set<string>();
+    const keys = new Set(rawFieldNamesBySource[source] ?? []);
     for (const row of rows) {
       for (const key of Object.keys(row.data)) {
         keys.add(key);
@@ -259,6 +260,29 @@ export function buildGlobalFilterFields(
     if (sourceCompare !== 0) return sourceCompare;
     return a.label.localeCompare(b.label, "de-DE", { sensitivity: "base" });
   });
+}
+
+export function collectReferencedRawFilterSources(
+  ...filters: Array<GlobalFilterNode | null | undefined>
+): Set<VmRawFilterSource> {
+  const sources = new Set<VmRawFilterSource>();
+  const rawSourceSet = new Set<GlobalFilterSourceScope>(RAW_VM_FILTER_SOURCES);
+
+  function visit(node: GlobalFilterNode | null | undefined) {
+    if (!node || node.type === "rule") return;
+    if (rawSourceSet.has(node.sourceScope)) {
+      sources.add(node.sourceScope as VmRawFilterSource);
+    }
+    for (const child of node.children) {
+      visit(child);
+    }
+  }
+
+  for (const filter of filters) {
+    visit(filter);
+  }
+
+  return sources;
 }
 
 export function evaluateGlobalFilter(

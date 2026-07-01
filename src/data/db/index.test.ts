@@ -64,6 +64,40 @@ describe("timeSampleVmQuery", () => {
   });
 });
 
+describe("getRawSheetFieldNames", () => {
+  it("returns raw sheet field names without reading full sheet rows", async () => {
+    const { batchPut, getRawSheetFieldNames } = await import("./index");
+
+    await batchPut("rawSheets", [
+      {
+        snapshotId: "snap-1",
+        sheetName: "vDisk",
+        rowIndex: 0,
+        data: { VM: "APP01", Disk: "Hard disk 1", "Capacity MiB": 1024 },
+      },
+      {
+        snapshotId: "snap-1",
+        sheetName: "vDisk",
+        rowIndex: 1,
+        data: { VM: "APP02", Disk: "Hard disk 1", "Capacity MiB": 2048, "Thin": true },
+      },
+      {
+        snapshotId: "snap-2",
+        sheetName: "vDisk",
+        rowIndex: 0,
+        data: { VM: "APP03", Datastore: "DS01" },
+      },
+    ]);
+
+    await expect(getRawSheetFieldNames(["snap-1", "snap-2"], "vDisk")).resolves.toEqual([
+      "Capacity MiB",
+      "Datastore",
+      "Disk",
+      "VM",
+    ]);
+  });
+});
+
 describe("Tech-Info import listing and deletion", () => {
   it("lists Tech-Info imports and restores older latest rows after deleting the newest import", async () => {
     const {

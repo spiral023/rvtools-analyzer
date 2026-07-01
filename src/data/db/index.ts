@@ -203,6 +203,26 @@ export async function getRawSheetRows(
   return perId.flat();
 }
 
+export async function getRawSheetFieldNames(
+  snapshotIds: string[],
+  sheetName: string,
+): Promise<string[]> {
+  if (snapshotIds.length === 0) return [];
+  const db = await getDb();
+  const keys = new Set<string>();
+
+  await Promise.all(
+    snapshotIds.map(async (sid) => {
+      const row = await db.get("rawSheets", [sid, sheetName, 0]);
+      if (row) {
+        for (const key of Object.keys(row.data)) keys.add(key);
+      }
+    }),
+  );
+
+  return [...keys].sort((a, b) => a.localeCompare(b, "de-DE", { sensitivity: "base" }));
+}
+
 export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
   const db = await getDb();
   const values = await db.getAll("techinfo_latest");

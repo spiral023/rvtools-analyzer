@@ -3,6 +3,7 @@ import type { GlobalFilterGroup, NormalizedVm, SheetRow, TechInfoLatest } from "
 import {
   buildGlobalFilterFields,
   buildVmJoinKey,
+  collectReferencedRawFilterSources,
   evaluateGlobalFilter,
   parseSerializedGlobalFilter,
   serializeGlobalFilter,
@@ -268,5 +269,58 @@ describe("global filter evaluator", () => {
   it("rejects invalid clipboard payloads", () => {
     expect(() => parseSerializedGlobalFilter("{\"type\":\"other\"}")).toThrow();
     expect(() => parseSerializedGlobalFilter("not json")).toThrow();
+  });
+
+  it("collects only raw sources referenced by nested filter groups", () => {
+    const activeFilter: GlobalFilterGroup = {
+      id: "root",
+      type: "group",
+      operator: "and",
+      sourceScope: "root",
+      children: [
+        {
+          id: "vm",
+          type: "group",
+          operator: "and",
+          sourceScope: "vm",
+          children: [{ id: "r1", type: "rule", field: "powerState", operator: "eq", value: "poweredOn" }],
+        },
+        {
+          id: "disk",
+          type: "group",
+          operator: "and",
+          sourceScope: "vDisk",
+          children: [{ id: "r2", type: "rule", field: "Capacity MiB", operator: "gt", value: "100", unit: "GiB" }],
+        },
+      ],
+    };
+    const previewFilter: GlobalFilterGroup = {
+      id: "preview-root",
+      type: "group",
+      operator: "and",
+      sourceScope: "root",
+      children: [
+        {
+          id: "snapshot",
+          type: "group",
+          operator: "and",
+          sourceScope: "vSnapshot",
+          children: [],
+        },
+      ],
+    };
+
+    expect([...collectReferencedRawFilterSources(activeFilter, previewFilter)].sort()).toEqual(["vDisk", "vSnapshot"]);
+  });
+
+  it("adds lightweight raw field names without requiring raw rows", () => {
+    const vm = makeVm();
+    const fields = buildGlobalFilterFields([vm], [], {}, { vDisk: ["VM", "Capacity MiB"] });
+
+    expect(fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "vDisk", key: "Capacity MiB", label: "Capacity MiB", dataType: "text" }),
+      ]),
+    );
   });
 });

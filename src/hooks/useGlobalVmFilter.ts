@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { getBySnapshotIds, getRawSheetRows, getSnapshots, getTechInfoLatestByVmNames } from "@/data/db";
+import { getBySnapshotIds, getRawSheetFieldNames, getRawSheetRows, getSnapshots, getTechInfoLatestByVmNames } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import {
   buildGlobalFilterFields,
   buildVmJoinKey,
+  collectReferencedRawFilterSources,
   evaluateGlobalFilter,
   filterRowsByMatchingVmJoinKeys,
   hasGlobalFilterDefinition,
@@ -16,6 +17,7 @@ import {
 import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow } from "@/domain/models/types";
 
 const STALE_MS = 5 * 60 * 1000;
+const RAW_QUERY_GC_MS = 10 * 1000;
 
 export interface GlobalVmFilterEngineResult {
   fields: GlobalFilterField[];
@@ -75,22 +77,58 @@ export function useGlobalVmFilterEngine(
     staleTime: STALE_MS,
   });
 
-  const rawQueryResults = useQueries({
-    queries: RAW_VM_FILTER_SOURCES.map((source) => ({
-      queryKey: ["globalVmFilterRawSheet", source, activeSnapshotIds],
-      queryFn: () => getRawSheetRows(activeSnapshotIds, source),
+  const referencedRawSources = useMemo(
+    () => collectReferencedRawFilterSources(filters.globalFilter, previewFilter),
+    [filters.globalFilter, previewFilter],
+  );
+
+  const referencedRawSourceList = useMemo(
+    () => RAW_VM_FILTER_SOURCES.filter((source) => referencedRawSources.has(source)),
+    [referencedRawSources],
+  );
+
+  const shouldLoadAllRawFieldNames = enabled && activeSnapshotIds.length > 0 && previewFilter !== undefined;
+
+  const rawFieldNameSourceList = useMemo(
+    () => (shouldLoadAllRawFieldNames ? RAW_VM_FILTER_SOURCES : referencedRawSourceList),
+    [referencedRawSourceList, shouldLoadAllRawFieldNames],
+  );
+
+  const rawFieldNameQueryResults = useQueries({
+    queries: rawFieldNameSourceList.map((source) => ({
+      queryKey: ["globalVmFilterRawSheetFields", source, activeSnapshotIds],
+      queryFn: () => getRawSheetFieldNames(activeSnapshotIds, source),
       enabled: enabled && activeSnapshotIds.length > 0,
       staleTime: STALE_MS,
     })),
   });
 
+  const rawQueryResults = useQueries({
+    queries: referencedRawSourceList.map((source) => ({
+      queryKey: ["globalVmFilterRawSheet", source, activeSnapshotIds],
+      queryFn: () => getRawSheetRows(activeSnapshotIds, source),
+      enabled: enabled && activeSnapshotIds.length > 0,
+      staleTime: STALE_MS,
+      gcTime: RAW_QUERY_GC_MS,
+    })),
+  });
+
+  const rawFieldNamesBySource = useMemo(
+    () =>
+      rawFieldNameSourceList.reduce<Partial<Record<VmRawFilterSource, string[]>>>((acc, source, index) => {
+        acc[source] = (rawFieldNameQueryResults[index]?.data as string[] | undefined) ?? [];
+        return acc;
+      }, {}),
+    [rawFieldNameQueryResults, rawFieldNameSourceList],
+  );
+
   const rawRowsBySource = useMemo(
     () =>
-      RAW_VM_FILTER_SOURCES.reduce<Partial<Record<VmRawFilterSource, SheetRow[]>>>((acc, source, index) => {
+      referencedRawSourceList.reduce<Partial<Record<VmRawFilterSource, SheetRow[]>>>((acc, source, index) => {
         acc[source] = (rawQueryResults[index]?.data as SheetRow[] | undefined) ?? [];
         return acc;
       }, {}),
-    [rawQueryResults],
+    [rawQueryResults, referencedRawSourceList],
   );
 
   const contexts = useMemo(() => {
@@ -126,8 +164,8 @@ export function useGlobalVmFilterEngine(
   }, [allVms, rawRowsBySource, techInfoLatest]);
 
   const fields = useMemo(
-    () => buildGlobalFilterFields(allVms, techInfoLatest, rawRowsBySource),
-    [allVms, techInfoLatest, rawRowsBySource],
+    () => buildGlobalFilterFields(allVms, techInfoLatest, rawRowsBySource, rawFieldNamesBySource),
+    [allVms, rawFieldNamesBySource, rawRowsBySource, techInfoLatest],
   );
 
   const matchingVmKeys = useMemo(() => {
