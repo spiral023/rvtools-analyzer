@@ -8,7 +8,7 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid } from "@/components/charts/recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid, ReferenceLine } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
@@ -65,6 +65,14 @@ interface HostDensityPoint {
   vms: number;
   vcpuPerCore: number;
   ramGiB: number;
+  clusterName: string;
+}
+
+function hostDensityColor(vcpuPerCore: number): string {
+  if (vcpuPerCore > 5) return CHART_COLORS.danger;
+  if (vcpuPerCore > 4) return CHART_COLORS.warning;
+  if (vcpuPerCore <= 1) return "#ffffff";
+  return CHART_COLORS.success;
 }
 
 function CapacityOverviewCards({
@@ -160,7 +168,10 @@ function CapacityChartSection({
               <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
               <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
               <Tooltip content={renderHostDensityTooltip} cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter data={hostDensity} fill={CHART_COLORS.primary} />
+              <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
+              <Scatter data={hostDensity}>
+                {hostDensity.map((entry) => <Cell key={entry.name} fill={hostDensityColor(entry.vcpuPerCore)} />)}
+              </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -409,7 +420,7 @@ function useCapacityPageData() {
     for (const h of hosts) {
       const agg = vmsByHost.get(h.host);
       if (!agg) continue;
-      result.push({ name: h.host, vms: agg.count, vcpuPerCore: h.cpuCores ? Math.round((agg.vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024) });
+      result.push({ name: h.host, vms: agg.count, vcpuPerCore: h.cpuCores ? Math.round((agg.vCpuSum / h.cpuCores) * 100) / 100 : 0, ramGiB: Math.round((h.memoryTotalMiB || 0) / 1024), clusterName: h.cluster || "—" });
     }
     return result;
   }, [hosts, vms]);
@@ -426,6 +437,7 @@ function useCapacityPageData() {
     return (
       <div style={CHART_TOOLTIP_STYLE}>
         <p style={CHART_TOOLTIP_LABEL_STYLE}>Host: {point.name}</p>
+        <p style={CHART_TOOLTIP_ITEM_STYLE}>Cluster: {point.clusterName}</p>
         <p style={CHART_TOOLTIP_ITEM_STYLE}>VMs: {formatNum(point.vms)}</p>
         <p style={CHART_TOOLTIP_ITEM_STYLE}>vCPU/Core: {point.vcpuPerCore.toFixed(2)}</p>
         <p style={CHART_TOOLTIP_ITEM_STYLE}>RAM: {formatNum(point.ramGiB)} GiB</p>
