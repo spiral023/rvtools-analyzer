@@ -20,12 +20,13 @@ import type { NormalizedVm, Scenario, ScenarioGroup } from "@/domain/models/type
 import { toast } from "sonner";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
+  { id: "__selection", header: "", enableSorting: false, size: 40 },
   { accessorKey: "vmName", header: "VM" },
   { accessorKey: "cluster", header: "Cluster" },
   { accessorKey: "host", header: "Host" },
   { accessorKey: "powerState", header: "Power" },
   { accessorKey: "cpuCount", header: "vCPU" },
-  { accessorKey: "memoryMiB", header: "RAM MiB" },
+  { accessorKey: "memoryMiB", header: "RAM GiB", cell: ({ row }) => (row.original.memoryMiB / 1024).toFixed(1) },
 ];
 
 function makeId(): string {
