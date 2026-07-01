@@ -346,6 +346,35 @@ export interface UiState {
   theme: "dark" | "light";
   lastFilter?: FilterState;
   presets?: FilterPreset[];
+  selectionVmKeys?: string[];
+}
+
+export type ScenarioType = "cluster-migration";
+
+export interface ScenarioGroup {
+  id: string;
+  label: string | null;
+  targetClusterKey: string;
+  vmKeys: string[];
+}
+
+export interface Scenario {
+  id: string;
+  name: string;
+  type: ScenarioType;
+  createdAt: string;
+  updatedAt: string;
+  vcenterScope: string[];
+  groups: ScenarioGroup[];
+  notes: string | null;
+}
+
+/** Anteilig geschätzte Ist-Last einer einzelnen VM (proportional zur Konfiguration). */
+export interface VmLoadEstimate {
+  activeMiB: number;
+  consumedMiB: number;
+  swapBalloonMiB: number;
+  usedCoreEquiv: number;
 }
 
 export interface ParsedSheetData {
