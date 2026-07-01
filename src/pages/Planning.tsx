@@ -56,16 +56,26 @@ export default function Planning() {
 
   const whatIfResult = useWhatIf(activeScenario);
 
-  const handleToggleRow = (vmKey: string, shiftKey: boolean, index: number) => {
+  // All VM keys in the current view order (unsorted, matches VirtualTable default)
+  const allVmKeys = useMemo(() => vms.map((v) => v.vmKey), [vms]);
+
+  const handleToggleRow = (vmKey: string, shiftKey: boolean, sortedKeys: string[], index: number) => {
     if (shiftKey && anchorIndex >= 0) {
-      const allKeys = vms.map((v) => v.vmKey);
-      const rangeKeys = getRangeKeys(allKeys, anchorIndex, index);
+      const rangeKeys = getRangeKeys(sortedKeys, anchorIndex, index);
       const allSelected = rangeKeys.every((k) => selectedVmKeys.has(k));
       if (allSelected) deselectMany(rangeKeys);
       else selectMany(rangeKeys);
     } else {
       toggleVm(vmKey);
       setAnchorIndex(index);
+    }
+  };
+
+  const handleToggleAll = (selectAll: boolean) => {
+    if (selectAll) {
+      selectMany(allVmKeys);
+    } else {
+      clear();
     }
   };
 
@@ -268,6 +278,7 @@ export default function Planning() {
               getRowId={(vm) => vm.vmKey}
               selectedKeys={selectedVmKeys}
               onToggleRow={handleToggleRow}
+              onToggleAll={handleToggleAll}
               height={500}
             />
           </div>
@@ -282,3 +293,4 @@ export default function Planning() {
     </div>
   );
 }
+

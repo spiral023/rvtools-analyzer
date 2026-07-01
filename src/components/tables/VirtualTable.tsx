@@ -22,7 +22,7 @@ import {
   exportExcelTable,
   exportMarkdownTable,
 } from "@/lib/export/tableExport";
-import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 
 interface VirtualTableProps<T> {
@@ -36,7 +36,8 @@ interface VirtualTableProps<T> {
   selectionEnabled?: boolean;
   getRowId?: (row: T) => string;
   selectedKeys?: Set<string>;
-  onToggleRow?: (vmKey: string, shiftKey: boolean, index: number) => void;
+  onToggleRow?: (vmKey: string, shiftKey: boolean, sortedKeys: string[], index: number) => void;
+  onToggleAll?: (selectAll: boolean) => void;
 }
 
 function getDefaultExportFileName(): string {
@@ -58,6 +59,7 @@ export function VirtualTable<T>({
   getRowId,
   selectedKeys,
   onToggleRow,
+  onToggleAll,
 }: VirtualTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,17 @@ export function VirtualTable<T>({
   });
 
   const { rows } = table.getRowModel();
+
+  const sortedRowIds = selectionEnabled && getRowId
+    ? rows.map((r) => getRowId(r.original))
+    : [];
+
+  const allSelected = selectionEnabled && getRowId && sortedRowIds.length > 0
+    ? sortedRowIds.every((id) => selectedKeys?.has(id))
+    : false;
+  const someSelected = selectionEnabled && getRowId && sortedRowIds.length > 0
+    ? sortedRowIds.some((id) => selectedKeys?.has(id)) && !allSelected
+    : false;
 
   const handleExport = async (format: "excel" | "markdown") => {
     const exportData = buildExportData(
@@ -138,19 +151,37 @@ export function VirtualTable<T>({
                       )}
                       onClick={isSelectionCol ? undefined : header.column.getToggleSortingHandler()}
                     >
-                      <div className="flex items-center gap-1">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                        {isSelectionCol ? null : sorted === "asc" ? (
-                          <ArrowUp className="h-3 w-3 text-primary" />
-                        ) : sorted === "desc" ? (
-                          <ArrowDown className="h-3 w-3 text-primary" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-30" />
-                        )}
-                      </div>
+                      {isSelectionCol ? (
+                        <div
+                          className="flex items-center justify-center cursor-pointer hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleAll?.(!allSelected);
+                          }}
+                        >
+                          {allSelected ? (
+                            <CheckSquare className="h-4 w-4 text-primary" />
+                          ) : someSelected ? (
+                            <Square className="h-4 w-4 text-primary fill-primary/30" />
+                          ) : (
+                            <Square className="h-4 w-4 opacity-40" />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                          {sorted === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-primary" />
+                          ) : sorted === "desc" ? (
+                            <ArrowDown className="h-3 w-3 text-primary" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30" />
+                          )}
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -186,10 +217,10 @@ export function VirtualTable<T>({
                       return (
                         <td
                           key={cell.id}
-                          className="whitespace-nowrap px-3 py-1.5 text-sm"
+                          className="whitespace-nowrap px-3 py-1.5 text-sm text-center"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onToggleRow?.(vmKey, e.shiftKey, virtualRow.index);
+                            onToggleRow?.(vmKey, e.shiftKey, sortedRowIds, virtualRow.index);
                           }}
                         >
                           <input
