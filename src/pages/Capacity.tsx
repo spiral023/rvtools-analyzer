@@ -226,6 +226,7 @@ function CapacityTablesSection({
             columns={clusterCapacityColumns}
             globalFilter={globalFilter}
             height={340}
+            initialSorting={[{ id: "cluster", desc: false }]}
             onRowClick={(row) => onOpenClusterDetail(row.cluster)}
           />
         </div>
@@ -238,10 +239,11 @@ function CapacityTablesSection({
           columns={clusterColumns}
           globalFilter={globalFilter}
           height={300}
+          initialSorting={[{ id: "name", desc: false }]}
           onRowClick={(row) => onOpenClusterDetail(row.name)}
         />
       </div>
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={globalFilter} /></div>
+      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={globalFilter} initialSorting={[{ id: "freePct", desc: false }]} /></div>
 
       {rpData.length > 0 && (
         <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rpData.length})</h3><VirtualTable data={rpData} columns={rpColumns} globalFilter={globalFilter} height={300} /></div>

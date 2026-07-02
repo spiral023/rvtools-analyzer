@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
+import { VariantDetailDialog, type VariantDetail } from "@/components/network/VariantDetailDialog";
 import { Network, Router, Cable, Server, GitCompare, AlertTriangle, Layers } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -85,6 +86,7 @@ function buildSummary(nics: HostConfig["nics"]): string {
 export default function HostNetwork() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
+  const [selectedVariantLabel, setSelectedVariantLabel] = useState<string | null>(null);
   const { data: rawNIC = [] } = useRawSheet("vNIC");
   const { data: rawVSwitch = [] } = useRawSheet("vSwitch");
   const { data: rawDvSwitch = [] } = useRawSheet("dvSwitch");
@@ -118,27 +120,44 @@ export default function HostNetwork() {
   }, [rawNIC, rawDvSwitch]);
 
   // Varianten (gruppiert nach Fingerprint) + Drift (Abweichung von der Cluster-Mehrheit).
-  const { variants, driftRows } = useMemo(() => {
+  const { variants, driftRows, variantDetails } = useMemo(() => {
+    // Speed je Host+Device für die Detailansicht nachschlagen.
+    const speedByHostDevice = new Map<string, number>();
+    for (const r of rawNIC) {
+      speedByHostDevice.set(`${s(r.data["Host"])}|${s(r.data["Network Device"])}`, Number(r.data["Speed"] || 0));
+    }
     // Gruppierung nach Fingerprint → Varianten.
-    const grouped = new Map<string, { hosts: string[]; clusters: Set<string>; nicCount: number; summary: string }>();
+    const grouped = new Map<string, { hosts: HostConfig[]; clusters: Set<string>; nicCount: number; summary: string }>();
     for (const cfg of hostConfigs) {
       const g = grouped.get(cfg.fp) || { hosts: [], clusters: new Set<string>(), nicCount: cfg.nics.length, summary: cfg.summary };
-      g.hosts.push(cfg.host);
+      g.hosts.push(cfg);
       if (cfg.cluster) g.clusters.add(cfg.cluster);
       grouped.set(cfg.fp, g);
     }
     const sorted = [...grouped.entries()].sort((a, b) => b[1].hosts.length - a[1].hosts.length);
     const fpToLabel = new Map<string, string>();
+    const variantDetails = new Map<string, VariantDetail>();
     const variants: VariantRow[] = sorted.map(([fp, g], i) => {
       const label = `V${i + 1}`;
       fpToLabel.set(fp, label);
+      variantDetails.set(label, {
+        label,
+        // Die Belegung ist per Fingerprint auf allen Hosts identisch → repräsentative NICs
+        // vom ersten Host, Speeds über alle Hosts der Variante aggregiert.
+        nics: g.hosts[0].nics.map((n) => ({
+          ...n,
+          speeds: g.hosts.map((h) => speedByHostDevice.get(`${h.host}|${n.device}`) ?? 0),
+        })),
+        hosts: g.hosts.map((h) => ({ host: h.host, cluster: h.cluster })),
+        clusters: [...g.clusters].sort(),
+      });
       return {
         label,
         hostCount: g.hosts.length,
         clusters: [...g.clusters].sort().join(", "),
         nicCount: g.nicCount,
         summary: g.summary,
-        hosts: g.hosts.sort().join(", "),
+        hosts: g.hosts.map((h) => h.host).sort().join(", "),
       };
     });
 
@@ -162,8 +181,8 @@ export default function HostNetwork() {
       }
     }
     driftRows.sort((a, b) => a.cluster.localeCompare(b.cluster, "de-DE") || a.host.localeCompare(b.host, "de-DE"));
-    return { variants, driftRows };
-  }, [hostConfigs]);
+    return { variants, driftRows, variantDetails };
+  }, [hostConfigs, rawNIC]);
 
   // vDS-Membership inkl. abgeleiteter Uplinks/Host aus vNIC.
   const dvsRows = useMemo<DvsRow[]>(() => {
@@ -242,8 +261,8 @@ export default function HostNetwork() {
       )}
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Konfigurations-Varianten ({variants.length})</h3>
-        <VirtualTable data={variants} columns={variantColumns} globalFilter={filters.search} height={Math.min(360, 80 + variants.length * 44)} />
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Konfigurations-Varianten ({variants.length}) · Klick öffnet Detailansicht</h3>
+        <VirtualTable data={variants} columns={variantColumns} globalFilter={filters.search} height={Math.min(360, 80 + variants.length * 44)} onRowClick={(row) => setSelectedVariantLabel(row.label)} />
       </div>
 
       {dvsRows.length > 0 && (
@@ -257,6 +276,12 @@ export default function HostNetwork() {
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Layers className="h-4 w-4" /> Uplink-Belegung Detail ({nicDetail.length})</h3>
         <VirtualTable data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} onRowClick={openHostDetail} />
       </div>
+      <VariantDetailDialog
+        variant={selectedVariantLabel ? variantDetails.get(selectedVariantLabel) ?? null : null}
+        open={!!selectedVariantLabel}
+        onClose={() => setSelectedVariantLabel(null)}
+        onHostClick={(host) => openHostDetail({ host })}
+      />
       {hostDetailDialog}
     </div>
   );

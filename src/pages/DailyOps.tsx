@@ -52,10 +52,15 @@ function formatSnapshotCreated(value: string | null): string {
   return formatDateDe(date);
 }
 
-function formatSinceCreation(value: string | null): string {
+function snapshotAgeDays(value: string | null): number | null {
   const date = parseSnapshotDate(value);
-  if (!date) return "—";
-  const diffDays = Math.max(0, Math.round((Date.now() - date.getTime()) / 86400000));
+  if (!date) return null;
+  return Math.max(0, Math.round((Date.now() - date.getTime()) / 86400000));
+}
+
+function formatSinceCreation(value: string | null): string {
+  const diffDays = snapshotAgeDays(value);
+  if (diffDays === null) return "—";
   if (diffDays === 0) return "heute";
   return `vor ${diffDays} ${diffDays === 1 ? "Tag" : "Tagen"}`;
 }
@@ -84,7 +89,12 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
   { accessorKey: "snapshotName", header: "Snapshot" },
   { accessorKey: "description", header: "Beschreibung" },
   { accessorKey: "dateTaken", header: "Erstellt", cell: ({ getValue }) => formatSnapshotCreated((getValue() as string | null) ?? null) },
-  { accessorKey: "dateTaken", id: "ageDays", header: "Seit Erstellung", cell: ({ getValue }) => formatSinceCreation((getValue() as string | null) ?? null) },
+  { accessorKey: "dateTaken", id: "ageDays", header: "Seit Erstellung", cell: ({ getValue }) => {
+    const value = (getValue() as string | null) ?? null;
+    const diffDays = snapshotAgeDays(value);
+    const className = diffDays !== null && diffDays > 14 ? "text-destructive font-semibold" : diffDays !== null && diffDays > 7 ? "text-warning" : "";
+    return <span className={className}>{formatSinceCreation(value)}</span>;
+  }},
   { accessorKey: "sizeMiB", header: "Größe (MiB)", cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";

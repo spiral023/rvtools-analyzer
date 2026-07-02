@@ -32,6 +32,7 @@ interface VirtualTableProps<T> {
   height?: number;
   className?: string;
   onRowClick?: (row: T) => void;
+  initialSorting?: SortingState;
   exportFileName?: string;
   selectionEnabled?: boolean;
   getRowId?: (row: T) => string;
@@ -54,6 +55,7 @@ export function VirtualTable<T>({
   height = 500,
   className,
   onRowClick,
+  initialSorting,
   exportFileName,
   selectionEnabled = false,
   getRowId,
@@ -61,7 +63,7 @@ export function VirtualTable<T>({
   onToggleRow,
   onToggleAll,
 }: VirtualTableProps<T>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const parentRef = useRef<HTMLDivElement>(null);
 
   const table = useReactTable({

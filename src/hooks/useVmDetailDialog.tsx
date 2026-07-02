@@ -1,12 +1,25 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
-import { useRawSheet } from "@/hooks/useActiveSnapshots";
+import { useRawSheet, useTechInfoLatestByVmNames } from "@/hooks/useActiveSnapshots";
 import { resolveVmDetailTarget } from "@/lib/vmDetail";
 import type { NormalizedVm } from "@/domain/models/types";
 
 export function useVmDetailDialog(vms: NormalizedVm[]) {
   const [selectedVm, setSelectedVm] = useState<NormalizedVm | null>(null);
   const loadDetailRows = selectedVm !== null;
+
+  const techInfoVmNames = useMemo(
+    () => (selectedVm ? [selectedVm.vmName] : []),
+    [selectedVm],
+  );
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(techInfoVmNames, loadDetailRows);
+
+  const vmWithTechInfo = useMemo(() => {
+    if (!selectedVm) return null;
+    const vmNameNorm = selectedVm.vmName.trim().toLowerCase();
+    const techInfo = techInfoLatest.find((entry) => entry.vmNameNorm === vmNameNorm) ?? null;
+    return { ...selectedVm, sysv: techInfo?.sysv ?? null };
+  }, [selectedVm, techInfoLatest]);
 
   const { data: rawCpuRows = [] } = useRawSheet("vCPU", loadDetailRows);
   const { data: rawMemoryRows = [] } = useRawSheet("vMemory", loadDetailRows);
@@ -26,7 +39,7 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
 
   const vmDetailDialog = (
     <VmDetailDialog
-      vm={selectedVm}
+      vm={vmWithTechInfo}
       open={!!selectedVm}
       onClose={() => setSelectedVm(null)}
       rawCpuRows={rawCpuRows}
