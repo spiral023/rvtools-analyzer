@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, Copy, Mail, Plus, Save, Trash2, Wrench } from "lucide-react";
+import { CalendarClock, Clock, Copy, FileText, Link2, Mail, Plus, Save, Trash2, Wrench } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,7 +28,6 @@ import {
   buildMaintenanceMailTemplate,
   buildMaintenanceRows,
   createDefaultAssignment,
-  deriveContactEmail,
   formatMaintenanceWindow,
   parseTechContactName,
   type ChangeType,
@@ -57,7 +56,18 @@ function formatContact(contact: MaintenanceContact): string {
 
 function joinContacts(contacts: MaintenanceContact[]): string {
   if (contacts.length === 0) return "—";
-  return contacts.map(formatContact).join(", ");
+  return contacts
+    .map(formatContact)
+    .sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }))
+    .join(", ");
+}
+
+function joinWindows(windows: MaintenanceWindow[]): string {
+  if (windows.length === 0) return "—";
+  return windows
+    .map(formatMaintenanceWindow)
+    .sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }))
+    .join(", ");
 }
 
 function toDateTimeLocal(date: Date): string {
@@ -104,10 +114,33 @@ function SelectBox({
       aria-label={ariaLabel}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {children}
     </select>
+  );
+}
+
+function SectionHeading({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:h-3.5 [&_svg]:w-3.5">
+        {icon}
+      </span>
+      <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+      {hint && <span className="text-xs tabular-nums text-muted-foreground">{hint}</span>}
+      {action && <div className="ml-auto">{action}</div>}
+    </div>
   );
 }
 
@@ -375,13 +408,24 @@ function MaintenanceMailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Wartungsankündigung erstellen</DialogTitle>
+      <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-4 pr-12">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Mail className="h-5 w-5" />
+            </span>
+            <div className="space-y-0.5 text-left">
+              <DialogTitle className="text-balance">Wartungsankündigung erstellen</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                <span className="tabular-nums">{rows.length}</span> Cluster · Vorlage konfigurieren und kopieren
+              </p>
+            </div>
+          </div>
         </DialogHeader>
-        <div className="space-y-5">
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {clustersWithoutContacts.length > 0 && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="mb-5">
               <AlertTitle>Verantwortliche fehlen</AlertTitle>
               <AlertDescription>
                 Ohne Verantwortliche wird keine To-Adresse erzeugt: {clustersWithoutContacts.map((row) => row.name).join(", ")}
@@ -389,97 +433,141 @@ function MaintenanceMailDialog({
             </Alert>
           )}
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Wartungstyp</Label>
-              <SelectBox ariaLabel="Wartungstyp" value={maintenanceType} onChange={(value) => setMaintenanceType(value as MaintenanceType)}>
-                {maintenanceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-              </SelectBox>
-            </div>
-            <div className="space-y-2">
-              <Label>Ansprechpartner</Label>
-              <Input value={contactName} onChange={(event) => setContactName(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Change Typ</Label>
-              <SelectBox ariaLabel="Change Typ" value={change.type} onChange={(value) => setChange((current) => ({ ...current, type: value as ChangeType }))}>
-                {changeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-              </SelectBox>
-            </div>
-            <div className="space-y-2">
-              <Label>Change ID</Label>
-              <Input value={change.id} onChange={(event) => setChange((current) => ({ ...current, id: event.target.value }))} placeholder="CRX00000234252" />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Change Titel</Label>
-              <Input value={change.title} onChange={(event) => setChange((current) => ({ ...current, title: event.target.value }))} placeholder="UCS Firmware Upgrade" />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <Label>Konkrete Wartungszeiträume</Label>
-            <div className="space-y-2">
-              {rows.map((row) => (
-                <div key={row.key} className="grid gap-2 rounded-md border border-border/60 p-3 md:grid-cols-[1fr_190px_190px]">
-                  <div>
-                    <p className="font-mono-data text-sm font-semibold">{row.name}</p>
-                    <p className="text-xs text-muted-foreground">{row.type} · {row.windows[0] ? formatMaintenanceWindow(row.windows[0]) : "kein wiederkehrendes Fenster"}</p>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)] lg:items-start">
+            {/* Konfiguration */}
+            <div className="space-y-6">
+              <section className="space-y-3">
+                <SectionHeading icon={<FileText />} title="Eckdaten" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Wartungstyp</Label>
+                    <SelectBox ariaLabel="Wartungstyp" value={maintenanceType} onChange={(value) => setMaintenanceType(value as MaintenanceType)}>
+                      {maintenanceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </SelectBox>
                   </div>
-                  <Input
-                    type="datetime-local"
-                    value={periods[row.key]?.from ?? ""}
-                    onChange={(event) => setPeriods((current) => ({ ...current, [row.key]: { ...(current[row.key] ?? { to: "" }), from: event.target.value } }))}
-                  />
-                  <Input
-                    type="datetime-local"
-                    value={periods[row.key]?.to ?? ""}
-                    onChange={(event) => setPeriods((current) => ({ ...current, [row.key]: { ...(current[row.key] ?? { from: "" }), to: event.target.value } }))}
-                  />
+                  <div className="space-y-1.5">
+                    <Label>Change Typ</Label>
+                    <SelectBox ariaLabel="Change Typ" value={change.type} onChange={(value) => setChange((current) => ({ ...current, type: value as ChangeType }))}>
+                      {changeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </SelectBox>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Change ID</Label>
+                    <Input value={change.id} onChange={(event) => setChange((current) => ({ ...current, id: event.target.value }))} placeholder="CRX00000234252" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Ansprechpartner</Label>
+                    <Input value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Max Mustermann" />
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Change Titel</Label>
+                    <Input value={change.title} onChange={(event) => setChange((current) => ({ ...current, title: event.target.value }))} placeholder="UCS Firmware Upgrade" />
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </section>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Optionale Links</Label>
-              <Button type="button" variant="outline" size="sm" onClick={() => setLinks((current) => [...current, { id: makeId("link"), label: "", url: "" }])}>
-                <Plus className="mr-2 h-4 w-4" />
-                Link
-              </Button>
+              <section className="space-y-3">
+                <SectionHeading icon={<Clock />} title="Wartungszeiträume" hint={String(rows.length)} />
+                <div className="space-y-2">
+                  {rows.map((row) => (
+                    <div key={row.key} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="font-mono-data text-sm font-semibold">{row.name}</span>
+                        <Badge variant={row.type === "Spezial" ? "destructive" : "secondary"}>{row.type}</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {row.windows[0] ? formatMaintenanceWindow(row.windows[0]) : "kein wiederkehrendes Fenster"}
+                        </span>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Von</Label>
+                          <Input
+                            type="datetime-local"
+                            value={periods[row.key]?.from ?? ""}
+                            onChange={(event) => setPeriods((current) => ({ ...current, [row.key]: { ...(current[row.key] ?? { to: "" }), from: event.target.value } }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Bis</Label>
+                          <Input
+                            type="datetime-local"
+                            value={periods[row.key]?.to ?? ""}
+                            onChange={(event) => setPeriods((current) => ({ ...current, [row.key]: { ...(current[row.key] ?? { from: "" }), to: event.target.value } }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <SectionHeading
+                  icon={<Link2 />}
+                  title="Optionale Links"
+                  action={
+                    <Button type="button" variant="outline" size="sm" onClick={() => setLinks((current) => [...current, { id: makeId("link"), label: "", url: "" }])}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Link
+                    </Button>
+                  }
+                />
+                {links.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Keine Links hinterlegt.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {links.map((link) => (
+                      <div key={link.id} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+                        <Input
+                          placeholder="Bezeichnung"
+                          value={link.label}
+                          onChange={(event) => setLinks((current) => current.map((item) => item.id === link.id ? { ...item, label: event.target.value } : item))}
+                        />
+                        <Input
+                          placeholder="URL"
+                          value={link.url}
+                          onChange={(event) => setLinks((current) => current.map((item) => item.id === link.id ? { ...item, url: event.target.value } : item))}
+                        />
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setLinks((current) => current.filter((item) => item.id !== link.id))} aria-label="Link entfernen">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
-            {links.map((link) => (
-              <div key={link.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
-                <Input
-                  placeholder="Bezeichnung"
-                  value={link.label}
-                  onChange={(event) => setLinks((current) => current.map((item) => item.id === link.id ? { ...item, label: event.target.value } : item))}
+
+            {/* Live-Vorschau */}
+            <div className="lg:sticky lg:top-0">
+              <div className="overflow-hidden rounded-lg border border-border/60 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.24),0_12px_28px_-16px_rgba(0,0,0,0.6)]">
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vorschau</span>
+                  </div>
+                  <Button size="sm" onClick={() => void copyTemplate()}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Kopieren
+                  </Button>
+                </div>
+                <div className="space-y-2.5 border-b border-border/60 px-4 py-3">
+                  <div className="grid grid-cols-[3.25rem_1fr] items-baseline gap-2">
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">Betreff</span>
+                    <span className="text-sm font-semibold text-balance">{template.subject}</span>
+                  </div>
+                  <div className="grid grid-cols-[3.25rem_1fr] items-baseline gap-2">
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">An</span>
+                    <span className="break-all font-mono-data text-sm">{template.to.join("; ") || "—"}</span>
+                  </div>
+                </div>
+                <Textarea
+                  value={template.body}
+                  readOnly
+                  aria-label="Mail-Text Vorschau"
+                  className="min-h-[300px] max-h-[42vh] resize-none rounded-none border-0 bg-transparent font-mono-data text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
-                <Input
-                  placeholder="URL"
-                  value={link.url}
-                  onChange={(event) => setLinks((current) => current.map((item) => item.id === link.id ? { ...item, url: event.target.value } : item))}
-                />
-                <Button type="button" variant="ghost" size="icon" onClick={() => setLinks((current) => current.filter((item) => item.id !== link.id))} aria-label="Link entfernen">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            <div className="rounded-md border border-border/60 bg-muted/30 p-3">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Betreff</p>
-              <p className="mt-1 text-sm font-semibold">{template.subject}</p>
-              <p className="mt-3 text-xs uppercase tracking-wider text-muted-foreground">To</p>
-              <p className="mt-1 font-mono-data text-sm">{template.to.join("; ") || "—"}</p>
-            </div>
-            <Textarea value={template.body} readOnly className="min-h-[320px] font-mono text-sm" />
-            <div className="flex justify-end">
-              <Button onClick={() => void copyTemplate()}>
-                <Copy className="mr-2 h-4 w-4" />
-                In Zwischenablage kopieren
-              </Button>
             </div>
           </div>
         </div>
@@ -605,7 +693,7 @@ export default function Wartungsankuendigung() {
       accessorKey: "windows",
       header: "Wartungsfenster",
       cell: ({ row }) => {
-        const value = row.original.windows.length ? row.original.windows.map(formatMaintenanceWindow).join(", ") : "—";
+        const value = joinWindows(row.original.windows);
         return (
           <span className="block max-w-[220px] truncate" title={value}>
             {value}
@@ -716,10 +804,6 @@ export default function Wartungsankuendigung() {
           onSave={saveAssignments}
           isSaving={isSaving}
         />
-      </div>
-
-      <div className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-        Ansprechpartner-Mails werden als {deriveContactEmail({ firstName: "vorname", lastName: "nachname" }, settings.companyName || "firmenname")} abgeleitet.
       </div>
 
       <MaintenanceMailDialog open={mailDialogOpen} onClose={() => setMailDialogOpen(false)} rows={selectedRows} />

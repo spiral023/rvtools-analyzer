@@ -278,6 +278,7 @@ function formatDateTime(value: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(date);
 }
 
@@ -315,11 +316,15 @@ export function buildMaintenanceMailTemplate({
       `- ${cluster.clusterName} | ${cluster.clusterType} | ${formatDateTime(cluster.from)} - ${formatDateTime(cluster.to)}`,
   );
   const hasSpecialCluster = clusters.some((cluster) => cluster.clusterType === "Spezial");
-  const changeLines = [
-    changeId ? `Change ID: ${changeId}` : null,
-    change?.title?.trim() ? `Change Titel: ${change.title.trim()}` : null,
-    change?.type ? `Change Typ: ${change.type}` : null,
-  ].filter((line): line is string => Boolean(line));
+  const changeTitle = change?.title?.trim();
+  const hasChangeInfo = Boolean(changeId || changeTitle);
+  const changeLines = hasChangeInfo
+    ? [
+        changeId ? `Change ID: ${changeId}` : null,
+        changeTitle ? `Change Titel: ${changeTitle}` : null,
+        change?.type ? `Change Typ: ${change.type}` : null,
+      ].filter((line): line is string => Boolean(line))
+    : [];
   const linkLines = links
     .filter((link) => link.label.trim() && link.url.trim())
     .map((link) => `- ${link.label.trim()}: ${link.url.trim()}`);

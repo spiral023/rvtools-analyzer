@@ -245,4 +245,33 @@ describe("maintenance mail template", () => {
     expect(template.body).toContain("Change ID: CRX00000234252");
     expect(template.body).toContain("LG,\nJörg Weiß");
   });
+
+  it("omits the change block entirely when neither change id nor title is provided", () => {
+    const template = buildMaintenanceMailTemplate({
+      maintenanceType: "ESXi Update",
+      settings: { firstName: "Jörg", lastName: "Weiß", companyName: "Müller IT" },
+      contactName: "Jörg Weiß",
+      clusters: [
+        {
+          clusterName: "CL-Prod",
+          clusterType: "Normal",
+          from: "2026-07-06T22:00",
+          to: "2026-07-07T05:00",
+          contacts: [{ firstName: "Max", lastName: "Mustermann" }],
+        },
+      ],
+      change: {
+        id: "  ",
+        title: "",
+        type: "Normal Change",
+      },
+      links: [],
+    });
+
+    expect(template.subject).toBe("Wartungsankündigung: ESXi Update");
+    expect(template.body).not.toContain("Change-Information");
+    expect(template.body).not.toContain("Change Typ");
+    expect(template.body).not.toContain("Change ID");
+    expect(template.body).not.toContain("Change Titel");
+  });
 });

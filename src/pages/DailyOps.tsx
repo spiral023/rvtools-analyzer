@@ -13,7 +13,7 @@ import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { NormalizedVm, NormalizedSnapshot } from "@/domain/models/types";
+import type { NormalizedVm, NormalizedSnapshot, NormalizedHealth } from "@/domain/models/types";
 
 function parseSnapshotDate(value: string | null): Date | null {
   if (!value) return null;
@@ -71,6 +71,12 @@ const issueColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster" },
   { accessorKey: "host", header: "Host" },
   { accessorKey: "osConfig", header: "OS" },
+];
+
+const healthColumns: ColumnDef<NormalizedHealth, unknown>[] = [
+  { accessorKey: "entity", header: "Entity" },
+  { accessorKey: "messageType", header: "Typ" },
+  { accessorKey: "message", header: "Meldung" },
 ];
 
 const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
@@ -195,6 +201,12 @@ export default function DailyOps() {
         <div>
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
           <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
+        </div>
+      )}
+      {healthEvents.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3>
+          <VirtualTable data={healthEvents} columns={healthColumns} globalFilter={filters.search} />
         </div>
       )}
       {vmDetailDialog}
