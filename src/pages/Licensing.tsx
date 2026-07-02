@@ -9,6 +9,7 @@ import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Key, AlertTriangle, CheckCircle2, Power, Database, Server } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
+import { formatRvtoolsDate } from "@/lib/vmDetail";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -63,12 +64,12 @@ export default function Licensing() {
   const { data: datastores = [] } = useDatastores();
 
   const licenses = useMemo<LicenseRow[]>(() =>
-    rawLicense.map((r) => { const total = Number(r.data["Total"] || 0); const used = Number(r.data["Used"] || 0); return { name: String(r.data["Name"] || ""), key: String(r.data["Key"] || ""), costUnit: String(r.data["Cost Unit"] || ""), total, used, usedPct: total > 0 ? (used / total) * 100 : 0, expiration: String(r.data["Expiration Date"] || ""), features: String(r.data["Features"] || "") }; }), [rawLicense]);
+    rawLicense.map((r) => { const total = Number(r.data["Total"] || 0); const used = Number(r.data["Used"] || 0); return { name: String(r.data["Name"] || ""), key: String(r.data["Key"] || ""), costUnit: String(r.data["Cost Unit"] || ""), total, used, usedPct: total > 0 ? (used / total) * 100 : 0, expiration: formatRvtoolsDate(r.data["Expiration Date"]), features: String(r.data["Features"] || "") }; }), [rawLicense]);
 
   const totalLicenses = licenses.length;
   const highUtil = licenses.filter((l) => l.usedPct > 85).length;
   const critUtil = licenses.filter((l) => l.usedPct > 95).length;
-  const expiring = licenses.filter((l) => l.expiration !== "Never" && l.expiration !== "").length;
+  const expiring = licenses.filter((l) => l.expiration !== "Never" && l.expiration !== "—").length;
 
   const utilizationChart = useMemo(() => licenses.map((l) => ({ name: l.name.length > 25 ? l.name.slice(0, 22) + "…" : l.name, usedPct: Math.round(l.usedPct * 10) / 10 })), [licenses]);
 

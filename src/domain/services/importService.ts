@@ -252,7 +252,7 @@ function normalizeDatastores(sheet: ParsedSheetData | undefined, snapshotId: str
   });
 }
 
-function normalizeSnapshots(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedSnapshot[] {
+export function normalizeSnapshots(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedSnapshot[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => ({
     snapshotId,
@@ -261,7 +261,7 @@ function normalizeSnapshots(sheet: ParsedSheetData | undefined, snapshotId: stri
     snapshotName: toStr(row["Snapshot Name"] || row["Name"]),
     description: toStr(row["Description"]),
     dateTaken: toStr(row["Date / time"] || row["Date"]),
-    sizeMiB: toNumber(row["Size MiB"] || row["Size MB"] || row["Size"]),
+    sizeMiB: toNumber(row["Size MiB (total)"] || row["Size MiB"] || row["Size MB"] || row["Size"]),
     quiesced: toBool(row["Quiesced"]),
   }));
 }

@@ -8,7 +8,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard,
@@ -21,7 +20,6 @@ import {
   Shield,
   Key,
   GitCompare,
-  Lock,
   Server,
   ClipboardList,
   BarChart3,
@@ -111,12 +109,6 @@ export function AppSidebar() {
         <NavSection label="Tools" items={toolsNav} />
         <NavSection label="Vergleich" items={compareNav} />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Lock className="h-3 w-3" />
-          <span>Daten nur lokal in IndexedDB</span>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }
