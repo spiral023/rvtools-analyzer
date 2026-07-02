@@ -105,10 +105,11 @@ export type MaintenanceWeekday = "MO" | "DI" | "MI" | "DO" | "FR" | "SA" | "SO";
 export interface MaintenanceWindow {
   id: string;
   label: string;
-  dayFrom: MaintenanceWeekday;
-  dayTo: MaintenanceWeekday;
-  startTime: string;
-  endTime: string;
+  // Ältere Zuweisungen haben strukturierte Zeiten; neue Fenster sind reiner Freitext im Label.
+  dayFrom?: MaintenanceWeekday;
+  dayTo?: MaintenanceWeekday;
+  startTime?: string;
+  endTime?: string;
   presetId?: string;
 }
 
@@ -123,6 +124,8 @@ export interface MaintenanceClusterAssignment {
   type: MaintenanceClusterType;
   windows: MaintenanceWindow[];
   contacts: MaintenanceContact[];
+  // Zusätzliche Empfänger, z. B. Postkorb oder Teams-Kanal-Adresse.
+  additionalEmails?: string[];
   updatedAt: string;
   id?: string;
 }

@@ -23,8 +23,6 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useActiveSnapshotIds, useClusters, useHosts, useRawSheet, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceAssignments, useMaintenanceSettings } from "@/hooks/useMaintenance";
 import {
-  MAINTENANCE_WINDOW_PRESETS,
-  WEEKDAY_OPTIONS,
   buildMaintenanceMailTemplate,
   buildMaintenanceRows,
   createDefaultAssignment,
@@ -39,7 +37,6 @@ import type {
   MaintenanceClusterAssignment,
   MaintenanceClusterType,
   MaintenanceContact,
-  MaintenanceWeekday,
   MaintenanceWindow,
 } from "@/domain/models/types";
 
@@ -60,6 +57,15 @@ function joinContacts(contacts: MaintenanceContact[]): string {
     .map(formatContact)
     .sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }))
     .join(", ");
+}
+
+function joinRecipients(row: MaintenanceClusterRow): string {
+  const parts = [
+    ...row.contacts.map(formatContact),
+    ...row.additionalEmails,
+  ].filter(Boolean);
+  if (parts.length === 0) return "—";
+  return parts.sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" })).join(", ");
 }
 
 function joinWindows(windows: MaintenanceWindow[]): string {
@@ -94,6 +100,7 @@ function makeDraft(row: MaintenanceClusterRow | null): MaintenanceClusterAssignm
     type: row.type,
     windows: row.windows,
     contacts: row.contacts,
+    additionalEmails: row.additionalEmails,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -159,31 +166,34 @@ function AssignmentPanel({
 }) {
   const targetRows = selectedRows.length > 1 ? selectedRows : activeRow ? [activeRow] : [];
   const [draft, setDraft] = useState<MaintenanceClusterAssignment>(() => makeDraft(activeRow));
-  const [customWindow, setCustomWindow] = useState({
-    label: "",
-    dayFrom: "MO" as MaintenanceWeekday,
-    dayTo: "FR" as MaintenanceWeekday,
-    startTime: "22:00",
-    endTime: "05:00",
-  });
+  const [windowText, setWindowText] = useState("");
   const [contactDraft, setContactDraft] = useState({ firstName: "", lastName: "" });
   const [suggestionValue, setSuggestionValue] = useState("");
+  const [emailDraft, setEmailDraft] = useState("");
 
   useEffect(() => {
     const source = selectedRows.length > 1 ? selectedRows[0] ?? null : activeRow;
     setDraft(makeDraft(source));
   }, [activeRow, selectedRows]);
 
-  const addWindow = (window: MaintenanceWindow) => {
+  const addWindow = () => {
+    const label = windowText.trim();
+    if (!label) return;
     setDraft((current) => ({
       ...current,
-      windows: [...current.windows, { ...window, id: makeId("window") }],
+      windows: [...current.windows, { id: makeId("window"), label }],
     }));
+    setWindowText("");
   };
 
-  const addCustomWindow = () => {
-    const label = customWindow.label.trim() || `${customWindow.dayFrom}-${customWindow.dayTo} ${customWindow.startTime}-${customWindow.endTime}`;
-    addWindow({ ...customWindow, id: makeId("window"), label });
+  const addEmail = () => {
+    const email = emailDraft.trim();
+    if (!email || !email.includes("@")) return;
+    setDraft((current) => ({
+      ...current,
+      additionalEmails: [...(current.additionalEmails ?? []), email],
+    }));
+    setEmailDraft("");
   };
 
   const addContact = (contact: MaintenanceContact) => {
@@ -246,43 +256,17 @@ function AssignmentPanel({
 
         <div className="space-y-3">
           <Label>Wartungsfenster</Label>
-          <div className="flex flex-wrap gap-2">
-            {MAINTENANCE_WINDOW_PRESETS.map((preset) => (
-              <Button key={preset.presetId} type="button" variant="outline" size="sm" onClick={() => addWindow(preset)}>
-                <Plus className="mr-2 h-3.5 w-3.5" />
-                {preset.label}
-              </Button>
-            ))}
-          </div>
-          <div className="space-y-2">
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Input
-              placeholder="Label"
-              value={customWindow.label}
-              onChange={(event) => setCustomWindow((current) => ({ ...current, label: event.target.value }))}
+              placeholder="z. B. Werktags 22:00-05:00 Uhr"
+              value={windowText}
+              onChange={(event) => setWindowText(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addWindow(); } }}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <SelectBox
-                ariaLabel="Start-Wochentag"
-                value={customWindow.dayFrom}
-                onChange={(value) => setCustomWindow((current) => ({ ...current, dayFrom: value as MaintenanceWeekday }))}
-              >
-                {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-              </SelectBox>
-              <SelectBox
-                ariaLabel="End-Wochentag"
-                value={customWindow.dayTo}
-                onChange={(value) => setCustomWindow((current) => ({ ...current, dayTo: value as MaintenanceWeekday }))}
-              >
-                {WEEKDAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-              </SelectBox>
-            </div>
-            <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-              <Input type="time" value={customWindow.startTime} onChange={(event) => setCustomWindow((current) => ({ ...current, startTime: event.target.value }))} />
-              <Input type="time" value={customWindow.endTime} onChange={(event) => setCustomWindow((current) => ({ ...current, endTime: event.target.value }))} />
-              <Button type="button" variant="outline" size="icon" onClick={addCustomWindow} aria-label="Eigenes Wartungsfenster hinzufügen">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button type="button" variant="outline" onClick={addWindow} disabled={!windowText.trim()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Hinzufügen
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {draft.windows.length === 0 && <span className="text-sm text-muted-foreground">Keine Fenster hinterlegt.</span>}
@@ -349,6 +333,41 @@ function AssignmentPanel({
             ))}
           </div>
         </div>
+
+        <div className="space-y-3">
+          <Label>Zusätzliche Mail-Adressen</Label>
+          <p className="text-xs text-muted-foreground">
+            Weitere Empfänger neben den Verantwortlichen, z. B. Postkorb oder Teams-Kanal.
+          </p>
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <Input
+              type="email"
+              placeholder="postkorb@firma.at"
+              value={emailDraft}
+              onChange={(event) => setEmailDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addEmail(); } }}
+            />
+            <Button type="button" variant="outline" onClick={addEmail} disabled={!emailDraft.trim().includes("@")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Hinzufügen
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(draft.additionalEmails ?? []).length === 0 && <span className="text-sm text-muted-foreground">Keine zusätzlichen Adressen hinterlegt.</span>}
+            {(draft.additionalEmails ?? []).map((email, index) => (
+              <Badge key={`${email}-${index}`} variant="outline" className="gap-2 py-1 font-mono-data">
+                {email}
+                <button
+                  type="button"
+                  aria-label="Mail-Adresse entfernen"
+                  onClick={() => setDraft((current) => ({ ...current, additionalEmails: (current.additionalEmails ?? []).filter((_, i) => i !== index) }))}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -392,13 +411,14 @@ function MaintenanceMailDialog({
           from: periods[row.key]?.from ?? "",
           to: periods[row.key]?.to ?? "",
           contacts: row.contacts,
+          additionalEmails: row.additionalEmails,
         })),
         change,
         links,
       }),
     [change, contactName, links, maintenanceType, periods, rows, settings],
   );
-  const clustersWithoutContacts = rows.filter((row) => row.contacts.length === 0);
+  const clustersWithoutContacts = rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0);
 
   const copyTemplate = async () => {
     const text = [`Betreff: ${template.subject}`, `To: ${template.to.join("; ") || "—"}`, "", template.body].join("\n");
@@ -439,9 +459,9 @@ function MaintenanceMailDialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {clustersWithoutContacts.length > 0 && (
             <Alert variant="destructive" className="mb-5">
-              <AlertTitle>Verantwortliche fehlen</AlertTitle>
+              <AlertTitle>Empfänger fehlen</AlertTitle>
               <AlertDescription>
-                Ohne Verantwortliche wird keine To-Adresse erzeugt: {clustersWithoutContacts.map((row) => row.name).join(", ")}
+                Ohne Verantwortliche oder zusätzliche Mail-Adresse wird keine To-Adresse erzeugt: {clustersWithoutContacts.map((row) => row.name).join(", ")}
               </AlertDescription>
             </Alert>
           )}
@@ -620,7 +640,7 @@ export default function Wartungsankuendigung() {
     return rows.filter((row) => [
       row.name,
       row.type,
-      joinContacts(row.contacts),
+      joinRecipients(row),
       row.windows.map(formatMaintenanceWindow).join(" "),
     ].some((value) => value.toLowerCase().includes(q)));
   }, [filters.search, rows]);
@@ -630,7 +650,7 @@ export default function Wartungsankuendigung() {
     [rows, selectedKeys],
   );
   const activeRow = rows.find((row) => row.key === activeKey) ?? null;
-  const clustersWithoutContacts = selectedRows.filter((row) => row.contacts.length === 0).length;
+  const clustersWithoutContacts = selectedRows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length;
 
   const techContactSuggestions = useMemo(() => {
     const values = new Set<string>();
@@ -724,7 +744,7 @@ export default function Wartungsankuendigung() {
       accessorKey: "contacts",
       header: "Verantwortliche",
       cell: ({ row }) => {
-        const value = joinContacts(row.original.contacts);
+        const value = joinRecipients(row.original);
         return (
           <span className="block max-w-[160px] truncate" title={value}>
             {value}
@@ -741,6 +761,7 @@ export default function Wartungsankuendigung() {
       type: draft.type,
       windows: draft.windows,
       contacts: draft.contacts,
+      additionalEmails: draft.additionalEmails ?? [],
       updatedAt: new Date().toISOString(),
     })));
     toast.success(targetRows.length === 1 ? "Cluster-Zuweisung gespeichert." : "Cluster-Zuweisungen gespeichert.");
@@ -782,7 +803,7 @@ export default function Wartungsankuendigung() {
         <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} />
         <KpiCard title="Selektiert" value={formatNum(selectedRows.length)} />
         <KpiCard title="Spezial" value={formatNum(rows.filter((row) => row.type === "Spezial").length)} severity="warn" />
-        <KpiCard title="Ohne Verantwortliche" value={formatNum(rows.filter((row) => row.contacts.length === 0).length)} severity={rows.some((row) => row.contacts.length === 0) ? "warn" : "ok"} />
+        <KpiCard title="Ohne Empfänger" value={formatNum(rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length)} severity={rows.some((row) => row.contacts.length === 0 && row.additionalEmails.length === 0) ? "warn" : "ok"} />
       </div>
 
       {!settings.companyName && (
@@ -796,9 +817,9 @@ export default function Wartungsankuendigung() {
 
       {selectedRows.length > 0 && clustersWithoutContacts > 0 && (
         <Alert variant="destructive">
-          <AlertTitle>Auswahl enthält Cluster ohne Verantwortliche</AlertTitle>
+          <AlertTitle>Auswahl enthält Cluster ohne Empfänger</AlertTitle>
           <AlertDescription>
-            Prüfen Sie die Zuweisungen vor dem Erstellen der Mailvorlage.
+            Prüfen Sie die Zuweisungen (Verantwortliche oder zusätzliche Mail-Adresse) vor dem Erstellen der Mailvorlage.
           </AlertDescription>
         </Alert>
       )}

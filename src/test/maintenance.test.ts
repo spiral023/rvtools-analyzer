@@ -246,6 +246,39 @@ describe("maintenance mail template", () => {
     expect(template.body).toContain("LG,\nJörg Weiß");
   });
 
+  it("includes additional cluster emails (Postkorb/Teams) deduplicated in recipients", () => {
+    const template = buildMaintenanceMailTemplate({
+      maintenanceType: "ESXi Update",
+      settings: { firstName: "Jörg", lastName: "Weiß", companyName: "Müller IT" },
+      contactName: "Jörg Weiß",
+      clusters: [
+        {
+          clusterName: "CL-Prod",
+          clusterType: "Normal",
+          from: "2026-07-06T22:00",
+          to: "2026-07-07T05:00",
+          contacts: [{ firstName: "Max", lastName: "Mustermann" }],
+          additionalEmails: ["postkorb@muellerit.at", " postkorb@muellerit.at "],
+        },
+        {
+          clusterName: "CL-DMZ",
+          clusterType: "Normal",
+          from: "2026-07-06T22:00",
+          to: "2026-07-07T05:00",
+          contacts: [],
+          additionalEmails: ["teams-kanal.xyz@emea.teams.ms"],
+        },
+      ],
+      links: [],
+    });
+
+    expect(template.to).toEqual([
+      "max.mustermann@muellerit.at",
+      "postkorb@muellerit.at",
+      "teams-kanal.xyz@emea.teams.ms",
+    ]);
+  });
+
   it("omits the change block entirely when neither change id nor title is provided", () => {
     const template = buildMaintenanceMailTemplate({
       maintenanceType: "ESXi Update",

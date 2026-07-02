@@ -4,7 +4,6 @@ import type {
   MaintenanceClusterType,
   MaintenanceContact,
   MaintenanceSettings,
-  MaintenanceWeekday,
   MaintenanceWindow,
   NormalizedCluster,
   NormalizedHost,
@@ -19,37 +18,6 @@ export const DEFAULT_MAINTENANCE_SETTINGS: MaintenanceSettings = {
   companyName: "",
   updatedAt: "",
 };
-
-export const MAINTENANCE_WINDOW_PRESETS: MaintenanceWindow[] = [
-  {
-    id: "preset-weekdays-22-05",
-    presetId: "weekdays-22-05",
-    label: "Werktags 22-05 Uhr",
-    dayFrom: "MO",
-    dayTo: "FR",
-    startTime: "22:00",
-    endTime: "05:00",
-  },
-  {
-    id: "preset-weekend-18-05",
-    presetId: "weekend-18-05",
-    label: "SA 18 - MO 05 Uhr",
-    dayFrom: "SA",
-    dayTo: "MO",
-    startTime: "18:00",
-    endTime: "05:00",
-  },
-];
-
-export const WEEKDAY_OPTIONS: Array<{ value: MaintenanceWeekday; label: string }> = [
-  { value: "MO", label: "Montag" },
-  { value: "DI", label: "Dienstag" },
-  { value: "MI", label: "Mittwoch" },
-  { value: "DO", label: "Donnerstag" },
-  { value: "FR", label: "Freitag" },
-  { value: "SA", label: "Samstag" },
-  { value: "SO", label: "Sonntag" },
-];
 
 export type MaintenanceType = "ESXi Update" | "Hardware Wartung" | "Konfigurationsänderung";
 export type ChangeType = "Normal Change" | "Standard Change";
@@ -71,6 +39,7 @@ export interface MaintenanceClusterRow {
   type: MaintenanceClusterType;
   windows: MaintenanceWindow[];
   contacts: MaintenanceContact[];
+  additionalEmails: string[];
 }
 
 interface BuildMaintenanceRowsInput {
@@ -87,6 +56,7 @@ interface MailClusterInput {
   from: string;
   to: string;
   contacts: MaintenanceContact[];
+  additionalEmails?: string[];
 }
 
 interface BuildMaintenanceMailTemplateInput {
@@ -158,12 +128,17 @@ export function createDefaultAssignment(vcenterId: string, clusterName: string):
     type: "Normal",
     windows: [],
     contacts: [],
+    additionalEmails: [],
     updatedAt: new Date().toISOString(),
   };
 }
 
 export function formatMaintenanceWindow(window: MaintenanceWindow): string {
-  return `${window.label || `${window.dayFrom}-${window.dayTo} ${window.startTime}-${window.endTime}`}`;
+  if (window.label) return window.label;
+  if (window.dayFrom && window.dayTo && window.startTime && window.endTime) {
+    return `${window.dayFrom}-${window.dayTo} ${window.startTime}-${window.endTime}`;
+  }
+  return "—";
 }
 
 function isPoweredOn(powerState: string | null | undefined): boolean {
@@ -263,6 +238,7 @@ export function buildMaintenanceRows({
         type: assignment?.type ?? "Normal",
         windows: assignment?.windows ?? [],
         contacts: assignment?.contacts ?? [],
+        additionalEmails: assignment?.additionalEmails ?? [],
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" }));
@@ -302,14 +278,15 @@ export function buildMaintenanceMailTemplate({
 }: BuildMaintenanceMailTemplateInput): MaintenanceMailTemplate {
   const changeId = change?.id?.trim();
   const subject = `Wartungsankündigung: ${maintenanceType}${changeId ? ` - ${changeId}` : ""}`;
-  const to = [
-    ...new Set(
-      clusters
-        .flatMap((cluster) => cluster.contacts)
-        .map((contact) => deriveContactEmail(contact, settings.companyName))
-        .filter(Boolean),
-    ),
-  ].sort((a, b) => a.localeCompare(b, "de-DE", { sensitivity: "base" }));
+  const contactEmails = clusters
+    .flatMap((cluster) => cluster.contacts)
+    .map((contact) => deriveContactEmail(contact, settings.companyName));
+  const additionalEmails = clusters
+    .flatMap((cluster) => cluster.additionalEmails ?? [])
+    .map((email) => email.trim());
+  const to = [...new Set([...contactEmails, ...additionalEmails].filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "de-DE", { sensitivity: "base" }),
+  );
 
   const clusterLines = clusters.map(
     (cluster) =>

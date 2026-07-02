@@ -95,10 +95,11 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
     const className = diffDays !== null && diffDays > 14 ? "text-destructive font-semibold" : diffDays !== null && diffDays > 7 ? "text-warning" : "";
     return <span className={className}>{formatSinceCreation(value)}</span>;
   }},
-  { accessorKey: "sizeMiB", header: "Größe (MiB)", cell: ({ getValue }) => {
+  { accessorKey: "sizeMiB", header: "Größe (GiB)", cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";
-    return <span className={v > 51200 ? "text-destructive font-semibold" : v > 20480 ? "text-warning" : ""}>{v.toLocaleString("de-DE")}</span>;
+    const gib = v / 1024;
+    return <span className={v > 51200 ? "text-destructive font-semibold" : v > 20480 ? "text-warning" : ""}>{gib.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</span>;
   }},
   { accessorKey: "quiesced", header: "Quiesced", cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
 ];
