@@ -406,6 +406,19 @@ function MaintenanceMailDialog({
     toast.success("Mailvorlage in die Zwischenablage kopiert.");
   };
 
+  const openInMailClient = () => {
+    // mailto benötigt CRLF für korrekte Zeilenumbrüche in Outlook
+    const body = template.body.replace(/\n/g, "\r\n");
+    const params = new URLSearchParams({ subject: template.subject, body });
+    const mailto = `mailto:${encodeURIComponent(template.to.join(";"))}?${params.toString().replace(/\+/g, "%20")}`;
+
+    // Outlook/Windows kürzt sehr lange mailto-URLs still ab
+    if (mailto.length > 1900) {
+      toast.warning("Mail ist sehr lang – Outlook könnte den Text kürzen. Nutze im Zweifel „Kopieren“.");
+    }
+    window.location.href = mailto;
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
@@ -546,10 +559,16 @@ function MaintenanceMailDialog({
                     <span className="h-2 w-2 rounded-full bg-primary" />
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vorschau</span>
                   </div>
-                  <Button size="sm" onClick={() => void copyTemplate()}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Kopieren
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={openInMailClient}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      In Outlook öffnen
+                    </Button>
+                    <Button size="sm" onClick={() => void copyTemplate()}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Kopieren
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2.5 border-b border-border/60 px-4 py-3">
                   <div className="grid grid-cols-[3.25rem_1fr] items-baseline gap-2">
