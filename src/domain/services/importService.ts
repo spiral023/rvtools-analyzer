@@ -7,6 +7,11 @@ import {
   batchPutTechInfoRows,
   batchPutTechInfoLatest,
   getTechInfoLatestByVmNames,
+  getTechInfoClientImportByChecksum,
+  putTechInfoClientImport,
+  batchPutTechInfoClientRows,
+  batchPutTechInfoClientLatest,
+  getTechInfoClientLatestByClientNames,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -16,8 +21,10 @@ import {
   parseEsxVersionBuild,
   parseRvtoolsExportFileName,
   mapTechInfoDisplayFields,
+  mapTechInfoClientDisplayFields,
   normalizeVmNameForMatch,
   isTechInfoNewerOrEqual,
+  TECH_INFO_CLIENT_REQUIRED_HEADERS,
 } from "@/lib/xlsx/parseHelpers";
 import { shortId } from "@/lib/shortId";
 import type {
@@ -35,6 +42,8 @@ import type {
   WorkerParseResult,
   TechInfoLatest,
   TechInfoRow,
+  TechInfoClientLatest,
+  TechInfoClientRow,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -118,6 +127,35 @@ function findSheet(sheets: ParsedSheetData[], name: string): ParsedSheetData | u
 function findTechInfoSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
   return sheets.find((sheet) =>
     TECH_INFO_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+/** Anzeigespalten der Client-Doku. CPU min/max und RAM min/max werden bewusst nicht importiert. */
+const TECH_INFO_CLIENT_UI_HEADERS = [
+  "BLZ",
+  "Standort",
+  "IP",
+  "MAC Adresse",
+  "Poolname",
+  "Geändert von",
+  "Änderungsdatum",
+  "Erstellt von",
+  "Erstellungsdatum",
+  "User",
+  "Hardware",
+  "OS",
+  "Cluster",
+  "vCenter",
+  "Site",
+  "Insider",
+  "HW Änderungen",
+  "Monitoring",
+  "Domäne",
+] as const;
+
+function findTechInfoClientSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    TECH_INFO_CLIENT_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
   );
 }
 
@@ -303,6 +341,10 @@ export async function importRvtoolsXlsx(
 
     if (parsed.fileKind === "tech-info") {
       return importTechInfoXlsx(file, checksum, parsed, warnings, errors, report);
+    }
+
+    if (parsed.fileKind === "tech-info-client") {
+      return importTechInfoClientXlsx(file, checksum, parsed, warnings, errors, report);
     }
 
     return importRvtoolsParsed(file, checksum, parsed, warnings, errors, report, importStartedAt);
@@ -532,4 +574,107 @@ async function importTechInfoXlsx(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Tech-Info Zeilen`);
   return { success: true, fileKind: "tech-info", warnings, errors, sheetStats };
+}
+
+async function importTechInfoClientXlsx(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getTechInfoClientImportByChecksum(checksum);
+  if (existing) {
+    return {
+      success: false,
+      fileKind: "tech-info-client",
+      warnings: [],
+      errors: ["Diese Tech-Info-Client-Datei wurde bereits importiert."],
+    };
+  }
+
+  const clientSheet = findTechInfoClientSheet(parsed.sheets);
+  if (!clientSheet) {
+    return {
+      success: false,
+      fileKind: "tech-info-client",
+      warnings,
+      errors: [...errors, "Keine gültige Tech-Info-Client-Tabelle gefunden (erwartete Header: Name, BLZ, MAC Adresse, Poolname)."],
+    };
+  }
+
+  for (const header of TECH_INFO_CLIENT_UI_HEADERS) {
+    if (!clientSheet.headers.includes(header)) {
+      warnings.push(`Tech-Info-Client Spalte "${header}" fehlt. Wert wird als leer übernommen.`);
+    }
+  }
+
+  const importedAt = new Date().toISOString();
+  const techInfoClientImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [clientSheet.sheetName]: { rowCount: clientSheet.rows.length, columnCount: clientSheet.headers.length },
+  };
+
+  report("Tech-Info-Client Metadaten speichern", 35);
+  await putTechInfoClientImport({
+    techInfoClientImportId,
+    importedAt,
+    fileName: file.name,
+    fileChecksum: checksum,
+    sheetName: clientSheet.sheetName,
+    rowCount: clientSheet.rows.length,
+    columnCount: clientSheet.headers.length,
+  });
+
+  report("Tech-Info-Client Rohdaten speichern", 45, `${clientSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  const fullRows: TechInfoClientRow[] = [];
+  const latestCandidates = new Map<string, TechInfoClientLatest>();
+  for (let i = 0; i < clientSheet.rows.length; i++) {
+    const row = clientSheet.rows[i];
+    const clientName = toStr(row["Name"]);
+    if (!clientName) {
+      warnings.push(`Tech-Info-Client Zeile ${i + 1}: Name ist leer, Zeile wurde übersprungen.`);
+      continue;
+    }
+
+    const clientNameNorm = normalizeVmNameForMatch(clientName);
+    const mappedFields = mapTechInfoClientDisplayFields(row);
+    fullRows.push({
+      techInfoClientImportId,
+      rowIndex: i,
+      clientName,
+      clientNameNorm,
+      importedAt,
+      rawData: toRawRowData(row),
+    });
+
+    latestCandidates.set(clientNameNorm, {
+      clientNameNorm,
+      clientName,
+      importedAt,
+      techInfoClientImportId,
+      rowIndex: i,
+      ...mappedFields,
+    });
+  }
+
+  await batchPutTechInfoClientRows(fullRows, 5000);
+
+  report("Tech-Info-Client Latest aktualisieren", 75);
+  const clientNameNorms = [...latestCandidates.keys()];
+  const existingLatest = await getTechInfoClientLatestByClientNames(clientNameNorms);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.clientNameNorm, entry]));
+  const latestUpdates: TechInfoClientLatest[] = [];
+  for (const [clientNameNorm, candidate] of latestCandidates.entries()) {
+    const current = existingMap.get(clientNameNorm);
+    const shouldReplace = isTechInfoNewerOrEqual(candidate.importedAt, current?.importedAt);
+    if (shouldReplace) latestUpdates.push(candidate);
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutTechInfoClientLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Tech-Info-Client Zeilen`);
+  return { success: true, fileKind: "tech-info-client", warnings, errors, sheetStats };
 }

@@ -15,7 +15,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -26,6 +26,7 @@ const RVTOOLS_CANONICAL_SHEETS = new Set([
 ]);
 
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
+export const TECH_INFO_CLIENT_REQUIRED_HEADERS = ["Name", "BLZ", "MAC Adresse", "Poolname"] as const;
 
 export interface SheetShapeForDetection {
   sheetName: string;
@@ -47,6 +48,28 @@ export interface TechInfoDisplayFields {
   az: string | null;
 }
 
+export interface TechInfoClientDisplayFields {
+  blz: string | null;
+  standort: string | null;
+  ip: string | null;
+  macAddress: string | null;
+  poolName: string | null;
+  modifiedBy: string | null;
+  modifiedAt: string | null;
+  createdBy: string | null;
+  createdAt: string | null;
+  user: string | null;
+  hardware: string | null;
+  os: string | null;
+  cluster: string | null;
+  vcenter: string | null;
+  site: string | null;
+  insider: string | null;
+  hwChanges: string | null;
+  monitoring: string | null;
+  domain: string | null;
+}
+
 export interface ParsedEsxVersionBuild {
   version: string | null;
   build: string | null;
@@ -60,6 +83,11 @@ export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFi
     TECH_INFO_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
   );
   if (hasTechInfoHeaders) return "tech-info";
+
+  const hasTechInfoClientHeaders = sheets.some((sheet) =>
+    TECH_INFO_CLIENT_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasTechInfoClientHeaders) return "tech-info-client";
 
   return "rvtools";
 }
@@ -88,6 +116,31 @@ export function mapTechInfoDisplayFields(row: Record<string, unknown>): TechInfo
     clusterFromTechInfo: toStr(row["Schrankreihe"]),
     cvBackup: toBool(row["CV-Backup"]),
     az: toStr(row["AZ"]),
+  };
+}
+
+/** Mapping der Client-Doku-Spalten. CPU min/max und RAM min/max werden bewusst nicht übernommen (nicht mehr genutzt). */
+export function mapTechInfoClientDisplayFields(row: Record<string, unknown>): TechInfoClientDisplayFields {
+  return {
+    blz: toStr(row["BLZ"]),
+    standort: toStr(row["Standort"]),
+    ip: toStr(row["IP"]),
+    macAddress: toStr(row["MAC Adresse"]),
+    poolName: toStr(row["Poolname"]),
+    modifiedBy: toStr(row["Geändert von"]),
+    modifiedAt: toStr(row["Änderungsdatum"]),
+    createdBy: toStr(row["Erstellt von"]),
+    createdAt: toStr(row["Erstellungsdatum"]),
+    user: toStr(row["User"]),
+    hardware: toStr(row["Hardware"]),
+    os: toStr(row["OS"]),
+    cluster: toStr(row["Cluster"]),
+    vcenter: toStr(row["vCenter"]),
+    site: toStr(row["Site"]),
+    insider: toStr(row["Insider"]),
+    hwChanges: toStr(row["HW Änderungen"]),
+    monitoring: toStr(row["Monitoring"]),
+    domain: toStr(row["Domäne"]),
   };
 }
 

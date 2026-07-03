@@ -13,11 +13,14 @@ import type {
   TechInfoImportMeta,
   TechInfoRow,
   TechInfoLatest,
+  TechInfoClientImportMeta,
+  TechInfoClientRow,
+  TechInfoClientLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   Scenario,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -54,6 +57,21 @@ interface RVToolsDBSchema extends DBSchema {
     value: TechInfoLatest;
     indexes: { importedAt: string };
   };
+  techinfo_client_imports: {
+    key: string;
+    value: TechInfoClientImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  techinfo_client_rows: {
+    key: [string, number];
+    value: TechInfoClientRow;
+    indexes: { techInfoClientImportId: string; clientNameNorm: string };
+  };
+  techinfo_client_latest: {
+    key: string;
+    value: TechInfoClientLatest;
+    indexes: { importedAt: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -73,16 +91,19 @@ interface RVToolsDBSchema extends DBSchema {
 export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
-  | "techinfo_rows" | "techinfo_latest" | "maintenance_settings"
+  | "techinfo_rows" | "techinfo_latest"
+  | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
+  | "maintenance_settings"
   | "maintenance_cluster_assignments" | "scenarios";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 15;
+const DB_VERSION = 16;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
+  "techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "scenarios",
 ];
 
@@ -148,6 +169,20 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const latest = db.createObjectStore("techinfo_latest", { keyPath: "vmNameNorm" });
           latest.createIndex("importedAt", "importedAt");
         }
+        if (!db.objectStoreNames.contains("techinfo_client_imports")) {
+          const imports = db.createObjectStore("techinfo_client_imports", { keyPath: "techInfoClientImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("techinfo_client_rows")) {
+          const rows = db.createObjectStore("techinfo_client_rows", { keyPath: ["techInfoClientImportId", "rowIndex"] });
+          rows.createIndex("techInfoClientImportId", "techInfoClientImportId");
+          rows.createIndex("clientNameNorm", "clientNameNorm");
+        }
+        if (!db.objectStoreNames.contains("techinfo_client_latest")) {
+          const latest = db.createObjectStore("techinfo_client_latest", { keyPath: "clientNameNorm" });
+          latest.createIndex("importedAt", "importedAt");
+        }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
         }
@@ -197,6 +232,22 @@ export async function getTechInfoImports(): Promise<TechInfoImportMeta[]> {
 export async function putTechInfoImport(meta: TechInfoImportMeta): Promise<void> {
   const db = await getDb();
   await db.put("techinfo_imports", meta);
+}
+
+export async function getTechInfoClientImportByChecksum(checksum: string): Promise<TechInfoClientImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("techinfo_client_imports", "fileChecksum", checksum);
+}
+
+export async function getTechInfoClientImports(): Promise<TechInfoClientImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("techinfo_client_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+export async function putTechInfoClientImport(meta: TechInfoClientImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("techinfo_client_imports", meta);
 }
 
 export async function getUiState(id: string): Promise<UiState | undefined> {
@@ -362,6 +413,27 @@ export async function batchPutTechInfoLatest(items: TechInfoLatest[], batchSize 
   await batchPut("techinfo_latest", items, batchSize);
 }
 
+export async function getAllTechInfoClientLatest(): Promise<TechInfoClientLatest[]> {
+  const db = await getDb();
+  return db.getAll("techinfo_client_latest");
+}
+
+export async function getTechInfoClientLatestByClientNames(clientNames: string[]): Promise<TechInfoClientLatest[]> {
+  if (clientNames.length === 0) return [];
+  const db = await getDb();
+  const uniqueNorm = [...new Set(clientNames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
+  const values = await Promise.all(uniqueNorm.map((clientNameNorm) => db.get("techinfo_client_latest", clientNameNorm)));
+  return values.filter((v): v is TechInfoClientLatest => Boolean(v));
+}
+
+export async function batchPutTechInfoClientRows(items: TechInfoClientRow[], batchSize = 5000): Promise<void> {
+  await batchPut("techinfo_client_rows", items, batchSize);
+}
+
+export async function batchPutTechInfoClientLatest(items: TechInfoClientLatest[], batchSize = 5000): Promise<void> {
+  await batchPut("techinfo_client_latest", items, batchSize);
+}
+
 /* ---------- diagnostics ---------- */
 
 export interface StoreDiagnostics {
@@ -517,4 +589,53 @@ export async function deleteTechInfoImport(techInfoImportId: string): Promise<vo
   await db.delete("techinfo_imports", techInfoImportId);
   await deleteTechInfoRowsByImportId(techInfoImportId);
   await Promise.all(affectedVmNames.map((vmNameNorm) => rebuildTechInfoLatestForVm(vmNameNorm)));
+}
+
+async function deleteTechInfoClientRowsByImportId(techInfoClientImportId: string): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction("techinfo_client_rows", "readwrite");
+  const index = tx.store.index("techInfoClientImportId");
+  let cursor = await index.openCursor(techInfoClientImportId);
+  while (cursor) {
+    cursor.delete();
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+}
+
+function buildTechInfoClientLatestFromRow(row: TechInfoClientRow): TechInfoClientLatest {
+  return {
+    clientNameNorm: row.clientNameNorm,
+    clientName: row.clientName,
+    importedAt: row.importedAt,
+    techInfoClientImportId: row.techInfoClientImportId,
+    rowIndex: row.rowIndex,
+    ...mapTechInfoClientDisplayFields(row.rawData),
+  };
+}
+
+async function rebuildTechInfoClientLatestForClient(clientNameNorm: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("techinfo_client_rows", "clientNameNorm", clientNameNorm);
+  const latestRow = rows.reduce<TechInfoClientRow | null>((latest, row) => {
+    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
+    return latest;
+  }, null);
+
+  if (!latestRow) {
+    await db.delete("techinfo_client_latest", clientNameNorm);
+    return;
+  }
+
+  await db.put("techinfo_client_latest", buildTechInfoClientLatestFromRow(latestRow));
+}
+
+export async function deleteTechInfoClientImport(techInfoClientImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("techinfo_client_rows", "techInfoClientImportId", techInfoClientImportId);
+  const affectedClientNames = [...new Set(rows.map((row) => row.clientNameNorm).filter(Boolean))];
+
+  await db.delete("techinfo_client_imports", techInfoClientImportId);
+  await deleteTechInfoClientRowsByImportId(techInfoClientImportId);
+  await Promise.all(affectedClientNames.map((clientNameNorm) => rebuildTechInfoClientLatestForClient(clientNameNorm)));
 }

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames, useAllTechInfoClientLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -10,6 +10,7 @@ import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Monitor, ClipboardList, Link2Off } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
+import type { TechInfoClientLatest } from "@/domain/models/types";
 
 interface TechInfoVmRow {
   vmName: string;
@@ -63,6 +64,36 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
   { accessorKey: "az", header: "AZ", cell: ({ getValue }) => getValue() || "—" },
 ];
 
+function formatIsoDateTime(value: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+}
+
+const clientColumns: ColumnDef<TechInfoClientLatest, unknown>[] = [
+  { accessorKey: "clientName", header: "Name" },
+  { accessorKey: "blz", header: "BLZ", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "standort", header: "Standort", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "ip", header: "IP", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "macAddress", header: "MAC Adresse", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "poolName", header: "Poolname", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "modifiedBy", header: "Geändert von", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "modifiedAt", header: "Änderungsdatum", cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
+  { accessorKey: "createdBy", header: "Erstellt von", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "createdAt", header: "Erstellungsdatum", cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
+  { accessorKey: "user", header: "User", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "hardware", header: "Hardware", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "os", header: "OS", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "cluster", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vcenter", header: "vCenter", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "site", header: "Site", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "insider", header: "Insider", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "hwChanges", header: "HW Änderungen", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "monitoring", header: "Monitoring", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "domain", header: "Domäne", cell: ({ getValue }) => getValue() || "—" },
+];
+
 export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
@@ -81,6 +112,7 @@ export default function TechInfo() {
   );
 
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));
+  const { data: techInfoClients = [] } = useAllTechInfoClientLatest();
 
   const byVmName = useMemo(() => {
     const map = new Map<string, (typeof techInfoLatest)[number]>();
@@ -140,11 +172,27 @@ export default function TechInfo() {
     }).sort(byVmNameAsc);
   }, [rows, filters.search]);
 
+  const searchedClientRows = useMemo(() => {
+    const byClientNameAsc = (a: TechInfoClientLatest, b: TechInfoClientLatest) =>
+      a.clientName.localeCompare(b.clientName, "de-DE", { numeric: true, sensitivity: "base" });
+    const q = filters.search.trim().toLowerCase();
+    if (!q) return techInfoClients.slice().sort(byClientNameAsc);
+    return techInfoClients.filter((row) => {
+      const values = [
+        row.clientName, row.blz, row.standort, row.ip, row.macAddress, row.poolName,
+        row.modifiedBy, row.modifiedAt, row.createdBy, row.createdAt, row.user,
+        row.hardware, row.os, row.cluster, row.vcenter, row.site, row.insider,
+        row.hwChanges, row.monitoring, row.domain,
+      ];
+      return values.some((v) => String(v ?? "").toLowerCase().includes(q));
+    }).sort(byClientNameAsc);
+  }, [techInfoClients, filters.search]);
+
   const vmTotal = searchedRows.length;
   const vmWithTechInfo = searchedRows.filter((row) => row.hasTechInfo).length;
   const vmWithoutTechInfo = vmTotal - vmWithTechInfo;
 
-  if (snapshots.length === 0) {
+  if (snapshots.length === 0 && techInfoClients.length === 0) {
     return (
       <div className="space-y-6 animate-fade-in">
         <h1 className="text-2xl font-bold">Tech-Info</h1>
@@ -169,8 +217,16 @@ export default function TechInfo() {
         <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfo)} severity={vmWithoutTechInfo > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} />
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info ({searchedRows.length})</h3>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
         <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
+      </div>
+      <div>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info Clients ({searchedClientRows.length})</h3>
+        {techInfoClients.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
+        ) : (
+          <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" />
+        )}
       </div>
       {vmDetailDialog}
     </div>

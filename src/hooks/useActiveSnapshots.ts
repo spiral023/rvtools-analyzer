@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoClientLatest } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -149,6 +149,14 @@ export function useTechInfoLatestByVmNames(vmNames: string[], enabled = true) {
     queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
     queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
     enabled: enabled && normalizedVmNames.length > 0,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useAllTechInfoClientLatest() {
+  return useQuery({
+    queryKey: ["techInfoClientLatestAll"],
+    queryFn: getAllTechInfoClientLatest,
     staleTime: STALE_MS,
   });
 }

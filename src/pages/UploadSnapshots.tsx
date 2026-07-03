@@ -1,6 +1,6 @@
 import { useCallback, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport } from "@/data/db";
+import { getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport, getTechInfoClientImports, deleteTechInfoClientImport } from "@/data/db";
 import { importRvtoolsXlsx } from "@/domain/services/importService";
 import type { ImportProgress } from "@/domain/services/importService";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import type { ImportResult, SnapshotMeta, TechInfoImportMeta } from "@/domain/models/types";
+import type { ImportFileKind, ImportResult, SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta } from "@/domain/models/types";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
-  | { kind: "tech-info"; id: string; importedAt: string; techInfo: TechInfoImportMeta };
+  | { kind: "tech-info"; id: string; importedAt: string; techInfo: TechInfoImportMeta }
+  | { kind: "tech-info-client"; id: string; importedAt: string; techInfoClient: TechInfoClientImportMeta };
+
+function fileKindLabel(kind: ImportFileKind | undefined): string {
+  if (kind === "tech-info") return "Tech-Info Server";
+  if (kind === "tech-info-client") return "Tech-Info Client";
+  return "RVTools";
+}
 
 type UploadState = {
   importing: boolean;
@@ -48,7 +55,11 @@ function uploadReducer(state: UploadState, action: UploadAction): UploadState {
   }
 }
 
-function buildStoredUploads(snapshots: SnapshotMeta[], techInfoImports: TechInfoImportMeta[]): StoredUpload[] {
+function buildStoredUploads(
+  snapshots: SnapshotMeta[],
+  techInfoImports: TechInfoImportMeta[],
+  techInfoClientImports: TechInfoClientImportMeta[],
+): StoredUpload[] {
   return [
     ...snapshots.map((snapshot) => ({
       kind: "rvtools" as const,
@@ -61,6 +72,12 @@ function buildStoredUploads(snapshots: SnapshotMeta[], techInfoImports: TechInfo
       id: techInfo.techInfoImportId,
       importedAt: techInfo.importedAt,
       techInfo,
+    })),
+    ...techInfoClientImports.map((techInfoClient) => ({
+      kind: "tech-info-client" as const,
+      id: techInfoClient.techInfoClientImportId,
+      importedAt: techInfoClient.importedAt,
+      techInfoClient,
     })),
   ].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
@@ -81,8 +98,12 @@ export default function UploadSnapshots() {
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
     queryFn: async () => {
-      const [snapshots, techInfoImports] = await Promise.all([getSnapshots(), getTechInfoImports()]);
-      return buildStoredUploads(snapshots, techInfoImports);
+      const [snapshots, techInfoImports, techInfoClientImports] = await Promise.all([
+        getSnapshots(),
+        getTechInfoImports(),
+        getTechInfoClientImports(),
+      ]);
+      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports);
     },
   });
 
@@ -99,7 +120,7 @@ export default function UploadSnapshots() {
         dispatch({ type: "set-progress", value: { step: "Vorbereitung", percent: 0, detail: file.name } });
         const result = await importRvtoolsXlsx(file, (nextProgress) => dispatch({ type: "set-progress", value: nextProgress }));
         dispatch({ type: "set-last-result", value: result });
-        const kindLabel = result.fileKind === "tech-info" ? "Tech-Info" : "RVTools";
+        const kindLabel = fileKindLabel(result.fileKind);
         if (result.success) toast.success(`"${file.name}" (${kindLabel}) erfolgreich importiert.`);
         else toast.error(`Fehler bei "${file.name}" (${kindLabel}): ${result.errors.join(", ")}`);
       } catch (err) {
@@ -125,6 +146,12 @@ export default function UploadSnapshots() {
   const handleDeleteTechInfoImport = useCallback(async (techInfoImportId: string) => {
     await deleteTechInfoImport(techInfoImportId);
     toast.success("Tech-Info gelöscht.");
+    invalidateAll();
+  }, [invalidateAll]);
+
+  const handleDeleteTechInfoClientImport = useCallback(async (techInfoClientImportId: string) => {
+    await deleteTechInfoClientImport(techInfoClientImportId);
+    toast.success("Tech-Info Client gelöscht.");
     invalidateAll();
   }, [invalidateAll]);
 
@@ -174,7 +201,7 @@ export default function UploadSnapshots() {
       >
         <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple disabled={importing} className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools oder Tech-Info XLSX-Datei hierher ziehen oder klicken"}</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
       </label>
 
@@ -200,7 +227,7 @@ export default function UploadSnapshots() {
             <div className="flex items-center gap-2 mb-2">
               {lastResult.success ? <CheckCircle2 className="h-5 w-5 text-success" /> : <AlertCircle className="h-5 w-5 text-destructive" />}
               <span className="font-semibold text-sm">{lastResult.success ? "Import erfolgreich" : "Import fehlgeschlagen"}</span>
-              {lastResult.fileKind && <span className="text-xs text-muted-foreground">({lastResult.fileKind === "tech-info" ? "Tech-Info" : "RVTools"})</span>}
+              {lastResult.fileKind && <span className="text-xs text-muted-foreground">({fileKindLabel(lastResult.fileKind)})</span>}
             </div>
             {lastResult.sheetStats && (
               <p className="text-xs text-muted-foreground mb-2">
@@ -233,32 +260,38 @@ export default function UploadSnapshots() {
         ) : (
           <div className="space-y-2">
             {uploads.map((upload) => {
-              const isTechInfo = upload.kind === "tech-info";
-              const title = isTechInfo ? upload.techInfo.fileName : upload.snapshot.fileName;
-              const rowCount = isTechInfo
-                ? upload.techInfo.rowCount
-                : Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0);
-              const sheetCount = isTechInfo ? 1 : Object.keys(upload.snapshot.sheetStats).length;
+              const isRvtools = upload.kind === "rvtools";
+              const title = upload.kind === "rvtools"
+                ? upload.snapshot.fileName
+                : upload.kind === "tech-info"
+                  ? upload.techInfo.fileName
+                  : upload.techInfoClient.fileName;
+              const rowCount = upload.kind === "rvtools"
+                ? Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0)
+                : upload.kind === "tech-info"
+                  ? upload.techInfo.rowCount
+                  : upload.techInfoClient.rowCount;
+              const sheetCount = isRvtools ? Object.keys(upload.snapshot.sheetStats).length : 1;
 
               return (
                 <Card key={`${upload.kind}-${upload.id}`} className="group">
                   <CardContent className="flex items-center justify-between p-3">
                     <div className="flex items-center gap-3">
-                      <FileSpreadsheet className={`h-5 w-5 ${isTechInfo ? "text-info" : "text-primary"}`} />
+                      <FileSpreadsheet className={`h-5 w-5 ${isRvtools ? "text-primary" : "text-info"}`} />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-medium">{title}</p>
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            {isTechInfo ? "Tech-Info" : "RVTools"}
+                            {fileKindLabel(upload.kind)}
                           </span>
                         </div>
-                        {isTechInfo ? (
+                        {upload.kind === "rvtools" ? (
                           <p className="text-xs text-muted-foreground">
-                            Sheet: {upload.techInfo.sheetName} · Import: {new Date(upload.techInfo.importedAt).toLocaleString("de-DE")}
+                            vCenter: {upload.snapshot.vcenterDisplayName} · Export: {new Date(upload.snapshot.exportTs).toLocaleString("de-DE")} · Import: {new Date(upload.snapshot.importedAt).toLocaleString("de-DE")}
                           </p>
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            vCenter: {upload.snapshot.vcenterDisplayName} · Export: {new Date(upload.snapshot.exportTs).toLocaleString("de-DE")} · Import: {new Date(upload.snapshot.importedAt).toLocaleString("de-DE")}
+                            Sheet: {upload.kind === "tech-info" ? upload.techInfo.sheetName : upload.techInfoClient.sheetName} · Import: {new Date(upload.importedAt).toLocaleString("de-DE")}
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground">
@@ -271,10 +304,11 @@ export default function UploadSnapshots() {
                       size="icon"
                       className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
                       onClick={() => {
-                        if (isTechInfo) void handleDeleteTechInfoImport(upload.id);
+                        if (upload.kind === "tech-info") void handleDeleteTechInfoImport(upload.id);
+                        else if (upload.kind === "tech-info-client") void handleDeleteTechInfoClientImport(upload.id);
                         else void handleDeleteSnapshot(upload.id);
                       }}
-                      aria-label={isTechInfo ? "Tech-Info löschen" : "Snapshot löschen"}
+                      aria-label={isRvtools ? "Snapshot löschen" : `${fileKindLabel(upload.kind)} löschen`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

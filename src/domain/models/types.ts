@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -88,6 +88,52 @@ export interface TechInfoLatest {
   clusterFromTechInfo: string | null;
   cvBackup: boolean | null;
   az: string | null;
+}
+
+export interface TechInfoClientImportMeta {
+  techInfoClientImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  sheetName: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+export interface TechInfoClientRow {
+  techInfoClientImportId: string;
+  rowIndex: number;
+  clientName: string;
+  clientNameNorm: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface TechInfoClientLatest {
+  clientNameNorm: string;
+  clientName: string;
+  importedAt: string;
+  techInfoClientImportId: string;
+  rowIndex: number;
+  blz: string | null;
+  standort: string | null;
+  ip: string | null;
+  macAddress: string | null;
+  poolName: string | null;
+  modifiedBy: string | null;
+  modifiedAt: string | null;
+  createdBy: string | null;
+  createdAt: string | null;
+  user: string | null;
+  hardware: string | null;
+  os: string | null;
+  cluster: string | null;
+  vcenter: string | null;
+  site: string | null;
+  insider: string | null;
+  hwChanges: string | null;
+  monitoring: string | null;
+  domain: string | null;
 }
 
 export interface MaintenanceSettings {
