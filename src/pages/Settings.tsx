@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Save, Settings as SettingsIcon } from "lucide-react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { Download, Save, Settings as SettingsIcon, Upload } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,11 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMaintenanceSettings } from "@/hooks/useMaintenance";
 import { deriveSettingsEmail } from "@/lib/maintenance";
+import { applyUserDataBackup, collectUserDataBackup } from "@/domain/services/backupService";
+import {
+  buildBackupFileName,
+  parseUserDataBackup,
+  serializeUserDataBackup,
+} from "@/lib/backup/userDataBackup";
+import { downloadTextFile } from "@/lib/export/tableExport";
 import type { MaintenanceSettings } from "@/domain/models/types";
 
 export default function Settings() {
   const { settings, saveSettings, isSaving } = useMaintenanceSettings();
   const [form, setForm] = useState<MaintenanceSettings>(settings);
+  const queryClient = useQueryClient();
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   useEffect(() => {
     setForm(settings);
@@ -31,6 +42,48 @@ export default function Settings() {
       updatedAt: new Date().toISOString(),
     });
     toast.success("Settings gespeichert.");
+  };
+
+  const handleExport = async () => {
+    setIsTransferring(true);
+    try {
+      const backup = await collectUserDataBackup();
+      downloadTextFile(
+        serializeUserDataBackup(backup),
+        buildBackupFileName(new Date()),
+        "application/json;charset=utf-8",
+      );
+      toast.success("Backup exportiert.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export fehlgeschlagen.");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setIsTransferring(true);
+    try {
+      const backup = parseUserDataBackup(await file.text());
+      const result = await applyUserDataBackup(backup);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["maintenanceSettings"] }),
+        queryClient.invalidateQueries({ queryKey: ["maintenanceAssignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
+      ]);
+      toast.success(
+        `Backup importiert: ${result.settingsImported ? "Kontaktvorgaben, " : ""}` +
+          `${result.assignmentsImported} Cluster-Zuweisungen, ${result.scenariosImported} Szenarien.`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Import fehlgeschlagen.");
+    } finally {
+      setIsTransferring(false);
+    }
   };
 
   return (
@@ -99,6 +152,41 @@ export default function Settings() {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Datensicherung</CardTitle>
+          <CardDescription>
+            Exportiert Kontaktvorgaben, Cluster-Zuweisungen (Verantwortliche, Wartungsfenster,
+            Mail-Adressen) und Planungs-Szenarien als JSON-Datei. RVTools- und Tech-Info-Daten
+            sind nicht enthalten. Beim Import werden Einträge mit gleichem Schlüssel überschrieben,
+            alle übrigen bleiben erhalten.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={() => void handleExport()} disabled={isTransferring}>
+              <Download className="mr-2 h-4 w-4" />
+              Backup exportieren
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => importInputRef.current?.click()}
+              disabled={isTransferring}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Backup importieren
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => void handleImportFile(event)}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
