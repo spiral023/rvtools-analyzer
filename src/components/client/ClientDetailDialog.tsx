@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import {
   MonitorSmartphone,
   Cpu,
   Network as NetworkIcon,
   History,
+  Server,
   Copy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -15,22 +17,48 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import type { TechInfoClientLatest } from "@/domain/models/types";
+import type { NormalizedVm, SheetRow, TechInfoClientLatest } from "@/domain/models/types";
 import { buildClientDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatIsoDateTime } from "@/lib/clientDetail";
-
-function compactValue(value: string | null | undefined): string {
-  const v = (value || "").trim();
-  return v || "—";
-}
+import { matchRowsForVm } from "@/lib/vmDetail";
+import { compactValue } from "@/lib/vmDetailFormat";
+import { VmTechnicalSections } from "@/components/vm/VmTechnicalSections";
 
 interface ClientDetailDialogProps {
   client: TechInfoClientLatest | null;
+  vm: NormalizedVm | null;
   open: boolean;
   onClose: () => void;
+  rawCpuRows: SheetRow[];
+  rawMemoryRows: SheetRow[];
+  rawDiskRows: SheetRow[];
+  rawPartitionRows: SheetRow[];
+  rawNetworkRows: SheetRow[];
+  rawSnapshotRows: SheetRow[];
+  rawToolsRows: SheetRow[];
 }
 
-export function ClientDetailDialog({ client, open, onClose }: ClientDetailDialogProps) {
+export function ClientDetailDialog({
+  client,
+  vm,
+  open,
+  onClose,
+  rawCpuRows,
+  rawMemoryRows,
+  rawDiskRows,
+  rawPartitionRows,
+  rawNetworkRows,
+  rawSnapshotRows,
+  rawToolsRows,
+}: ClientDetailDialogProps) {
+  const cpuRows = useMemo(() => matchRowsForVm(rawCpuRows, vm), [rawCpuRows, vm]);
+  const memoryRows = useMemo(() => matchRowsForVm(rawMemoryRows, vm), [rawMemoryRows, vm]);
+  const diskRows = useMemo(() => matchRowsForVm(rawDiskRows, vm), [rawDiskRows, vm]);
+  const partitionRows = useMemo(() => matchRowsForVm(rawPartitionRows, vm), [rawPartitionRows, vm]);
+  const networkRows = useMemo(() => matchRowsForVm(rawNetworkRows, vm), [rawNetworkRows, vm]);
+  const snapshotRows = useMemo(() => matchRowsForVm(rawSnapshotRows, vm), [rawSnapshotRows, vm]);
+  const toolsRows = useMemo(() => matchRowsForVm(rawToolsRows, vm), [rawToolsRows, vm]);
+
   if (!client) return null;
 
   const copyMarkdown = async () => {
@@ -44,7 +72,7 @@ export function ClientDetailDialog({ client, open, onClose }: ClientDetailDialog
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
+      <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
         <Button
           type="button"
           variant="ghost"
@@ -180,6 +208,38 @@ export function ClientDetailDialog({ client, open, onClose }: ClientDetailDialog
                   </div>
                 ))}
               </div>
+            </section>
+
+            <Separator />
+
+            <section>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Server className="h-3.5 w-3.5" /> RVTools-Daten
+              </h4>
+              {vm ? (
+                <div className="space-y-6">
+                  <p className="text-xs text-muted-foreground">
+                    Verknüpft mit VM <span className="font-mono-data text-foreground">{vm.vmName}</span>
+                    {[vm.cluster, vm.host].filter(Boolean).length > 0
+                      ? ` · ${[vm.cluster, vm.host].filter(Boolean).join(" · ")}`
+                      : ""}
+                  </p>
+                  <VmTechnicalSections
+                    vm={vm}
+                    cpuRows={cpuRows}
+                    memoryRows={memoryRows}
+                    diskRows={diskRows}
+                    partitionRows={partitionRows}
+                    networkRows={networkRows}
+                    snapshotRows={snapshotRows}
+                    toolsRows={toolsRows}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Kein passendes System in den aktiven RVTools-Snapshots gefunden (kein VM-Name entspricht „{client.clientName}").
+                </p>
+              )}
             </section>
           </div>
         </div>

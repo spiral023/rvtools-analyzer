@@ -93,7 +93,7 @@ export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
-  const { openClientDetail, clientDetailDialog } = useClientDetailDialog();
+  const { openClientDetail, clientDetailDialog } = useClientDetailDialog(allVms);
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
 
   const scopeVms = useMemo(
