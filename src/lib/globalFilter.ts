@@ -9,9 +9,10 @@ import type {
   NormalizedVm,
   SheetRow,
   TechInfoLatest,
+  TechInfoClientLatest,
 } from "@/domain/models/types";
 
-export type VmRawFilterSource = Exclude<GlobalFilterSourceScope, "root" | "vm" | "techInfo">;
+export type VmRawFilterSource = Exclude<GlobalFilterSourceScope, "root" | "vm" | "techInfo" | "techInfoClient">;
 
 interface SerializedGlobalFilterPayload {
   type: "rvtools-global-filter";
@@ -22,6 +23,7 @@ interface SerializedGlobalFilterPayload {
 export interface VmGlobalFilterContextEntry {
   vm: NormalizedVm;
   techInfo: TechInfoLatest | null;
+  techInfoClient: TechInfoClientLatest | null;
   rawRowsBySource: Partial<Record<VmRawFilterSource, SheetRow[]>>;
 }
 
@@ -41,6 +43,7 @@ export const RAW_VM_FILTER_SOURCES: VmRawFilterSource[] = [
 export const ROOT_GROUP_SOURCE_OPTIONS: Exclude<GlobalFilterSourceScope, "root">[] = [
   "vm",
   "techInfo",
+  "techInfoClient",
   ...RAW_VM_FILTER_SOURCES,
 ];
 
@@ -48,6 +51,7 @@ export const SOURCE_LABELS: Record<GlobalFilterSourceScope, string> = {
   root: "Global",
   vm: "System",
   techInfo: "Tech-Info",
+  techInfoClient: "Tech-Info Clients",
   vInfo: "vInfo",
   vCPU: "CPU",
   vMemory: "Memory",
@@ -101,6 +105,26 @@ const TECH_INFO_FIELD_META: Record<string, Omit<GlobalFilterField, "source" | "k
   clusterFromTechInfo: { label: "Schrankreihe", dataType: "text" },
   cvBackup: { label: "CV-Backup", dataType: "boolean" },
   az: { label: "AZ", dataType: "text" },
+};
+
+const TECH_INFO_CLIENT_FIELD_META: Record<string, Omit<GlobalFilterField, "source" | "key">> = {
+  blz: { label: "BLZ", dataType: "text" },
+  standort: { label: "Standort", dataType: "text" },
+  ip: { label: "IP", dataType: "text" },
+  macAddress: { label: "MAC Adresse", dataType: "text" },
+  poolName: { label: "Poolname", dataType: "text" },
+  modifiedBy: { label: "Geändert von", dataType: "text" },
+  createdBy: { label: "Erstellt von", dataType: "text" },
+  user: { label: "User", dataType: "text" },
+  hardware: { label: "Hardware", dataType: "text" },
+  os: { label: "OS", dataType: "text" },
+  cluster: { label: "Cluster", dataType: "text" },
+  vcenter: { label: "vCenter", dataType: "text" },
+  site: { label: "Site", dataType: "text" },
+  insider: { label: "Insider", dataType: "text" },
+  hwChanges: { label: "HW Änderungen", dataType: "text" },
+  monitoring: { label: "Monitoring", dataType: "text" },
+  domain: { label: "Domäne", dataType: "text" },
 };
 
 export function createGlobalFilterGroup(
@@ -205,6 +229,7 @@ export function parseSerializedGlobalFilter(raw: string): GlobalFilterGroup {
 export function buildGlobalFilterFields(
   vms: NormalizedVm[],
   techInfos: TechInfoLatest[],
+  techInfoClients: TechInfoClientLatest[],
   rawRowsBySource: Partial<Record<VmRawFilterSource, SheetRow[]>>,
   rawFieldNamesBySource: Partial<Record<VmRawFilterSource, string[]>> = {},
 ): GlobalFilterField[] {
@@ -226,6 +251,11 @@ export function buildGlobalFilterFields(
   for (const key of Object.keys(TECH_INFO_FIELD_META)) {
     if (!techInfos.some((entry) => entry[key as keyof TechInfoLatest] !== undefined)) continue;
     addField({ source: "techInfo", key, ...TECH_INFO_FIELD_META[key] });
+  }
+
+  for (const key of Object.keys(TECH_INFO_CLIENT_FIELD_META)) {
+    if (!techInfoClients.some((entry) => entry[key as keyof TechInfoClientLatest] !== undefined)) continue;
+    addField({ source: "techInfoClient", key, ...TECH_INFO_CLIENT_FIELD_META[key] });
   }
 
   for (const source of RAW_VM_FILTER_SOURCES) {
@@ -308,7 +338,13 @@ function evaluateGroup(
 ): boolean {
   if (group.children.length === 0) return true;
 
-  if (group.sourceScope !== "root" && group.sourceScope !== "vm" && group.sourceScope !== "techInfo" && !sourceRow) {
+  if (
+    group.sourceScope !== "root" &&
+    group.sourceScope !== "vm" &&
+    group.sourceScope !== "techInfo" &&
+    group.sourceScope !== "techInfoClient" &&
+    !sourceRow
+  ) {
     const rows = context.rawRowsBySource[group.sourceScope] ?? [];
     if (rows.length === 0) return false;
     return rows.some((row) => {
@@ -358,6 +394,10 @@ function evaluateRule(
 
   if (group.sourceScope === "techInfo") {
     return evaluateValue((context.techInfo as Record<string, unknown> | null)?.[rule.field], field, rule);
+  }
+
+  if (group.sourceScope === "techInfoClient") {
+    return evaluateValue((context.techInfoClient as Record<string, unknown> | null)?.[rule.field], field, rule);
   }
 
   const rows = context.rawRowsBySource[group.sourceScope] ?? [];

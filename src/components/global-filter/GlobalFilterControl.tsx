@@ -55,7 +55,7 @@ import { ClipboardCopy, ClipboardPaste, Filter, Plus, Trash2 } from "lucide-reac
 const RVTOOLS_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = [
   "vm", "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork", "vSnapshot", "vTools", "vCD", "vUSB",
 ];
-const TECHINFO_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = ["techInfo"];
+const TECHINFO_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = ["techInfo", "techInfoClient"];
 
 const TEXT_OPERATORS: { value: GlobalFilterOperator; label: string }[] = [
   { value: "eq", label: "ist" },

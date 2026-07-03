@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GlobalFilterGroup, NormalizedVm, SheetRow, TechInfoLatest } from "@/domain/models/types";
+import type { GlobalFilterGroup, NormalizedVm, SheetRow, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
 import {
   buildGlobalFilterFields,
   buildVmJoinKey,
@@ -66,6 +66,36 @@ function makeTechInfo(overrides: Partial<TechInfoLatest> = {}): TechInfoLatest {
   };
 }
 
+function makeTechInfoClient(overrides: Partial<TechInfoClientLatest> = {}): TechInfoClientLatest {
+  return {
+    clientNameNorm: "bank-app-01",
+    clientName: "bank-app-01",
+    importedAt: "2026-04-02T10:00:00.000Z",
+    techInfoClientImportId: "tech-client-1",
+    rowIndex: 1,
+    blz: "12345",
+    standort: "Linz",
+    ip: "10.10.0.42",
+    macAddress: "00:50:56:AA:BB:CC",
+    poolName: "Pool-Standard",
+    modifiedBy: "Max Mustermann",
+    modifiedAt: "2026-06-15T10:30:00.000Z",
+    createdBy: "Erika Musterfrau",
+    createdAt: "2025-01-20T09:00:00.000Z",
+    user: "muster.max",
+    hardware: "Virtuell",
+    os: "Windows 11",
+    cluster: "VDI-Cluster-A",
+    vcenter: "vcenter01",
+    site: "RZ1",
+    insider: "Ja",
+    hwChanges: null,
+    monitoring: "Aktiv",
+    domain: "example.local",
+    ...overrides,
+  };
+}
+
 function makeRow(sheetName: string, data: SheetRow["data"]): SheetRow {
   return {
     snapshotId: "snap-1",
@@ -81,17 +111,19 @@ function makeRow(sheetName: string, data: SheetRow["data"]): SheetRow {
 function makeContext(partitionRows: SheetRow[] = [], diskRows: SheetRow[] = []) {
   const vm = makeVm();
   const techInfo = makeTechInfo();
+  const techInfoClient = makeTechInfoClient();
   const rawRowsBySource = {
     vPartition: partitionRows,
     vDisk: diskRows,
   };
-  const fields = buildGlobalFilterFields([vm], [techInfo], rawRowsBySource);
+  const fields = buildGlobalFilterFields([vm], [techInfo], [techInfoClient], rawRowsBySource);
 
   return {
     fields,
     context: {
       vm,
       techInfo,
+      techInfoClient,
       rawRowsBySource,
     },
   };
@@ -130,6 +162,55 @@ describe("global filter evaluator", () => {
     };
 
     expect(evaluateGlobalFilter(filter, context, fields)).toBe(true);
+  });
+
+  it("filters systems by joined Tech-Info client fields", () => {
+    const { fields, context } = makeContext();
+    const filter: GlobalFilterGroup = {
+      id: "root",
+      type: "group",
+      operator: "and",
+      sourceScope: "root",
+      children: [
+        {
+          id: "client",
+          type: "group",
+          operator: "and",
+          sourceScope: "techInfoClient",
+          children: [
+            { id: "r1", type: "rule", field: "poolName", operator: "contains", value: "Standard" },
+            { id: "r2", type: "rule", field: "os", operator: "eq", value: "Windows 11" },
+          ],
+        },
+      ],
+    };
+
+    expect(evaluateGlobalFilter(filter, context, fields)).toBe(true);
+    expect(fields.some((field) => field.source === "techInfoClient" && field.key === "poolName")).toBe(true);
+  });
+
+  it("excludes systems without a matching client record", () => {
+    const { fields } = makeContext();
+    const context = { vm: makeVm(), techInfo: makeTechInfo(), techInfoClient: null, rawRowsBySource: {} };
+    const filter: GlobalFilterGroup = {
+      id: "root",
+      type: "group",
+      operator: "and",
+      sourceScope: "root",
+      children: [
+        {
+          id: "client",
+          type: "group",
+          operator: "and",
+          sourceScope: "techInfoClient",
+          children: [
+            { id: "r1", type: "rule", field: "poolName", operator: "contains", value: "Standard" },
+          ],
+        },
+      ],
+    };
+
+    expect(evaluateGlobalFilter(filter, context, fields)).toBe(false);
   });
 
   it("supports wildcard text matching", () => {
@@ -217,8 +298,9 @@ describe("global filter evaluator", () => {
   it("supports boolean and empty/not-empty checks", () => {
     const vm = makeVm({ annotation: "", efiSecureBoot: true });
     const techInfo = makeTechInfo();
-    const fields = buildGlobalFilterFields([vm], [techInfo], {});
-    const context = { vm, techInfo, rawRowsBySource: {} };
+    const techInfoClient = makeTechInfoClient();
+    const fields = buildGlobalFilterFields([vm], [techInfo], [techInfoClient], {});
+    const context = { vm, techInfo, techInfoClient, rawRowsBySource: {} };
 
     const filter: GlobalFilterGroup = {
       id: "root",
@@ -315,7 +397,7 @@ describe("global filter evaluator", () => {
 
   it("adds lightweight raw field names without requiring raw rows", () => {
     const vm = makeVm();
-    const fields = buildGlobalFilterFields([vm], [], {}, { vDisk: ["VM", "Capacity MiB"] });
+    const fields = buildGlobalFilterFields([vm], [], [], {}, { vDisk: ["VM", "Capacity MiB"] });
 
     expect(fields).toEqual(
       expect.arrayContaining([

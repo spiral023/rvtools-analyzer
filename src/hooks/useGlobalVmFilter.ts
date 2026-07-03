@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { getBySnapshotIds, getRawSheetFieldNames, getRawSheetRows, getSnapshots, getTechInfoLatestByVmNames } from "@/data/db";
+import { getBySnapshotIds, getRawSheetFieldNames, getRawSheetRows, getSnapshots, getTechInfoLatestByVmNames, getTechInfoClientLatestByClientNames } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import {
   buildGlobalFilterFields,
@@ -77,6 +77,13 @@ export function useGlobalVmFilterEngine(
     staleTime: STALE_MS,
   });
 
+  const { data: techInfoClientLatest = [] } = useQuery({
+    queryKey: ["techInfoClientLatestByClientNames", normalizedVmNames],
+    queryFn: () => getTechInfoClientLatestByClientNames(normalizedVmNames),
+    enabled: enabled && normalizedVmNames.length > 0,
+    staleTime: STALE_MS,
+  });
+
   const referencedRawSources = useMemo(
     () => collectReferencedRawFilterSources(filters.globalFilter, previewFilter),
     [filters.globalFilter, previewFilter],
@@ -133,6 +140,7 @@ export function useGlobalVmFilterEngine(
 
   const contexts = useMemo(() => {
     const techInfoByVmName = new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry]));
+    const techInfoClientByClientName = new Map(techInfoClientLatest.map((entry) => [entry.clientNameNorm, entry]));
     const rowsBySourceAndJoinKey = RAW_VM_FILTER_SOURCES.reduce<Record<VmRawFilterSource, Map<string, SheetRow[]>>>(
       (acc, source) => {
         const grouped = new Map<string, SheetRow[]>();
@@ -158,14 +166,15 @@ export function useGlobalVmFilterEngine(
       return {
         vm,
         techInfo: techInfoByVmName.get(vm.vmName.trim().toLowerCase()) ?? null,
+        techInfoClient: techInfoClientByClientName.get(vm.vmName.trim().toLowerCase()) ?? null,
         rawRowsBySource: perSource,
       };
     });
-  }, [allVms, rawRowsBySource, techInfoLatest]);
+  }, [allVms, rawRowsBySource, techInfoLatest, techInfoClientLatest]);
 
   const fields = useMemo(
-    () => buildGlobalFilterFields(allVms, techInfoLatest, rawRowsBySource, rawFieldNamesBySource),
-    [allVms, rawFieldNamesBySource, rawRowsBySource, techInfoLatest],
+    () => buildGlobalFilterFields(allVms, techInfoLatest, techInfoClientLatest, rawRowsBySource, rawFieldNamesBySource),
+    [allVms, rawFieldNamesBySource, rawRowsBySource, techInfoLatest, techInfoClientLatest],
   );
 
   const matchingVmKeys = useMemo(() => {

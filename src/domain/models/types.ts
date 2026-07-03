@@ -305,6 +305,7 @@ export type GlobalFilterSourceScope =
   | "root"
   | "vm"
   | "techInfo"
+  | "techInfoClient"
   | "vInfo"
   | "vCPU"
   | "vMemory"
