@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedCluster, NormalizedDatastore, NormalizedHost, NormalizedVm } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedDatastore, NormalizedHost, NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
 import {
+  buildClientDetailMarkdown,
   buildClusterDetailMarkdown,
   buildHostDetailMarkdown,
   buildVmDetailMarkdown,
@@ -117,6 +118,33 @@ const datastore: NormalizedDatastore = {
   siocEnabled: true,
 };
 
+const techInfoClient: TechInfoClientLatest = {
+  clientNameNorm: "vdi-client-01",
+  clientName: "VDI-CLIENT-01",
+  importedAt: "2026-06-30T08:00:00.000Z",
+  techInfoClientImportId: "import-1",
+  rowIndex: 1,
+  blz: "12345",
+  standort: "Linz",
+  ip: "10.10.0.42",
+  macAddress: "00:50:56:AA:BB:CC",
+  poolName: "Pool-Standard",
+  modifiedBy: "Max Mustermann",
+  modifiedAt: "2026-06-15T10:30:00.000Z",
+  createdBy: "Erika Musterfrau",
+  createdAt: "2025-01-20T09:00:00.000Z",
+  user: "muster.max",
+  hardware: "Virtuell",
+  os: "Windows 11",
+  cluster: "VDI-Cluster-A",
+  vcenter: "vcenter01",
+  site: "RZ1",
+  insider: "Ja",
+  hwChanges: null,
+  monitoring: "Aktiv",
+  domain: "example.local",
+};
+
 describe("detail markdown builders", () => {
   it("builds a readable VM detail summary", () => {
     const markdown = buildVmDetailMarkdown(vm, {
@@ -145,6 +173,18 @@ describe("detail markdown builders", () => {
     expect(markdown).toContain("| RAM | 512.0 GiB |");
     expect(markdown).toContain("## Laufende VMs");
     expect(markdown).toContain("| APP-01 | poweredOn | 4 | 8.0 GiB |");
+  });
+
+  it("builds a client detail summary from tech-info data", () => {
+    const markdown = buildClientDetailMarkdown(techInfoClient);
+
+    expect(markdown).toContain("# Client VDI-CLIENT-01");
+    expect(markdown).toContain("| Standort | Linz |");
+    expect(markdown).toContain("| Poolname | Pool-Standard |");
+    expect(markdown).toContain("| IP | 10.10.0.42 |");
+    expect(markdown).toContain("| MAC Adresse | 00:50:56:AA:BB:CC |");
+    expect(markdown).toContain("| HW Änderungen | — |");
+    expect(markdown).toContain("## Verwaltung");
   });
 
   it("builds a cluster detail summary with capacity and inventory", () => {

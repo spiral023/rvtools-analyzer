@@ -4,8 +4,10 @@ import type {
   NormalizedHost,
   NormalizedVm,
   SheetRow,
+  TechInfoClientLatest,
 } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
+import { formatIsoDateTime } from "@/lib/clientDetail";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 
 type DetailVm = NormalizedVm & {
@@ -185,6 +187,41 @@ export function buildVmDetailMarkdown(vm: DetailVm, data: VmMarkdownData): strin
         row.data["Quiesced"],
       ]),
     ),
+  ].join("\n");
+}
+
+export function buildClientDetailMarkdown(client: TechInfoClientLatest): string {
+  return [
+    `# Client ${client.clientName}`,
+    "",
+    section("Basis & Identität", [
+      ["BLZ", client.blz],
+      ["Standort", client.standort],
+      ["Site", client.site],
+      ["Cluster", client.cluster],
+      ["vCenter", client.vcenter],
+      ["Domäne", client.domain],
+      ["Poolname", client.poolName],
+      ["User", client.user],
+      ["Insider", client.insider],
+    ]),
+    section("Hardware & System", [
+      ["Hardware", client.hardware],
+      ["OS", client.os],
+      ["HW Änderungen", client.hwChanges],
+      ["Monitoring", client.monitoring],
+    ]),
+    section("Netzwerk", [
+      ["IP", client.ip],
+      ["MAC Adresse", client.macAddress],
+    ]),
+    section("Verwaltung", [
+      ["Erstellt von", client.createdBy],
+      ["Erstellungsdatum", formatIsoDateTime(client.createdAt)],
+      ["Geändert von", client.modifiedBy],
+      ["Änderungsdatum", formatIsoDateTime(client.modifiedAt)],
+      ["Datenstand (Import)", formatIsoDateTime(client.importedAt)],
+    ]),
   ].join("\n");
 }
 

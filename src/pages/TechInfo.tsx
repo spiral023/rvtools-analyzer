@@ -7,9 +7,11 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
+import { useClientDetailDialog } from "@/hooks/useClientDetailDialog";
 import { Monitor, ClipboardList, Link2Off } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
+import { formatIsoDateTime } from "@/lib/clientDetail";
 import type { TechInfoClientLatest } from "@/domain/models/types";
 
 interface TechInfoVmRow {
@@ -64,13 +66,6 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
   { accessorKey: "az", header: "AZ", cell: ({ getValue }) => getValue() || "—" },
 ];
 
-function formatIsoDateTime(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
-}
-
 const clientColumns: ColumnDef<TechInfoClientLatest, unknown>[] = [
   { accessorKey: "clientName", header: "Name" },
   { accessorKey: "blz", header: "BLZ", cell: ({ getValue }) => getValue() || "—" },
@@ -98,6 +93,7 @@ export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
+  const { openClientDetail, clientDetailDialog } = useClientDetailDialog();
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
 
   const scopeVms = useMemo(
@@ -225,10 +221,11 @@ export default function TechInfo() {
         {techInfoClients.length === 0 ? (
           <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
         ) : (
-          <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" />
+          <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
         )}
       </div>
       {vmDetailDialog}
+      {clientDetailDialog}
     </div>
   );
 }
