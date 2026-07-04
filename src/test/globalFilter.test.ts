@@ -7,6 +7,7 @@ import {
   evaluateGlobalFilter,
   parseSerializedGlobalFilter,
   serializeGlobalFilter,
+  type VmGlobalFilterContextEntry,
 } from "@/lib/globalFilter";
 
 function makeVm(overrides: Partial<NormalizedVm> = {}): NormalizedVm {
@@ -191,7 +192,7 @@ describe("global filter evaluator", () => {
 
   it("excludes systems without a matching client record", () => {
     const { fields } = makeContext();
-    const context = { vm: makeVm(), techInfo: makeTechInfo(), techInfoClient: null, rawRowsBySource: {} };
+    const context: VmGlobalFilterContextEntry = { vm: makeVm(), techInfo: makeTechInfo(), techInfoClient: null, rawRowsBySource: {} };
     const filter: GlobalFilterGroup = {
       id: "root",
       type: "group",

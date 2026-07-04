@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useVms, useRawSheet, useHosts, useDatastores } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useVms, useRawSheet, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -8,7 +8,7 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Gauge, MemoryStick, Activity, Network, Shield, Zap } from "lucide-react";
+import { Gauge, MemoryStick, Activity, Network, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
@@ -148,16 +148,6 @@ export default function PerformancePage() {
       return e;
     });
   }, [entitlementGaps, filteredRawVMemory]);
-
-  // FT Latency
-  const ftVms = useMemo<FtRow[]>(() => {
-    return vms.filter((v) => v.powerState === "poweredOn").map((v) => {
-      const raw = filteredRawVCPU.find((r) => String(r.data["VM"]) === v.vmName);
-      if (!raw) return null;
-      // FT data is in vInfo
-      return null;
-    }).filter(Boolean) as FtRow[];
-  }, [vms, filteredRawVCPU]);
 
   // Actually get FT from raw vInfo
   const { data: rawVInfo = [] } = useRawSheet("vInfo");

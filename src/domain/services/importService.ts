@@ -104,6 +104,14 @@ const RAW_SHEET_ALLOWLIST: ReadonlySet<string> = new Set([
   "dvPort", "vSC_VMK", "vDatastore", "vLicense", "vMultiPath",
 ]);
 
+interface PersistRawSheetRowsOptions {
+  sheets: ParsedSheetData[];
+  snapshotId: string;
+  batchSize?: number;
+  putBatch?: (rows: SheetRow[]) => Promise<void>;
+  onBatchPersisted?: (persistedRows: number) => void;
+}
+
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
 const TECH_INFO_UI_HEADERS = [
   "Servertyp",
@@ -171,6 +179,42 @@ function toRawRowData(row: Record<string, unknown>): Record<string, string | num
     out[key] = toRawCellValue(val);
   }
   return out;
+}
+
+export async function persistAllowedRawSheetRows({
+  sheets,
+  snapshotId,
+  batchSize = 5000,
+  putBatch = (rows) => batchPut("rawSheets", rows, batchSize),
+  onBatchPersisted,
+}: PersistRawSheetRowsOptions): Promise<number> {
+  let batch: SheetRow[] = [];
+  let persistedRows = 0;
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    const currentBatch = batch;
+    batch = [];
+    await putBatch(currentBatch);
+    persistedRows += currentBatch.length;
+    onBatchPersisted?.(persistedRows);
+  };
+
+  for (const sheet of sheets) {
+    if (!RAW_SHEET_ALLOWLIST.has(sheet.sheetName)) continue;
+    for (let i = 0; i < sheet.rows.length; i++) {
+      batch.push({
+        snapshotId,
+        sheetName: sheet.sheetName,
+        rowIndex: i,
+        data: toRawRowData(sheet.rows[i]),
+      });
+      if (batch.length >= batchSize) await flush();
+    }
+  }
+
+  await flush();
+  return persistedRows;
 }
 
 /* ---------- normalizers (rvtools) ---------- */
@@ -402,31 +446,24 @@ async function importRvtoolsParsed(
   report("Metadaten speichern", 35);
   await putSnapshot(snapshotMeta);
 
-  const CHUNK = 5000;
-  const rawRows: SheetRow[] = [];
-  for (const sheet of parsed.sheets) {
-    if (!RAW_SHEET_ALLOWLIST.has(sheet.sheetName)) continue;
-    for (let i = 0; i < sheet.rows.length; i++) {
-      rawRows.push({
-        snapshotId,
-        sheetName: sheet.sheetName,
-        rowIndex: i,
-        data: sheet.rows[i] as Record<string, string | number | boolean | null>,
-      });
-    }
-  }
-  report("Rohdaten speichern", 40, `${rawRows.length.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
+  const rawRowsTotal = parsed.sheets.reduce(
+    (sum, sheet) => sum + (RAW_SHEET_ALLOWLIST.has(sheet.sheetName) ? sheet.rows.length : 0),
+    0,
+  );
+  report("Rohdaten speichern", 40, `${rawRowsTotal.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
 
-  for (let i = 0; i < rawRows.length; i += CHUNK) {
-    const batch = rawRows.slice(i, i + CHUNK);
-    await batchPut("rawSheets", batch, CHUNK);
-    const pct = 40 + Math.round((i / Math.max(rawRows.length, 1)) * 30);
-    report(
-      "Rohdaten speichern",
-      Math.min(pct, 69),
-      `${Math.min(i + CHUNK, rawRows.length).toLocaleString("de-DE")} / ${rawRows.length.toLocaleString("de-DE")}`,
-    );
-  }
+  await persistAllowedRawSheetRows({
+    sheets: parsed.sheets,
+    snapshotId,
+    onBatchPersisted: (persistedRows) => {
+      const pct = 40 + Math.round((persistedRows / Math.max(rawRowsTotal, 1)) * 30);
+      report(
+        "Rohdaten speichern",
+        Math.min(pct, 69),
+        `${persistedRows.toLocaleString("de-DE")} / ${rawRowsTotal.toLocaleString("de-DE")}`,
+      );
+    },
+  });
 
   report("Normalisieren", 70, "VMs...");
   const vms = normalizeVms(findSheet(parsed.sheets, "vInfo"), snapshotId, vcenterId);

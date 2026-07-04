@@ -97,7 +97,9 @@ http://localhost:5173
 | `npm run build:dev` | Development-Build |
 | `npm run preview` | Gebauten Stand lokal prüfen |
 | `npm run test` | Vitest-Tests ausführen |
+| `npm run test:coverage` | Vitest-Tests mit V8-Coverage ausführen |
 | `npm run lint` | ESLint ausführen |
+| `npm run typecheck` | TypeScript-Projektprüfung ohne Emit |
 | `npm run cf:login` | Cloudflare-Login via Wrangler |
 | `npm run cf:pages:create` | Cloudflare-Pages-Projekt `rvtools` anlegen |
 | `npm run cf:pages:deploy` | Production-Deploy nach Cloudflare Pages |
@@ -246,10 +248,12 @@ npm run cf:pages:deploy:preview
 | Check | Erwartung |
 |---|---|
 | `npm run test` | Tests mit Vitest ausführen |
+| `npm run test:coverage` | Coverage für Logik-/Datenbereiche erzeugen |
 | `npm run lint` | ESLint ausführen und neue Lint-Probleme vermeiden |
+| `npm run typecheck` | TypeScript-Gate ausführen (`noImplicitAny` ist aktiv) |
 | `npm run build` | Production-Build prüfen, besonders bei Änderungen an Build, Routing oder Hosting |
 
-Bekannte bestehende Lint-Themen können u. a. `no-explicit-any`, `no-empty-object-type` und `no-require-imports` betreffen. Neue Änderungen sollten keine zusätzlichen Probleme einführen.
+Aktueller lokaler Stand vom 05.07.2026: `npm run test` und `npm run test:coverage` laufen mit 17 Testdateien und 81 Tests grün; `npm run lint` läuft ohne Warnungen oder Fehler.
 
 ## Entwicklungsregeln
 

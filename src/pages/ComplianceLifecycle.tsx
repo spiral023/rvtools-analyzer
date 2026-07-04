@@ -13,7 +13,7 @@ import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wif
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "@/components/charts/recharts";
 import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
-import { buildHostDetails, bool, num, str, type HostDetail } from "@/lib/conversion";
+import { buildHostDetails, type HostDetail } from "@/lib/conversion";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 

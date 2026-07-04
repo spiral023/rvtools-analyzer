@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSnapshots } from "@/domain/services/importService";
+import { persistAllowedRawSheetRows, normalizeSnapshots } from "@/domain/services/importService";
 import type { ParsedSheetData } from "@/domain/models/types";
 
 function sheet(rows: Record<string, unknown>[]): ParsedSheetData {
@@ -29,5 +29,39 @@ describe("normalizeSnapshots", () => {
   it("keeps legacy fallback columns for sizeMiB", () => {
     const result = normalizeSnapshots(sheet([{ VM: "srv-app-02", "Size MiB": 512 }]), "snap-1", "vc-1");
     expect(result[0].sizeMiB).toBe(512);
+  });
+});
+
+describe("persistAllowedRawSheetRows", () => {
+  it("persists raw sheet rows in bounded batches", async () => {
+    const sheets: ParsedSheetData[] = [
+      {
+        sheetName: "vInfo",
+        headers: ["VM"],
+        rows: [
+          { VM: "APP01" },
+          { VM: "APP02" },
+          { VM: "APP03" },
+        ],
+      },
+      {
+        sheetName: "vUnknown",
+        headers: ["Ignored"],
+        rows: [{ Ignored: "x" }],
+      },
+    ];
+    const batches: number[] = [];
+
+    const persisted = await persistAllowedRawSheetRows({
+      sheets,
+      snapshotId: "snap-1",
+      batchSize: 2,
+      putBatch: async (rows) => {
+        batches.push(rows.length);
+      },
+    });
+
+    expect(persisted).toBe(3);
+    expect(batches).toEqual([2, 1]);
   });
 });

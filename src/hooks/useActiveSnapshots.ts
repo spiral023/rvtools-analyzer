@@ -7,7 +7,6 @@ import { hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
   NormalizedDatastore, NormalizedSnapshot, NormalizedHealth,
-  SheetRow,
   TechInfoLatest,
 } from "@/domain/models/types";
 

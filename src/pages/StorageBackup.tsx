@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useDatastores, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -8,7 +8,7 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Database, HardDrive, AlertTriangle, Shield, Clock, FileWarning, Layers } from "lucide-react";
+import { Database, HardDrive, AlertTriangle, Clock, FileWarning, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
@@ -101,7 +101,6 @@ export default function StorageBackup() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
-  const { data: datastores = [] } = useDatastores();
   const { data: rawPartitions = [] } = useRawSheet("vPartition");
   const { data: rawMultiPath = [] } = useRawSheet("vMultiPath");
   const { data: rawDisks = [] } = useRawSheet("vDisk");

@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc, Monitor } from "lucide-react";
+import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";

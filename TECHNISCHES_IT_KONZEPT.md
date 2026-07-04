@@ -1,6 +1,6 @@
 # Technisches IT-Konzept: RVTools Analyzer
 
-Stand: 25.06.2026  
+Stand: 05.07.2026  
 Zielgruppe: VMware-Administratoren, IT-Betrieb, IT-Security, Datenschutz, interne Freigabestellen  
 Einsatzmodell: statisch gehostete Webanwendung auf einem privaten Server
 
@@ -99,7 +99,7 @@ sequenceDiagram
 
 ### 6.2 IndexedDB-Schema
 
-Die lokale Datenbank heißt `rvtools-analyzer`, aktuell mit `DB_VERSION = 13`. Sie enthält u. a. folgende Stores:
+Die lokale Datenbank heißt `rvtools-analyzer`, aktuell mit `DB_VERSION = 16`. Sie enthält u. a. folgende Stores:
 
 | Store | Inhalt |
 |---|---|
@@ -272,28 +272,26 @@ Frischer lokaler Testlauf:
 npm run test
 ```
 
-Ergebnis vom 25.06.2026:
+Ergebnis vom 05.07.2026:
 
 | Kennzahl | Wert |
 |---|---:|
-| Testdateien gesamt | 5 |
-| Testdateien bestanden | 5 |
-| Tests gesamt | 26 |
-| Tests bestanden | 26 |
+| Testdateien gesamt | 17 |
+| Testdateien bestanden | 17 |
+| Tests gesamt | 81 |
+| Tests bestanden | 81 |
 | Tests fehlgeschlagen | 0 |
 | Test-Runner | Vitest 3.2.6 |
 | Testumgebung | jsdom |
-| Dauer | 3,96 s |
+| Dauer | ca. 9-14 s lokal |
 
-Testdateien:
+Zusätzliche Gates:
 
-| Datei | Tests | Status |
-|---|---:|---|
-| `src/test/techInfoHelpers.test.ts` | 6 | bestanden |
-| `src/test/example.test.ts` | 1 | bestanden |
-| `src/test/vmDetail.test.ts` | 7 | bestanden |
-| `src/test/parseHelpers.test.ts` | 5 | bestanden |
-| `src/test/globalFilter.test.ts` | 7 | bestanden |
+| Befehl | Status |
+|---|---|
+| `npm run typecheck` | TypeScript-Projektprüfung läuft erfolgreich; `noImplicitAny` ist aktiv. |
+| `npm run lint` | ESLint läuft ohne Warnungen oder Fehler. |
+| `npm run build` | Production-Build läuft erfolgreich. |
 
 ### 10.2 Code Coverage
 
@@ -301,28 +299,12 @@ Aktueller Stand:
 
 | Thema | Status |
 |---|---|
-| Coverage-Script in `package.json` | Nicht vorhanden |
-| Coverage-Konfiguration in `vitest.config.ts` | Nicht vorhanden |
-| Coverage-Provider `@vitest/coverage-v8` oder `@vitest/coverage-istanbul` | Nicht installiert |
-| Belastbare Coverage-Prozentzahl | Nicht verfügbar |
+| Coverage-Script in `package.json` | Vorhanden: `npm run test:coverage` |
+| Coverage-Konfiguration in `vitest.config.ts` | Vorhanden, fokussiert auf `src/data`, `src/domain`, `src/hooks`, `src/lib`, `src/workers` |
+| Coverage-Provider | `@vitest/coverage-v8` |
+| Aktuelle Gesamt-Coverage | 51,93 % Statements, 66,37 % Branches, 67,74 % Functions, 51,93 % Lines |
 
-Bewertung: Die vorhandenen Tests laufen erfolgreich, aber es gibt derzeit keine gemessene Code-Coverage. Für eine formale Firmenfreigabe sollte Coverage eingerichtet und als Teil des Build-/Release-Prozesses dokumentiert werden.
-
-Empfohlene Ergänzung:
-
-```bash
-npm install -D @vitest/coverage-v8
-```
-
-Danach kann ein Coverage-Script ergänzt werden, z. B.:
-
-```json
-{
-  "scripts": {
-    "test:coverage": "vitest run --coverage"
-  }
-}
-```
+Bewertung: Coverage ist nun messbar und im lokalen QS-Prozess ausführbar. Die Abdeckung ist für zentrale reine Logik bereits solide, insbesondere `clusterCapacityEngine`, `globalFilter`, `maintenance`, `parseHelpers`, `vmDetail`, `userDataBackup` und Teile der IndexedDB-Schicht. Niedrige Werte bestehen noch bei React-Hooks, Worker-Parsing, Backup-Service und Teilen des Import-Service.
 
 Sinnvolle Mindestziele für dieses Projekt:
 
@@ -338,7 +320,7 @@ Sinnvolle Mindestziele für dieses Projekt:
 | Risiko | Bewertung | Maßnahme |
 |---|---|---|
 | Kein App-internes Login | Mittel bis hoch bei öffentlicher Erreichbarkeit | Zugriff über VPN, Reverse Proxy, SSO, mTLS oder mindestens Basic Auth schützen. |
-| Keine gemessene Coverage | Mittel | Coverage einrichten und Grenzwerte definieren. |
+| Noch keine Coverage-Grenzwerte in CI | Mittel | Coverage-Schwellenwerte nach Stabilisierung der Messbasis definieren und in CI erzwingen. |
 | Sensible Infrastrukturdateien im Browser | Mittel | Nur verwaltete Admin-Geräte nutzen, Browserprofile schützen, Löschprozess definieren. |
 | Webserver-Logs | Niedrig bis mittel | Logumfang und Aufbewahrung begrenzen; Datenschutz prüfen. |
 | Dependency-Risiken im Frontend | Mittel | Regelmäßige Updates, `npm audit`, Build-Reproduzierbarkeit. |
@@ -351,8 +333,8 @@ Sinnvolle Mindestziele für dieses Projekt:
 2. HTTPS mit aktuellen TLS-Einstellungen erzwingen.
 3. Security Header inklusive CSP konfigurieren und im Zielbrowser testen.
 4. Webserver-Logs datenschutzkonform begrenzen.
-5. Coverage-Erhebung ergänzen und in den Releaseprozess aufnehmen.
-6. `npm run test`, `npm run lint` und `npm run build` vor jedem Deployment ausführen.
+5. Coverage-Erhebung über `npm run test:coverage` regelmäßig ausführen und Grenzwerte definieren.
+6. `npm run typecheck`, `npm run test`, `npm run lint` und `npm run build` vor jedem Deployment ausführen.
 7. Regelmäßige Dependency-Prüfung einführen, z. B. `npm audit` und kontrollierte Updates.
 8. Interne Vorgabe zur Aufbewahrung und Löschung lokaler Browserdaten festlegen.
 9. Admins darauf hinweisen, dass RVTools- und Tech-Info-Exporte sensible Infrastrukturinformationen enthalten.
@@ -379,7 +361,7 @@ Die App speichert keine Daten zentral. Das ist aus Datenschutzsicht vorteilhaft,
 | Datenhaltung | IndexedDB pro Browser-Origin |
 | Netzwerkkommunikation für importierte Daten | Keine App-seitige Übertragung an Server |
 | Zugriffsschutz | Muss durch Hosting-Umgebung bereitgestellt werden |
-| Teststatus | 26/26 Tests bestanden |
-| Code Coverage | Noch nicht eingerichtet |
+| Teststatus | 81/81 Tests bestanden |
+| Code Coverage | Eingerichtet; aktuelle Messung 51,93 % Statements für Logik-/Datenbereiche |
 | Datenschutzrisiko | Beherrschbar bei geschütztem Hosting und geregeltem Umgang mit lokalen Browserdaten |
 | Security-Reife | Für interne Nutzung geeignet, wenn Zugriffsschutz, HTTPS, Header und Updateprozess umgesetzt werden |

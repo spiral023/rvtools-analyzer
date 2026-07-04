@@ -4,6 +4,7 @@ import type {
   GlobalFilterGroup,
   GlobalFilterLogicalOperator,
   GlobalFilterNode,
+  GlobalFilterOperator,
   GlobalFilterRule,
   GlobalFilterSourceScope,
   NormalizedVm,
@@ -327,7 +328,7 @@ export function evaluateGlobalFilter(
 
 export function filterRowsByMatchingVmJoinKeys(rows: SheetRow[], matchingVmJoinKeys: Set<string> | null): SheetRow[] {
   if (!matchingVmJoinKeys || matchingVmJoinKeys.size === 0) return rows;
-  return rows.filter((row) => matchingVmJoinKeys.has(buildVmJoinKey(row.snapshotId, row.data["VM"] ?? "")));
+  return rows.filter((row) => matchingVmJoinKeys.has(buildVmJoinKey(row.snapshotId, String(row.data["VM"] ?? ""))));
 }
 
 function evaluateGroup(
@@ -393,11 +394,11 @@ function evaluateRule(
   }
 
   if (group.sourceScope === "techInfo") {
-    return evaluateValue((context.techInfo as Record<string, unknown> | null)?.[rule.field], field, rule);
+    return evaluateValue((context.techInfo as unknown as Record<string, unknown> | null)?.[rule.field], field, rule);
   }
 
   if (group.sourceScope === "techInfoClient") {
-    return evaluateValue((context.techInfoClient as Record<string, unknown> | null)?.[rule.field], field, rule);
+    return evaluateValue((context.techInfoClient as unknown as Record<string, unknown> | null)?.[rule.field], field, rule);
   }
 
   const rows = context.rawRowsBySource[group.sourceScope] ?? [];

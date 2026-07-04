@@ -95,6 +95,8 @@ export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_ho
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "scenarios";
+type SnapshotScopedStoreName = "rawSheets" | "entities_vm" | "entities_host" | "entities_cluster"
+  | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
 const DB_VERSION = 16;
@@ -462,7 +464,7 @@ export async function getStoreDiagnostics(sampleSize = 50): Promise<StoreDiagnos
       await tx.done;
 
       if (sample.length > 0) {
-        const sampleBytes = sample.reduce((sum, value) => sum + JSON.stringify(value).length, 0);
+        const sampleBytes = sample.reduce<number>((sum, value) => sum + JSON.stringify(value).length, 0);
         const avgBytesPerEntry = sampleBytes / sample.length;
         estimatedSizeBytes = Math.round(avgBytesPerEntry * count);
       }
@@ -510,8 +512,7 @@ export async function timeSampleVmQuery(): Promise<SampleQueryTiming> {
 
 /* ---------- delete helpers ---------- */
 
-async function deleteBySnapshotId(storeName: StoreName, snapshotId: string): Promise<void> {
-  if (storeName === "snapshots" || storeName === "ui_state") return;
+async function deleteBySnapshotId(storeName: SnapshotScopedStoreName, snapshotId: string): Promise<void> {
   const db = await getDb();
   const tx = db.transaction(storeName, "readwrite");
   const index = tx.store.index("snapshotId");
@@ -535,7 +536,7 @@ export async function deleteAllData(): Promise<void> {
 export async function deleteSnapshot(snapshotId: string): Promise<void> {
   const db = await getDb();
   await db.delete("snapshots", snapshotId);
-  const entityStores: StoreName[] = [
+  const entityStores: SnapshotScopedStoreName[] = [
     "rawSheets", "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];

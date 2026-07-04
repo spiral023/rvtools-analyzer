@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
-import { Network, ShieldAlert, Wifi, Router, Cable, AlertTriangle } from "lucide-react";
+import { Network, ShieldAlert, Router, Cable, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
@@ -15,7 +15,6 @@ interface PolicyRow { name: string; type: string; vlan: string; promiscuous: boo
 interface VmkRow { host: string; portGroup: string; device: string; ip: string; subnet: string; mtu: number; dhcp: boolean }
 interface NicRow { host: string; device: string; speed: number; duplex: boolean; driver: string; mac: string }
 interface UplinkRow { port: string; switchName: string; activeUplinks: string; standbyUplinks: string; redundant: boolean; risk: string }
-interface DvDriftRow { port: string; switchName: string; field: string; value: string; expected: string }
 interface TeamingRow { name: string; type: string; policy: string; rollingOrder: boolean; notifySwitch: boolean; issues: string }
 interface VlanChartRow { vlan: string; count: number; vlanName: string }
 
@@ -71,7 +70,6 @@ export default function NetworkSecurity() {
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { data: rawVPort = [] } = useRawSheet("vPort");
   const { data: rawDvPort = [] } = useRawSheet("dvPort");
-  const { data: rawVSwitch = [] } = useRawSheet("vSwitch");
   const { data: rawDvSwitch = [] } = useRawSheet("dvSwitch");
   const { data: rawVmk = [] } = useRawSheet("vSC_VMK");
   const { data: rawNIC = [] } = useRawSheet("vNIC");

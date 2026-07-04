@@ -145,7 +145,7 @@ export function useGlobalVmFilterEngine(
       (acc, source) => {
         const grouped = new Map<string, SheetRow[]>();
         for (const row of rawRowsBySource[source] ?? []) {
-          const joinKey = buildVmJoinKey(row.snapshotId, row.data["VM"] ?? "");
+          const joinKey = buildVmJoinKey(row.snapshotId, String(row.data["VM"] ?? ""));
           const bucket = grouped.get(joinKey);
           if (bucket) bucket.push(row);
           else grouped.set(joinKey, [row]);

@@ -18,9 +18,9 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from "@/components/charts/recharts";
-import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
-  Server, Cpu, MemoryStick, HardDrive, Network as NetworkIcon,
+  Server, Cpu, HardDrive, Network as NetworkIcon,
   ChevronRight, Layers, MonitorCog, CircuitBoard, Info, Copy,
 } from "lucide-react";
 import { toast } from "sonner";

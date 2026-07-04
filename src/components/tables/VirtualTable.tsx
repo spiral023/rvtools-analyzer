@@ -25,9 +25,9 @@ import {
 import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 
-interface VirtualTableProps<T> {
+interface VirtualTableProps<T, TColumn = T> {
   data: T[];
-  columns: ColumnDef<T, unknown>[];
+  columns: ColumnDef<TColumn, unknown>[];
   globalFilter?: string;
   height?: number;
   className?: string;
@@ -48,7 +48,7 @@ function getDefaultExportFileName(): string {
   return `rvtools-${routeSegment}-${date}`;
 }
 
-export function VirtualTable<T>({
+export function VirtualTable<T, TColumn = T>({
   data,
   columns,
   globalFilter = "",
@@ -62,13 +62,13 @@ export function VirtualTable<T>({
   selectedKeys,
   onToggleRow,
   onToggleAll,
-}: VirtualTableProps<T>) {
+}: VirtualTableProps<T, TColumn>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const parentRef = useRef<HTMLDivElement>(null);
 
   const table = useReactTable({
     data,
-    columns,
+    columns: columns as unknown as ColumnDef<T, unknown>[],
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),

@@ -7,7 +7,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
-import { Server, Cpu, HardDrive, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
+import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
@@ -62,7 +62,6 @@ export default function Overview() {
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
-  const configIssues = filteredVms.filter((v) => v.configStatus && v.configStatus !== "green").length;
   const critDs = datastores.filter((d) => d.freePct !== null && d.freePct < 10).length;
 
   const powerData = useMemo(() => [

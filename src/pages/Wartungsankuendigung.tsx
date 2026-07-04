@@ -51,14 +51,6 @@ function formatContact(contact: MaintenanceContact): string {
   return `${contact.firstName} ${contact.lastName}`.trim() || "—";
 }
 
-function joinContacts(contacts: MaintenanceContact[]): string {
-  if (contacts.length === 0) return "—";
-  return contacts
-    .map(formatContact)
-    .sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" }))
-    .join(", ");
-}
-
 function joinRecipients(row: MaintenanceClusterRow): string {
   const parts = [
     ...row.contacts.map(formatContact),
