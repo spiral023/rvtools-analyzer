@@ -41,6 +41,9 @@ interface VirtualTableProps<T, TColumn = T> {
   onToggleAll?: (selectAll: boolean) => void;
 }
 
+const ROW_HEIGHT = 36;
+const HEADER_HEIGHT = 38;
+
 function getDefaultExportFileName(): string {
   if (typeof window === "undefined") return "rvtools-table-export";
   const routeSegment = window.location.pathname.split("/").filter(Boolean).pop() ?? "table";
@@ -119,9 +122,13 @@ export function VirtualTable<T, TColumn = T>({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => ROW_HEIGHT,
     overscan: 30,
   });
+
+  // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
+  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT;
+  const effectiveHeight = Math.min(height, contentHeight);
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start ?? 0 : 0;
@@ -135,7 +142,7 @@ export function VirtualTable<T, TColumn = T>({
       <div
         ref={parentRef}
         className="overflow-auto"
-        style={{ height: `${height}px` }}
+        style={{ height: `${effectiveHeight}px` }}
       >
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-card border-b border-border">
@@ -147,15 +154,25 @@ export function VirtualTable<T, TColumn = T>({
                   return (
                     <th
                       key={header.id}
+                      aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
+                      tabIndex={isSelectionCol ? undefined : 0}
                       className={cn(
                         "whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none",
-                        !isSelectionCol && "cursor-pointer hover:text-foreground transition-colors",
+                        !isSelectionCol && "cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                       )}
                       onClick={isSelectionCol ? undefined : header.column.getToggleSortingHandler()}
+                      onKeyDown={isSelectionCol ? undefined : (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          header.column.getToggleSortingHandler()?.(e);
+                        }
+                      }}
                     >
                       {isSelectionCol ? (
-                        <div
-                          className="flex items-center justify-center cursor-pointer hover:text-foreground"
+                        <button
+                          type="button"
+                          aria-label={allSelected ? "Auswahl aller Zeilen aufheben" : "Alle Zeilen auswählen"}
+                          className="flex items-center justify-center cursor-pointer hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                           onClick={(e) => {
                             e.stopPropagation();
                             onToggleAll?.(!allSelected);
@@ -168,7 +185,7 @@ export function VirtualTable<T, TColumn = T>({
                           ) : (
                             <Square className="h-4 w-4 opacity-40" />
                           )}
-                        </div>
+                        </button>
                       ) : (
                         <div className="flex items-center gap-1">
                           {flexRender(
@@ -205,11 +222,18 @@ export function VirtualTable<T, TColumn = T>({
               return (
                 <tr
                   key={row.id}
+                  tabIndex={onRowClick ? 0 : undefined}
                   className={cn(
                     "border-b border-border/30 transition-colors hover:bg-muted/30",
-                    onRowClick && "cursor-pointer",
+                    onRowClick && "cursor-pointer focus-visible:outline-none focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                   )}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  onKeyDown={onRowClick ? (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onRowClick(row.original);
+                    }
+                  } : undefined}
                 >
                   {row.getVisibleCells().map((cell) => {
                     const isSelectionCell = selectionEnabled && cell.column.id === "__selection";
@@ -229,6 +253,7 @@ export function VirtualTable<T, TColumn = T>({
                             type="checkbox"
                             checked={checked}
                             readOnly
+                            aria-label={`Zeile ${vmKey} auswählen`}
                             className="h-4 w-4 cursor-pointer accent-primary"
                           />
                         </td>
@@ -262,7 +287,7 @@ export function VirtualTable<T, TColumn = T>({
         </table>
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
-        <span>{rows.length.toLocaleString("de-DE")} Einträge</span>
+        <span className="tabular-nums">{rows.length.toLocaleString("de-DE")} {rows.length === 1 ? "Eintrag" : "Einträge"}</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
