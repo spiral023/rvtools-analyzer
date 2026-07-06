@@ -6,6 +6,13 @@ import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { formatRvtoolsDate, summarizeSnapshots, summarizeStorage } from "@/lib/vmDetail";
 import { boolLabel, sheetRowKey, str, toNumber } from "@/lib/vmDetailFormat";
 
+// RVTools kodiert "kein Limit" als -1; das rohe -1 wäre in der UI irreführend.
+function limitLabel(value: number | null): string {
+  if (value === null) return "—";
+  if (value === -1) return "Unlimited";
+  return String(value);
+}
+
 interface VmTechnicalSectionsProps {
   vm: NormalizedVm;
   cpuRows: SheetRow[];
@@ -68,9 +75,9 @@ export function VmTechnicalSections({
             ["Memory Ballooned", formatBytes(toNumber(memory["Ballooned"]))],
             ["Memory Swapped", formatBytes(toNumber(memory["Swapped"]))],
             ["CPU Reservation", String(toNumber(cpu["Reservation"]) ?? "—")],
-            ["CPU Limit", String(toNumber(cpu["Limit"]) ?? "—")],
+            ["CPU Limit", limitLabel(toNumber(cpu["Limit"]))],
             ["Mem Reservation", String(toNumber(memory["Reservation"]) ?? "—")],
-            ["Mem Limit", String(toNumber(memory["Limit"]) ?? "—")],
+            ["Mem Limit", limitLabel(toNumber(memory["Limit"]))],
             ["CPU Hot Add", boolLabel(cpu["Hot Add"])],
             ["CPU Hot Remove", boolLabel(cpu["Hot Remove"])],
             ["Memory Hot Add", boolLabel(memory["Hot Add"])],

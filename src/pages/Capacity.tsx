@@ -35,7 +35,7 @@ interface ClusterMetric {
 }
 
 interface RpRow { name: string; path: string; status: string; vms: number; cpuLimit: string; cpuReservation: number; cpuExpandable: boolean; memLimit: string; memReservation: number; memExpandable: boolean; risk: string }
-interface ThinRiskRow { datastore: string; freePct: number; thinDisks: number; totalThinMiB: number; risk: string }
+interface ThinRiskRow { datastore: string; freePct: number | null; thinDisks: number; totalThinMiB: number; risk: string }
 interface ClusterCapacityRow {
   cluster: string;
   datacenter: string;
@@ -282,7 +282,7 @@ const rpColumns: ColumnDef<RpRow, unknown>[] = [
 
 const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
   { accessorKey: "datastore", header: "Datastore" },
-  { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
+  { accessorKey: "freePct", header: "Frei % (knappster DS)", cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
   { accessorKey: "thinDisks", header: "Thin Disks" },
   { accessorKey: "totalThinMiB", header: "Thin Kapaz.", cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
@@ -534,36 +534,24 @@ function useCapacityPageData() {
 
   const rpRisks = rpData.filter((r) => r.risk !== "niedrig").length;
 
-  // Thin-Provisioning Risk per Datastore
+  // Thin-Provisioning Risk: vDisk trägt keinen Datastore-Namen, daher wird
+  // global gezählt und gegen den knappsten Datastore bewertet.
   const thinRiskData = useMemo<ThinRiskRow[]>(() => {
-    const dsMap = new Map<string, { freePct: number; thinDisks: number; totalThinMiB: number }>();
-    for (const ds of datastores) {
-      if (ds.freePct !== null) dsMap.set(ds.name, { freePct: ds.freePct, thinDisks: 0, totalThinMiB: 0 });
-    }
-    // We don't have DS name on vDisk directly, but we can count thin disks globally
+    let thinDisks = 0;
+    let totalThinMiB = 0;
     for (const r of filteredRawDisks) {
-      const thin = String(r.data["Thin"] || "").toLowerCase() === "true";
-      if (thin) {
-        // Count globally for now
-        const cap = Number(r.data["Capacity MiB"] || 0);
-        // Associate with first matching DS or create bucket
-        const key = "__global__";
-        if (!dsMap.has(key)) dsMap.set(key, { freePct: 0, thinDisks: 0, totalThinMiB: 0 });
-        const e = dsMap.get(key)!;
-        e.thinDisks++;
-        e.totalThinMiB += cap;
+      if (String(r.data["Thin"] || "").toLowerCase() === "true") {
+        thinDisks++;
+        totalThinMiB += Number(r.data["Capacity MiB"] || 0);
       }
     }
-    return [...dsMap.entries()]
-      .filter(([, v]) => v.thinDisks > 0 || v.freePct < 20)
-      .map(([name, v]) => {
-        let risk = "niedrig";
-        if (v.freePct < 20 && v.thinDisks > 0) risk = "mittel";
-        if (v.freePct < 10 && v.thinDisks > 5) risk = "hoch";
-        return { datastore: name, ...v, risk };
-      })
-      .filter((r) => r.risk !== "niedrig" || r.thinDisks > 0)
-      .sort((a, b) => a.freePct - b.freePct);
+    if (thinDisks === 0) return [];
+    const freePcts = datastores.map((d) => d.freePct).filter((v): v is number => v !== null);
+    const minFreePct = freePcts.length ? Math.min(...freePcts) : null;
+    let risk = "niedrig";
+    if (minFreePct !== null && minFreePct < 20) risk = "mittel";
+    if (minFreePct !== null && minFreePct < 10 && thinDisks > 5) risk = "hoch";
+    return [{ datastore: "Alle Datastores (gesamt)", freePct: minFreePct, thinDisks, totalThinMiB, risk }];
   }, [datastores, filteredRawDisks]);
 
   // Unshared vs Provisioned

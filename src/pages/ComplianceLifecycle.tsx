@@ -211,8 +211,13 @@ const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
     cell: ({ getValue }) => {
       const raw = getValue() as string | null;
       const hwVersion = parseVmHwVersion(raw);
-      if (hwVersion !== null && hwVersion < 20) {
+      // vmx-13 und älter = ESXi-6.x-Ära (rot); vmx-14..18 = veraltet (gelb).
+      // Vorher war alles < 20 rot, wodurch echte Altlasten untergingen.
+      if (hwVersion !== null && hwVersion < 14) {
         return <span className="text-destructive font-semibold">{raw || "—"}</span>;
+      }
+      if (hwVersion !== null && hwVersion < 19) {
+        return <span className="text-warning">{raw || "—"}</span>;
       }
       return raw || "—";
     },
@@ -412,7 +417,7 @@ export default function ComplianceLifecycle() {
       return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
     };
     return [...map.entries()]
-      .map(([hw, value]) => ({ hw, name: hw === "Unknown" ? "Unknown" : `vmx-${hw}`, value }))
+      .map(([hw, value]) => ({ hw, name: hw === "Unknown" ? "Unknown" : `vmx-${hw.replace(/^vmx-/i, "")}`, value }))
       .sort((a, b) => parseHwSortKey(a.hw) - parseHwSortKey(b.hw) || a.name.localeCompare(b.name))
       .map(({ name, value }) => ({ name, value }));
   }, [complianceVms]);

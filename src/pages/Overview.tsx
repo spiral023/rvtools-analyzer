@@ -38,7 +38,7 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
 ];
 
 export default function Overview() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, activeSnapshotIds, filters } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
@@ -101,7 +101,9 @@ export default function Overview() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Overview</h1>
-        <span className="text-xs text-muted-foreground">{snapshots.length} Snapshot{snapshots.length !== 1 && "s"} geladen</span>
+        <span className="text-xs text-muted-foreground" title="Ohne Snapshot-Filter wird je vCenter automatisch der neueste Snapshot analysiert.">
+          Analysiert: {activeSnapshotIds.length} von {snapshots.length} Snapshot{snapshots.length !== 1 && "s"} (neuester je vCenter)
+        </span>
       </div>
       <FilterBar />
       <GlobalFilterScopeHint text="Hosts, Datastores und Health-Events bleiben in dieser Übersicht unverändert; der globale Filter wirkt hier auf VM-bezogene Bereiche." />

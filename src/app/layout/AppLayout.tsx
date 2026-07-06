@@ -36,6 +36,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 size="icon"
                 onClick={toggleTheme}
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                aria-label={theme === "dark" ? "Zu hellem Design wechseln" : "Zu dunklem Design wechseln"}
               >
                 {theme === "dark" ? (
                   <Sun className="h-4 w-4" />

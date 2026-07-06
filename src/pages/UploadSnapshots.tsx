@@ -231,7 +231,7 @@ export default function UploadSnapshots() {
             </div>
             {lastResult.sheetStats && (
               <p className="text-xs text-muted-foreground mb-2">
-                {Object.keys(lastResult.sheetStats).length} Sheets erkannt, {Object.values(lastResult.sheetStats).reduce((s, v) => s + v.rowCount, 0).toLocaleString("de-DE")} Zeilen
+                {Object.keys(lastResult.sheetStats).length} {Object.keys(lastResult.sheetStats).length === 1 ? "Sheet" : "Sheets"} erkannt, {Object.values(lastResult.sheetStats).reduce((s, v) => s + v.rowCount, 0).toLocaleString("de-DE")} {Object.values(lastResult.sheetStats).reduce((s, v) => s + v.rowCount, 0) === 1 ? "Zeile" : "Zeilen"}
               </p>
             )}
             {lastResult.warnings.length > 0 && (
@@ -302,7 +302,7 @@ export default function UploadSnapshots() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      className="h-8 w-8 text-muted-foreground/60 hover:text-destructive focus-visible:text-destructive transition-colors"
                       onClick={() => {
                         if (upload.kind === "tech-info") void handleDeleteTechInfoImport(upload.id);
                         else if (upload.kind === "tech-info-client") void handleDeleteTechInfoClientImport(upload.id);
