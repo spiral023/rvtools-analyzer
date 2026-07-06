@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useVms, useHealthEvents, useVmSnapshots, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -167,15 +168,15 @@ export default function DailyOps() {
       <h1 className="text-2xl font-bold">Daily Ops</h1>
       <FilterBar />
       <GlobalFilterScopeHint text="Health-Events ohne sicheren VM-Bezug bleiben unverändert; Snapshots, Tools sowie CD/USB folgen dem globalen Filter." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+      <KpiGrid>
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />
         <KpiCard title="Consolidation" value={formatNum(consolidationNeeded.length)} severity={consolidationNeeded.length > 0 ? "warn" : "ok"} />
         <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} />
         <KpiCard title="VM Snapshots" value={formatNum(filteredVmSnapshots.length)} severity={filteredVmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} />
         <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} />
-        <KpiCard title="CD/USB verb." value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} />
-      </div>
+        <KpiCard title="CD/USB verbunden" value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} />
+      </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

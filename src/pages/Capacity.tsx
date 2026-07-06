@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useActiveSnapshotIds, useVms, useClusters, useDatastores, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -95,7 +96,7 @@ function CapacityOverviewCards({
   storageEfficiency: { provGiB: number; inUseGiB: number; ratio: number };
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
+    <KpiGrid>
       <KpiCard title="Datastores" value={formatNum(datastoresCount)} icon={<HardDrive className="h-4 w-4" />} />
       <KpiCard title="Ø Frei %" value={avgFreePct !== null ? formatPct(avgFreePct) : "—"} severity={avgFreePct !== null && avgFreePct < 15 ? "crit" : avgFreePct !== null && avgFreePct < 25 ? "warn" : "ok"} />
       <KpiCard title="Kritisch (<10%)" value={formatNum(critDs)} severity={critDs > 0 ? "crit" : "ok"} />
@@ -104,7 +105,7 @@ function CapacityOverviewCards({
       <KpiCard title="Max RAM OC" value={`${maxRamOC.toFixed(1)}:1`} severity={maxRamOC > 1.5 ? "crit" : maxRamOC > 1.0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
       <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} />
       <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} />
-    </div>
+    </KpiGrid>
   );
 }
 
@@ -122,13 +123,13 @@ function CapacityRiskCards({
   avgVcpuPerCore: number;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+    <KpiGrid>
       <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
       <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
       <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
       <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
       <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
-    </div>
+    </KpiGrid>
   );
 }
 

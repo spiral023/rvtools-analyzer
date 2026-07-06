@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -167,7 +168,7 @@ export default function NetworkSecurity() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Network / Security</h1>
       <FilterBar />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+      <KpiGrid>
         <KpiCard title="Portgroups" value={formatNum(policies.length)} icon={<Network className="h-4 w-4" />} />
         <KpiCard title="Security Drift" value={formatNum(securityDrift.length)} severity={securityDrift.length > 0 ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} />
         <KpiCard title="Promiscuous" value={formatNum(promiscuousCount)} severity={promiscuousCount > 0 ? "crit" : "ok"} />
@@ -175,7 +176,7 @@ export default function NetworkSecurity() {
         <KpiCard title="VMK DHCP" value={formatNum(dhcpVmk)} severity={dhcpVmk > 0 ? "warn" : "ok"} />
         <KpiCard title="Uplink SPOF" value={formatNum(uplinkData.length)} severity={uplinkData.length > 0 ? "warn" : "ok"} icon={<Cable className="h-4 w-4" />} />
         <KpiCard title="Teaming Issues" value={formatNum(teamingData.length)} severity={teamingData.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

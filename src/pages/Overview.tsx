@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVmsWithTechInfo, useHosts, useDatastores, useHealthEvents, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -104,14 +105,14 @@ export default function Overview() {
       </div>
       <FilterBar />
       <GlobalFilterScopeHint text="Hosts, Datastores und Health-Events bleiben in dieser Übersicht unverändert; der globale Filter wirkt hier auf VM-bezogene Bereiche." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <KpiGrid>
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} />
         <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} />
         <KpiCard title="Powered Off" value={formatNum(poweredOff)} icon={<Monitor className="h-4 w-4" />} />
         <KpiCard title="Hosts" value={formatNum(hosts.length)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} />
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Power State</h3>

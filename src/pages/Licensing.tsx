@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet, useVms, useClusters, useHosts, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -110,7 +111,7 @@ export default function Licensing() {
       <h1 className="text-2xl font-bold">Licensing & Effizienz</h1>
       <FilterBar />
       <GlobalFilterScopeHint text="Idle-VM-Kandidaten folgen dem globalen Filter; Lizenz-, Cluster- und Datastore-Übersichten bleiben unverändert." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+      <KpiGrid>
         <KpiCard title="Lizenzen" value={formatNum(totalLicenses)} icon={<Key className="h-4 w-4" />} />
         <KpiCard title="Hoch (>85%)" value={formatNum(highUtil)} severity={highUtil > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Kritisch (>95%)" value={formatNum(critUtil)} severity={critUtil > 0 ? "crit" : "ok"} />
@@ -118,7 +119,7 @@ export default function Licensing() {
         <KpiCard title="Idle VMs" value={formatNum(idleCandidates.length)} subtitle={`${idleCpus} vCPU · ${idleRamGiB.toFixed(0)} GiB`} icon={<Power className="h-4 w-4" />} />
         <KpiCard title="Clusters" value={formatNum(clusterDensity.length)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       {utilizationChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

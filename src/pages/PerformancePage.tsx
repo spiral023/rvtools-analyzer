@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useVms, useRawSheet, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -218,7 +219,7 @@ export default function PerformancePage() {
       <h1 className="text-2xl font-bold">Performance</h1>
       <FilterBar />
       <GlobalFilterScopeHint text="Multipath, Datastore-SIOC und Host-NIC-Qualität bleiben unverändert; VM-bezogene Performance-Sichten folgen dem globalen Filter." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+      <KpiGrid>
         <KpiCard title="CPU Ready Hotspots" value={formatNum(hotspots)} severity={hotspots > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} subtitle="> 5% Ready" />
         <KpiCard title="Memory Pressure" value={formatNum(memoryIssues.length)} severity={memoryIssues.length > 0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
         <KpiCard title="Entitlement Gaps" value={formatNum(entitlementFull.length)} severity={entitlementFull.length > 0 ? "warn" : "ok"} icon={<Zap className="h-4 w-4" />} />
@@ -226,7 +227,7 @@ export default function PerformancePage() {
         <KpiCard title="VM Netz-Anomalien" value={formatNum(vmNetAnomalies.length)} severity={vmNetAnomalies.length > 0 ? "warn" : "ok"} icon={<Network className="h-4 w-4" />} />
         <KpiCard title="Multipath Issues" value={formatNum(multipathIssues)} severity={multipathIssues > 0 ? "crit" : "ok"} icon={<Activity className="h-4 w-4" />} />
         <KpiCard title="NIC Qualität" value={formatNum(nicQuality.length)} severity={nicQuality.length > 0 ? "warn" : "ok"} subtitle="Probleme" />
-      </div>
+      </KpiGrid>
 
       {topChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

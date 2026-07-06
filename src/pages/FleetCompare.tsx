@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows } from "@/data/db";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -119,14 +120,14 @@ export default function FleetCompare() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Fleet Compare</h1>
       <FilterBar />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <KpiGrid>
         <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} />
         <KpiCard title="Hosts Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.hostCount, 0))} />
         <KpiCard title="Health Issues" value={formatNum(summaries.reduce((s, v) => s + v.healthIssues, 0))} severity={summaries.some((s) => s.healthIssues > 0) ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Security Drift" value={formatNum(summaries.reduce((s, v) => s + v.securityDrift, 0))} severity={summaries.some((s) => s.securityDrift > 0) ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} />
         <KpiCard title="Risiko Total" value={totalRisk} severity={totalRisk > 100 ? "crit" : totalRisk > 50 ? "warn" : "ok"} />
-      </div>
+      </KpiGrid>
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">vCenter Vergleich</h3>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVms, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -51,14 +52,14 @@ function ComplianceTabPanel({
 }) {
   return (
     <TabsContent value="compliance" className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <KpiGrid>
         <KpiCard title="Kein Secure Boot" value={formatNum(noSecureBoot)} severity={noSecureBoot > 0 ? "warn" : "ok"} icon={<Shield className="h-4 w-4" />} />
         <KpiCard title="BIOS (kein EFI)" value={formatNum(biosVms)} severity={biosVms > 0 ? "warn" : "ok"} />
         <KpiCard title="Kein CBT" value={formatNum(noCbt)} severity={noCbt > 0 ? "warn" : "ok"} />
         <KpiCard title="OS Drift" value={formatNum(osDrift)} severity={osDrift > 0 ? "warn" : "ok"} icon={<MonitorCheck className="h-4 w-4" />} />
         <KpiCard title="UUID fehlt" value={formatNum(uuidMissing)} severity={uuidMissing > 0 ? "warn" : "ok"} icon={<Fingerprint className="h-4 w-4" />} />
         <KpiCard title="Annotation leer" value={formatNum(annotationEmpty)} subtitle={`${complianceVms.length > 0 ? Math.round(annotationEmpty / complianceVms.length * 100) : 0}%`} icon={<Tag className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       {vcenterVersions.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -102,12 +103,12 @@ function OperationsTabPanel({
 }) {
   return (
     <TabsContent value="operations" className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <KpiGrid>
         <KpiCard title="Tools Upgrade" value={formatNum(toolsUpgradeable)} severity={toolsUpgradeable > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />
         <KpiCard title="NTP/DNS Issues" value={formatNum(ntpDnsData.length)} severity={ntpDnsData.length > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} />
         <KpiCard title="HW Upgrade Backlog" value={formatNum(hwUpgradeBacklog.length)} severity={hwUpgradeBacklog.length > 0 ? "warn" : "ok"} />
         <KpiCard title="Latency Sonderfälle" value={formatNum(latencyNonNormal)} severity={latencyNonNormal > 0 ? "warn" : "ok"} />
-      </div>
+      </KpiGrid>
 
       {ntpDnsData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenHostDetail} /></div>)}
 
@@ -156,12 +157,12 @@ function InfrastructureTabPanel({
 }) {
   return (
     <TabsContent value="infrastructure" className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <KpiGrid>
         <KpiCard title="Maintenance" value={formatNum(maintenanceHosts)} severity={maintenanceHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Hosts" value={formatNum(hostsWithEsxVersion.length)} severity="ok" icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Treiber-Einträge" value={formatNum(driverInventory.length)} severity={driverInventory.length > 0 ? "ok" : "warn"} icon={<Wifi className="h-4 w-4" />} />
         <KpiCard title="CPU Mix Cluster" value={formatNum(cpuMix.length)} severity={cpuMix.length > 0 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">ESXi Version/Build</h3>

@@ -6,6 +6,7 @@ import { useActiveSnapshotIds, useHosts, useRawSheet } from "@/hooks/useActiveSn
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
@@ -155,7 +156,7 @@ export default function VmwareVersions() {
 
       <FilterBar />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <KpiGrid>
         <KpiCard title="Aktive vCenter" value={formatNum(totalActiveVcenters)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Aktive ESXi Hosts" value={formatNum(totalActiveHosts)} icon={<Cpu className="h-4 w-4" />} />
         <KpiCard
@@ -182,7 +183,7 @@ export default function VmwareVersions() {
           subtitle={`${totalActiveHosts > 0 ? Math.round((trackedEsxiUsage / totalActiveHosts) * 100) : 0}% abgedeckt`}
           severity={trackedEsxiUsage < totalActiveHosts ? "warn" : "ok"}
         />
-      </div>
+      </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-border/50 bg-card/30">

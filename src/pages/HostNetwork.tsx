@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -243,14 +244,14 @@ export default function HostNetwork() {
       <p className="text-sm text-muted-foreground -mt-3">vmnic-zu-Switch-Belegung der Hosts, aggregierte Konfigurations-Varianten und vDS-Übersicht. Infrastruktur-Sicht — nicht vom globalen VM-Filter betroffen.</p>
       <FilterBar />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+      <KpiGrid>
         <KpiCard title="Hosts" value={formatNum(hostCount)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="vDS" value={formatNum(rawDvSwitch.length)} icon={<Router className="h-4 w-4" />} />
         <KpiCard title="vSwitch (Std.)" value={formatNum(vssNames.size)} icon={<Network className="h-4 w-4" />} />
         <KpiCard title="Uplinks gesamt" value={formatNum(totalUplinks)} icon={<Cable className="h-4 w-4" />} />
         <KpiCard title="Konfig-Varianten" value={formatNum(variants.length)} severity={variants.length > 1 ? "warn" : "ok"} icon={<GitCompare className="h-4 w-4" />} />
         <KpiCard title="Drift-Hosts" value={formatNum(driftRows.length)} severity={driftRows.length > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       {driftRows.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">

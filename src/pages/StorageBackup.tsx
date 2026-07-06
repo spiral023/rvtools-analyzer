@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -202,7 +203,7 @@ export default function StorageBackup() {
       <h1 className="text-2xl font-bold">Storage / Backup</h1>
       <FilterBar />
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-9">
+      <KpiGrid>
         <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} />
         <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} />
         <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} />
@@ -212,7 +213,7 @@ export default function StorageBackup() {
         <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} />
         <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} />
         <KpiCard title="RDM / VMFS Upg." value={`${formatNum(rdmDisks)} / ${formatNum(upgradeableDs)}`} icon={<Layers className="h-4 w-4" />} />
-      </div>
+      </KpiGrid>
 
       {partChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">

@@ -33,20 +33,20 @@ export function KpiCard({
       )}
     >
       <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 truncate text-xs font-medium uppercase tracking-wide text-muted-foreground" title={title}>
             {title}
           </p>
           {icon && (
-            <div className="text-muted-foreground/50">{icon}</div>
+            <div className="shrink-0 text-muted-foreground/50">{icon}</div>
           )}
         </div>
-        <p className="mt-2 text-2xl font-bold font-mono tracking-tight">
+        <p className="mt-2 truncate text-2xl font-bold font-mono tracking-tight" title={typeof value === "string" ? value : undefined}>
           {value}
         </p>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1 flex min-w-0 items-center gap-2">
           {subtitle && (
-            <span className="text-xs text-muted-foreground">{subtitle}</span>
+            <span className="min-w-0 truncate text-xs text-muted-foreground" title={subtitle}>{subtitle}</span>
           )}
           {trend && (
             <span
