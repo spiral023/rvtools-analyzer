@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
-import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { VariantDetailDialog, type VariantDetail } from "@/components/network/VariantDetailDialog";
@@ -84,8 +82,8 @@ function buildSummary(nics: HostConfig["nics"]): string {
 /*  Seite                                                              */
 /* ------------------------------------------------------------------ */
 
-export default function HostNetwork() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+export function HostNetworkPanel() {
+  const { filters } = useActiveSnapshotIds();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const [selectedVariantLabel, setSelectedVariantLabel] = useState<string | null>(null);
   const { data: rawNIC = [] } = useRawSheet("vNIC");
@@ -229,20 +227,9 @@ export default function HostNetwork() {
   const vssNames = useMemo(() => new Set(rawVSwitch.map((r) => s(r.data["Switch"])).filter(Boolean)), [rawVSwitch]);
   const totalUplinks = nicDetail.filter((n) => n.switchName !== "").length;
 
-  if (snapshots.length === 0) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold">Host-Netzwerk</h1>
-        <EmptyState icon={<Network className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Host-Netzwerk</h1>
-      <p className="text-sm text-muted-foreground -mt-3">vmnic-zu-Switch-Belegung der Hosts, aggregierte Konfigurations-Varianten und vDS-Übersicht. Infrastruktur-Sicht — nicht vom globalen VM-Filter betroffen.</p>
-      <FilterBar />
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">vmnic-zu-Switch-Belegung der Hosts, aggregierte Konfigurations-Varianten und vDS-Übersicht. Infrastruktur-Sicht — nicht vom globalen VM-Filter betroffen.</p>
 
       <KpiGrid>
         <KpiCard title="Hosts" value={formatNum(hostCount)} icon={<Server className="h-4 w-4" />} />

@@ -10,6 +10,7 @@ import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostDetailDialog } from "@/pages/Hardware";
+import { VmwareVersionsPanel } from "@/pages/VmwareVersions";
 import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "@/components/charts/recharts";
 import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
@@ -23,7 +24,7 @@ interface DriverRow { host: string; cluster: string; device: string; type: strin
 interface NtpRow { host: string; ntpServers: string; ntpdRunning: boolean; dnsServers: string; dhcp: boolean; issues: string }
 interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: number; pct: number }
 interface HwUpgradeRow { snapshotId: string; vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
-type ComplianceTab = "compliance" | "operations" | "infrastructure";
+type ComplianceTab = "compliance" | "operations" | "infrastructure" | "versions";
 
 function ComplianceTabPanel({
   noSecureBoot,
@@ -290,13 +291,13 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster" },
 ];
 
-export default function ComplianceLifecycle() {
+export default function ComplianceLifecycle({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms, allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
-  const [activeTab, setActiveTab] = useState<ComplianceTab>("compliance");
+  const [activeTab, setActiveTab] = useState<ComplianceTab>(initialTab);
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
 
   const loadVInfo = activeTab === "compliance" || activeTab === "operations";
@@ -524,6 +525,7 @@ export default function ComplianceLifecycle() {
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
           <TabsTrigger value="operations">Operations</TabsTrigger>
           <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
+          <TabsTrigger value="versions">Versionen</TabsTrigger>
         </TabsList>
 
         <ComplianceTabPanel
@@ -567,6 +569,10 @@ export default function ComplianceLifecycle() {
           onCloseHostDetail={() => setSelectedHost(null)}
           onOpenHostDetail={openHostDetail}
         />
+
+        <TabsContent value="versions" className="space-y-4">
+          <VmwareVersionsPanel />
+        </TabsContent>
       </Tabs>
       {vmDetailDialog}
     </div>

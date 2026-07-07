@@ -22,8 +22,6 @@ import {
   GitCompare,
   Server,
   ClipboardList,
-  BarChart3,
-  Cable,
   CalendarClock,
   Map,
 } from "lucide-react";
@@ -38,13 +36,11 @@ const analysisNav = [
   { title: "Capacity", url: "/capacity", icon: HardDrive },
   { title: "Performance", url: "/performance", icon: Gauge },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
-  { title: "Network / Security", url: "/network-security", icon: Network },
-  { title: "Host-Netzwerk", url: "/host-network", icon: Cable },
+  { title: "Netzwerk", url: "/network-security", icon: Network },
   { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
   { title: "Licensing", url: "/licensing", icon: Key },
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
-  { title: "VMware Versions", url: "/vmware-versions", icon: BarChart3 },
 ];
 
 const compareNav = [

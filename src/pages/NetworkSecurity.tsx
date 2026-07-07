@@ -2,8 +2,6 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
-import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { Network, ShieldAlert, Router, Cable, AlertTriangle } from "lucide-react";
@@ -66,8 +64,8 @@ const teamingColumns: ColumnDef<TeamingRow, unknown>[] = [
   { accessorKey: "issues", header: "Auffälligkeiten", cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
 ];
 
-export default function NetworkSecurity() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+export function NetworkSecurityPanel() {
+  const { filters } = useActiveSnapshotIds();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { data: rawVPort = [] } = useRawSheet("vPort");
   const { data: rawDvPort = [] } = useRawSheet("dvPort");
@@ -160,14 +158,8 @@ export default function NetworkSecurity() {
     });
   }, [rawDvSwitch]);
 
-  if (snapshots.length === 0) {
-    return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Network / Security</h1><EmptyState icon={<Network className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Network / Security</h1>
-      <FilterBar />
+    <div className="space-y-6">
       <KpiGrid>
         <KpiCard title="Portgroups" value={formatNum(policies.length)} icon={<Network className="h-4 w-4" />} />
         <KpiCard title="Security Drift" value={formatNum(securityDrift.length)} severity={securityDrift.length > 0 ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} />

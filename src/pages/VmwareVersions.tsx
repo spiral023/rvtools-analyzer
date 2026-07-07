@@ -1,10 +1,8 @@
 import { useMemo } from "react";
-import { BarChart3, Cpu, Server } from "lucide-react";
+import { Cpu, Server } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useActiveSnapshotIds, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
-import { EmptyState } from "@/components/dashboard/EmptyState";
-import { FilterBar } from "@/components/dashboard/FilterBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -58,7 +56,7 @@ const releaseColumns: ColumnDef<ReleaseUsageRow, unknown>[] = [
   },
 ];
 
-export default function VmwareVersions() {
+export function VmwareVersionsPanel() {
   const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
   const { data: hosts = [] } = useHosts();
   const { data: rawVSource = [] } = useRawSheet("vSource");
@@ -130,31 +128,11 @@ export default function VmwareVersions() {
     usage: row.usageCount,
   }));
 
-  if (snapshots.length === 0) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold">VMware Versions</h1>
-        <EmptyState
-          icon={<BarChart3 className="h-6 w-6" />}
-          title="Keine Daten"
-          description="Laden Sie RVTools-Daten hoch."
-          actionLabel="Zum Upload"
-          actionTo="/upload"
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold">VMware Versions</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Neueste vCenter- und ESXi-Releases mit Nutzung in der aktiven Umgebung.
-        </p>
-      </div>
-
-      <FilterBar />
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Neueste vCenter- und ESXi-Releases mit Nutzung in der aktiven Umgebung.
+      </p>
 
       <KpiGrid>
         <KpiCard title="Aktive vCenter" value={formatNum(totalActiveVcenters)} icon={<Server className="h-4 w-4" />} />

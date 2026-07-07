@@ -18,14 +18,12 @@ const DailyOps = lazy(() => import("@/pages/DailyOps"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
 const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
-const NetworkSecurity = lazy(() => import("@/pages/NetworkSecurity"));
-const HostNetwork = lazy(() => import("@/pages/HostNetwork"));
+const Networking = lazy(() => import("@/pages/Networking"));
 const ComplianceLifecycle = lazy(() => import("@/pages/ComplianceLifecycle"));
 const Licensing = lazy(() => import("@/pages/Licensing"));
 const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
 const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
-const VmwareVersions = lazy(() => import("@/pages/VmwareVersions"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -68,13 +66,13 @@ const App = () => (
                   <Route path="/capacity" element={<Capacity />} />
                   <Route path="/performance" element={<PerformancePage />} />
                   <Route path="/storage-backup" element={<StorageBackup />} />
-                  <Route path="/network-security" element={<NetworkSecurity />} />
-                  <Route path="/host-network" element={<HostNetwork />} />
+                  <Route path="/network-security" element={<Networking initialTab="security" />} />
+                  <Route path="/host-network" element={<Networking initialTab="host" />} />
                   <Route path="/compliance" element={<ComplianceLifecycle />} />
                   <Route path="/hardware" element={<Hardware />} />
                   <Route path="/licensing" element={<Licensing />} />
                   <Route path="/tech-info" element={<TechInfo />} />
-                  <Route path="/vmware-versions" element={<VmwareVersions />} />
+                  <Route path="/vmware-versions" element={<ComplianceLifecycle initialTab="versions" />} />
                   <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
                   <Route path="/planning" element={<Planning />} />
                   <Route path="/settings" element={<Settings />} />
