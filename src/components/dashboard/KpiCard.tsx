@@ -1,5 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
+import type { GlossaryEntry } from "@/lib/glossary";
 import type { ReactNode } from "react";
 
 interface KpiCardProps {
@@ -10,6 +12,8 @@ interface KpiCardProps {
   severity?: "ok" | "warn" | "crit";
   trend?: { delta: number; direction: "up" | "down" | "flat" };
   className?: string;
+  /** Erklärender Tooltip, der beim Überfahren der ganzen Karte erscheint. */
+  info?: GlossaryEntry;
 }
 
 export function KpiCard({
@@ -20,8 +24,9 @@ export function KpiCard({
   severity,
   trend,
   className,
+  info,
 }: KpiCardProps) {
-  return (
+  const card = (
     <Card
       className={cn(
         "relative overflow-hidden transition-all hover:shadow-md",
@@ -34,7 +39,7 @@ export function KpiCard({
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 truncate text-xs font-medium uppercase tracking-wide text-muted-foreground" title={title}>
+          <p className="min-w-0 truncate text-xs font-medium uppercase tracking-wide text-muted-foreground" title={info ? undefined : title}>
             {title}
           </p>
           {icon && (
@@ -66,5 +71,13 @@ export function KpiCard({
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!info) return card;
+
+  return (
+    <InfoTooltip entry={info} side="bottom">
+      {card}
+    </InfoTooltip>
   );
 }

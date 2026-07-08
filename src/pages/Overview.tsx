@@ -16,36 +16,39 @@ import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_OS_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
 
 interface OverviewVmRow extends NormalizedVm {
   sysv: string | null;
 }
 
 const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "powerState", header: "Power", cell: ({ getValue }) => {
+  { accessorKey: "vmName", header: "VM", meta: { info: OVERVIEW_VM_COLUMNS.vmName } },
+  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—", meta: { info: OVERVIEW_VM_COLUMNS.sysv } },
+  { accessorKey: "powerState", header: "Power", meta: { info: OVERVIEW_VM_COLUMNS.powerState }, cell: ({ getValue }) => {
     const v = getValue() as string;
     return <span className={v === "poweredOn" ? "text-success" : v === "poweredOff" ? "text-muted-foreground" : "text-warning"}>{v || "—"}</span>;
   }},
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "cpuCount", header: "vCPU", cell: ({ getValue }) => getValue() ?? "—" },
-  { accessorKey: "memoryMiB", header: "RAM", cell: ({ getValue }) => formatBytes(getValue() as number | null) },
-  { accessorKey: "configStatus", header: "Config", cell: ({ getValue }) => {
+  { accessorKey: "cluster", header: "Cluster", meta: { info: OVERVIEW_VM_COLUMNS.cluster } },
+  { accessorKey: "host", header: "Host", meta: { info: OVERVIEW_VM_COLUMNS.host } },
+  { accessorKey: "cpuCount", header: "vCPU", cell: ({ getValue }) => getValue() ?? "—", meta: { info: OVERVIEW_VM_COLUMNS.cpuCount } },
+  { accessorKey: "memoryMiB", header: "RAM", cell: ({ getValue }) => formatBytes(getValue() as number | null), meta: { info: OVERVIEW_VM_COLUMNS.memoryMiB } },
+  { accessorKey: "configStatus", header: "Config", meta: { info: OVERVIEW_VM_COLUMNS.configStatus }, cell: ({ getValue }) => {
     const v = getValue() as string;
     return <span className={v === "green" ? "text-success" : v === "yellow" ? "text-warning" : v === "red" ? "text-destructive" : ""}>{v || "—"}</span>;
   }},
-  { accessorKey: "osConfig", header: "OS" },
+  { accessorKey: "osConfig", header: "OS", meta: { info: OVERVIEW_VM_COLUMNS.osConfig } },
 ];
 
 const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: OVERVIEW_OS_COLUMNS.cluster } },
+  { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—", meta: { info: OVERVIEW_OS_COLUMNS.operatingSystem } },
+  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: OVERVIEW_OS_COLUMNS.vmCount } },
   {
     accessorKey: "clusterSharePct",
     header: "Anteil im Cluster",
+    meta: { info: OVERVIEW_OS_COLUMNS.clusterSharePct },
     cell: ({ getValue }) => `${(getValue() as number).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`,
   },
 ];
@@ -127,16 +130,18 @@ export default function Overview() {
       <FilterBar />
       <GlobalFilterScopeHint text="VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert." />
       <KpiGrid>
-        <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} />
-        <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} />
-        <KpiCard title="Powered Off" value={formatNum(poweredOff)} icon={<Monitor className="h-4 w-4" />} />
-        <KpiCard title="Hosts" value={formatNum(hosts.length)} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} />
-        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />
+        <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
+        <KpiCard title="Powered Off" value={formatNum(poweredOff)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOff} />
+        <KpiCard title="Hosts" value={formatNum(hosts.length)} icon={<Server className="h-4 w-4" />} info={OVERVIEW_KPI.hosts} />
+        <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} info={OVERVIEW_KPI.datastores} />
+        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Power State</h3>
+          <InfoTooltip entry={OVERVIEW_SECTIONS.powerState} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Power State</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
@@ -148,7 +153,9 @@ export default function Overview() {
           </ResponsiveContainer>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Hosts je Cluster</h3>
+          <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Hosts je Cluster</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={clusterData}>
               <XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -162,7 +169,9 @@ export default function Overview() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-muted-foreground">Betriebssysteme je Cluster ({osDistributionRows.length})</h3>
+            <InfoTooltip entry={OVERVIEW_SECTIONS.osPerCluster} side="bottom">
+              <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Betriebssysteme je Cluster ({osDistributionRows.length})</h3>
+            </InfoTooltip>
             <p className="mt-1 text-xs text-muted-foreground">
               Gruppierte VM-Anzahl nach Cluster und Betriebssystem
             </p>
@@ -195,7 +204,9 @@ export default function Overview() {
         />
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
+        <InfoTooltip entry={OVERVIEW_SECTIONS.vmTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
+        </InfoTooltip>
         <VirtualTable
           data={vmsForTable}
           columns={vmColumns}

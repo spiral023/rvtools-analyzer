@@ -132,6 +132,21 @@ function statusColor(status: string): string {
   return "text-red-400";
 }
 
+// Herstellernamen für die Anzeige im Kuchendiagramm kürzen.
+const VENDOR_SHORT_NAMES: Array<[RegExp, string]> = [
+  [/^dell\b/i, "Dell"],
+  [/^cisco\b/i, "Cisco"],
+  [/^hitachi\b/i, "Hitachi"],
+];
+
+function shortenVendor(vendor: string): string {
+  const trimmed = vendor.trim();
+  for (const [pattern, short] of VENDOR_SHORT_NAMES) {
+    if (pattern.test(trimmed)) return short;
+  }
+  return trimmed;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Sub-Components                                                     */
 /* ------------------------------------------------------------------ */
@@ -533,7 +548,7 @@ export default function Hardware() {
   const vendorData = useMemo(() => {
     const map = new Map<string, number>();
     for (const h of filteredHosts) {
-      const v = h.vendor || "Unknown";
+      const v = shortenVendor(h.vendor || "Unknown");
       map.set(v, (map.get(v) || 0) + 1);
     }
     return [...map.entries()].map(([name, value]) => ({ name, value }));

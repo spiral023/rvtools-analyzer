@@ -24,6 +24,7 @@ import {
 } from "@/lib/export/tableExport";
 import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 interface VirtualTableProps<T, TColumn = T> {
   data: T[];
@@ -187,19 +188,21 @@ export function VirtualTable<T, TColumn = T>({
                           )}
                         </button>
                       ) : (
-                        <div className="flex items-center gap-1">
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                          {sorted === "asc" ? (
-                            <ArrowUp className="h-3 w-3 text-primary" />
-                          ) : sorted === "desc" ? (
-                            <ArrowDown className="h-3 w-3 text-primary" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-30" />
-                          )}
-                        </div>
+                        <InfoTooltip entry={header.column.columnDef.meta?.info} side="bottom">
+                          <div className="flex w-fit items-center gap-1">
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            {sorted === "asc" ? (
+                              <ArrowUp className="h-3 w-3 text-primary" />
+                            ) : sorted === "desc" ? (
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-30" />
+                            )}
+                          </div>
+                        </InfoTooltip>
                       )}
                     </th>
                   );

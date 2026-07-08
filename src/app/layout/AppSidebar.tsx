@@ -9,6 +9,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
 import {
   LayoutDashboard,
   Upload,
@@ -68,17 +70,19 @@ function NavSection({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild>
-                <NavLink
-                  to={item.url}
-                  end
-                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{item.title}</span>
-                </NavLink>
-              </SidebarMenuButton>
+              <InfoTooltip entry={SIDEBAR_GLOSSARY[item.url]} side="right" align="center">
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to={item.url}
+                    end
+                    className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{item.title}</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </InfoTooltip>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

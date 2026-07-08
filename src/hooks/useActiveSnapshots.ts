@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoClientLatest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -176,6 +176,27 @@ export function useTechInfoLatestByVmNames(vmNames: string[], enabled = true) {
     queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
     queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
     enabled: enabled && normalizedVmNames.length > 0,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useTechInfoClientLatestByClientNames(clientNames: string[], enabled = true) {
+  const normalizedClientNames = useMemo(
+    () => {
+      const names = new Set<string>();
+      for (const name of clientNames) {
+        const trimmed = name.trim();
+        if (trimmed) names.add(trimmed);
+      }
+      return [...names].sort();
+    },
+    [clientNames],
+  );
+
+  return useQuery({
+    queryKey: ["techInfoClientLatestByClientNames", normalizedClientNames],
+    queryFn: () => getTechInfoClientLatestByClientNames(normalizedClientNames),
+    enabled: enabled && normalizedClientNames.length > 0,
     staleTime: STALE_MS,
   });
 }
