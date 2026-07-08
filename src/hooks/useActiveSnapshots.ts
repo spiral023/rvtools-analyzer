@@ -4,6 +4,7 @@ import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmN
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { hasGlobalFilterDefinition } from "@/lib/globalFilter";
+import { applyVmScopeToVms } from "@/lib/vmScope";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
   NormalizedDatastore, NormalizedSnapshot, NormalizedHealth,
@@ -60,6 +61,7 @@ export function useVms() {
     if (hasActiveFilter && matchingVmKeys) {
       result = result.filter((vm) => matchingVmKeys.has(vm.vmKey));
     }
+    result = applyVmScopeToVms(result, filters);
     if (filters.clusters.length) result = result.filter((v) => v.cluster && filters.clusters.includes(v.cluster));
     if (filters.hosts.length) result = result.filter((v) => v.host && filters.hosts.includes(v.host));
     if (filters.search) {
@@ -68,7 +70,8 @@ export function useVms() {
         v.vmName.toLowerCase().includes(q) ||
         v.host?.toLowerCase().includes(q) ||
         v.cluster?.toLowerCase().includes(q) ||
-        v.osConfig?.toLowerCase().includes(q)
+        v.osConfig?.toLowerCase().includes(q) ||
+        v.osTools?.toLowerCase().includes(q)
       );
     }
     return result;

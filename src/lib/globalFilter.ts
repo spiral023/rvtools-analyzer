@@ -327,7 +327,7 @@ export function evaluateGlobalFilter(
 }
 
 export function filterRowsByMatchingVmJoinKeys(rows: SheetRow[], matchingVmJoinKeys: Set<string> | null): SheetRow[] {
-  if (!matchingVmJoinKeys || matchingVmJoinKeys.size === 0) return rows;
+  if (!matchingVmJoinKeys) return rows;
   return rows.filter((row) => matchingVmJoinKeys.has(buildVmJoinKey(row.snapshotId, String(row.data["VM"] ?? ""))));
 }
 

@@ -57,6 +57,13 @@ function vm(snapshotId: string, vmName: string, cluster: string, host = "esx01")
   };
 }
 
+function vmWith(snapshotId: string, vmName: string, cluster: string, overrides: Partial<NormalizedVm>): NormalizedVm {
+  return {
+    ...vm(snapshotId, vmName, cluster),
+    ...overrides,
+  };
+}
+
 function TestProviders({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -129,5 +136,27 @@ describe("useActiveSnapshotIds", () => {
     expect(screen.getByTestId("vms")).not.toHaveTextContent("APP-OLD");
     expect(screen.getByTestId("vms")).not.toHaveTextContent("DB-SKIP");
     expect(screen.getByTestId("vms")).not.toHaveTextContent("APP-OTHER-CLUSTER");
+  });
+
+  it("applies the global VM scope before returning VMs", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    await batchPut("entities_vm", [
+      vmWith("snap-1", "APP-ON", "CL-Prod", { powerState: "poweredOn" }),
+      vmWith("snap-1", "APP-OFF", "CL-Prod", { powerState: "poweredOff" }),
+      vmWith("snap-1", "vCLS-12345678-aaaa-bbbb-cccc-123456789abc", "CL-Prod", { powerState: "poweredOn" }),
+    ]);
+
+    await act(async () => {
+      render(
+        <Probe filters={{ vmPowerScope: "poweredOn", excludeVclsVms: true }} />,
+        { wrapper: TestProviders },
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("vms")).toHaveTextContent("APP-ON");
+    });
+    expect(screen.getByTestId("vms")).not.toHaveTextContent("APP-OFF");
+    expect(screen.getByTestId("vms")).not.toHaveTextContent("vCLS");
   });
 });

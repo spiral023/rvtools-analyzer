@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
@@ -14,6 +15,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 
 interface OverviewVmRow extends NormalizedVm {
   sysv: string | null;
@@ -37,6 +39,12 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
   { accessorKey: "osConfig", header: "OS" },
 ];
 
+const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
+  { accessorKey: "cluster", header: "Cluster" },
+  { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
+];
+
 export default function Overview() {
   const { snapshots, activeSnapshotIds, filters } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
@@ -53,6 +61,7 @@ export default function Overview() {
   const { data: rawToolsRows = [] } = useRawSheet("vTools");
 
   const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
+  const [osSource, setOsSource] = useState<VmOsSource>("tools");
   const filteredRawCpuRows = useMemo(() => filterVmRows(rawCpuRows), [filterVmRows, rawCpuRows]);
   const filteredRawMemoryRows = useMemo(() => filterVmRows(rawMemoryRows), [filterVmRows, rawMemoryRows]);
   const filteredRawDiskRows = useMemo(() => filterVmRows(rawDiskRows), [filterVmRows, rawDiskRows]);
@@ -86,6 +95,11 @@ export default function Overview() {
         sysv: vm.techInfo?.sysv ?? null,
       })),
     [filteredVms],
+  );
+
+  const osDistributionRows = useMemo(
+    () => buildClusterOsDistributionRows(filteredVms, osSource),
+    [filteredVms, osSource],
   );
 
   if (snapshots.length === 0) {
@@ -139,6 +153,41 @@ export default function Overview() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground">Betriebssysteme je Cluster ({osDistributionRows.length})</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Gruppierte VM-Anzahl nach Cluster und Betriebssystem
+            </p>
+          </div>
+          <ToggleGroup
+            type="single"
+            value={osSource}
+            onValueChange={(value) => {
+              if (value === "tools" || value === "config") setOsSource(value);
+            }}
+            size="sm"
+            variant="outline"
+            className="justify-start"
+          >
+            <ToggleGroupItem value="tools" aria-label="OS according to the VMware Tools">
+              VMware Tools
+            </ToggleGroupItem>
+            <ToggleGroupItem value="config" aria-label="OS according to the configuration file">
+              Configuration file
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        <VirtualTable
+          data={osDistributionRows}
+          columns={osDistributionColumns}
+          globalFilter={filters.search}
+          height={360}
+          initialSorting={[{ id: "cluster", desc: false }]}
+          exportFileName={`rvtools-os-je-cluster-${osSource}`}
+        />
       </div>
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>

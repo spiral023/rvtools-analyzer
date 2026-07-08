@@ -14,6 +14,7 @@ import {
   type VmGlobalFilterContextEntry,
   type VmRawFilterSource,
 } from "@/lib/globalFilter";
+import { buildVmScopeJoinKeys } from "@/lib/vmScope";
 import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow } from "@/domain/models/types";
 
 const STALE_MS = 5 * 60 * 1000;
@@ -172,6 +173,20 @@ export function useGlobalVmFilterEngine(
     });
   }, [allVms, rawRowsBySource, techInfoLatest, techInfoClientLatest]);
 
+  const scopedVmJoinKeys = useMemo(
+    () =>
+      buildVmScopeJoinKeys(allVms, {
+        vmPowerScope: filters.vmPowerScope,
+        excludeVclsVms: filters.excludeVclsVms,
+      }),
+    [allVms, filters.excludeVclsVms, filters.vmPowerScope],
+  );
+
+  const scopedContexts = useMemo(() => {
+    if (!scopedVmJoinKeys) return contexts;
+    return contexts.filter((entry) => scopedVmJoinKeys.has(buildVmJoinKey(entry.vm.snapshotId, entry.vm.vmName)));
+  }, [contexts, scopedVmJoinKeys]);
+
   const fields = useMemo(
     () => buildGlobalFilterFields(allVms, techInfoLatest, techInfoClientLatest, rawRowsBySource, rawFieldNamesBySource),
     [allVms, rawFieldNamesBySource, rawRowsBySource, techInfoLatest, techInfoClientLatest],
@@ -180,20 +195,21 @@ export function useGlobalVmFilterEngine(
   const matchingVmKeys = useMemo(() => {
     if (!hasActiveFilter) return null;
     return new Set(
-      contexts
+      scopedContexts
         .filter((entry) => evaluateGlobalFilter(filters.globalFilter, entry, fields))
         .map((entry) => entry.vm.vmKey),
     );
-  }, [contexts, fields, filters.globalFilter, hasActiveFilter]);
+  }, [scopedContexts, fields, filters.globalFilter, hasActiveFilter]);
 
   const matchingVmJoinKeys = useMemo(() => {
-    if (!hasActiveFilter || !matchingVmKeys) return null;
+    if (!hasActiveFilter) return scopedVmJoinKeys;
+    if (!matchingVmKeys) return scopedVmJoinKeys;
     return new Set(
-      contexts
+      scopedContexts
         .filter((entry) => matchingVmKeys.has(entry.vm.vmKey))
         .map((entry) => buildVmJoinKey(entry.vm.snapshotId, entry.vm.vmName)),
     );
-  }, [contexts, hasActiveFilter, matchingVmKeys]);
+  }, [hasActiveFilter, matchingVmKeys, scopedContexts, scopedVmJoinKeys]);
 
   const summary = useMemo(
     () => summarizeGlobalFilter(filters.globalFilter, fields),
@@ -209,9 +225,9 @@ export function useGlobalVmFilterEngine(
 
   const previewMatchingCount = useMemo(() => {
     if (previewFilter === undefined) return null;
-    if (!hasGlobalFilterDefinition(previewFilter)) return totalVmCount;
-    return contexts.filter((entry) => evaluateGlobalFilter(previewFilter, entry, fields)).length;
-  }, [contexts, fields, previewFilter, totalVmCount]);
+    if (!hasGlobalFilterDefinition(previewFilter)) return scopedContexts.length;
+    return scopedContexts.filter((entry) => evaluateGlobalFilter(previewFilter, entry, fields)).length;
+  }, [scopedContexts, fields, previewFilter]);
 
   return {
     fields,

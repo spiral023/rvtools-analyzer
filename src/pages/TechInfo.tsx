@@ -12,6 +12,7 @@ import { Monitor, ClipboardList, Link2Off } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 import { formatIsoDateTime } from "@/lib/clientDetail";
+import { applyVmScopeToVms } from "@/lib/vmScope";
 import type { TechInfoClientLatest } from "@/domain/models/types";
 
 interface TechInfoVmRow {
@@ -95,16 +96,21 @@ export default function TechInfo() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openClientDetail, clientDetailDialog } = useClientDetailDialog(allVms);
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
+  const clusterFilterSet = useMemo(() => new Set(filters.clusters), [filters.clusters]);
+  const hostFilterSet = useMemo(() => new Set(filters.hosts), [filters.hosts]);
 
   const scopeVms = useMemo(
     () =>
-      allVms.filter((vm) => {
+      applyVmScopeToVms(allVms, {
+        vmPowerScope: filters.vmPowerScope,
+        excludeVclsVms: filters.excludeVclsVms,
+      }).filter((vm) => {
         if (hasActiveFilter && matchingVmKeys && !matchingVmKeys.has(vm.vmKey)) return false;
-        if (filters.clusters.length > 0 && (!vm.cluster || !filters.clusters.includes(vm.cluster))) return false;
-        if (filters.hosts.length > 0 && (!vm.host || !filters.hosts.includes(vm.host))) return false;
+        if (clusterFilterSet.size > 0 && (!vm.cluster || !clusterFilterSet.has(vm.cluster))) return false;
+        if (hostFilterSet.size > 0 && (!vm.host || !hostFilterSet.has(vm.host))) return false;
         return true;
       }),
-    [allVms, filters.clusters, filters.hosts, hasActiveFilter, matchingVmKeys],
+    [allVms, clusterFilterSet, filters.excludeVclsVms, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
   );
 
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { FilterState, SnapshotId } from "@/domain/models/types";
 import { getUiState, putUiState } from "@/data/db";
 
@@ -10,6 +10,8 @@ const defaultFilter: FilterState = {
   datastores: [],
   search: "",
   globalFilter: null,
+  vmPowerScope: "all",
+  excludeVclsVms: false,
 };
 
 const UI_STATE_ID = "app";
@@ -83,10 +85,13 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     })();
   }, [filters]);
 
+  const contextValue = useMemo(
+    () => ({ filters, setFilters, resetFilters, activeSnapshotIds }),
+    [activeSnapshotIds, filters, resetFilters, setFilters],
+  );
+
   return (
-    <FilterContext.Provider
-      value={{ filters, setFilters, resetFilters, activeSnapshotIds }}
-    >
+    <FilterContext.Provider value={contextValue}>
       {children}
     </FilterContext.Provider>
   );
