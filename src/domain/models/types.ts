@@ -373,6 +373,7 @@ export interface FilterState {
   datastores: string[];
   search: string;
   globalFilter: GlobalFilterGroup | null;
+  vmNameList: string;
   vmPowerScope: "all" | "poweredOn";
   excludeVclsVms: boolean;
 }

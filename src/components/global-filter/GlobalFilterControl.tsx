@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
   serializeGlobalFilter,
   SOURCE_LABELS,
 } from "@/lib/globalFilter";
+import { parseVmNameScopeList } from "@/lib/vmScope";
 import type {
   GlobalFilterDataType,
   GlobalFilterField,
@@ -90,28 +92,43 @@ export function GlobalFilterControl() {
   const { filters, setFilters } = useFilterState();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<GlobalFilterGroup>(filters.globalFilter ?? createGlobalFilterGroup("root"));
+  const [vmNameListDraft, setVmNameListDraft] = useState(filters.vmNameList);
   const { fields, summary, previewMatchingCount, totalVmCount } = useGlobalVmFilterEngine(
     open || hasGlobalFilterDefinition(filters.globalFilter),
     open ? draft : undefined,
   );
 
   const activeRuleCount = countGlobalFilterRules(filters.globalFilter);
+  const activeVmNameCount = parseVmNameScopeList(filters.vmNameList).length;
+  const activeFilterCount = activeRuleCount + activeVmNameCount;
   const draftRuleCount = countGlobalFilterRules(draft);
+  const draftVmNameCount = parseVmNameScopeList(vmNameListDraft).length;
 
-  useEffect(() => {
-    if (!open) return;
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setDraft(filters.globalFilter ?? createGlobalFilterGroup("root"));
+      setVmNameListDraft(filters.vmNameList);
+    }
+    setOpen(nextOpen);
+  };
+
+  const openDialog = () => {
     setDraft(filters.globalFilter ?? createGlobalFilterGroup("root"));
-  }, [filters.globalFilter, open]);
+    setVmNameListDraft(filters.vmNameList);
+    setOpen(true);
+  };
 
   const apply = () => {
     setFilters({
       globalFilter: hasGlobalFilterDefinition(draft) ? draft : null,
+      vmNameList: vmNameListDraft,
     });
     setOpen(false);
   };
 
   const resetDraft = () => {
     setDraft(createGlobalFilterGroup("root"));
+    setVmNameListDraft("");
   };
 
   const copyToClipboard = async () => {
@@ -135,29 +152,31 @@ export function GlobalFilterControl() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setOpen(true)}
+            onClick={openDialog}
             className={cn(
               "relative h-8 w-8 text-muted-foreground hover:text-foreground",
-              activeRuleCount > 0 && "text-primary hover:text-primary",
+              activeFilterCount > 0 && "text-primary hover:text-primary",
             )}
             aria-label="Globalen Filter öffnen"
           >
             <Filter className="h-4 w-4" />
-            {activeRuleCount > 0 && (
+            {activeFilterCount > 0 && (
               <span className="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-                {activeRuleCount}
+                {activeFilterCount}
               </span>
             )}
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {activeRuleCount > 0 ? summary : "Globaler Systemfilter"}
+          {activeFilterCount > 0
+            ? [activeVmNameCount > 0 ? `${activeVmNameCount} System${activeVmNameCount === 1 ? "" : "e"} aus Liste` : null, activeRuleCount > 0 ? summary : null].filter(Boolean).join(" · ")
+            : "Globaler Systemfilter"}
         </TooltipContent>
       </Tooltip>
 
@@ -173,8 +192,11 @@ export function GlobalFilterControl() {
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 px-4 py-3">
             <div>
               <p className="text-sm font-medium">
-                {draftRuleCount > 0
-                  ? `${draftRuleCount} Bedingung${draftRuleCount === 1 ? "" : "en"}`
+                {draftRuleCount > 0 || draftVmNameCount > 0
+                  ? [
+                      draftVmNameCount > 0 ? `${draftVmNameCount} System${draftVmNameCount === 1 ? "" : "e"}` : null,
+                      draftRuleCount > 0 ? `${draftRuleCount} Bedingung${draftRuleCount === 1 ? "" : "en"}` : null,
+                    ].filter(Boolean).join(" · ")
                   : "Keine Bedingungen"}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -197,6 +219,22 @@ export function GlobalFilterControl() {
             </div>
           </div>
 
+          <div className="rounded-lg border border-border/50 bg-background/70 p-4">
+            <label htmlFor="global-vm-name-list" className="text-sm font-medium">
+              Systemliste nach VM Name
+            </label>
+            <Textarea
+              id="global-vm-name-list"
+              value={vmNameListDraft}
+              onChange={(event) => setVmNameListDraft(event.target.value)}
+              className="mt-2 min-h-24 font-mono-data text-xs"
+              placeholder={"server1\nserver2, server3; server4 server5"}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Exakte VM-Namen, getrennt durch Absatz, Komma, Semikolon oder Leerzeichen.
+            </p>
+          </div>
+
           <div className="min-h-0 flex-1 overflow-y-auto pr-2">
             <FilterGroupEditor
               group={draft}
@@ -209,7 +247,7 @@ export function GlobalFilterControl() {
 
         <DialogFooter className="border-t border-border px-6 py-4">
           <Button variant="outline" onClick={resetDraft}>Zurücksetzen</Button>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Abbrechen</Button>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>Abbrechen</Button>
           <Button onClick={apply}>Anwenden</Button>
         </DialogFooter>
       </DialogContent>

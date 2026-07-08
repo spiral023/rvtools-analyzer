@@ -3,14 +3,7 @@ import { useDiagnostics } from "@/hooks/useDiagnostics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, RefreshCw, Loader2 } from "lucide-react";
-
-function formatBytes(bytes: number | null): string {
-  if (bytes === null) return "k. A.";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
+import { formatBytes } from "@/lib/utils";
 
 export default function Diagnostics() {
   const { data, isFetching, refresh } = useDiagnostics(true);

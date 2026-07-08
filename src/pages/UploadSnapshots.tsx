@@ -1,8 +1,14 @@
 import { useCallback, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport, getTechInfoClientImports, deleteTechInfoClientImport } from "@/data/db";
+import {
+  getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport,
+  getTechInfoClientImports, deleteTechInfoClientImport,
+  estimateSnapshotSizesBytes, estimateTechInfoImportSizesBytes, estimateTechInfoClientImportSizesBytes,
+} from "@/data/db";
+import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
 import { importRvtoolsXlsx } from "@/domain/services/importService";
 import type { ImportProgress } from "@/domain/services/importService";
+import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -29,6 +35,8 @@ type UploadState = {
   lastResult: ImportResult | null;
   deleteAllOpen: boolean;
   progress: ImportProgress | null;
+  deleting: boolean;
+  deleteProgress: DeleteProgress | null;
 };
 
 type UploadAction =
@@ -36,7 +44,9 @@ type UploadAction =
   | { type: "set-drag-over"; value: boolean }
   | { type: "set-last-result"; value: ImportResult | null }
   | { type: "set-delete-all-open"; value: boolean }
-  | { type: "set-progress"; value: ImportProgress | null };
+  | { type: "set-progress"; value: ImportProgress | null }
+  | { type: "set-deleting"; value: boolean }
+  | { type: "set-delete-progress"; value: DeleteProgress | null };
 
 function uploadReducer(state: UploadState, action: UploadAction): UploadState {
   switch (action.type) {
@@ -50,6 +60,10 @@ function uploadReducer(state: UploadState, action: UploadAction): UploadState {
       return { ...state, deleteAllOpen: action.value };
     case "set-progress":
       return { ...state, progress: action.value };
+    case "set-deleting":
+      return { ...state, deleting: action.value };
+    case "set-delete-progress":
+      return { ...state, deleteProgress: action.value };
     default:
       return state;
   }
@@ -92,8 +106,10 @@ export default function UploadSnapshots() {
     lastResult: null,
     deleteAllOpen: false,
     progress: null,
+    deleting: false,
+    deleteProgress: null,
   });
-  const { importing, dragOver, lastResult, deleteAllOpen, progress } = uploadState;
+  const { importing, dragOver, lastResult, deleteAllOpen, progress, deleting, deleteProgress } = uploadState;
 
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
@@ -106,6 +122,23 @@ export default function UploadSnapshots() {
       return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports);
     },
   });
+
+  const uploadIdsKey = uploads.map((u) => `${u.kind}:${u.id}`).join("|");
+  const { data: uploadSizes } = useQuery({
+    queryKey: ["uploadSizes", uploadIdsKey],
+    enabled: uploads.length > 0,
+    queryFn: async () => {
+      const [rvtools, techInfo, techInfoClient] = await Promise.all([
+        estimateSnapshotSizesBytes(uploads.filter((u) => u.kind === "rvtools").map((u) => u.id)),
+        estimateTechInfoImportSizesBytes(uploads.filter((u) => u.kind === "tech-info").map((u) => u.id)),
+        estimateTechInfoClientImportSizesBytes(uploads.filter((u) => u.kind === "tech-info-client").map((u) => u.id)),
+      ]);
+      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient } satisfies Record<StoredUpload["kind"], Record<string, number>>;
+    },
+  });
+  const totalSizeBytes = uploadSizes
+    ? Object.values(uploadSizes).reduce((sum, byId) => sum + Object.values(byId).reduce((s, b) => s + b, 0), 0)
+    : null;
 
   const invalidateAll = useCallback(() => { queryClient.invalidateQueries(); refetch(); }, [queryClient, refetch]);
 
@@ -137,30 +170,39 @@ export default function UploadSnapshots() {
     if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
-  const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
-    await deleteSnapshot(snapshotId);
-    toast.success("Snapshot gelöscht.");
-    invalidateAll();
+  const runDelete = useCallback(async (
+    performDelete: (onProgress: DeleteProgressCallback) => Promise<void>,
+    successMessage: string,
+  ) => {
+    dispatch({ type: "set-deleting", value: true });
+    try {
+      await performDelete((nextProgress) => dispatch({ type: "set-delete-progress", value: nextProgress }));
+      toast.success(successMessage);
+    } catch (err) {
+      toast.error(`Löschen fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      dispatch({ type: "set-deleting", value: false });
+      dispatch({ type: "set-delete-progress", value: null });
+      invalidateAll();
+    }
   }, [invalidateAll]);
+
+  const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
+    await runDelete((onProgress) => deleteSnapshot(snapshotId, onProgress), "Snapshot gelöscht.");
+  }, [runDelete]);
 
   const handleDeleteTechInfoImport = useCallback(async (techInfoImportId: string) => {
-    await deleteTechInfoImport(techInfoImportId);
-    toast.success("Tech-Info gelöscht.");
-    invalidateAll();
-  }, [invalidateAll]);
+    await runDelete(() => deleteTechInfoImport(techInfoImportId), "Tech-Info gelöscht.");
+  }, [runDelete]);
 
   const handleDeleteTechInfoClientImport = useCallback(async (techInfoClientImportId: string) => {
-    await deleteTechInfoClientImport(techInfoClientImportId);
-    toast.success("Tech-Info Client gelöscht.");
-    invalidateAll();
-  }, [invalidateAll]);
+    await runDelete(() => deleteTechInfoClientImport(techInfoClientImportId), "Tech-Info Client gelöscht.");
+  }, [runDelete]);
 
   const handleDeleteAll = useCallback(async () => {
-    await deleteAllData();
     dispatch({ type: "set-delete-all-open", value: false });
-    toast.success("Alle lokalen Daten wurden gelöscht.");
-    invalidateAll();
-  }, [invalidateAll]);
+    await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
+  }, [runDelete]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -174,7 +216,7 @@ export default function UploadSnapshots() {
           </Link>
           <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
                 <Trash2 className="mr-1 h-4 w-4" />Alle Daten löschen
               </Button>
             </DialogTrigger>
@@ -204,6 +246,22 @@ export default function UploadSnapshots() {
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
       </label>
+
+      {/* Progress bar during deletion */}
+      {deleting && deleteProgress && (
+        <Card className="animate-fade-in border-destructive/30">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-destructive">{deleteProgress.step}</span>
+              <span className="text-muted-foreground tabular-nums">{deleteProgress.percent}%</span>
+            </div>
+            <Progress value={deleteProgress.percent} className="h-2" />
+            {deleteProgress.detail && (
+              <p className="text-xs text-muted-foreground">{deleteProgress.detail}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress bar during import */}
       {importing && progress && (
@@ -254,7 +312,12 @@ export default function UploadSnapshots() {
       )}
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gespeicherte Uploads ({uploads.length})</h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gespeicherte Uploads ({uploads.length})</h2>
+          {totalSizeBytes !== null && uploads.length > 0 && (
+            <span className="text-xs text-muted-foreground tabular-nums">≈ {formatBytes(totalSizeBytes)} Daten in IndexedDB (geschätzt)</span>
+          )}
+        </div>
         {uploads.length === 0 ? (
           <p className="text-sm text-muted-foreground">Noch keine RVTools- oder Tech-Info-Dateien importiert.</p>
         ) : (
@@ -272,6 +335,7 @@ export default function UploadSnapshots() {
                   ? upload.techInfo.rowCount
                   : upload.techInfoClient.rowCount;
               const sheetCount = isRvtools ? Object.keys(upload.snapshot.sheetStats).length : 1;
+              const sizeBytes = uploadSizes?.[upload.kind]?.[upload.id];
 
               return (
                 <Card key={`${upload.kind}-${upload.id}`} className="group">
@@ -296,6 +360,7 @@ export default function UploadSnapshots() {
                         )}
                         <p className="text-xs text-muted-foreground">
                           {sheetCount.toLocaleString("de-DE")} {sheetCount === 1 ? "Sheet" : "Sheets"}, {rowCount.toLocaleString("de-DE")} Zeilen
+                          {sizeBytes !== undefined && <> · ≈ {formatBytes(sizeBytes)} in IndexedDB</>}
                         </p>
                       </div>
                     </div>
@@ -303,6 +368,7 @@ export default function UploadSnapshots() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground/60 hover:text-destructive focus-visible:text-destructive transition-colors"
+                      disabled={deleting || importing}
                       onClick={() => {
                         if (upload.kind === "tech-info") void handleDeleteTechInfoImport(upload.id);
                         else if (upload.kind === "tech-info-client") void handleDeleteTechInfoClientImport(upload.id);

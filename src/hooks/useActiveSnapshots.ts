@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoClientLatest } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
-import { hasGlobalFilterDefinition } from "@/lib/globalFilter";
+import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import { applyVmScopeToVms } from "@/lib/vmScope";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
@@ -122,12 +122,23 @@ export function useVmSnapshots() {
 
 export function useHealthEvents() {
   const { activeSnapshotIds } = useActiveSnapshotIds();
-  return useQuery({
+  const { matchingVmJoinKeys } = useGlobalVmFilterEngine();
+  const query = useQuery({
     queryKey: ["health", activeSnapshotIds],
     queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", activeSnapshotIds),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
+
+  const filteredData = useMemo(() => {
+    const events = query.data ?? [];
+    if (!matchingVmJoinKeys) return events;
+    return events.filter((event) =>
+      matchingVmJoinKeys.has(buildVmJoinKey(event.snapshotId, String(event.entity ?? ""))),
+    );
+  }, [matchingVmJoinKeys, query.data]);
+
+  return { ...query, data: filteredData };
 }
 
 export function useRawSheet(sheetName: string, enabled = true) {

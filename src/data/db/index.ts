@@ -494,6 +494,68 @@ export async function getStorageEstimate(): Promise<StorageEstimateResult> {
   };
 }
 
+const SIZE_SAMPLE_COUNT = 40;
+
+/**
+ * Hochgerechnete Größenschätzung pro Gruppe (z. B. Snapshot oder Tech-Info-Import):
+ * Stichprobe der ersten Einträge × Gesamtanzahl im Index — kein exakter Byte-Wert.
+ */
+async function estimateSizeByIndex(
+  db: IDBPDatabase<RVToolsDBSchema>,
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId",
+  key: string,
+): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
+  const anyDb = db as any;
+  const count: number = await anyDb.countFromIndex(storeName, indexName, key);
+  if (count === 0) return 0;
+  const sample: unknown[] = await anyDb.getAllFromIndex(storeName, indexName, key, SIZE_SAMPLE_COUNT);
+  if (sample.length === 0) return 0;
+  const sampleBytes = sample.reduce<number>((sum, value) => sum + JSON.stringify(value).length, 0);
+  return Math.round((sampleBytes / sample.length) * count);
+}
+
+/** Geschätzte IndexedDB-Größe je RVTools-Snapshot über alle snapshot-bezogenen Stores. */
+export async function estimateSnapshotSizesBytes(snapshotIds: string[]): Promise<Record<string, number>> {
+  if (snapshotIds.length === 0) return {};
+  const db = await getDb();
+  const scopedStores: SnapshotScopedStoreName[] = [
+    "rawSheets", "entities_vm", "entities_host", "entities_cluster",
+    "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
+  ];
+  const result: Record<string, number> = {};
+  for (const snapshotId of snapshotIds) {
+    const perStore = await Promise.all(
+      scopedStores.map((store) => estimateSizeByIndex(db, store, "snapshotId", snapshotId)),
+    );
+    result[snapshotId] = perStore.reduce((sum, bytes) => sum + bytes, 0);
+  }
+  return result;
+}
+
+/** Geschätzte IndexedDB-Größe je Tech-Info-Import (Server). */
+export async function estimateTechInfoImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const result: Record<string, number> = {};
+  for (const id of importIds) {
+    result[id] = await estimateSizeByIndex(db, "techinfo_rows", "techInfoImportId", id);
+  }
+  return result;
+}
+
+/** Geschätzte IndexedDB-Größe je Tech-Info-Client-Import. */
+export async function estimateTechInfoClientImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const result: Record<string, number> = {};
+  for (const id of importIds) {
+    result[id] = await estimateSizeByIndex(db, "techinfo_client_rows", "techInfoClientImportId", id);
+  }
+  return result;
+}
+
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -512,47 +574,147 @@ export async function timeSampleVmQuery(): Promise<SampleQueryTiming> {
 
 /* ---------- delete helpers ---------- */
 
-async function deleteBySnapshotId(storeName: SnapshotScopedStoreName, snapshotId: string): Promise<void> {
-  const db = await getDb();
-  const tx = db.transaction(storeName, "readwrite");
-  const index = tx.store.index("snapshotId");
-  let cursor = await index.openCursor(snapshotId);
-  while (cursor) {
-    cursor.delete();
-    cursor = await cursor.continue();
-  }
-  await tx.done;
+export interface DeleteProgress {
+  step: string;
+  percent: number;
+  detail?: string;
 }
 
-export async function deleteAllData(): Promise<void> {
+export type DeleteProgressCallback = (progress: DeleteProgress) => void;
+
+const DELETE_CHUNK_SIZE = 5000;
+
+const STORE_DELETE_LABELS: Record<StoreName, string> = {
+  snapshots: "Snapshot-Metadaten",
+  rawSheets: "Rohdaten (Sheets)",
+  entities_vm: "VMs",
+  entities_host: "Hosts",
+  entities_cluster: "Cluster",
+  entities_datastore: "Datastores",
+  entities_snapshot: "VM-Snapshots",
+  entities_health: "Health-Einträge",
+  metrics_cache: "Metrik-Cache",
+  ui_state: "UI-Einstellungen",
+  techinfo_imports: "Tech-Info Importe",
+  techinfo_rows: "Tech-Info Zeilen",
+  techinfo_latest: "Tech-Info Latest",
+  techinfo_client_imports: "Tech-Info Client Importe",
+  techinfo_client_rows: "Tech-Info Client Zeilen",
+  techinfo_client_latest: "Tech-Info Client Latest",
+  maintenance_settings: "Wartungseinstellungen",
+  maintenance_cluster_assignments: "Cluster-Zuordnungen",
+  scenarios: "Szenarien",
+};
+
+/**
+ * Löscht alle Einträge, deren Array-Primärschlüssel mit `prefix` beginnt, in Chunks.
+ * Deutlich schneller als zeilenweises Cursor-Löschen: pro Chunk werden nur die Keys
+ * gelesen und der Bereich mit einem einzigen delete(range) entfernt (~6× schneller
+ * bei 60k+ Zeilen). `[prefix, []]` ist die exklusive Obergrenze, weil Arrays in der
+ * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
+ */
+async function deleteByKeyPrefix(
+  storeName: "rawSheets" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows",
+  prefix: string,
+  onChunkDeleted?: (deletedCount: number) => void,
+): Promise<void> {
   const db = await getDb();
-  const tx = db.transaction(ALL_STORES, "readwrite");
-  for (const s of ALL_STORES) {
-    tx.objectStore(s).clear();
+  const fullRange = IDBKeyRange.bound([prefix], [prefix, []], false, true);
+  for (;;) {
+    const tx = db.transaction(storeName, "readwrite");
+    const keys = await tx.store.getAllKeys(fullRange, DELETE_CHUNK_SIZE);
+    if (keys.length > 0) {
+      await tx.store.delete(IDBKeyRange.bound(keys[0], keys[keys.length - 1]));
+    }
+    await tx.done;
+    if (keys.length > 0) onChunkDeleted?.(keys.length);
+    if (keys.length < DELETE_CHUNK_SIZE) return;
   }
-  await tx.done;
 }
 
-export async function deleteSnapshot(snapshotId: string): Promise<void> {
+/**
+ * Löscht alle Einträge eines Stores, deren `snapshotId`-Index auf `snapshotId` zeigt,
+ * in Chunks über die Primärschlüssel (für Stores ohne snapshotId-Präfix im Key).
+ */
+async function deleteBySnapshotIdIndex(
+  storeName: Exclude<SnapshotScopedStoreName, "rawSheets" | "metrics_cache">,
+  snapshotId: string,
+  onChunkDeleted?: (deletedCount: number) => void,
+): Promise<void> {
   const db = await getDb();
+  const keys = await db.getAllKeysFromIndex(storeName, "snapshotId", snapshotId);
+  for (let i = 0; i < keys.length; i += DELETE_CHUNK_SIZE) {
+    const chunk = keys.slice(i, i + DELETE_CHUNK_SIZE);
+    const tx = db.transaction(storeName, "readwrite");
+    for (const key of chunk) tx.store.delete(key);
+    await tx.done;
+    onChunkDeleted?.(chunk.length);
+  }
+}
+
+export async function deleteAllData(onProgress?: DeleteProgressCallback): Promise<void> {
+  const db = await getDb();
+  const counts = await Promise.all(ALL_STORES.map((s) => db.count(s)));
+  const totalRows = counts.reduce((sum, c) => sum + c, 0);
+  let clearedRows = 0;
+
+  for (let i = 0; i < ALL_STORES.length; i++) {
+    const storeName = ALL_STORES[i];
+    onProgress?.({
+      step: "Alle Daten löschen",
+      percent: totalRows === 0 ? 0 : Math.min(99, Math.round((clearedRows / totalRows) * 100)),
+      detail: `${STORE_DELETE_LABELS[storeName]} (${counts[i].toLocaleString("de-DE")} Einträge)`,
+    });
+    await db.clear(storeName);
+    clearedRows += counts[i];
+  }
+  onProgress?.({ step: "Alle Daten löschen", percent: 100, detail: "Abgeschlossen" });
+}
+
+export async function deleteSnapshot(snapshotId: string, onProgress?: DeleteProgressCallback): Promise<void> {
+  const db = await getDb();
+  const prefixStores = ["rawSheets", "metrics_cache"] as const;
+  const indexStores = [
+    "entities_vm", "entities_host", "entities_cluster",
+    "entities_datastore", "entities_snapshot", "entities_health",
+  ] as const;
+  const scopedStores: readonly SnapshotScopedStoreName[] = [...prefixStores, ...indexStores];
+
+  const counts = await Promise.all(
+    scopedStores.map((store) => db.countFromIndex(store, "snapshotId", snapshotId)),
+  );
+  const totalRows = counts.reduce((sum, c) => sum + c, 0);
+  let deletedRows = 0;
+  const report = (detail: string) => {
+    onProgress?.({
+      step: "Snapshot löschen",
+      percent: totalRows === 0 ? 99 : Math.min(99, Math.round((deletedRows / totalRows) * 100)),
+      detail,
+    });
+  };
+  report(`${totalRows.toLocaleString("de-DE")} Einträge gefunden`);
+
+  for (const store of prefixStores) {
+    await deleteByKeyPrefix(store, snapshotId, (n) => {
+      deletedRows += n;
+      report(STORE_DELETE_LABELS[store]);
+    });
+  }
+  for (const store of indexStores) {
+    await deleteBySnapshotIdIndex(store, snapshotId, (n) => {
+      deletedRows += n;
+      report(STORE_DELETE_LABELS[store]);
+    });
+  }
+
+  // Metadaten zuletzt löschen: bricht der Vorgang ab, bleibt der Snapshot in der
+  // Liste sichtbar und das Löschen kann erneut angestoßen werden.
   await db.delete("snapshots", snapshotId);
-  const entityStores: SnapshotScopedStoreName[] = [
-    "rawSheets", "entities_vm", "entities_host", "entities_cluster",
-    "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
-  ];
-  await Promise.all(entityStores.map((store) => deleteBySnapshotId(store, snapshotId)));
+  onProgress?.({ step: "Snapshot löschen", percent: 100, detail: "Abgeschlossen" });
 }
 
 async function deleteTechInfoRowsByImportId(techInfoImportId: string): Promise<void> {
-  const db = await getDb();
-  const tx = db.transaction("techinfo_rows", "readwrite");
-  const index = tx.store.index("techInfoImportId");
-  let cursor = await index.openCursor(techInfoImportId);
-  while (cursor) {
-    cursor.delete();
-    cursor = await cursor.continue();
-  }
-  await tx.done;
+  await deleteByKeyPrefix("techinfo_rows", techInfoImportId);
 }
 
 function buildTechInfoLatestFromRow(row: TechInfoRow): TechInfoLatest {
@@ -593,15 +755,7 @@ export async function deleteTechInfoImport(techInfoImportId: string): Promise<vo
 }
 
 async function deleteTechInfoClientRowsByImportId(techInfoClientImportId: string): Promise<void> {
-  const db = await getDb();
-  const tx = db.transaction("techinfo_client_rows", "readwrite");
-  const index = tx.store.index("techInfoClientImportId");
-  let cursor = await index.openCursor(techInfoClientImportId);
-  while (cursor) {
-    cursor.delete();
-    cursor = await cursor.continue();
-  }
-  await tx.done;
+  await deleteByKeyPrefix("techinfo_client_rows", techInfoClientImportId);
 }
 
 function buildTechInfoClientLatestFromRow(row: TechInfoClientRow): TechInfoClientLatest {

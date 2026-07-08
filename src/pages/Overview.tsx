@@ -43,6 +43,11 @@ const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster" },
   { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
+  {
+    accessorKey: "clusterSharePct",
+    header: "Anteil im Cluster",
+    cell: ({ getValue }) => `${(getValue() as number).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`,
+  },
 ];
 
 export default function Overview() {
@@ -120,7 +125,7 @@ export default function Overview() {
         </span>
       </div>
       <FilterBar />
-      <GlobalFilterScopeHint text="Hosts, Datastores und Health-Events bleiben in dieser Übersicht unverändert; der globale Filter wirkt hier auf VM-bezogene Bereiche." />
+      <GlobalFilterScopeHint text="VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert." />
       <KpiGrid>
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} />
         <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} />

@@ -176,10 +176,11 @@ export function useGlobalVmFilterEngine(
   const scopedVmJoinKeys = useMemo(
     () =>
       buildVmScopeJoinKeys(allVms, {
+        vmNameList: filters.vmNameList,
         vmPowerScope: filters.vmPowerScope,
         excludeVclsVms: filters.excludeVclsVms,
       }),
-    [allVms, filters.excludeVclsVms, filters.vmPowerScope],
+    [allVms, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope],
   );
 
   const scopedContexts = useMemo(() => {

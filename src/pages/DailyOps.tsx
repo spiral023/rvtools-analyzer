@@ -167,7 +167,7 @@ export default function DailyOps() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Daily Ops</h1>
       <FilterBar />
-      <GlobalFilterScopeHint text="Health-Events ohne sicheren VM-Bezug bleiben unverändert; Snapshots, Tools sowie CD/USB folgen dem globalen Filter." />
+      <GlobalFilterScopeHint text="Snapshots, Tools, CD/USB und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter." />
       <KpiGrid>
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />

@@ -10,6 +10,7 @@ const defaultFilter: FilterState = {
   datastores: [],
   search: "",
   globalFilter: null,
+  vmNameList: "",
   vmPowerScope: "all",
   excludeVclsVms: false,
 };

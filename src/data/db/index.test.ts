@@ -149,6 +149,73 @@ describe("maintenance settings and assignments", () => {
   });
 });
 
+describe("deleteSnapshot", () => {
+  const seedSnapshot = async (dbModule: typeof import("./index"), snapshotId: string, rowCount: number) => {
+    const { putSnapshot, batchPut } = dbModule;
+    await putSnapshot({
+      snapshotId,
+      vcenterId: `vc-${snapshotId}`,
+      vcenterDisplayName: "Test vCenter",
+      exportTs: "2026-01-01T00:00:00.000Z",
+      importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: `${snapshotId}.xlsx`,
+      fileChecksum: `chk-${snapshotId}`,
+      sheetStats: { vInfo: { rowCount, columnCount: 2 } },
+    });
+    await batchPut("rawSheets", Array.from({ length: rowCount }, (_, i) => ({
+      snapshotId,
+      sheetName: "vInfo",
+      rowIndex: i,
+      data: { VM: `vm-${i}`, "Powerstate": "poweredOn" },
+    })));
+    await batchPut("entities_vm", Array.from({ length: 5 }, (_, i) => ({
+      vmKey: `vm-${i}::vc-${snapshotId}`,
+      snapshotId,
+      vmName: `vm-${i}`,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testdaten benötigen nicht alle NormalizedVm-Felder
+    })) as any);
+  };
+
+  it("deletes raw rows and entities of one snapshot, keeps others, and reports monotonic progress up to 100", async () => {
+    const dbModule = await import("./index");
+    const { deleteSnapshot, getSnapshots, getRawSheetRows, getBySnapshotIds } = dbModule;
+    // 6001 Zeilen => mehr als ein Lösch-Chunk (5000), damit der Chunk-Pfad getestet wird
+    await seedSnapshot(dbModule, "snap-del", 6001);
+    await seedSnapshot(dbModule, "snap-keep", 10);
+
+    const percents: number[] = [];
+    await deleteSnapshot("snap-del", (p) => percents.push(p.percent));
+
+    expect(percents.length).toBeGreaterThan(1);
+    expect(percents.at(-1)).toBe(100);
+    expect([...percents]).toEqual([...percents].sort((a, b) => a - b));
+
+    const snapshots = await getSnapshots();
+    expect(snapshots.map((s) => s.snapshotId)).toEqual(["snap-keep"]);
+    await expect(getRawSheetRows(["snap-del"], "vInfo")).resolves.toHaveLength(0);
+    await expect(getRawSheetRows(["snap-keep"], "vInfo")).resolves.toHaveLength(10);
+    await expect(getBySnapshotIds("entities_vm", ["snap-del"])).resolves.toHaveLength(0);
+    await expect(getBySnapshotIds("entities_vm", ["snap-keep"])).resolves.toHaveLength(5);
+  }, 20000);
+
+  it("estimates a plausible per-snapshot size and clears everything via deleteAllData with progress", async () => {
+    const dbModule = await import("./index");
+    const { deleteAllData, estimateSnapshotSizesBytes, getSnapshots, getRawSheetRows } = dbModule;
+    await seedSnapshot(dbModule, "snap-1", 500);
+
+    const sizes = await estimateSnapshotSizesBytes(["snap-1", "snap-unbekannt"]);
+    expect(sizes["snap-1"]).toBeGreaterThan(500 * 10);
+    expect(sizes["snap-unbekannt"]).toBe(0);
+
+    const percents: number[] = [];
+    await deleteAllData((p) => percents.push(p.percent));
+    expect(percents.at(-1)).toBe(100);
+
+    await expect(getSnapshots()).resolves.toHaveLength(0);
+    await expect(getRawSheetRows(["snap-1"], "vInfo")).resolves.toHaveLength(0);
+  });
+});
+
 describe("Tech-Info import listing and deletion", () => {
   it("lists Tech-Info imports and restores older latest rows after deleting the newest import", async () => {
     const {

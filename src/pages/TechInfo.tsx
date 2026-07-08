@@ -102,6 +102,7 @@ export default function TechInfo() {
   const scopeVms = useMemo(
     () =>
       applyVmScopeToVms(allVms, {
+        vmNameList: filters.vmNameList,
         vmPowerScope: filters.vmPowerScope,
         excludeVclsVms: filters.excludeVclsVms,
       }).filter((vm) => {
@@ -110,7 +111,7 @@ export default function TechInfo() {
         if (hostFilterSet.size > 0 && (!vm.host || !hostFilterSet.has(vm.host))) return false;
         return true;
       }),
-    [allVms, clusterFilterSet, filters.excludeVclsVms, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
+    [allVms, clusterFilterSet, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
   );
 
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));

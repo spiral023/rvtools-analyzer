@@ -49,9 +49,9 @@ describe("VM OS distribution", () => {
     );
 
     expect(rows).toEqual([
-      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019 Standard", vmCount: 2 },
-      { cluster: "CL-Prod", operatingSystem: "Red Hat Enterprise Linux 8", vmCount: 1 },
-      { cluster: "CL-Test", operatingSystem: "Windows Server 2019 Standard", vmCount: 1 },
+      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019 Standard", vmCount: 2, clusterSharePct: 66.66666666666666 },
+      { cluster: "CL-Prod", operatingSystem: "Red Hat Enterprise Linux 8", vmCount: 1, clusterSharePct: 33.33333333333333 },
+      { cluster: "CL-Test", operatingSystem: "Windows Server 2019 Standard", vmCount: 1, clusterSharePct: 100 },
     ]);
   });
 
@@ -66,8 +66,8 @@ describe("VM OS distribution", () => {
     );
 
     expect(rows).toEqual([
-      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019", vmCount: 2 },
-      { cluster: "Ohne Cluster", operatingSystem: "Unbekannt", vmCount: 1 },
+      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019", vmCount: 2, clusterSharePct: 100 },
+      { cluster: "Ohne Cluster", operatingSystem: "Unbekannt", vmCount: 1, clusterSharePct: 100 },
     ]);
   });
 });
