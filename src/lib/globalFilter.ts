@@ -269,10 +269,14 @@ export function buildGlobalFilterFields(
     }
 
     for (const key of [...keys].sort((a, b) => a.localeCompare(b, "de-DE", { sensitivity: "base" }))) {
-      const samples = rows
-        .map((row) => row.data[key])
-        .filter((value) => value !== null && value !== undefined && String(value).trim() !== "")
-        .slice(0, 25);
+      const samples: unknown[] = [];
+      for (const row of rows) {
+        const value = row.data[key];
+        if (value !== null && value !== undefined && String(value).trim() !== "") {
+          samples.push(value);
+          if (samples.length >= 25) break;
+        }
+      }
       addField({
         source,
         key,

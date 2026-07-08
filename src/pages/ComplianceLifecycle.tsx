@@ -26,6 +26,14 @@ interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: nu
 interface HwUpgradeRow { snapshotId: string; vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
 type ComplianceTab = "compliance" | "operations" | "infrastructure" | "versions";
 
+function collectLatencySpecialCases(vms: ComplianceVm[]): ComplianceVm[] {
+  const rows: ComplianceVm[] = [];
+  for (const vm of vms) {
+    if (vm.latencySensitivity !== "normal" && vm.latencySensitivity !== "") rows.push(vm);
+  }
+  return rows;
+}
+
 function ComplianceTabPanel({
   noSecureBoot,
   biosVms,
@@ -81,7 +89,7 @@ function ComplianceTabPanel({
   );
 }
 
-function OperationsTabPanel({
+function renderOperationsTabPanel({
   toolsUpgradeable,
   ntpDnsData,
   hwUpgradeBacklog,
@@ -120,14 +128,14 @@ function OperationsTabPanel({
       {latencyNonNormal > 0 && (
         <div className="rounded-lg border border-warning/30 bg-card/30 p-4">
           <h3 className="mb-2 text-sm font-semibold text-warning">Latency Sensitivity Sonderfälle ({latencyNonNormal})</h3>
-          <div className="space-y-1">{complianceVms.filter((v) => v.latencySensitivity !== "normal" && v.latencySensitivity !== "").map((v) => (<div key={v.vmName} className="flex gap-3 text-sm"><span className="font-mono-data">{v.vmName}</span><span className="text-warning">{v.latencySensitivity}</span><span className="text-muted-foreground">{v.cluster}</span></div>))}</div>
+          <div className="space-y-1">{collectLatencySpecialCases(complianceVms).map((v) => (<div key={v.vmName} className="flex gap-3 text-sm"><span className="font-mono-data">{v.vmName}</span><span className="text-warning">{v.latencySensitivity}</span><span className="text-muted-foreground">{v.cluster}</span></div>))}</div>
         </div>
       )}
     </TabsContent>
   );
 }
 
-function InfrastructureTabPanel({
+function renderInfrastructureTabPanel({
   maintenanceHosts,
   hostsWithEsxVersion,
   driverInventory,
@@ -291,7 +299,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster" },
 ];
 
-export default function ComplianceLifecycle({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
+function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { vms, allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -443,14 +451,24 @@ export default function ComplianceLifecycle({ initialTab = "compliance" }: { ini
       const u = String(r.data["Upgradeable"] || "").toLowerCase();
       if (u === "yes" || u === "true") e.upgradeable++;
     }
-    return [...clusterMap.entries()].map(([cluster, v]) => ({ cluster, upgradeableCount: v.upgradeable, totalVms: v.total, pct: v.total > 0 ? (v.upgradeable / v.total) * 100 : 0 })).filter((r) => r.upgradeableCount > 0).sort((a, b) => b.upgradeableCount - a.upgradeableCount);
+    const rows: ToolsWaveRow[] = [];
+    for (const [cluster, v] of clusterMap) {
+      if (v.upgradeable > 0) {
+        rows.push({ cluster, upgradeableCount: v.upgradeable, totalVms: v.total, pct: v.total > 0 ? (v.upgradeable / v.total) * 100 : 0 });
+      }
+    }
+    return rows.sort((a, b) => b.upgradeableCount - a.upgradeableCount);
   }, [filteredRawVTools]);
 
   // CPU generation mix
   const cpuMix = useMemo(() => {
     const clusterCpus = new Map<string, Set<string>>();
     for (const h of hosts) { if (h.cluster && h.cpuModel) { if (!clusterCpus.has(h.cluster)) clusterCpus.set(h.cluster, new Set()); clusterCpus.get(h.cluster)!.add(h.cpuModel); } }
-    return [...clusterCpus.entries()].filter(([, models]) => models.size > 1).map(([cluster, models]) => ({ cluster, models: models.size, list: [...models].join(", ") }));
+    const rows: Array<{ cluster: string; models: number; list: string }> = [];
+    for (const [cluster, models] of clusterCpus) {
+      if (models.size > 1) rows.push({ cluster, models: models.size, list: [...models].join(", ") });
+    }
+    return rows;
   }, [hosts]);
 
   // vCenter Version
@@ -482,7 +500,8 @@ export default function ComplianceLifecycle({ initialTab = "compliance" }: { ini
 
   // NTP/DNS Hygiene
   const ntpDnsData = useMemo<NtpRow[]>(() => {
-    return rawVHost.map((r) => {
+    const rows: NtpRow[] = [];
+    for (const r of rawVHost) {
       const ntp = String(r.data["NTP Server(s)"] || "");
       const ntpd = String(r.data["NTPD running"] || "").toLowerCase() === "true";
       const dns = String(r.data["DNS Servers"] || "");
@@ -492,16 +511,23 @@ export default function ComplianceLifecycle({ initialTab = "compliance" }: { ini
       if (!ntpd) issues.push("NTPD nicht aktiv");
       if (!dns) issues.push("Kein DNS");
       if (dhcp) issues.push("DHCP aktiv");
-      return { host: String(r.data["Host"] || ""), ntpServers: ntp || "—", ntpdRunning: ntpd, dnsServers: dns || "—", dhcp, issues: issues.join(", ") };
-    }).filter((r) => r.issues.length > 0);
+      if (issues.length > 0) {
+        rows.push({ host: String(r.data["Host"] || ""), ntpServers: ntp || "—", ntpdRunning: ntpd, dnsServers: dns || "—", dhcp, issues: issues.join(", ") });
+      }
+    }
+    return rows;
   }, [rawVHost]);
 
   // HW Upgrade Backlog
   const hwUpgradeBacklog = useMemo<HwUpgradeRow[]>(() => {
-    return filteredRawVInfo.filter((r) => {
+    const rows: HwUpgradeRow[] = [];
+    for (const r of filteredRawVInfo) {
       const status = String(r.data["HW upgrade status"] || "");
-      return status && status !== "none" && status !== "";
-    }).map((r) => ({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), hwVersion: String(r.data["HW version"] || ""), upgradeStatus: String(r.data["HW upgrade status"] || ""), upgradePolicy: String(r.data["HW upgrade policy"] || ""), target: String(r.data["HW target"] || ""), cluster: String(r.data["Cluster"] || "") }));
+      if (status && status !== "none") {
+        rows.push({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), hwVersion: String(r.data["HW version"] || ""), upgradeStatus: status, upgradePolicy: String(r.data["HW upgrade policy"] || ""), target: String(r.data["HW target"] || ""), cluster: String(r.data["Cluster"] || "") });
+      }
+    }
+    return rows;
   }, [filteredRawVInfo]);
 
   if (snapshots.length === 0) {
@@ -542,33 +568,33 @@ export default function ComplianceLifecycle({ initialTab = "compliance" }: { ini
           onOpenVmDetail={openVmDetail}
         />
 
-        <OperationsTabPanel
-          toolsUpgradeable={toolsUpgradeable}
-          ntpDnsData={ntpDnsData}
-          hwUpgradeBacklog={hwUpgradeBacklog}
-          latencyNonNormal={latencyNonNormal}
-          toolsWavePlan={toolsWavePlan}
-          complianceVms={complianceVms}
-          globalFilter={filters.search}
-          onOpenVmDetail={openVmDetail}
-          onOpenHostDetail={openHostDetail}
-        />
+        {renderOperationsTabPanel({
+          toolsUpgradeable,
+          ntpDnsData,
+          hwUpgradeBacklog,
+          latencyNonNormal,
+          toolsWavePlan,
+          complianceVms,
+          globalFilter: filters.search,
+          onOpenVmDetail: openVmDetail,
+          onOpenHostDetail: openHostDetail,
+        })}
 
-        <InfrastructureTabPanel
-          maintenanceHosts={maintenanceHosts}
-          hostsWithEsxVersion={hostsWithEsxVersion}
-          driverInventory={driverInventory}
-          cpuMix={cpuMix}
-          buildChart={buildChart}
-          hostColumns={hostColumns}
-          globalFilter={filters.search}
-          selectedHost={selectedHost}
-          rawHBA={rawHBA}
-          rawNIC={rawNIC}
-          allVms={allVms}
-          onCloseHostDetail={() => setSelectedHost(null)}
-          onOpenHostDetail={openHostDetail}
-        />
+        {renderInfrastructureTabPanel({
+          maintenanceHosts,
+          hostsWithEsxVersion,
+          driverInventory,
+          cpuMix,
+          buildChart,
+          hostColumns,
+          globalFilter: filters.search,
+          selectedHost,
+          rawHBA,
+          rawNIC,
+          allVms,
+          onCloseHostDetail: () => setSelectedHost(null),
+          onOpenHostDetail: openHostDetail,
+        })}
 
         <TabsContent value="versions" className="space-y-4">
           <VmwareVersionsPanel />
@@ -577,4 +603,8 @@ export default function ComplianceLifecycle({ initialTab = "compliance" }: { ini
       {vmDetailDialog}
     </div>
   );
+}
+
+export default function ComplianceLifecycle(props: { initialTab?: ComplianceTab }) {
+  return useComplianceLifecycleView(props);
 }

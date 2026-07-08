@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useActiveSnapshotIds, useVms, useClusters } from "@/hooks/useActiveSnapshots";
 import { useSelection } from "@/hooks/useSelection";
 import { useScenarios } from "@/hooks/useScenarios";
@@ -47,7 +47,7 @@ export default function Planning() {
   const [scenarioName, setScenarioName] = useState("");
   const [targetCluster, setTargetCluster] = useState("");
   const [showCompare, setShowCompare] = useState(false);
-  const [anchorIndex, setAnchorIndex] = useState(-1);
+  const anchorIndexRef = useRef(-1);
 
   const activeScenario = useMemo(
     () => scenarios.find((s) => s.id === activeScenarioId) ?? null,
@@ -60,14 +60,14 @@ export default function Planning() {
   const allVmKeys = useMemo(() => vms.map((v) => v.vmKey), [vms]);
 
   const handleToggleRow = (vmKey: string, shiftKey: boolean, sortedKeys: string[], index: number) => {
-    if (shiftKey && anchorIndex >= 0) {
-      const rangeKeys = getRangeKeys(sortedKeys, anchorIndex, index);
+    if (shiftKey && anchorIndexRef.current >= 0) {
+      const rangeKeys = getRangeKeys(sortedKeys, anchorIndexRef.current, index);
       const allSelected = rangeKeys.every((k) => selectedVmKeys.has(k));
       if (allSelected) deselectMany(rangeKeys);
       else selectMany(rangeKeys);
     } else {
       toggleVm(vmKey);
-      setAnchorIndex(index);
+      anchorIndexRef.current = index;
     }
   };
 

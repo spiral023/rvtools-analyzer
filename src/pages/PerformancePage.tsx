@@ -110,9 +110,15 @@ export default function PerformancePage() {
   const topChart = useMemo(() => cpuReadyVms.slice(0, 15).map((v) => ({ name: v.vmName.length > 18 ? v.vmName.slice(0, 16) + "…" : v.vmName, cpuReady: v.cpuReady })), [cpuReadyVms]);
 
   const memoryIssues = useMemo<MemoryIssueVm[]>(() => {
-    return filteredRawVMemory.filter((r) => { const sw = Number(r.data["Swapped"] || 0); const bl = Number(r.data["Ballooned"] || 0); return sw > 0 || bl > 0; })
-      .map((r) => ({ snapshotId: r.snapshotId, vmName: String(r.data["VM"] || ""), cluster: r.data["Cluster"] as string | null, host: r.data["Host"] as string | null, sizeMiB: Number(r.data["Size MiB"] || 0), swapped: Number(r.data["Swapped"] || 0), ballooned: Number(r.data["Ballooned"] || 0), active: Number(r.data["Active"] || 0) }))
-      .sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
+    const rows: MemoryIssueVm[] = [];
+    for (const r of filteredRawVMemory) {
+      const swapped = Number(r.data["Swapped"] || 0);
+      const ballooned = Number(r.data["Ballooned"] || 0);
+      if (swapped > 0 || ballooned > 0) {
+        rows.push({ snapshotId: r.snapshotId, vmName: String(r.data["VM"] || ""), cluster: r.data["Cluster"] as string | null, host: r.data["Host"] as string | null, sizeMiB: Number(r.data["Size MiB"] || 0), swapped, ballooned, active: Number(r.data["Active"] || 0) });
+      }
+    }
+    return rows.sort((a, b) => (b.swapped + b.ballooned) - (a.swapped + a.ballooned));
   }, [filteredRawVMemory]);
 
   const multipathIssues = rawMultiPath.filter((r) => {
@@ -124,16 +130,18 @@ export default function PerformancePage() {
 
   // Entitlement Gaps
   const entitlementGaps = useMemo<EntitlementRow[]>(() => {
-    return filteredRawVCPU.filter((r) => String(r.data["Powerstate"] || "").toLowerCase() === "poweredon")
-      .map((r) => {
-        const cpuEnt = Number(r.data["Entitlement"] || 0);
-        const cpuDrs = Number(r.data["DRS Entitlement"] || 0);
-        const cpuOver = Number(r.data["Overall"] || 0);
-        const cpuDelta = cpuEnt - cpuOver;
-        return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), cluster: String(r.data["Cluster"] || ""), cpuEntitlement: cpuEnt, cpuDrsEntitlement: cpuDrs, cpuOverall: cpuOver, cpuDelta, memEntitlement: 0, memActive: 0, memDelta: 0 };
-      })
-      .filter((e) => Math.abs(e.cpuDelta) > 200)
-      .sort((a, b) => Math.abs(b.cpuDelta) - Math.abs(a.cpuDelta));
+    const rows: EntitlementRow[] = [];
+    for (const r of filteredRawVCPU) {
+      if (String(r.data["Powerstate"] || "").toLowerCase() !== "poweredon") continue;
+      const cpuEnt = Number(r.data["Entitlement"] || 0);
+      const cpuDrs = Number(r.data["DRS Entitlement"] || 0);
+      const cpuOver = Number(r.data["Overall"] || 0);
+      const cpuDelta = cpuEnt - cpuOver;
+      if (Math.abs(cpuDelta) > 200) {
+        rows.push({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), cluster: String(r.data["Cluster"] || ""), cpuEntitlement: cpuEnt, cpuDrsEntitlement: cpuDrs, cpuOverall: cpuOver, cpuDelta, memEntitlement: 0, memActive: 0, memDelta: 0 });
+      }
+    }
+    return rows.sort((a, b) => Math.abs(b.cpuDelta) - Math.abs(a.cpuDelta));
   }, [filteredRawVCPU]);
 
   // Enrich with memory entitlement
@@ -154,60 +162,64 @@ export default function PerformancePage() {
   const { data: rawVInfo = [] } = useRawSheet("vInfo");
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
   const ftData = useMemo<FtRow[]>(() => {
-    return filteredRawVInfo.filter((r) => {
+    const rows: FtRow[] = [];
+    for (const r of filteredRawVInfo) {
       const ftState = String(r.data["FT State"] || "");
-      return ftState && ftState !== "notConfigured" && ftState !== "";
-    }).map((r) => {
+      if (!ftState || ftState === "notConfigured") continue;
       const lat = Number(r.data["FT Latency"] || 0);
       const secLat = Number(r.data["FT Sec. Latency"] || 0);
       let risk = "niedrig";
       if (lat > 5 || secLat > 5) risk = "mittel";
       if (lat > 10 || secLat > 10) risk = "hoch";
-      return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), ftState: String(r.data["FT State"] || ""), ftRole: String(r.data["FT Role"] || ""), ftLatency: lat, ftSecLatency: secLat, ftBandwidth: Number(r.data["FT Bandwidth"] || 0), risk };
-    });
+      rows.push({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), ftState, ftRole: String(r.data["FT Role"] || ""), ftLatency: lat, ftSecLatency: secLat, ftBandwidth: Number(r.data["FT Bandwidth"] || 0), risk });
+    }
+    return rows;
   }, [filteredRawVInfo]);
 
   // VM Network Anomalies
   const vmNetAnomalies = useMemo<VmNetAnomalyRow[]>(() => {
-    return filteredRawVNetwork.filter((r) => {
+    const rows: VmNetAnomalyRow[] = [];
+    for (const r of filteredRawVNetwork) {
       const connected = String(r.data["Connected"] || "").toLowerCase() === "true";
       const ip = String(r.data["IPv4 Address"] || "");
       const powerState = String(r.data["Powerstate"] || "").toLowerCase();
-      return powerState === "poweredon" && (!connected || !ip);
-    }).map((r) => {
-      const connected = String(r.data["Connected"] || "").toLowerCase() === "true";
-      const ip = String(r.data["IPv4 Address"] || "");
+      if (powerState !== "poweredon" || (connected && ip)) continue;
       const issues: string[] = [];
       if (!connected) issues.push("Disconnected");
       if (!ip) issues.push("Keine IPv4");
-      return { snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), nic: String(r.data["NIC label"] || ""), network: String(r.data["Network"] || ""), connected, ipv4: ip || "—", issue: issues.join(", ") };
-    });
+      rows.push({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), nic: String(r.data["NIC label"] || ""), network: String(r.data["Network"] || ""), connected, ipv4: ip || "—", issue: issues.join(", ") });
+    }
+    return rows;
   }, [filteredRawVNetwork]);
 
   // SIOC Congestion Context
   const siocData = useMemo<SiocRow[]>(() => {
-    return datastores.map((ds) => {
+    const rows: SiocRow[] = [];
+    for (const ds of datastores) {
       const sioc = ds.siocEnabled === true;
       const freePct = ds.freePct ?? 100;
       let risk = "niedrig";
       if (freePct < 20 && !sioc) risk = "mittel";
       if (freePct < 10) risk = "hoch";
-      return { datastore: ds.name, siocEnabled: sioc, siocThreshold: 30, freePct, risk };
-    }).filter((s) => s.risk !== "niedrig" || s.siocEnabled)
-      .sort((a, b) => a.freePct - b.freePct);
+      if (risk !== "niedrig" || sioc) rows.push({ datastore: ds.name, siocEnabled: sioc, siocThreshold: 30, freePct, risk });
+    }
+    return rows.sort((a, b) => a.freePct - b.freePct);
   }, [datastores]);
 
   // Host NIC Link Quality
   const nicQuality = useMemo<NicQualityRow[]>(() => {
-    return rawNIC.map((r) => {
+    const rows: NicQualityRow[] = [];
+    for (const r of rawNIC) {
       const speed = Number(String(r.data["Speed"] || "0").replace(/,/g, ""));
       const duplex = String(r.data["Duplex"] || "").toLowerCase() === "true";
       const issues: string[] = [];
       if (speed < 10000) issues.push(`Low speed (${speed} Mbps)`);
       if (!duplex) issues.push("Half Duplex");
-      if (issues.length === 0) return null;
-      return { host: String(r.data["Host"] || ""), device: String(r.data["Network Device"] || ""), speed, duplex, issue: issues.join(", ") };
-    }).filter(Boolean) as NicQualityRow[];
+      if (issues.length > 0) {
+        rows.push({ host: String(r.data["Host"] || ""), device: String(r.data["Network Device"] || ""), speed, duplex, issue: issues.join(", ") });
+      }
+    }
+    return rows;
   }, [rawNIC]);
 
   if (snapshots.length === 0) {

@@ -116,7 +116,8 @@ export function NetworkSecurityPanel() {
 
   // Uplink Redundancy
   const uplinkData = useMemo<UplinkRow[]>(() => {
-    return rawDvPort.map((r) => {
+    const rows: UplinkRow[] = [];
+    for (const r of rawDvPort) {
       const active = String(r.data["Active Uplink"] || "");
       const standby = String(r.data["Standby Uplink"] || "");
       const activeCount = active ? active.split(",").filter(Boolean).length : 0;
@@ -125,8 +126,11 @@ export function NetworkSecurityPanel() {
       let risk = "niedrig";
       if (activeCount === 0) risk = "hoch";
       else if (!redundant) risk = "mittel";
-      return { port: String(r.data["Port"] || ""), switchName: String(r.data["Switch"] || ""), activeUplinks: active || "—", standbyUplinks: standby || "—", redundant, risk };
-    }).filter((u) => u.risk !== "niedrig").sort((a, b) => (a.risk === "hoch" ? 0 : 1) - (b.risk === "hoch" ? 0 : 1));
+      if (risk !== "niedrig") {
+        rows.push({ port: String(r.data["Port"] || ""), switchName: String(r.data["Switch"] || ""), activeUplinks: active || "—", standbyUplinks: standby || "—", redundant, risk });
+      }
+    }
+    return rows.sort((a, b) => (a.risk === "hoch" ? 0 : 1) - (b.risk === "hoch" ? 0 : 1));
   }, [rawDvPort]);
 
   // NIC Teaming
@@ -138,13 +142,15 @@ export function NetworkSecurityPanel() {
     const policyCount = new Map<string, number>();
     for (const t of all) policyCount.set(t.policy, (policyCount.get(t.policy) || 0) + 1);
     const dominant = [...policyCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    return all.map((t) => {
+    const rows: TeamingRow[] = [];
+    for (const t of all) {
       const issues: string[] = [];
       if (t.policy !== dominant) issues.push(`Policy ${t.policy} (Standard: ${dominant})`);
       if (t.rollingOrder) issues.push("Rolling Order aktiv");
       if (!t.notifySwitch) issues.push("Notify Switch aus");
-      return { ...t, issues: issues.join("; ") };
-    }).filter((t) => t.issues.length > 0);
+      if (issues.length > 0) rows.push({ ...t, issues: issues.join("; ") });
+    }
+    return rows;
   }, [rawVPort, rawDvPort]);
 
   // dVSwitch Config Drift
@@ -152,10 +158,17 @@ export function NetworkSecurityPanel() {
     if (rawDvSwitch.length < 2) return [];
     const fields = ["Max MTU", "In Traffic Shaping", "Out Traffic Shaping", "CDP Operation"];
     const baseline = rawDvSwitch[0]?.data || {};
-    return rawDvSwitch.slice(1).flatMap((r) => {
-      return fields.filter((f) => String(r.data[f] || "") !== String(baseline[f] || ""))
-        .map((f) => ({ port: String(r.data["Switch"] || ""), switchName: String(r.data["Name"] || ""), field: f, value: String(r.data[f] || ""), expected: String(baseline[f] || "") }));
-    });
+    const rows: Array<{ port: string; switchName: string; field: string; value: string; expected: string }> = [];
+    for (const r of rawDvSwitch.slice(1)) {
+      for (const field of fields) {
+        const value = String(r.data[field] || "");
+        const expected = String(baseline[field] || "");
+        if (value !== expected) {
+          rows.push({ port: String(r.data["Switch"] || ""), switchName: String(r.data["Name"] || ""), field, value, expected });
+        }
+      }
+    }
+    return rows;
   }, [rawDvSwitch]);
 
   return (

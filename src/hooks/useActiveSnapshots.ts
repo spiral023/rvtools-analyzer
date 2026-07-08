@@ -26,8 +26,9 @@ export function useActiveSnapshotIds() {
   const activeSnapshotIds = useMemo(() => {
     if (filters.snapshotIds.length > 0) return filters.snapshotIds;
     const latestMap = new Map<string, { id: string; ts: string }>();
+    const vcenterIdSet = new Set(filters.vcenterIds);
     const filtered = filters.vcenterIds.length
-      ? snapshots.filter((s) => filters.vcenterIds.includes(s.vcenterId))
+      ? snapshots.filter((s) => vcenterIdSet.has(s.vcenterId))
       : snapshots;
     for (const s of filtered) {
       const e = latestMap.get(s.vcenterId);
@@ -62,8 +63,14 @@ export function useVms() {
       result = result.filter((vm) => matchingVmKeys.has(vm.vmKey));
     }
     result = applyVmScopeToVms(result, filters);
-    if (filters.clusters.length) result = result.filter((v) => v.cluster && filters.clusters.includes(v.cluster));
-    if (filters.hosts.length) result = result.filter((v) => v.host && filters.hosts.includes(v.host));
+    if (filters.clusters.length) {
+      const clusterSet = new Set(filters.clusters);
+      result = result.filter((v) => v.cluster && clusterSet.has(v.cluster));
+    }
+    if (filters.hosts.length) {
+      const hostSet = new Set(filters.hosts);
+      result = result.filter((v) => v.host && hostSet.has(v.host));
+    }
     if (filters.search) {
       const q = filters.search.toLowerCase();
       result = result.filter((v) =>
@@ -154,7 +161,14 @@ export function useRawSheet(sheetName: string, enabled = true) {
 
 export function useTechInfoLatestByVmNames(vmNames: string[], enabled = true) {
   const normalizedVmNames = useMemo(
-    () => [...new Set(vmNames.map((name) => name.trim()).filter(Boolean))].sort(),
+    () => {
+      const names = new Set<string>();
+      for (const name of vmNames) {
+        const trimmed = name.trim();
+        if (trimmed) names.add(trimmed);
+      }
+      return [...names].sort();
+    },
     [vmNames],
   );
 

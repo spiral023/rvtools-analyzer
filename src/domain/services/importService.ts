@@ -181,6 +181,16 @@ function toRawRowData(row: Record<string, unknown>): Record<string, string | num
   return out;
 }
 
+async function runSequential<T>(
+  items: readonly T[],
+  task: (item: T, index: number) => Promise<void>,
+  index = 0,
+): Promise<void> {
+  if (index >= items.length) return;
+  await task(items[index], index);
+  await runSequential(items, task, index + 1);
+}
+
 export async function persistAllowedRawSheetRows({
   sheets,
   snapshotId,
@@ -189,15 +199,14 @@ export async function persistAllowedRawSheetRows({
   onBatchPersisted,
 }: PersistRawSheetRowsOptions): Promise<number> {
   let batch: SheetRow[] = [];
+  const batches: SheetRow[][] = [];
   let persistedRows = 0;
 
-  const flush = async () => {
+  const queueBatch = () => {
     if (batch.length === 0) return;
     const currentBatch = batch;
     batch = [];
-    await putBatch(currentBatch);
-    persistedRows += currentBatch.length;
-    onBatchPersisted?.(persistedRows);
+    batches.push(currentBatch);
   };
 
   for (const sheet of sheets) {
@@ -209,11 +218,16 @@ export async function persistAllowedRawSheetRows({
         rowIndex: i,
         data: toRawRowData(sheet.rows[i]),
       });
-      if (batch.length >= batchSize) await flush();
+      if (batch.length >= batchSize) queueBatch();
     }
   }
 
-  await flush();
+  queueBatch();
+  await runSequential(batches, async (currentBatch) => {
+    await putBatch(currentBatch);
+    persistedRows += currentBatch.length;
+    onBatchPersisted?.(persistedRows);
+  });
   return persistedRows;
 }
 
@@ -488,7 +502,7 @@ async function importRvtoolsParsed(
     { name: "Health", store: "entities_health", items: healthEvents, pctStart: 97 },
   ] as const;
 
-  for (const eb of entityBatches) {
+  await runSequential(entityBatches, async (eb) => {
     if (eb.items.length > 0) {
       report("Entitäten speichern", eb.pctStart, `${eb.items.length.toLocaleString("de-DE")} ${eb.name}`);
       if (eb.store === "entities_vm") await batchPut("entities_vm", eb.items, 3000);
@@ -498,7 +512,7 @@ async function importRvtoolsParsed(
       if (eb.store === "entities_snapshot") await batchPut("entities_snapshot", eb.items, 3000);
       if (eb.store === "entities_health") await batchPut("entities_health", eb.items, 3000);
     }
-  }
+  });
 
   await putSnapshot({
     ...snapshotMeta,

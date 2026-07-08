@@ -73,7 +73,7 @@ function metricSeverity(value: number | null, warn: number, crit: number): strin
   return "text-success";
 }
 
-export function ClusterDetailDialog({
+function useClusterDetailDialogView({
   clusterName,
   open,
   onClose,
@@ -118,10 +118,13 @@ export function ClusterDetailDialog({
   );
 
   const hostLoadRows = useMemo<HostLoadRow[]>(() => {
-    return rawVHostRows
-      .filter((row) => String(row.data["Cluster"] || "").trim() === normalizedClusterName)
-      .map((row) => ({
-        host: String(row.data["Host"] || "").trim(),
+    const rows: HostLoadRow[] = [];
+    for (const row of rawVHostRows) {
+      if (String(row.data["Cluster"] || "").trim() !== normalizedClusterName) continue;
+      const host = String(row.data["Host"] || "").trim();
+      if (!host) continue;
+      rows.push({
+        host,
         cpuUsagePct: toNumLoose(row.data["CPU usage %"]),
         memoryUsagePct: toNumLoose(row.data["Memory usage %"]),
         vmCount: toNumLoose(row.data["# VMs"]),
@@ -130,9 +133,9 @@ export function ClusterDetailDialog({
         memoryTotalMiB: toNumLoose(row.data["# Memory"]),
         htAvailable: toOptionalBool(row.data["HT Available"]),
         htActive: toOptionalBool(row.data["HT Active"]),
-      }))
-      .filter((row) => row.host)
-      .sort((a, b) => Math.max(b.cpuUsagePct, b.memoryUsagePct) - Math.max(a.cpuUsagePct, a.memoryUsagePct));
+      });
+    }
+    return rows.sort((a, b) => Math.max(b.cpuUsagePct, b.memoryUsagePct) - Math.max(a.cpuUsagePct, a.memoryUsagePct));
   }, [rawVHostRows, normalizedClusterName]);
 
   const totalHostsByCluster = useMemo(
@@ -544,4 +547,8 @@ export function ClusterDetailDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+export function ClusterDetailDialog(props: ClusterDetailDialogProps) {
+  return useClusterDetailDialogView(props);
 }

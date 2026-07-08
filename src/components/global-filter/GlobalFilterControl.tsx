@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +58,8 @@ const RVTOOLS_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = [
   "vm", "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork", "vSnapshot", "vTools", "vCD", "vUSB",
 ];
 const TECHINFO_SOURCES: Exclude<GlobalFilterSourceScope, "root">[] = ["techInfo", "techInfoClient"];
+const RVTOOLS_SOURCE_SET = new Set<GlobalFilterSourceScope>(RVTOOLS_SOURCES);
+const TECHINFO_SOURCE_SET = new Set<GlobalFilterSourceScope>(TECHINFO_SOURCES);
 
 const TEXT_OPERATORS: { value: GlobalFilterOperator; label: string }[] = [
   { value: "eq", label: "ist" },
@@ -97,11 +99,12 @@ export function GlobalFilterControl() {
     open || hasGlobalFilterDefinition(filters.globalFilter),
     open ? draft : undefined,
   );
+  const normalizedDraft = useMemo(() => normalizeFilterGroup(draft, fields), [draft, fields]);
 
   const activeRuleCount = countGlobalFilterRules(filters.globalFilter);
   const activeVmNameCount = parseVmNameScopeList(filters.vmNameList).length;
   const activeFilterCount = activeRuleCount + activeVmNameCount;
-  const draftRuleCount = countGlobalFilterRules(draft);
+  const draftRuleCount = countGlobalFilterRules(normalizedDraft);
   const draftVmNameCount = parseVmNameScopeList(vmNameListDraft).length;
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -120,7 +123,7 @@ export function GlobalFilterControl() {
 
   const apply = () => {
     setFilters({
-      globalFilter: hasGlobalFilterDefinition(draft) ? draft : null,
+      globalFilter: hasGlobalFilterDefinition(normalizedDraft) ? normalizedDraft : null,
       vmNameList: vmNameListDraft,
     });
     setOpen(false);
@@ -133,7 +136,7 @@ export function GlobalFilterControl() {
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(serializeGlobalFilter(draft));
+      await navigator.clipboard.writeText(serializeGlobalFilter(normalizedDraft));
       toast.success("Filter in die Zwischenablage kopiert.");
     } catch {
       toast.error("Der Filter konnte nicht in die Zwischenablage kopiert werden.");
@@ -237,7 +240,7 @@ export function GlobalFilterControl() {
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-2">
             <FilterGroupEditor
-              group={draft}
+                group={normalizedDraft}
               fields={fields}
               isRoot
               onChange={setDraft}
@@ -273,15 +276,30 @@ function FilterGroupEditor({
     [fields, group.sourceScope],
   );
 
-  const addedSourceScopes = useMemo(
-    () => new Set(group.children.filter((c) => c.type === "group").map((c) => (c as GlobalFilterGroup).sourceScope)),
-    [group.children],
-  );
+  const addedSourceScopes = useMemo(() => {
+    const scopes = new Set<GlobalFilterSourceScope>();
+    for (const child of group.children) {
+      if (child.type === "group") scopes.add(child.sourceScope);
+    }
+    return scopes;
+  }, [group.children]);
 
-  const availableSources = useMemo(
-    () => ROOT_GROUP_SOURCE_OPTIONS.filter((source) => !addedSourceScopes.has(source)),
-    [addedSourceScopes],
-  );
+  const availableSources = useMemo(() => {
+    const sources: GlobalFilterSourceScope[] = [];
+    for (const source of ROOT_GROUP_SOURCE_OPTIONS) {
+      if (!addedSourceScopes.has(source)) sources.push(source);
+    }
+    return sources;
+  }, [addedSourceScopes]);
+  const groupedAvailableSources = useMemo(() => {
+    const rvtools: GlobalFilterSourceScope[] = [];
+    const techInfo: GlobalFilterSourceScope[] = [];
+    for (const source of availableSources) {
+      if (RVTOOLS_SOURCE_SET.has(source)) rvtools.push(source);
+      else if (TECHINFO_SOURCE_SET.has(source)) techInfo.push(source);
+    }
+    return { rvtools, techInfo };
+  }, [availableSources]);
 
   const updateChild = (childId: string, nextChild: GlobalFilterNode) => {
     onChange({
@@ -399,29 +417,29 @@ function FilterGroupEditor({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {availableSources.some((s) => RVTOOLS_SOURCES.includes(s)) && (
+                {groupedAvailableSources.rvtools.length > 0 && (
                   <>
                     <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-semibold text-blue-500">
                       <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
                       RVTools
                     </DropdownMenuLabel>
-                    {availableSources.filter((s) => RVTOOLS_SOURCES.includes(s)).map((source) => (
+                    {groupedAvailableSources.rvtools.map((source) => (
                       <DropdownMenuItem key={source} onClick={() => addSubGroup(source)} className="pl-6">
                         {SOURCE_LABELS[source]}
                       </DropdownMenuItem>
                     ))}
                   </>
                 )}
-                {availableSources.some((s) => RVTOOLS_SOURCES.includes(s)) && availableSources.some((s) => TECHINFO_SOURCES.includes(s)) && (
+                {groupedAvailableSources.rvtools.length > 0 && groupedAvailableSources.techInfo.length > 0 && (
                   <DropdownMenuSeparator />
                 )}
-                {availableSources.some((s) => TECHINFO_SOURCES.includes(s)) && (
+                {groupedAvailableSources.techInfo.length > 0 && (
                   <>
                     <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-semibold text-amber-500">
                       <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
                       Tech-Info
                     </DropdownMenuLabel>
-                    {availableSources.filter((s) => TECHINFO_SOURCES.includes(s)).map((source) => (
+                    {groupedAvailableSources.techInfo.map((source) => (
                       <DropdownMenuItem key={source} onClick={() => addSubGroup(source)} className="pl-6">
                         {SOURCE_LABELS[source]}
                       </DropdownMenuItem>
@@ -460,16 +478,7 @@ function FilterRuleEditor({
   const operators = getOperatorsForType(dataType);
   const operator = operators.some((entry) => entry.value === rule.operator) ? rule.operator : operators[0]?.value ?? "contains";
 
-  useEffect(() => {
-    if (!selectedField) return;
-    if (selectedField.key === rule.field && operator === rule.operator) return;
-    onChange({
-      ...rule,
-      field: selectedField.key,
-      operator,
-      unit: selectedField.unit ? rule.unit ?? "GiB" : undefined,
-    });
-  }, [onChange, operator, rule, selectedField]);
+  const effectiveRule = selectedField ? normalizeRuleForFields(rule, fields) : rule;
 
   const showValueInput = !["empty", "not_empty", "is_true", "is_false"].includes(operator);
   const showSecondValueInput = operator === "between";
@@ -483,7 +492,7 @@ function FilterRuleEditor({
             const nextField = fields.find((field) => field.key === value);
             if (!nextField) return;
             onChange({
-              ...rule,
+              ...effectiveRule,
               field: nextField.key,
               operator: getOperatorsForType(nextField.dataType)[0]?.value ?? "contains",
               unit: nextField.unit ? "GiB" : undefined,
@@ -508,7 +517,7 @@ function FilterRuleEditor({
 
         <Select
           value={operator}
-          onValueChange={(value) => onChange({ ...rule, operator: value as GlobalFilterOperator })}
+          onValueChange={(value) => onChange({ ...effectiveRule, operator: value as GlobalFilterOperator })}
         >
           <SelectTrigger className="h-8 text-xs">
             <SelectValue />
@@ -522,8 +531,8 @@ function FilterRuleEditor({
 
         {showValueInput ? (
           <Input
-            value={rule.value ?? ""}
-            onChange={(event) => onChange({ ...rule, value: event.target.value })}
+            value={effectiveRule.value ?? ""}
+            onChange={(event) => onChange({ ...effectiveRule, value: event.target.value })}
             className="h-8 text-xs"
             placeholder={dataType === "number" ? "Wert" : "Suchwert"}
           />
@@ -533,8 +542,8 @@ function FilterRuleEditor({
 
         {selectedField?.unit ? (
           <Select
-            value={rule.unit ?? "GiB"}
-            onValueChange={(value) => onChange({ ...rule, unit: value as "MiB" | "GiB" | "TiB" })}
+            value={effectiveRule.unit ?? "GiB"}
+            onValueChange={(value) => onChange({ ...effectiveRule, unit: value as "MiB" | "GiB" | "TiB" })}
           >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
@@ -561,8 +570,8 @@ function FilterRuleEditor({
           <div />
           <div className="flex h-8 items-center text-xs text-muted-foreground">bis</div>
           <Input
-            value={rule.valueTo ?? ""}
-            onChange={(event) => onChange({ ...rule, valueTo: event.target.value })}
+            value={effectiveRule.valueTo ?? ""}
+            onChange={(event) => onChange({ ...effectiveRule, valueTo: event.target.value })}
             className="h-8 text-xs"
             placeholder="Obergrenze"
           />
@@ -576,6 +585,36 @@ function getOperatorsForType(dataType: GlobalFilterDataType) {
   if (dataType === "number") return NUMBER_OPERATORS;
   if (dataType === "boolean") return BOOLEAN_OPERATORS;
   return TEXT_OPERATORS;
+}
+
+function normalizeRuleForFields(rule: GlobalFilterRule, fields: GlobalFilterField[]): GlobalFilterRule {
+  const selectedField = fields.find((field) => field.key === rule.field) ?? fields[0] ?? null;
+  if (!selectedField) return rule;
+  const operators = getOperatorsForType(selectedField.dataType);
+  const operator = operators.some((entry) => entry.value === rule.operator)
+    ? rule.operator
+    : operators[0]?.value ?? "contains";
+  if (selectedField.key === rule.field && operator === rule.operator && (!selectedField.unit || rule.unit)) {
+    return rule;
+  }
+  return {
+    ...rule,
+    field: selectedField.key,
+    operator,
+    unit: selectedField.unit ? rule.unit ?? "GiB" : undefined,
+  };
+}
+
+function normalizeFilterGroup(group: GlobalFilterGroup, fields: GlobalFilterField[]): GlobalFilterGroup {
+  const sourceFields = fields.filter((field) => field.source === group.sourceScope);
+  return {
+    ...group,
+    children: group.children.map((child) =>
+      child.type === "rule"
+        ? normalizeRuleForFields(child, sourceFields)
+        : normalizeFilterGroup(child, fields),
+    ),
+  };
 }
 
 function GroupConnector({

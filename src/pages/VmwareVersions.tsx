@@ -62,7 +62,10 @@ export function VmwareVersionsPanel() {
   const { data: rawVSource = [] } = useRawSheet("vSource");
 
   const activeSnapshots = useMemo(
-    () => snapshots.filter((snapshot) => activeSnapshotIds.includes(snapshot.snapshotId)),
+    () => {
+      const activeSnapshotIdSet = new Set(activeSnapshotIds);
+      return snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId));
+    },
     [snapshots, activeSnapshotIds],
   );
 

@@ -9,14 +9,6 @@ export type SheetName =
   | "dvSwitch" | "dvPort" | "vSC_VMK" | "vDatastore" | "vMultiPath"
   | "vLicense" | "vFileInfo" | "vHealth" | "vMetaData";
 
-export const ALL_SHEET_NAMES: SheetName[] = [
-  "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
-  "vCD", "vUSB", "vSnapshot", "vTools", "vSource", "vRP",
-  "vCluster", "vHost", "vHBA", "vNIC", "vSwitch", "vPort",
-  "dvSwitch", "dvPort", "vSC_VMK", "vDatastore", "vMultiPath",
-  "vLicense", "vFileInfo", "vHealth", "vMetaData",
-];
-
 export interface UploadFile {
   fileName: string;
   fileSize: number;

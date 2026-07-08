@@ -155,7 +155,8 @@ export default function StorageBackup() {
   // Backup Freshness/Coverage
   const backupData = useMemo<BackupRow[]>(() => {
     const now = Date.now();
-    return filteredRawVInfo.map((r) => {
+    const rows: BackupRow[] = [];
+    for (const r of filteredRawVInfo) {
       const vm = String(r.data["VM"] || "");
       const status = String(r.data["Backup Status"] || "");
       const lastBackupStr = String(r.data["Last Backup"] || "");
@@ -168,8 +169,9 @@ export default function StorageBackup() {
       if (!status && !lastBackupStr) risk = "kein Backup";
       else if (ageDays > 7) risk = "hoch";
       else if (ageDays > 3) risk = "mittel";
-      return { snapshotId: r.snapshotId, vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk };
-    }).filter((b) => b.risk !== "niedrig").sort((a, b) => b.ageDays - a.ageDays);
+      if (risk !== "niedrig") rows.push({ snapshotId: r.snapshotId, vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk });
+    }
+    return rows.sort((a, b) => b.ageDays - a.ageDays);
   }, [filteredRawVInfo]);
 
   const noBackup = backupData.filter((b) => b.risk === "kein Backup").length;

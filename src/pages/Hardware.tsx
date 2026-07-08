@@ -62,9 +62,10 @@ interface NicEntry {
 /* ------------------------------------------------------------------ */
 
 function buildHbaEntries(rows: SheetRow[], hostName: string): HbaEntry[] {
-  return rows
-    .filter((r) => str(r.data["Host"]) === hostName)
-    .map((r) => ({
+  const entries: HbaEntry[] = [];
+  for (const r of rows) {
+    if (str(r.data["Host"]) !== hostName) continue;
+    entries.push({
       device: str(r.data["Device"]),
       type: str(r.data["Type"]),
       status: str(r.data["Status"]),
@@ -72,16 +73,18 @@ function buildHbaEntries(rows: SheetRow[], hostName: string): HbaEntry[] {
       model: str(r.data["Model"]),
       wwn: str(r.data["WWN"]),
       pci: str(r.data["Pci"]),
-    }))
-    .sort((a, b) =>
-      a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
-    );
+    });
+  }
+  return entries.sort((a, b) =>
+    a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
+  );
 }
 
 function buildNicEntries(rows: SheetRow[], hostName: string): NicEntry[] {
-  return rows
-    .filter((r) => str(r.data["Host"]) === hostName)
-    .map((r) => ({
+  const entries: NicEntry[] = [];
+  for (const r of rows) {
+    if (str(r.data["Host"]) !== hostName) continue;
+    entries.push({
       device: str(r.data["Network Device"]),
       driver: str(r.data["Driver"]),
       speed: str(r.data["Speed"]),
@@ -91,10 +94,11 @@ function buildNicEntries(rows: SheetRow[], hostName: string): NicEntry[] {
       uplinkPort: str(r.data["Uplink port"]),
       pci: str(r.data["PCI"]),
       wakeOn: bool(r.data["WakeOn"]),
-    }))
-    .sort((a, b) =>
-      a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
-    );
+    });
+  }
+  return entries.sort((a, b) =>
+    a.device.localeCompare(b.device, "de-DE", { numeric: true, sensitivity: "base" }),
+  );
 }
 
 function formatMemory(mib: number): string {
@@ -105,10 +109,14 @@ function formatMemory(mib: number): string {
 
 function formatMemorySummary(memoryValuesMiB: number[], fallbackMiB: number): string {
   const values = memoryValuesMiB.length > 0 ? memoryValuesMiB : fallbackMiB ? [fallbackMiB] : [];
-  const labels = [...new Set(values.map(formatMemory))];
-  if (labels.length === 0) return "RAM n/a";
-  if (labels.length <= 3) return labels.join(" / ");
-  return `${labels[0]}-${labels[labels.length - 1]}`;
+  const labels = new Set<string>();
+  for (const value of values) {
+    labels.add(formatMemory(value));
+  }
+  const labelList = [...labels];
+  if (labelList.length === 0) return "RAM n/a";
+  if (labelList.length <= 3) return labelList.join(" / ");
+  return `${labelList[0]}-${labelList[labelList.length - 1]}`;
 }
 
 function formatCpuClock(mhz: number): string {
@@ -151,7 +159,7 @@ function ModelCard({
   const ramLabel = formatMemorySummary(memoryValuesMiB, memoryMiB);
   const coreLabel = totalCores ? `${totalCores} Cores` : "Cores n/a";
   const socketLabel = cpuSockets ? `${cpuSockets} Sockel` : "Sockel n/a";
-  const clusters = [...new Set(hosts.map((h) => h.cluster).filter(Boolean))];
+  const clusters = [...new Set(hosts.flatMap((h) => h.cluster ? [h.cluster] : []))];
   const totalVms = hosts.reduce((s, h) => s + h.vmCount, 0);
 
   return (
@@ -496,9 +504,11 @@ export default function Hardware() {
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
   const filteredHosts = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
+    const clusterSet = new Set(filters.clusters);
+    const hostSet = new Set(filters.hosts);
     return hosts.filter((h) => {
-      if (filters.clusters.length > 0 && (!h.cluster || !filters.clusters.includes(h.cluster))) return false;
-      if (filters.hosts.length > 0 && !filters.hosts.includes(h.host)) return false;
+      if (clusterSet.size > 0 && (!h.cluster || !clusterSet.has(h.cluster))) return false;
+      if (hostSet.size > 0 && !hostSet.has(h.host)) return false;
       if (!q) return true;
       return [
         h.host,

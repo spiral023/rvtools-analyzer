@@ -76,6 +76,26 @@ function hostDensityColor(vcpuPerCore: number): string {
   return CHART_COLORS.success;
 }
 
+function renderHostDensityTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: HostDensityPoint }>;
+}) {
+  if (!active || !payload?.length || !payload[0]?.payload) return null;
+  const point = payload[0].payload;
+  return (
+    <div style={CHART_TOOLTIP_STYLE}>
+      <p style={CHART_TOOLTIP_LABEL_STYLE}>Host: {point.name}</p>
+      <p style={CHART_TOOLTIP_ITEM_STYLE}>Cluster: {point.clusterName}</p>
+      <p style={CHART_TOOLTIP_ITEM_STYLE}>VMs: {formatNum(point.vms)}</p>
+      <p style={CHART_TOOLTIP_ITEM_STYLE}>vCPU/Core: {point.vcpuPerCore.toFixed(2)}</p>
+      <p style={CHART_TOOLTIP_ITEM_STYLE}>RAM: {formatNum(point.ramGiB)} GiB</p>
+    </div>
+  );
+}
+
 function CapacityOverviewCards({
   datastoresCount,
   avgFreePct,
@@ -427,26 +447,6 @@ function useCapacityPageData() {
     }
     return result;
   }, [hosts, vms]);
-
-  const renderHostDensityTooltip = ({
-    active,
-    payload,
-  }: {
-    active?: boolean;
-    payload?: Array<{ payload?: HostDensityPoint }>;
-  }) => {
-    if (!active || !payload?.length || !payload[0]?.payload) return null;
-    const point = payload[0].payload;
-    return (
-      <div style={CHART_TOOLTIP_STYLE}>
-        <p style={CHART_TOOLTIP_LABEL_STYLE}>Host: {point.name}</p>
-        <p style={CHART_TOOLTIP_ITEM_STYLE}>Cluster: {point.clusterName}</p>
-        <p style={CHART_TOOLTIP_ITEM_STYLE}>VMs: {formatNum(point.vms)}</p>
-        <p style={CHART_TOOLTIP_ITEM_STYLE}>vCPU/Core: {point.vcpuPerCore.toFixed(2)}</p>
-        <p style={CHART_TOOLTIP_ITEM_STYLE}>RAM: {formatNum(point.ramGiB)} GiB</p>
-      </div>
-    );
-  };
 
   const clusterCapacity = useMemo<ClusterCapacityRow[]>(() => {
     const clusterNames = new Set<string>();

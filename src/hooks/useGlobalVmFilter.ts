@@ -44,8 +44,9 @@ export function useGlobalVmFilterEngine(
   const activeSnapshotIds = useMemo(() => {
     if (filters.snapshotIds.length > 0) return filters.snapshotIds;
     const latestMap = new Map<string, { id: string; ts: string }>();
+    const vcenterIdSet = new Set(filters.vcenterIds);
     const filteredSnapshots = filters.vcenterIds.length
-      ? snapshots.filter((snapshot) => filters.vcenterIds.includes(snapshot.vcenterId))
+      ? snapshots.filter((snapshot) => vcenterIdSet.has(snapshot.vcenterId))
       : snapshots;
 
     for (const snapshot of filteredSnapshots) {
@@ -67,7 +68,14 @@ export function useGlobalVmFilterEngine(
   const hasActiveFilter = hasGlobalFilterDefinition(filters.globalFilter);
 
   const normalizedVmNames = useMemo(
-    () => [...new Set(allVms.map((vm) => vm.vmName.trim()).filter(Boolean))].sort(),
+    () => {
+      const names = new Set<string>();
+      for (const vm of allVms) {
+        const trimmed = vm.vmName.trim();
+        if (trimmed) names.add(trimmed);
+      }
+      return [...names].sort();
+    },
     [allVms],
   );
 
@@ -97,10 +105,7 @@ export function useGlobalVmFilterEngine(
 
   const shouldLoadAllRawFieldNames = enabled && activeSnapshotIds.length > 0 && previewFilter !== undefined;
 
-  const rawFieldNameSourceList = useMemo(
-    () => (shouldLoadAllRawFieldNames ? RAW_VM_FILTER_SOURCES : referencedRawSourceList),
-    [referencedRawSourceList, shouldLoadAllRawFieldNames],
-  );
+  const rawFieldNameSourceList = shouldLoadAllRawFieldNames ? RAW_VM_FILTER_SOURCES : referencedRawSourceList;
 
   const rawFieldNameQueryResults = useQueries({
     queries: rawFieldNameSourceList.map((source) => ({
@@ -195,21 +200,25 @@ export function useGlobalVmFilterEngine(
 
   const matchingVmKeys = useMemo(() => {
     if (!hasActiveFilter) return null;
-    return new Set(
-      scopedContexts
-        .filter((entry) => evaluateGlobalFilter(filters.globalFilter, entry, fields))
-        .map((entry) => entry.vm.vmKey),
-    );
+    const keys = new Set<string>();
+    for (const entry of scopedContexts) {
+      if (evaluateGlobalFilter(filters.globalFilter, entry, fields)) {
+        keys.add(entry.vm.vmKey);
+      }
+    }
+    return keys;
   }, [scopedContexts, fields, filters.globalFilter, hasActiveFilter]);
 
   const matchingVmJoinKeys = useMemo(() => {
     if (!hasActiveFilter) return scopedVmJoinKeys;
     if (!matchingVmKeys) return scopedVmJoinKeys;
-    return new Set(
-      scopedContexts
-        .filter((entry) => matchingVmKeys.has(entry.vm.vmKey))
-        .map((entry) => buildVmJoinKey(entry.vm.snapshotId, entry.vm.vmName)),
-    );
+    const keys = new Set<string>();
+    for (const entry of scopedContexts) {
+      if (matchingVmKeys.has(entry.vm.vmKey)) {
+        keys.add(buildVmJoinKey(entry.vm.snapshotId, entry.vm.vmName));
+      }
+    }
+    return keys;
   }, [hasActiveFilter, matchingVmKeys, scopedContexts, scopedVmJoinKeys]);
 
   const summary = useMemo(

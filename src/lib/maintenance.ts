@@ -244,18 +244,20 @@ export function buildMaintenanceRows({
     .sort((a, b) => a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" }));
 }
 
+const dateTimeFormatter = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function formatDateTime(value: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+  return dateTimeFormatter.format(date);
 }
 
 function getIntro(maintenanceType: MaintenanceType): string {
@@ -278,12 +280,16 @@ export function buildMaintenanceMailTemplate({
 }: BuildMaintenanceMailTemplateInput): MaintenanceMailTemplate {
   const changeId = change?.id?.trim();
   const subject = `Wartungsankündigung: ${maintenanceType}${changeId ? ` - ${changeId}` : ""}`;
-  const contactEmails = clusters
-    .flatMap((cluster) => cluster.contacts)
-    .map((contact) => deriveContactEmail(contact, settings.companyName));
-  const additionalEmails = clusters
-    .flatMap((cluster) => cluster.additionalEmails ?? [])
-    .map((email) => email.trim());
+  const contactEmails: string[] = [];
+  const additionalEmails: string[] = [];
+  for (const cluster of clusters) {
+    for (const contact of cluster.contacts) {
+      contactEmails.push(deriveContactEmail(contact, settings.companyName));
+    }
+    for (const email of cluster.additionalEmails ?? []) {
+      additionalEmails.push(email.trim());
+    }
+  }
   const to = [...new Set([...contactEmails, ...additionalEmails].filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, "de-DE", { sensitivity: "base" }),
   );
@@ -302,9 +308,12 @@ export function buildMaintenanceMailTemplate({
         change?.type ? `Change Typ: ${change.type}` : null,
       ].filter((line): line is string => Boolean(line))
     : [];
-  const linkLines = links
-    .filter((link) => link.label.trim() && link.url.trim())
-    .map((link) => `- ${link.label.trim()}: ${link.url.trim()}`);
+  const linkLines: string[] = [];
+  for (const link of links) {
+    const label = link.label.trim();
+    const url = link.url.trim();
+    if (label && url) linkLines.push(`- ${label}: ${url}`);
+  }
   const effectiveContactName = contactName.trim() || `${settings.firstName} ${settings.lastName}`.trim() || "—";
   const signatureName = `${settings.firstName} ${settings.lastName}`.trim() || effectiveContactName;
 

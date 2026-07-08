@@ -365,8 +365,12 @@ export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
 export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<TechInfoLatest[]> {
   if (vmNames.length === 0) return [];
   const db = await getDb();
-  const uniqueNorm = [...new Set(vmNames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
-  const values = await Promise.all(uniqueNorm.map((vmNameNorm) => db.get("techinfo_latest", vmNameNorm)));
+  const uniqueNorm = new Set<string>();
+  for (const name of vmNames) {
+    const normalized = name.trim().toLowerCase();
+    if (normalized) uniqueNorm.add(normalized);
+  }
+  const values = await Promise.all([...uniqueNorm].map((vmNameNorm) => db.get("techinfo_latest", vmNameNorm)));
   const presentValues = values.filter((v): v is TechInfoLatest => Boolean(v));
   return Promise.all(presentValues.map((value) => hydrateTechInfoLatest(db, value)));
 }
@@ -393,14 +397,17 @@ export async function batchPut<S extends StoreName>(
 ): Promise<void> {
   if (items.length === 0) return;
   const db = await getDb();
+  const batches: RVToolsDBSchema[S]["value"][][] = [];
   for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
+    batches.push(items.slice(i, i + batchSize));
+  }
+  await runSequential(batches, async (batch) => {
     const tx = db.transaction(storeName, "readwrite");
     for (const item of batch) {
       tx.store.put(item);
     }
     await tx.done;
-  }
+  });
 }
 
 export async function batchPutTechInfoImports(items: TechInfoImportMeta[], batchSize = 1000): Promise<void> {
@@ -423,8 +430,12 @@ export async function getAllTechInfoClientLatest(): Promise<TechInfoClientLatest
 export async function getTechInfoClientLatestByClientNames(clientNames: string[]): Promise<TechInfoClientLatest[]> {
   if (clientNames.length === 0) return [];
   const db = await getDb();
-  const uniqueNorm = [...new Set(clientNames.map((name) => name.trim().toLowerCase()).filter(Boolean))];
-  const values = await Promise.all(uniqueNorm.map((clientNameNorm) => db.get("techinfo_client_latest", clientNameNorm)));
+  const uniqueNorm = new Set<string>();
+  for (const name of clientNames) {
+    const normalized = name.trim().toLowerCase();
+    if (normalized) uniqueNorm.add(normalized);
+  }
+  const values = await Promise.all([...uniqueNorm].map((clientNameNorm) => db.get("techinfo_client_latest", clientNameNorm)));
   return values.filter((v): v is TechInfoClientLatest => Boolean(v));
 }
 
@@ -524,36 +535,35 @@ export async function estimateSnapshotSizesBytes(snapshotIds: string[]): Promise
     "rawSheets", "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];
-  const result: Record<string, number> = {};
-  for (const snapshotId of snapshotIds) {
+  const entries = await Promise.all(snapshotIds.map(async (snapshotId) => {
     const perStore = await Promise.all(
       scopedStores.map((store) => estimateSizeByIndex(db, store, "snapshotId", snapshotId)),
     );
-    result[snapshotId] = perStore.reduce((sum, bytes) => sum + bytes, 0);
-  }
-  return result;
+    return [snapshotId, perStore.reduce((sum, bytes) => sum + bytes, 0)] as const;
+  }));
+  return Object.fromEntries(entries);
 }
 
 /** Geschätzte IndexedDB-Größe je Tech-Info-Import (Server). */
 export async function estimateTechInfoImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
   if (importIds.length === 0) return {};
   const db = await getDb();
-  const result: Record<string, number> = {};
-  for (const id of importIds) {
-    result[id] = await estimateSizeByIndex(db, "techinfo_rows", "techInfoImportId", id);
-  }
-  return result;
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "techinfo_rows", "techInfoImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
 }
 
 /** Geschätzte IndexedDB-Größe je Tech-Info-Client-Import. */
 export async function estimateTechInfoClientImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
   if (importIds.length === 0) return {};
   const db = await getDb();
-  const result: Record<string, number> = {};
-  for (const id of importIds) {
-    result[id] = await estimateSizeByIndex(db, "techinfo_client_rows", "techInfoClientImportId", id);
-  }
-  return result;
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "techinfo_client_rows", "techInfoClientImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
 }
 
 export interface SampleQueryTiming {
@@ -606,6 +616,16 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   scenarios: "Szenarien",
 };
 
+async function runSequential<T>(
+  items: readonly T[],
+  task: (item: T, index: number) => Promise<void>,
+  index = 0,
+): Promise<void> {
+  if (index >= items.length) return;
+  await task(items[index], index);
+  await runSequential(items, task, index + 1);
+}
+
 /**
  * Löscht alle Einträge, deren Array-Primärschlüssel mit `prefix` beginnt, in Chunks.
  * Deutlich schneller als zeilenweises Cursor-Löschen: pro Chunk werden nur die Keys
@@ -642,14 +662,17 @@ async function deleteBySnapshotIdIndex(
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
   const db = await getDb();
-  const keys = await db.getAllKeysFromIndex(storeName, "snapshotId", snapshotId);
+  const keys = await db.getAllKeysFromIndex(storeName, "snapshotId", snapshotId) as Array<string | number>;
+  const chunks: Array<Array<string | number>> = [];
   for (let i = 0; i < keys.length; i += DELETE_CHUNK_SIZE) {
-    const chunk = keys.slice(i, i + DELETE_CHUNK_SIZE);
+    chunks.push(keys.slice(i, i + DELETE_CHUNK_SIZE));
+  }
+  await runSequential(chunks, async (chunk) => {
     const tx = db.transaction(storeName, "readwrite");
     for (const key of chunk) tx.store.delete(key);
     await tx.done;
     onChunkDeleted?.(chunk.length);
-  }
+  });
 }
 
 export async function deleteAllData(onProgress?: DeleteProgressCallback): Promise<void> {
@@ -658,8 +681,7 @@ export async function deleteAllData(onProgress?: DeleteProgressCallback): Promis
   const totalRows = counts.reduce((sum, c) => sum + c, 0);
   let clearedRows = 0;
 
-  for (let i = 0; i < ALL_STORES.length; i++) {
-    const storeName = ALL_STORES[i];
+  await runSequential(ALL_STORES, async (storeName, i) => {
     onProgress?.({
       step: "Alle Daten löschen",
       percent: totalRows === 0 ? 0 : Math.min(99, Math.round((clearedRows / totalRows) * 100)),
@@ -667,7 +689,7 @@ export async function deleteAllData(onProgress?: DeleteProgressCallback): Promis
     });
     await db.clear(storeName);
     clearedRows += counts[i];
-  }
+  });
   onProgress?.({ step: "Alle Daten löschen", percent: 100, detail: "Abgeschlossen" });
 }
 
@@ -694,18 +716,18 @@ export async function deleteSnapshot(snapshotId: string, onProgress?: DeleteProg
   };
   report(`${totalRows.toLocaleString("de-DE")} Einträge gefunden`);
 
-  for (const store of prefixStores) {
+  await runSequential(prefixStores, async (store) => {
     await deleteByKeyPrefix(store, snapshotId, (n) => {
       deletedRows += n;
       report(STORE_DELETE_LABELS[store]);
     });
-  }
-  for (const store of indexStores) {
+  });
+  await runSequential(indexStores, async (store) => {
     await deleteBySnapshotIdIndex(store, snapshotId, (n) => {
       deletedRows += n;
       report(STORE_DELETE_LABELS[store]);
     });
-  }
+  });
 
   // Metadaten zuletzt löschen: bricht der Vorgang ab, bleibt der Snapshot in der
   // Liste sichtbar und das Löschen kann erneut angestoßen werden.
@@ -747,11 +769,14 @@ async function rebuildTechInfoLatestForVm(vmNameNorm: string): Promise<void> {
 export async function deleteTechInfoImport(techInfoImportId: string): Promise<void> {
   const db = await getDb();
   const rows = await db.getAllFromIndex("techinfo_rows", "techInfoImportId", techInfoImportId);
-  const affectedVmNames = [...new Set(rows.map((row) => row.vmNameNorm).filter(Boolean))];
+  const affectedVmNames = new Set<string>();
+  for (const row of rows) {
+    if (row.vmNameNorm) affectedVmNames.add(row.vmNameNorm);
+  }
 
   await db.delete("techinfo_imports", techInfoImportId);
   await deleteTechInfoRowsByImportId(techInfoImportId);
-  await Promise.all(affectedVmNames.map((vmNameNorm) => rebuildTechInfoLatestForVm(vmNameNorm)));
+  await Promise.all([...affectedVmNames].map((vmNameNorm) => rebuildTechInfoLatestForVm(vmNameNorm)));
 }
 
 async function deleteTechInfoClientRowsByImportId(techInfoClientImportId: string): Promise<void> {
@@ -788,9 +813,12 @@ async function rebuildTechInfoClientLatestForClient(clientNameNorm: string): Pro
 export async function deleteTechInfoClientImport(techInfoClientImportId: string): Promise<void> {
   const db = await getDb();
   const rows = await db.getAllFromIndex("techinfo_client_rows", "techInfoClientImportId", techInfoClientImportId);
-  const affectedClientNames = [...new Set(rows.map((row) => row.clientNameNorm).filter(Boolean))];
+  const affectedClientNames = new Set<string>();
+  for (const row of rows) {
+    if (row.clientNameNorm) affectedClientNames.add(row.clientNameNorm);
+  }
 
   await db.delete("techinfo_client_imports", techInfoClientImportId);
   await deleteTechInfoClientRowsByImportId(techInfoClientImportId);
-  await Promise.all(affectedClientNames.map((clientNameNorm) => rebuildTechInfoClientLatestForClient(clientNameNorm)));
+  await Promise.all([...affectedClientNames].map((clientNameNorm) => rebuildTechInfoClientLatestForClient(clientNameNorm)));
 }

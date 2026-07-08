@@ -76,7 +76,13 @@ export default function Licensing() {
 
   // Idle/Shutdown Candidates
   const idleCandidates = useMemo<IdleRow[]>(() => {
-    return vms.filter((v) => v.powerState === "poweredOff").map((v) => ({ snapshotId: v.snapshotId, vm: v.vmName, powerState: v.powerState || "", cpuCount: v.cpuCount || 0, memoryMiB: v.memoryMiB || 0, cluster: v.cluster || "", reason: "Powered Off" }));
+    const rows: IdleRow[] = [];
+    for (const vm of vms) {
+      if (vm.powerState === "poweredOff") {
+        rows.push({ snapshotId: vm.snapshotId, vm: vm.vmName, powerState: vm.powerState || "", cpuCount: vm.cpuCount || 0, memoryMiB: vm.memoryMiB || 0, cluster: vm.cluster || "", reason: "Powered Off" });
+      }
+    }
+    return rows;
   }, [vms]);
 
   const idleCpus = idleCandidates.reduce((s, v) => s + v.cpuCount, 0);

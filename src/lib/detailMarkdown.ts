@@ -309,7 +309,7 @@ export function buildClusterDetailMarkdown(clusterName: string, data: ClusterMar
     `# Cluster ${clusterName}`,
     "",
     section("Übersicht", [
-      ["Datacenter", [...new Set(data.clusters.map((cluster) => cluster.datacenter).filter(Boolean))].join(", ")],
+      ["Datacenter", collectClusterDatacenters(data.clusters).join(", ")],
       ["Hosts", hostCount],
       ["Laufende VMs", data.runningVms.length],
       ["CPU Cores", totalCores],
@@ -362,4 +362,12 @@ export function buildClusterDetailMarkdown(clusterName: string, data: ClusterMar
       ]),
     ),
   ].join("\n");
+}
+
+function collectClusterDatacenters(clusters: NormalizedCluster[]): string[] {
+  const datacenters = new Set<string>();
+  for (const cluster of clusters) {
+    if (cluster.datacenter) datacenters.add(cluster.datacenter);
+  }
+  return [...datacenters];
 }

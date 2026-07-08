@@ -74,29 +74,20 @@ function buildStoredUploads(
   techInfoImports: TechInfoImportMeta[],
   techInfoClientImports: TechInfoClientImportMeta[],
 ): StoredUpload[] {
-  return [
-    ...snapshots.map((snapshot) => ({
-      kind: "rvtools" as const,
-      id: snapshot.snapshotId,
-      importedAt: snapshot.importedAt,
-      snapshot,
-    })),
-    ...techInfoImports.map((techInfo) => ({
-      kind: "tech-info" as const,
-      id: techInfo.techInfoImportId,
-      importedAt: techInfo.importedAt,
-      techInfo,
-    })),
-    ...techInfoClientImports.map((techInfoClient) => ({
-      kind: "tech-info-client" as const,
-      id: techInfoClient.techInfoClientImportId,
-      importedAt: techInfoClient.importedAt,
-      techInfoClient,
-    })),
-  ].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+  const uploads: StoredUpload[] = [];
+  for (const snapshot of snapshots) {
+    uploads.push({ kind: "rvtools", id: snapshot.snapshotId, importedAt: snapshot.importedAt, snapshot });
+  }
+  for (const techInfo of techInfoImports) {
+    uploads.push({ kind: "tech-info", id: techInfo.techInfoImportId, importedAt: techInfo.importedAt, techInfo });
+  }
+  for (const techInfoClient of techInfoClientImports) {
+    uploads.push({ kind: "tech-info-client", id: techInfoClient.techInfoClientImportId, importedAt: techInfoClient.importedAt, techInfoClient });
+  }
+  return uploads.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
 
-export default function UploadSnapshots() {
+function useUploadSnapshotsView() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputId = "snapshot-upload-input";
@@ -128,10 +119,17 @@ export default function UploadSnapshots() {
     queryKey: ["uploadSizes", uploadIdsKey],
     enabled: uploads.length > 0,
     queryFn: async () => {
+      const uploadIdsByKind = uploads.reduce<Record<StoredUpload["kind"], string[]>>(
+        (acc, upload) => {
+          acc[upload.kind].push(upload.id);
+          return acc;
+        },
+        { rvtools: [], "tech-info": [], "tech-info-client": [] },
+      );
       const [rvtools, techInfo, techInfoClient] = await Promise.all([
-        estimateSnapshotSizesBytes(uploads.filter((u) => u.kind === "rvtools").map((u) => u.id)),
-        estimateTechInfoImportSizesBytes(uploads.filter((u) => u.kind === "tech-info").map((u) => u.id)),
-        estimateTechInfoClientImportSizesBytes(uploads.filter((u) => u.kind === "tech-info-client").map((u) => u.id)),
+        estimateSnapshotSizesBytes(uploadIdsByKind.rvtools),
+        estimateTechInfoImportSizesBytes(uploadIdsByKind["tech-info"]),
+        estimateTechInfoClientImportSizesBytes(uploadIdsByKind["tech-info-client"]),
       ]);
       return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient } satisfies Record<StoredUpload["kind"], Record<string, number>>;
     },
@@ -148,7 +146,9 @@ export default function UploadSnapshots() {
     );
     if (xlsxFiles.length === 0) { toast.error("Keine gültige XLSX-Datei ausgewählt."); return; }
     dispatch({ type: "set-importing", value: true });
-    for (const file of xlsxFiles) {
+    const importFileAt = async (index: number): Promise<void> => {
+      const file = xlsxFiles[index];
+      if (!file) return;
       try {
         dispatch({ type: "set-progress", value: { step: "Vorbereitung", percent: 0, detail: file.name } });
         const result = await importRvtoolsXlsx(file, (nextProgress) => dispatch({ type: "set-progress", value: nextProgress }));
@@ -159,7 +159,9 @@ export default function UploadSnapshots() {
       } catch (err) {
         toast.error(`Import fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
       }
-    }
+      await importFileAt(index + 1);
+    };
+    await importFileAt(0);
     dispatch({ type: "set-importing", value: false });
     dispatch({ type: "set-progress", value: null });
     invalidateAll();
@@ -387,4 +389,8 @@ export default function UploadSnapshots() {
       </div>
     </div>
   );
+}
+
+export default function UploadSnapshots() {
+  return useUploadSnapshotsView();
 }

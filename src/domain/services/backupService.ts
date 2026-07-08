@@ -34,15 +34,11 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
  * überschrieben, alle übrigen Einträge bleiben erhalten).
  */
 export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserDataImportResult> {
-  if (backup.maintenanceSettings) {
-    await putMaintenanceSettings(backup.maintenanceSettings);
-  }
-  for (const assignment of backup.maintenanceClusterAssignments) {
-    await putMaintenanceAssignment(assignment);
-  }
-  for (const scenario of backup.scenarios) {
-    await putScenario(scenario);
-  }
+  await Promise.all([
+    backup.maintenanceSettings ? putMaintenanceSettings(backup.maintenanceSettings) : Promise.resolve(),
+    ...backup.maintenanceClusterAssignments.map((assignment) => putMaintenanceAssignment(assignment)),
+    ...backup.scenarios.map((scenario) => putScenario(scenario)),
+  ]);
 
   return {
     settingsImported: Boolean(backup.maintenanceSettings),

@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { Download, Save, Settings as SettingsIcon, Upload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -19,14 +19,16 @@ import type { MaintenanceSettings } from "@/domain/models/types";
 
 export default function Settings() {
   const { settings, saveSettings, isSaving } = useMaintenanceSettings();
+  const [previousSettings, setPreviousSettings] = useState(settings);
   const [form, setForm] = useState<MaintenanceSettings>(settings);
   const queryClient = useQueryClient();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [isTransferring, setIsTransferring] = useState(false);
 
-  useEffect(() => {
+  if (settings !== previousSettings) {
+    setPreviousSettings(settings);
     setForm(settings);
-  }, [settings]);
+  }
 
   const derivedEmail = deriveSettingsEmail(form);
 

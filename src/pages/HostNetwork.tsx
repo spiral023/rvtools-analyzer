@@ -94,7 +94,11 @@ export function HostNetworkPanel() {
   const hostConfigs = useMemo<HostConfig[]>(() => {
     // Achtung: In vNIC/dvPort wird der dvSwitch über seinen Identifier ("Switch")
     // referenziert, nicht über den (oft mehrfach gleichen) Anzeigenamen ("Name").
-    const dvsNames = new Set(rawDvSwitch.map((r) => s(r.data["Switch"])).filter(Boolean));
+    const dvsNames = new Set<string>();
+    for (const row of rawDvSwitch) {
+      const switchName = s(row.data["Switch"]);
+      if (switchName) dvsNames.add(switchName);
+    }
     const map = new Map<string, HostConfig>();
     for (const r of rawNIC) {
       const host = s(r.data["Host"]);
@@ -213,18 +217,37 @@ export function HostNetworkPanel() {
   // Detail-Tabelle auf vmnic-Ebene.
   const nicDetail = useMemo<NicDetailRow[]>(() => {
     const collator = new Intl.Collator("de-DE", { numeric: true, sensitivity: "base" });
-    return hostConfigs.flatMap((cfg) =>
-      cfg.nics.map((n) => ({ host: cfg.host, cluster: cfg.cluster, device: n.device, speed: 0, switchName: n.switchName, switchType: n.switchType, uplink: n.uplink })),
-    ).map((row) => {
-      // Speed aus der Roh-Zeile nachziehen (nicht im HostConfig gespeichert).
-      const raw = rawNIC.find((r) => s(r.data["Host"]) === row.host && s(r.data["Network Device"]) === row.device);
-      return { ...row, speed: Number(raw?.data["Speed"] || 0) };
-    }).sort((a, b) => a.host.localeCompare(b.host, "de-DE") || collator.compare(a.device, b.device));
+    const speedByHostAndDevice = new Map<string, number>();
+    for (const row of rawNIC) {
+      speedByHostAndDevice.set(`${s(row.data["Host"])}\0${s(row.data["Network Device"])}`, Number(row.data["Speed"] || 0));
+    }
+    const rows: NicDetailRow[] = [];
+    for (const cfg of hostConfigs) {
+      for (const nic of cfg.nics) {
+        rows.push({
+          host: cfg.host,
+          cluster: cfg.cluster,
+          device: nic.device,
+          speed: speedByHostAndDevice.get(`${cfg.host}\0${nic.device}`) ?? 0,
+          switchName: nic.switchName,
+          switchType: nic.switchType,
+          uplink: nic.uplink,
+        });
+      }
+    }
+    return rows.sort((a, b) => a.host.localeCompare(b.host, "de-DE") || collator.compare(a.device, b.device));
   }, [hostConfigs, rawNIC]);
 
   // KPIs
   const hostCount = hostConfigs.length;
-  const vssNames = useMemo(() => new Set(rawVSwitch.map((r) => s(r.data["Switch"])).filter(Boolean)), [rawVSwitch]);
+  const vssNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const row of rawVSwitch) {
+      const switchName = s(row.data["Switch"]);
+      if (switchName) names.add(switchName);
+    }
+    return names;
+  }, [rawVSwitch]);
   const totalUplinks = nicDetail.filter((n) => n.switchName !== "").length;
 
   return (

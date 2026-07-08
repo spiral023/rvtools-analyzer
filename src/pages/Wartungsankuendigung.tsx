@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CalendarClock, Clock, Copy, FileText, Link2, Mail, Plus, Save, Trash2, Wrench } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -49,6 +49,22 @@ function makeId(prefix: string): string {
 
 function formatContact(contact: MaintenanceContact): string {
   return `${contact.firstName} ${contact.lastName}`.trim() || "—";
+}
+
+function makeContactKey(contact: MaintenanceContact, index: number, contacts: MaintenanceContact[]): string {
+  const firstName = contact.firstName.trim().toLowerCase();
+  const lastName = contact.lastName.trim().toLowerCase();
+  const occurrence = contacts.slice(0, index + 1).filter((item) =>
+    item.firstName.trim().toLowerCase() === firstName &&
+    item.lastName.trim().toLowerCase() === lastName
+  ).length;
+  return `${firstName}-${lastName}-${occurrence}`;
+}
+
+function makeEmailKey(email: string, index: number, emails: string[]): string {
+  const normalized = email.trim().toLowerCase();
+  const occurrence = emails.slice(0, index + 1).filter((item) => item.trim().toLowerCase() === normalized).length;
+  return `${normalized}-${occurrence}`;
 }
 
 function joinRecipients(row: MaintenanceClusterRow): string {
@@ -157,16 +173,19 @@ function AssignmentPanel({
   isSaving: boolean;
 }) {
   const targetRows = selectedRows.length > 1 ? selectedRows : activeRow ? [activeRow] : [];
-  const [draft, setDraft] = useState<MaintenanceClusterAssignment>(() => makeDraft(activeRow));
+  const source = selectedRows.length > 1 ? selectedRows[0] ?? null : activeRow;
+  const sourceKey = source?.key ?? "__empty__";
+  const [draftSourceKey, setDraftSourceKey] = useState(sourceKey);
+  const [draft, setDraft] = useState<MaintenanceClusterAssignment>(() => makeDraft(source));
   const [windowText, setWindowText] = useState("");
   const [contactDraft, setContactDraft] = useState({ firstName: "", lastName: "" });
   const [suggestionValue, setSuggestionValue] = useState("");
   const [emailDraft, setEmailDraft] = useState("");
 
-  useEffect(() => {
-    const source = selectedRows.length > 1 ? selectedRows[0] ?? null : activeRow;
+  if (draftSourceKey !== sourceKey) {
+    setDraftSourceKey(sourceKey);
     setDraft(makeDraft(source));
-  }, [activeRow, selectedRows]);
+  }
 
   const addWindow = () => {
     const label = windowText.trim();
@@ -208,6 +227,17 @@ function AssignmentPanel({
     if (targetRows.length === 0) return;
     await onSave(targetRows, draft);
   };
+  const contactEntries = draft.contacts.map((contact, index) => ({
+    contact,
+    index,
+    key: makeContactKey(contact, index, draft.contacts),
+  }));
+  const additionalEmails = draft.additionalEmails ?? [];
+  const additionalEmailEntries = additionalEmails.map((email, index) => ({
+    email,
+    index,
+    key: makeEmailKey(email, index, additionalEmails),
+  }));
 
   if (targetRows.length === 0) {
     return (
@@ -311,13 +341,13 @@ function AssignmentPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             {draft.contacts.length === 0 && <span className="text-sm text-muted-foreground">Keine Verantwortlichen hinterlegt.</span>}
-            {draft.contacts.map((contact, index) => (
-              <Badge key={`${contact.firstName}-${contact.lastName}-${index}`} variant="outline" className="gap-2 py-1">
-                {formatContact(contact)}
+            {contactEntries.map((entry) => (
+              <Badge key={entry.key} variant="outline" className="gap-2 py-1">
+                {formatContact(entry.contact)}
                 <button
                   type="button"
                   aria-label="Verantwortlichen entfernen"
-                  onClick={() => setDraft((current) => ({ ...current, contacts: current.contacts.filter((_, i) => i !== index) }))}
+                  onClick={() => setDraft((current) => ({ ...current, contacts: current.contacts.filter((_, i) => i !== entry.index) }))}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -345,14 +375,14 @@ function AssignmentPanel({
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(draft.additionalEmails ?? []).length === 0 && <span className="text-sm text-muted-foreground">Keine zusätzlichen Adressen hinterlegt.</span>}
-            {(draft.additionalEmails ?? []).map((email, index) => (
-              <Badge key={`${email}-${index}`} variant="outline" className="gap-2 py-1 font-mono-data">
-                {email}
+            {additionalEmails.length === 0 && <span className="text-sm text-muted-foreground">Keine zusätzlichen Adressen hinterlegt.</span>}
+            {additionalEmailEntries.map((entry) => (
+              <Badge key={entry.key} variant="outline" className="gap-2 py-1 font-mono-data">
+                {entry.email}
                 <button
                   type="button"
                   aria-label="Mail-Adresse entfernen"
-                  onClick={() => setDraft((current) => ({ ...current, additionalEmails: (current.additionalEmails ?? []).filter((_, i) => i !== index) }))}
+                  onClick={() => setDraft((current) => ({ ...current, additionalEmails: (current.additionalEmails ?? []).filter((_, i) => i !== entry.index) }))}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -384,12 +414,22 @@ function MaintenanceMailDialog({
     type: "Normal Change",
   });
   const [links, setLinks] = useState<Array<{ id: string; label: string; url: string }>>([]);
+  const defaultContactName = `${settings.firstName} ${settings.lastName}`.trim();
+  const dialogResetKey = open
+    ? [
+        defaultContactName,
+        rows.map((row) => `${row.key}:${row.windows[0]?.id ?? ""}:${row.windows[0]?.label ?? ""}`).join("|"),
+      ].join("::")
+    : "__closed__";
+  const [appliedDialogResetKey, setAppliedDialogResetKey] = useState(dialogResetKey);
 
-  useEffect(() => {
-    if (!open) return;
-    setContactName(`${settings.firstName} ${settings.lastName}`.trim());
-    setPeriods(Object.fromEntries(rows.map((row) => [row.key, defaultPeriodFromWindow(row.windows[0])])));
-  }, [open, rows, settings.firstName, settings.lastName]);
+  if (appliedDialogResetKey !== dialogResetKey) {
+    setAppliedDialogResetKey(dialogResetKey);
+    if (open) {
+      setContactName(defaultContactName);
+      setPeriods(Object.fromEntries(rows.map((row) => [row.key, defaultPeriodFromWindow(row.windows[0])])));
+    }
+  }
 
   const template = useMemo(
     () =>
