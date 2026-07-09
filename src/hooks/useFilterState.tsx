@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { FilterState, SnapshotId } from "@/domain/models/types";
-import { getUiState, putUiState } from "@/data/db";
+import { getSnapshots, getUiState, putUiState } from "@/data/db";
 
 const defaultFilter: FilterState = {
   snapshotIds: [],
@@ -16,6 +17,7 @@ const defaultFilter: FilterState = {
 };
 
 const UI_STATE_ID = "app";
+const SNAPSHOT_STALE_MS = 5 * 60 * 1000;
 
 interface FilterContextValue {
   filters: FilterState;
@@ -36,6 +38,11 @@ export const useFilterState = () => useContext(FilterContext);
 export function FilterProvider({ children }: { children: ReactNode }) {
   const [filters, setFiltersState] = useState<FilterState>(defaultFilter);
   const hydratedRef = useRef(false);
+  const { data: snapshots = [], isSuccess: snapshotsLoaded } = useQuery({
+    queryKey: ["snapshots"],
+    queryFn: getSnapshots,
+    staleTime: SNAPSHOT_STALE_MS,
+  });
 
   const setFilters = useCallback((partial: Partial<FilterState>) => {
     setFiltersState((prev) => ({ ...prev, ...partial }));
@@ -45,8 +52,21 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     setFiltersState(defaultFilter);
   }, []);
 
+  const effectiveFilters = useMemo(() => {
+    if (!snapshotsLoaded) return filters;
+
+    const validSnapshotIds = new Set(snapshots.map((snapshot) => snapshot.snapshotId));
+    const validVcenterIds = new Set(snapshots.map((snapshot) => snapshot.vcenterId));
+    const snapshotIds = filters.snapshotIds.filter((snapshotId) => validSnapshotIds.has(snapshotId));
+    const vcenterIds = filters.vcenterIds.filter((vcenterId) => validVcenterIds.has(vcenterId));
+    if (snapshotIds.length === filters.snapshotIds.length && vcenterIds.length === filters.vcenterIds.length) {
+      return filters;
+    }
+    return { ...filters, snapshotIds, vcenterIds };
+  }, [filters, snapshots, snapshotsLoaded]);
+
   // activeSnapshotIds: use selected or empty (pages will handle fallback to latest)
-  const activeSnapshotIds = filters.snapshotIds;
+  const activeSnapshotIds = effectiveFilters.snapshotIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -81,14 +101,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         id: UI_STATE_ID,
         theme: existing?.theme ?? "dark",
         presets: existing?.presets,
-        lastFilter: filters,
+        lastFilter: effectiveFilters,
       });
     })();
-  }, [filters]);
+  }, [effectiveFilters]);
 
   const contextValue = useMemo(
-    () => ({ filters, setFilters, resetFilters, activeSnapshotIds }),
-    [activeSnapshotIds, filters, resetFilters, setFilters],
+    () => ({ filters: effectiveFilters, setFilters, resetFilters, activeSnapshotIds }),
+    [activeSnapshotIds, effectiveFilters, resetFilters, setFilters],
   );
 
   return (

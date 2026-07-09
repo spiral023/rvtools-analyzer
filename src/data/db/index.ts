@@ -215,6 +215,11 @@ export async function getSnapshotsByChecksum(checksum: string): Promise<Snapshot
   return db.getFromIndex("snapshots", "fileChecksum", checksum);
 }
 
+export async function getSnapshotsByVcenterId(vcenterId: string): Promise<SnapshotMeta[]> {
+  const db = await getDb();
+  return db.getAllFromIndex("snapshots", "vcenterId", vcenterId);
+}
+
 export async function putSnapshot(snap: SnapshotMeta): Promise<void> {
   const db = await getDb();
   await db.put("snapshots", snap);

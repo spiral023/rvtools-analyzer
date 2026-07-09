@@ -1,7 +1,9 @@
 import {
   getSnapshotsByChecksum,
+  getSnapshotsByVcenterId,
   putSnapshot,
   batchPut,
+  deleteSnapshot,
   getTechInfoImportByChecksum,
   putTechInfoImport,
   batchPutTechInfoRows,
@@ -398,14 +400,14 @@ export async function importRvtoolsXlsx(
     errors.push(...parsed.errors);
 
     if (parsed.fileKind === "tech-info") {
-      return importTechInfoXlsx(file, checksum, parsed, warnings, errors, report);
+      return await importTechInfoXlsx(file, checksum, parsed, warnings, errors, report);
     }
 
     if (parsed.fileKind === "tech-info-client") {
-      return importTechInfoClientXlsx(file, checksum, parsed, warnings, errors, report);
+      return await importTechInfoClientXlsx(file, checksum, parsed, warnings, errors, report);
     }
 
-    return importRvtoolsParsed(file, checksum, parsed, warnings, errors, report, importStartedAt);
+    return await importRvtoolsParsed(file, checksum, parsed, warnings, errors, report, importStartedAt);
   } catch (err) {
     return { success: false, warnings, errors: [...errors, err instanceof Error ? err.message : String(err)] };
   }
@@ -457,71 +459,101 @@ async function importRvtoolsParsed(
     fileSizeBytes: file.size,
   };
 
-  report("Metadaten speichern", 35);
-  await putSnapshot(snapshotMeta);
+  const replacedSnapshots = await getSnapshotsByVcenterId(vcenterId);
+  if (replacedSnapshots.length > 0) {
+    report(
+      "Vorherige Exporte ersetzen",
+      35,
+      `${vcenterDisplayName}: ${replacedSnapshots.length} Export${replacedSnapshots.length === 1 ? "" : "e"} wird gelöscht`,
+    );
+    await runSequential(replacedSnapshots, async (snapshot, index) => {
+      await deleteSnapshot(snapshot.snapshotId, (progress) => {
+        const replacementProgress = Math.round(((index + progress.percent / 100) / replacedSnapshots.length) * 10);
+        report(
+          "Vorherige Exporte ersetzen",
+          35 + replacementProgress,
+          `${vcenterDisplayName}: Export ${index + 1}/${replacedSnapshots.length}, ${progress.detail ?? progress.step}`,
+        );
+      });
+    });
+  }
 
   const rawRowsTotal = parsed.sheets.reduce(
     (sum, sheet) => sum + (RAW_SHEET_ALLOWLIST.has(sheet.sheetName) ? sheet.rows.length : 0),
     0,
   );
-  report("Rohdaten speichern", 40, `${rawRowsTotal.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
+  try {
+    report("Rohdaten speichern", 45, `${vcenterDisplayName}: ${rawRowsTotal.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
+    await persistAllowedRawSheetRows({
+      sheets: parsed.sheets,
+      snapshotId,
+      onBatchPersisted: (persistedRows) => {
+        const pct = 45 + Math.round((persistedRows / Math.max(rawRowsTotal, 1)) * 25);
+        report(
+          "Rohdaten speichern",
+          Math.min(pct, 69),
+          `${vcenterDisplayName}: ${persistedRows.toLocaleString("de-DE")} / ${rawRowsTotal.toLocaleString("de-DE")} Zeilen`,
+        );
+      },
+    });
 
-  await persistAllowedRawSheetRows({
-    sheets: parsed.sheets,
-    snapshotId,
-    onBatchPersisted: (persistedRows) => {
-      const pct = 40 + Math.round((persistedRows / Math.max(rawRowsTotal, 1)) * 30);
-      report(
-        "Rohdaten speichern",
-        Math.min(pct, 69),
-        `${persistedRows.toLocaleString("de-DE")} / ${rawRowsTotal.toLocaleString("de-DE")}`,
-      );
-    },
-  });
+    report("Normalisieren", 70, `${vcenterDisplayName}: VMs...`);
+    const vms = normalizeVms(findSheet(parsed.sheets, "vInfo"), snapshotId, vcenterId);
 
-  report("Normalisieren", 70, "VMs...");
-  const vms = normalizeVms(findSheet(parsed.sheets, "vInfo"), snapshotId, vcenterId);
+    report("Normalisieren", 75, `${vcenterDisplayName}: Hosts & Cluster...`);
+    const hosts = normalizeHosts(findSheet(parsed.sheets, "vHost"), snapshotId, vcenterId);
+    const clusters = normalizeClusters(findSheet(parsed.sheets, "vCluster"), snapshotId, vcenterId);
 
-  report("Normalisieren", 75, "Hosts & Cluster...");
-  const hosts = normalizeHosts(findSheet(parsed.sheets, "vHost"), snapshotId, vcenterId);
-  const clusters = normalizeClusters(findSheet(parsed.sheets, "vCluster"), snapshotId, vcenterId);
+    report("Normalisieren", 78, `${vcenterDisplayName}: Datastores...`);
+    const datastores = normalizeDatastores(findSheet(parsed.sheets, "vDatastore"), snapshotId, vcenterId);
 
-  report("Normalisieren", 78, "Datastores...");
-  const datastores = normalizeDatastores(findSheet(parsed.sheets, "vDatastore"), snapshotId, vcenterId);
+    report("Normalisieren", 80, `${vcenterDisplayName}: Snapshots & Health...`);
+    const vmSnapshots = normalizeSnapshots(findSheet(parsed.sheets, "vSnapshot"), snapshotId, vcenterId);
+    const healthEvents = normalizeHealth(findSheet(parsed.sheets, "vHealth"), snapshotId, vcenterId);
 
-  report("Normalisieren", 80, "Snapshots & Health...");
-  const vmSnapshots = normalizeSnapshots(findSheet(parsed.sheets, "vSnapshot"), snapshotId, vcenterId);
-  const healthEvents = normalizeHealth(findSheet(parsed.sheets, "vHealth"), snapshotId, vcenterId);
+    const entityBatches = [
+      { name: "VMs", store: "entities_vm", items: vms, pctStart: 82 },
+      { name: "Hosts", store: "entities_host", items: hosts, pctStart: 90 },
+      { name: "Cluster", store: "entities_cluster", items: clusters, pctStart: 92 },
+      { name: "Datastores", store: "entities_datastore", items: datastores, pctStart: 93 },
+      { name: "Snapshots", store: "entities_snapshot", items: vmSnapshots, pctStart: 95 },
+      { name: "Health", store: "entities_health", items: healthEvents, pctStart: 97 },
+    ] as const;
 
-  const entityBatches = [
-    { name: "VMs", store: "entities_vm", items: vms, pctStart: 82 },
-    { name: "Hosts", store: "entities_host", items: hosts, pctStart: 90 },
-    { name: "Cluster", store: "entities_cluster", items: clusters, pctStart: 92 },
-    { name: "Datastores", store: "entities_datastore", items: datastores, pctStart: 93 },
-    { name: "Snapshots", store: "entities_snapshot", items: vmSnapshots, pctStart: 95 },
-    { name: "Health", store: "entities_health", items: healthEvents, pctStart: 97 },
-  ] as const;
+    await runSequential(entityBatches, async (eb) => {
+      if (eb.items.length > 0) {
+        report("Entitäten speichern", eb.pctStart, `${vcenterDisplayName}: ${eb.items.length.toLocaleString("de-DE")} ${eb.name}`);
+        if (eb.store === "entities_vm") await batchPut("entities_vm", eb.items, 3000);
+        if (eb.store === "entities_host") await batchPut("entities_host", eb.items, 3000);
+        if (eb.store === "entities_cluster") await batchPut("entities_cluster", eb.items, 3000);
+        if (eb.store === "entities_datastore") await batchPut("entities_datastore", eb.items, 3000);
+        if (eb.store === "entities_snapshot") await batchPut("entities_snapshot", eb.items, 3000);
+        if (eb.store === "entities_health") await batchPut("entities_health", eb.items, 3000);
+      }
+    });
 
-  await runSequential(entityBatches, async (eb) => {
-    if (eb.items.length > 0) {
-      report("Entitäten speichern", eb.pctStart, `${eb.items.length.toLocaleString("de-DE")} ${eb.name}`);
-      if (eb.store === "entities_vm") await batchPut("entities_vm", eb.items, 3000);
-      if (eb.store === "entities_host") await batchPut("entities_host", eb.items, 3000);
-      if (eb.store === "entities_cluster") await batchPut("entities_cluster", eb.items, 3000);
-      if (eb.store === "entities_datastore") await batchPut("entities_datastore", eb.items, 3000);
-      if (eb.store === "entities_snapshot") await batchPut("entities_snapshot", eb.items, 3000);
-      if (eb.store === "entities_health") await batchPut("entities_health", eb.items, 3000);
+    report("Metadaten speichern", 99, `${vcenterDisplayName}: Import abschließen...`);
+    await putSnapshot({
+      ...snapshotMeta,
+      importDurationMs: Math.round(performance.now() - importStartedAt),
+    });
+
+    report("Abgeschlossen", 100, `${vcenterDisplayName}: ${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
+
+    return { success: true, fileKind: "rvtools", snapshotId, warnings, errors, sheetStats };
+  } catch (error) {
+    report("Import bereinigen", 99, `${vcenterDisplayName}: Teilreste des fehlgeschlagenen Imports löschen...`);
+    try {
+      await deleteSnapshot(snapshotId);
+    } catch {
+      // Der ursprüngliche Importfehler ist für die Oberfläche aussagekräftiger.
     }
-  });
-
-  await putSnapshot({
-    ...snapshotMeta,
-    importDurationMs: Math.round(performance.now() - importStartedAt),
-  });
-
-  report("Abgeschlossen", 100, `${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
-
-  return { success: true, fileKind: "rvtools", snapshotId, warnings, errors, sheetStats };
+    const reason = error instanceof Error ? error.message : String(error);
+    const replacementNotice = replacedSnapshots.length > 0
+      ? " Bereits entfernte Exporte dieses vCenters können nicht wiederhergestellt werden."
+      : "";
+    throw new Error(`Import für ${vcenterDisplayName} fehlgeschlagen.${replacementNotice} Ursache: ${reason}`);
+  }
 }
 
 async function importTechInfoXlsx(

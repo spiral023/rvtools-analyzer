@@ -24,10 +24,15 @@ export function useActiveSnapshotIds() {
   });
 
   const activeSnapshotIds = useMemo(() => {
-    if (filters.snapshotIds.length > 0) return filters.snapshotIds;
+    const currentSnapshotIds = new Set(snapshots.map((snapshot) => snapshot.snapshotId));
+    const selectedSnapshotIds = filters.snapshotIds.filter((snapshotId) => currentSnapshotIds.has(snapshotId));
+    if (selectedSnapshotIds.length > 0) return selectedSnapshotIds;
+
+    const currentVcenterIds = new Set(snapshots.map((snapshot) => snapshot.vcenterId));
+    const selectedVcenterIds = filters.vcenterIds.filter((vcenterId) => currentVcenterIds.has(vcenterId));
     const latestMap = new Map<string, { id: string; ts: string }>();
-    const vcenterIdSet = new Set(filters.vcenterIds);
-    const filtered = filters.vcenterIds.length
+    const vcenterIdSet = new Set(selectedVcenterIds);
+    const filtered = selectedVcenterIds.length
       ? snapshots.filter((s) => vcenterIdSet.has(s.vcenterId))
       : snapshots;
     for (const s of filtered) {

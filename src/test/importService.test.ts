@@ -37,6 +37,28 @@ function workbookFile(
   });
 }
 
+function rvtoolsWorkbook(fileName: string, vmName: string, vcenterName: string): File {
+  return workbookFile(fileName, {
+    vInfo: [{
+      VM: vmName,
+      "VM UUID": `uuid-${vmName}`,
+      Cluster: "CL-Prod",
+      Host: `esx-${vmName}.lab.local`,
+      CPUs: 4,
+      Memory: 8192,
+      Powerstate: "poweredOn",
+    }],
+    vHost: [{
+      Host: `esx-${vmName}.lab.local`,
+      Cluster: "CL-Prod",
+      "ESX Version": "VMware ESXi 8.0.3 build-24784735",
+      "# Cores": 16,
+      Memory: 131072,
+    }],
+    vSource: [{ "VI SDK Server": vcenterName }],
+  });
+}
+
 function installParserWorkerStub() {
   class ParserWorkerStub {
     onmessage: ((event: MessageEvent) => void) | null = null;
@@ -212,5 +234,111 @@ describe("importRvtoolsXlsx", () => {
     const rawInfoRows = await getRawSheetRows(snapshotIds, "vInfo");
     expect(rawInfoRows).toHaveLength(1);
     expect(rawInfoRows[0].data).toMatchObject({ VM: "APP01", CPUs: 4 });
+  });
+
+  it("replaces all existing exports of the same vCenter", async () => {
+    installParserWorkerStub();
+    const { importRvtoolsXlsx } = await import("@/domain/services/importService");
+    const { getRawSheetRows, getSnapshots } = await import("@/data/db");
+    const firstFile = rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_22_07_05_vcsa01.lab.local.xlsx",
+      "APP01",
+      "vcsa01.lab.local",
+    );
+    const secondFile = rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_23_07_05_vcsa01.lab.local.xlsx",
+      "APP02",
+      "vcsa01.lab.local",
+    );
+
+    const first = await importRvtoolsXlsx(firstFile);
+    const second = await importRvtoolsXlsx(secondFile);
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    const snapshots = await getSnapshots();
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]?.snapshotId).toBe(second.snapshotId);
+    await expect(getRawSheetRows([first.snapshotId!], "vInfo")).resolves.toEqual([]);
+    await expect(getRawSheetRows([second.snapshotId!], "vInfo")).resolves.toMatchObject([
+      { data: { VM: "APP02" } },
+    ]);
+  });
+
+  it("keeps exports from different vCenters", async () => {
+    installParserWorkerStub();
+    const { importRvtoolsXlsx } = await import("@/domain/services/importService");
+    const { getSnapshots } = await import("@/data/db");
+
+    await importRvtoolsXlsx(rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_22_07_05_vcsa01.lab.local.xlsx",
+      "APP01",
+      "vcsa01.lab.local",
+    ));
+    await importRvtoolsXlsx(rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_22_07_05_vcsa02.lab.local.xlsx",
+      "APP02",
+      "vcsa02.lab.local",
+    ));
+
+    const snapshots = await getSnapshots();
+    expect(snapshots.map((snapshot) => snapshot.vcenterId).sort()).toEqual([
+      "vcsa01.lab.local",
+      "vcsa02.lab.local",
+    ]);
+  });
+
+  it("reports detailed progress while replacing an existing vCenter export", async () => {
+    installParserWorkerStub();
+    const { importRvtoolsXlsx } = await import("@/domain/services/importService");
+    const progress: Array<{ step: string; detail?: string }> = [];
+
+    await importRvtoolsXlsx(rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_22_07_05_vcsa01.lab.local.xlsx",
+      "APP01",
+      "vcsa01.lab.local",
+    ));
+    await importRvtoolsXlsx(
+      rvtoolsWorkbook(
+        "RVTools_export_all_2026_02_23_07_05_vcsa01.lab.local.xlsx",
+        "APP02",
+        "vcsa01.lab.local",
+      ),
+      (nextProgress) => progress.push(nextProgress),
+    );
+
+    expect(progress).toContainEqual(expect.objectContaining({
+      step: "Vorherige Exporte ersetzen",
+      detail: expect.stringContaining("vcsa01.lab.local"),
+    }));
+    expect(progress).toContainEqual(expect.objectContaining({
+      step: "Rohdaten speichern",
+      detail: expect.stringContaining("Zeilen"),
+    }));
+  });
+
+  it("removes partial raw data when entity persistence fails", async () => {
+    installParserWorkerStub();
+    const db = await import("@/data/db");
+    const originalBatchPut = db.batchPut;
+    let batchPutCalls = 0;
+    vi.spyOn(db, "batchPut").mockImplementation(async (...args) => {
+      batchPutCalls += 1;
+      if (batchPutCalls === 2) throw new Error("IndexedDB quota exceeded");
+      await originalBatchPut(...args);
+    });
+    const { importRvtoolsXlsx } = await import("@/domain/services/importService");
+
+    const result = await importRvtoolsXlsx(rvtoolsWorkbook(
+      "RVTools_export_all_2026_02_22_07_05_vcsa01.lab.local.xlsx",
+      "APP01",
+      "vcsa01.lab.local",
+    ));
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toContainEqual(expect.stringContaining("Import für vcsa01.lab.local fehlgeschlagen"));
+    expect(result.errors).toContainEqual(expect.stringContaining("IndexedDB quota exceeded"));
+    expect(await db.getSnapshots()).toEqual([]);
+    expect(await (await db.getDb()).getAll("rawSheets")).toEqual([]);
   });
 });

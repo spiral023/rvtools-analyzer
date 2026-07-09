@@ -246,7 +246,7 @@ function useUploadSnapshotsView() {
         <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple disabled={importing} className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei hierher ziehen oder klicken"}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien und wiederholte Uploads pro vCenter möglich</p>
+        <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
       </label>
 
       {/* Progress bar during deletion */}
