@@ -13,20 +13,31 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatte
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import { aggregateCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  CAPACITY_KPI,
+  CAPACITY_RISK_KPI,
+  CAPACITY_DS_COLUMNS,
+  CAPACITY_CLUSTER_COLUMNS,
+  CAPACITY_RP_COLUMNS,
+  CAPACITY_THIN_COLUMNS,
+  CAPACITY_HEALTH_COLUMNS,
+  CAPACITY_SECTIONS,
+} from "@/lib/glossaries/capacity";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedDatastore } from "@/domain/models/types";
 
 const dsColumns: ColumnDef<NormalizedDatastore, unknown>[] = [
-  { accessorKey: "name", header: "Datastore" },
-  { accessorKey: "type", header: "Typ" },
-  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number | null) },
-  { accessorKey: "inUseMiB", header: "Belegt", cell: ({ getValue }) => formatBytes(getValue() as number | null) },
-  { accessorKey: "freeMiB", header: "Frei", cell: ({ getValue }) => formatBytes(getValue() as number | null) },
-  { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => {
+  { accessorKey: "name", header: "Datastore", meta: { info: CAPACITY_DS_COLUMNS.name } },
+  { accessorKey: "type", header: "Typ", meta: { info: CAPACITY_DS_COLUMNS.type } },
+  { accessorKey: "capacityMiB", header: "Kapazität", meta: { info: CAPACITY_DS_COLUMNS.capacityMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
+  { accessorKey: "inUseMiB", header: "Belegt", meta: { info: CAPACITY_DS_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
+  { accessorKey: "freeMiB", header: "Frei", meta: { info: CAPACITY_DS_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
+  { accessorKey: "freePct", header: "Frei %", meta: { info: CAPACITY_DS_COLUMNS.freePct }, cell: ({ getValue }) => {
     const v = getValue() as number | null;
     return <span className={v !== null && v < 10 ? "text-destructive font-semibold" : v !== null && v < 20 ? "text-warning" : "text-success"}>{formatPct(v)}</span>;
   }},
-  { accessorKey: "clusterName", header: "Cluster" },
+  { accessorKey: "clusterName", header: "Cluster", meta: { info: CAPACITY_DS_COLUMNS.clusterName } },
 ];
 
 interface ClusterMetric {
@@ -117,14 +128,14 @@ function CapacityOverviewCards({
 }) {
   return (
     <KpiGrid>
-      <KpiCard title="Datastores" value={formatNum(datastoresCount)} icon={<HardDrive className="h-4 w-4" />} />
-      <KpiCard title="Ø Frei %" value={avgFreePct !== null ? formatPct(avgFreePct) : "—"} severity={avgFreePct !== null && avgFreePct < 15 ? "crit" : avgFreePct !== null && avgFreePct < 25 ? "warn" : "ok"} />
-      <KpiCard title="Kritisch (<10%)" value={formatNum(critDs)} severity={critDs > 0 ? "crit" : "ok"} />
-      <KpiCard title="Warnung (<20%)" value={formatNum(warnDs)} severity={warnDs > 0 ? "warn" : "ok"} />
-      <KpiCard title="Max CPU OC" value={`${maxCpuOC.toFixed(1)}:1`} severity={maxCpuOC > 5 ? "crit" : maxCpuOC > 3 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
-      <KpiCard title="Max RAM OC" value={`${maxRamOC.toFixed(1)}:1`} severity={maxRamOC > 1.5 ? "crit" : maxRamOC > 1.0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
-      <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} />
-      <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} />
+      <KpiCard title="Datastores" value={formatNum(datastoresCount)} icon={<HardDrive className="h-4 w-4" />} info={CAPACITY_KPI.datastores} />
+      <KpiCard title="Ø Frei %" value={avgFreePct !== null ? formatPct(avgFreePct) : "—"} severity={avgFreePct !== null && avgFreePct < 15 ? "crit" : avgFreePct !== null && avgFreePct < 25 ? "warn" : "ok"} info={CAPACITY_KPI.avgFreePct} />
+      <KpiCard title="Kritisch (<10%)" value={formatNum(critDs)} severity={critDs > 0 ? "crit" : "ok"} info={CAPACITY_KPI.critDs} />
+      <KpiCard title="Warnung (<20%)" value={formatNum(warnDs)} severity={warnDs > 0 ? "warn" : "ok"} info={CAPACITY_KPI.warnDs} />
+      <KpiCard title="Max CPU OC" value={`${maxCpuOC.toFixed(1)}:1`} severity={maxCpuOC > 5 ? "crit" : maxCpuOC > 3 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={CAPACITY_KPI.maxCpuOC} />
+      <KpiCard title="Max RAM OC" value={`${maxRamOC.toFixed(1)}:1`} severity={maxRamOC > 1.5 ? "crit" : maxRamOC > 1.0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} info={CAPACITY_KPI.maxRamOC} />
+      <KpiCard title="RP Risiken" value={formatNum(rpRisks)} severity={rpRisks > 0 ? "warn" : "ok"} icon={<Layers className="h-4 w-4" />} info={CAPACITY_KPI.rpRisks} />
+      <KpiCard title="Speicherwirkgrad" value={`${storageEfficiency.ratio}%`} subtitle={`${storageEfficiency.inUseGiB.toFixed(0)} / ${storageEfficiency.provGiB.toFixed(0)} GiB`} icon={<Server className="h-4 w-4" />} info={CAPACITY_KPI.storageEfficiency} />
     </KpiGrid>
   );
 }
@@ -144,11 +155,11 @@ function CapacityRiskCards({
 }) {
   return (
     <KpiGrid>
-      <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-      <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} />
-      <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} />
-      <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} />
-      <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
+      <KpiCard title="Capacity Risiken hoch" value={formatNum(criticalCapacityClusters)} severity={criticalCapacityClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={CAPACITY_RISK_KPI.criticalCapacity} />
+      <KpiCard title="Capacity Risiken mittel" value={formatNum(mediumCapacityClusters)} severity={mediumCapacityClusters > 0 ? "warn" : "ok"} info={CAPACITY_RISK_KPI.mediumCapacity} />
+      <KpiCard title="Hot Hosts" value={formatNum(hotHostsTotal)} severity={hotHostsTotal > 0 ? "warn" : "ok"} info={CAPACITY_RISK_KPI.hotHosts} />
+      <KpiCard title="Max Swap+Balloon" value={`${maxSwapBalloonPct.toFixed(2)}%`} severity={maxSwapBalloonPct > 5 ? "crit" : maxSwapBalloonPct > 2 ? "warn" : "ok"} info={CAPACITY_RISK_KPI.maxSwapBalloon} />
+      <KpiCard title="Ø vCPU/Core" value={avgVcpuPerCore.toFixed(2)} severity={avgVcpuPerCore > 6 ? "crit" : avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={CAPACITY_RISK_KPI.avgVcpuPerCore} />
     </KpiGrid>
   );
 }
@@ -168,7 +179,9 @@ function CapacityChartSection({
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Headroom (Frei %)</h3>
+          <InfoTooltip entry={CAPACITY_SECTIONS.dsHeadroom} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Headroom (Frei %)</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={dsChart} layout="vertical">
               <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -181,7 +194,9 @@ function CapacityChartSection({
           </ResponsiveContainer>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3>
+          <InfoTooltip entry={CAPACITY_SECTIONS.hostDensity} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <ScatterChart>
               <CartesianGrid {...CHART_GRID_STYLE} />
@@ -200,7 +215,9 @@ function CapacityChartSection({
 
       {clusterRiskChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Risk Score (vHost + vCluster)</h3>
+          <InfoTooltip entry={CAPACITY_SECTIONS.clusterRisk} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Capacity Risk Score (vHost + vCluster)</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={Math.max(240, clusterRiskChart.length * 34)}>
             <BarChart data={clusterRiskChart} layout="vertical">
               <XAxis type="number" domain={[0, "dataMax + 5"]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -240,7 +257,9 @@ function CapacityTablesSection({
     <>
       {clusterCapacity.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3>
+          <InfoTooltip entry={CAPACITY_SECTIONS.clusterCapacityHealth} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3>
+          </InfoTooltip>
           <VirtualTable
             data={clusterCapacity}
             columns={clusterCapacityColumns}
@@ -253,7 +272,9 @@ function CapacityTablesSection({
       )}
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3>
+        <InfoTooltip entry={CAPACITY_SECTIONS.clusterOvercommit} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3>
+        </InfoTooltip>
         <VirtualTable
           data={clusterMetrics}
           columns={clusterColumns}
@@ -263,107 +284,107 @@ function CapacityTablesSection({
           onRowClick={(row) => onOpenClusterDetail(row.name)}
         />
       </div>
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Datastore Details</h3><VirtualTable data={datastores} columns={dsColumns} globalFilter={globalFilter} initialSorting={[{ id: "freePct", desc: false }]} /></div>
+      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable data={datastores} columns={dsColumns} globalFilter={globalFilter} initialSorting={[{ id: "freePct", desc: false }]} /></div>
 
       {rpData.length > 0 && (
-        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rpData.length})</h3><VirtualTable data={rpData} columns={rpColumns} globalFilter={globalFilter} height={300} /></div>
+        <div><InfoTooltip entry={CAPACITY_SECTIONS.resourcePool} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rpData.length})</h3></InfoTooltip><VirtualTable data={rpData} columns={rpColumns} globalFilter={globalFilter} height={300} /></div>
       )}
 
       {thinRiskData.length > 0 && (
-        <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={globalFilter} height={250} /></div>
+        <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={globalFilter} height={250} /></div>
       )}
     </>
   );
 }
 
 const clusterColumns: ColumnDef<ClusterMetric, unknown>[] = [
-  { accessorKey: "name", header: "Cluster" },
-  { accessorKey: "cpuRatio", header: "vCPU/Core", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}</span>; }},
-  { accessorKey: "ramRatio", header: "RAM Overcommit", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 1.5 ? "text-destructive font-semibold" : v > 1.0 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
-  { accessorKey: "vCpuSum", header: "vCPUs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "cores", header: "Cores", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "ramAllocGiB", header: "RAM Alloc", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
-  { accessorKey: "ramTotalGiB", header: "RAM Total", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
+  { accessorKey: "name", header: "Cluster", meta: { info: CAPACITY_CLUSTER_COLUMNS.name } },
+  { accessorKey: "cpuRatio", header: "vCPU/Core", meta: { info: CAPACITY_CLUSTER_COLUMNS.cpuRatio }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v.toFixed(2)}</span>; }},
+  { accessorKey: "ramRatio", header: "RAM Overcommit", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramRatio }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 1.5 ? "text-destructive font-semibold" : v > 1.0 ? "text-warning" : "text-success"}>{v.toFixed(2)}:1</span>; }},
+  { accessorKey: "vCpuSum", header: "vCPUs", meta: { info: CAPACITY_CLUSTER_COLUMNS.vCpuSum }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "cores", header: "Cores", meta: { info: CAPACITY_CLUSTER_COLUMNS.cores }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "ramAllocGiB", header: "RAM Alloc", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramAllocGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
+  { accessorKey: "ramTotalGiB", header: "RAM Total", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramTotalGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
 ];
 
 const rpColumns: ColumnDef<RpRow, unknown>[] = [
-  { accessorKey: "name", header: "Resource Pool" },
-  { accessorKey: "path", header: "Pfad" },
-  { accessorKey: "status", header: "Status", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "green" ? "text-success" : v === "yellow" ? "text-warning" : "text-destructive"}>{v}</span>; }},
-  { accessorKey: "vms", header: "VMs" },
-  { accessorKey: "cpuLimit", header: "CPU Limit" },
-  { accessorKey: "cpuReservation", header: "CPU Res. MHz" },
-  { accessorKey: "cpuExpandable", header: "CPU Expand.", cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
-  { accessorKey: "memLimit", header: "Mem Limit" },
-  { accessorKey: "memReservation", header: "Mem Res. MiB" },
-  { accessorKey: "memExpandable", header: "Mem Expand.", cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "name", header: "Resource Pool", meta: { info: CAPACITY_RP_COLUMNS.name } },
+  { accessorKey: "path", header: "Pfad", meta: { info: CAPACITY_RP_COLUMNS.path } },
+  { accessorKey: "status", header: "Status", meta: { info: CAPACITY_RP_COLUMNS.status }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "green" ? "text-success" : v === "yellow" ? "text-warning" : "text-destructive"}>{v}</span>; }},
+  { accessorKey: "vms", header: "VMs", meta: { info: CAPACITY_RP_COLUMNS.vms } },
+  { accessorKey: "cpuLimit", header: "CPU Limit", meta: { info: CAPACITY_RP_COLUMNS.cpuLimit } },
+  { accessorKey: "cpuReservation", header: "CPU Res. MHz", meta: { info: CAPACITY_RP_COLUMNS.cpuReservation } },
+  { accessorKey: "cpuExpandable", header: "CPU Expand.", meta: { info: CAPACITY_RP_COLUMNS.cpuExpandable }, cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
+  { accessorKey: "memLimit", header: "Mem Limit", meta: { info: CAPACITY_RP_COLUMNS.memLimit } },
+  { accessorKey: "memReservation", header: "Mem Res. MiB", meta: { info: CAPACITY_RP_COLUMNS.memReservation } },
+  { accessorKey: "memExpandable", header: "Mem Expand.", meta: { info: CAPACITY_RP_COLUMNS.memExpandable }, cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
+  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_RP_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
 const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
-  { accessorKey: "datastore", header: "Datastore" },
-  { accessorKey: "freePct", header: "Frei % (knappster DS)", cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
-  { accessorKey: "thinDisks", header: "Thin Disks" },
-  { accessorKey: "totalThinMiB", header: "Thin Kapaz.", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "datastore", header: "Datastore", meta: { info: CAPACITY_THIN_COLUMNS.datastore } },
+  { accessorKey: "freePct", header: "Frei % (knappster DS)", meta: { info: CAPACITY_THIN_COLUMNS.freePct }, cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
+  { accessorKey: "thinDisks", header: "Thin Disks", meta: { info: CAPACITY_THIN_COLUMNS.thinDisks } },
+  { accessorKey: "totalThinMiB", header: "Thin Kapaz.", meta: { info: CAPACITY_THIN_COLUMNS.totalThinMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_THIN_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
 const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "datacenter", header: "Datacenter" },
-  { accessorKey: "risk", header: "Risiko", cell: ({ row }) => {
+  { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
+  { accessorKey: "datacenter", header: "Datacenter", meta: { info: CAPACITY_HEALTH_COLUMNS.datacenter } },
+  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => {
     const risk = row.original.risk;
     const score = row.original.riskScore;
     return <span className={risk === "hoch" ? "text-destructive font-semibold" : risk === "mittel" ? "text-warning font-semibold" : "text-success"}>{risk} ({score})</span>;
   }},
-  { accessorKey: "hosts", header: "Hosts" },
-  { accessorKey: "totalCores", header: "Cores" },
-  { accessorKey: "totalVms", header: "VMs" },
-  { accessorKey: "cpuUsagePct", header: "CPU %", cell: ({ getValue }) => {
+  { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
+  { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
+  { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },
+  { accessorKey: "cpuUsagePct", header: "CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.cpuUsagePct }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 85 ? "text-destructive font-semibold" : v > 75 ? "text-warning" : "text-success"}>{v.toFixed(1)}%</span>;
   }},
-  { accessorKey: "memoryUsagePct", header: "RAM %", cell: ({ getValue }) => {
+  { accessorKey: "memoryUsagePct", header: "RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.memoryUsagePct }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 90 ? "text-destructive font-semibold" : v > 80 ? "text-warning" : "text-success"}>{v.toFixed(1)}%</span>;
   }},
-  { accessorKey: "vcpuPerCore", header: "vCPU/Core", cell: ({ getValue }) => {
+  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CAPACITY_HEALTH_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 6 ? "text-destructive font-semibold" : v > 4 ? "text-warning" : ""}>{v.toFixed(2)}</span>;
   }},
-  { accessorKey: "ramCommitPct", header: "RAM Commit %", cell: ({ getValue }) => {
+  { accessorKey: "ramCommitPct", header: "RAM Commit %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramCommitPct }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 180 ? "text-destructive font-semibold" : v > 140 ? "text-warning" : ""}>{v.toFixed(1)}%</span>;
   }},
-  { accessorKey: "ramActivePct", header: "RAM Active %", cell: ({ getValue }) => {
+  { accessorKey: "ramActivePct", header: "RAM Active %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramActivePct }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 90 ? "text-destructive font-semibold" : v > 80 ? "text-warning" : ""}>{v.toFixed(1)}%</span>;
   }},
-  { accessorKey: "swapBalloonPct", header: "Swap+Balloon %", cell: ({ getValue }) => {
+  { accessorKey: "swapBalloonPct", header: "Swap+Balloon %", meta: { info: CAPACITY_HEALTH_COLUMNS.swapBalloonPct }, cell: ({ getValue }) => {
     const v = getValue() as number;
     return <span className={v > 5 ? "text-destructive font-semibold" : v > 2 ? "text-warning" : "text-success"}>{v.toFixed(2)}%</span>;
   }},
-  { accessorKey: "hotHosts", header: "Hot Hosts", cell: ({ row }) => {
+  { accessorKey: "hotHosts", header: "Hot Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hotHosts }, cell: ({ row }) => {
     const hotHosts = row.original.hotHosts;
     const hosts = row.original.hosts || 1;
     return `${hotHosts}/${hosts}`;
   }},
-  { accessorKey: "drsEnabled", header: "DRS", cell: ({ getValue }) => {
+  { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => {
     const v = getValue() as boolean | null;
     if (v === null) return "—";
     return <span className={v ? "text-success" : "text-warning"}>{v ? "An" : "Aus"}</span>;
   }},
-  { accessorKey: "haEnabled", header: "HA", cell: ({ getValue }) => {
+  { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => {
     const v = getValue() as boolean | null;
     if (v === null) return "—";
     return <span className={v ? "text-success" : "text-muted-foreground"}>{v ? "An" : "Aus"}</span>;
   }},
-  { accessorKey: "clusterHostDelta", header: "Δ Hosts", cell: ({ getValue }) => {
+  { accessorKey: "clusterHostDelta", header: "Δ Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.clusterHostDelta }, cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";
     return <span className={v !== 0 ? "text-warning font-semibold" : "text-success"}>{v > 0 ? `+${v}` : v}</span>;
   }},
-  { accessorKey: "clusterMemoryDeltaPct", header: "Δ RAM %", cell: ({ getValue }) => {
+  { accessorKey: "clusterMemoryDeltaPct", header: "Δ RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.clusterMemoryDeltaPct }, cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";
     const abs = Math.abs(v);

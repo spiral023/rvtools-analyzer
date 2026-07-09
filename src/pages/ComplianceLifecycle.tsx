@@ -16,6 +16,19 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { buildHostDetails, type HostDetail } from "@/lib/conversion";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  COMPLIANCE_KPI,
+  COMPLIANCE_COLUMNS,
+  COMPLIANCE_SECTIONS,
+  OPERATIONS_KPI,
+  NTP_COLUMNS,
+  HW_UPGRADE_COLUMNS,
+  TOOLS_WAVE_COLUMNS,
+  INFRASTRUCTURE_KPI,
+  HOST_COLUMNS,
+  DRIVER_COLUMNS,
+} from "@/lib/glossaries/compliance";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 
@@ -62,29 +75,33 @@ function ComplianceTabPanel({
   return (
     <TabsContent value="compliance" className="space-y-4">
       <KpiGrid>
-        <KpiCard title="Kein Secure Boot" value={formatNum(noSecureBoot)} severity={noSecureBoot > 0 ? "warn" : "ok"} icon={<Shield className="h-4 w-4" />} />
-        <KpiCard title="BIOS (kein EFI)" value={formatNum(biosVms)} severity={biosVms > 0 ? "warn" : "ok"} />
-        <KpiCard title="Kein CBT" value={formatNum(noCbt)} severity={noCbt > 0 ? "warn" : "ok"} />
-        <KpiCard title="OS Drift" value={formatNum(osDrift)} severity={osDrift > 0 ? "warn" : "ok"} icon={<MonitorCheck className="h-4 w-4" />} />
-        <KpiCard title="UUID fehlt" value={formatNum(uuidMissing)} severity={uuidMissing > 0 ? "warn" : "ok"} icon={<Fingerprint className="h-4 w-4" />} />
-        <KpiCard title="Annotation leer" value={formatNum(annotationEmpty)} subtitle={`${complianceVms.length > 0 ? Math.round(annotationEmpty / complianceVms.length * 100) : 0}%`} icon={<Tag className="h-4 w-4" />} />
+        <KpiCard title="Kein Secure Boot" value={formatNum(noSecureBoot)} severity={noSecureBoot > 0 ? "warn" : "ok"} icon={<Shield className="h-4 w-4" />} info={COMPLIANCE_KPI.noSecureBoot} />
+        <KpiCard title="BIOS (kein EFI)" value={formatNum(biosVms)} severity={biosVms > 0 ? "warn" : "ok"} info={COMPLIANCE_KPI.biosVms} />
+        <KpiCard title="Kein CBT" value={formatNum(noCbt)} severity={noCbt > 0 ? "warn" : "ok"} info={COMPLIANCE_KPI.noCbt} />
+        <KpiCard title="OS Drift" value={formatNum(osDrift)} severity={osDrift > 0 ? "warn" : "ok"} icon={<MonitorCheck className="h-4 w-4" />} info={COMPLIANCE_KPI.osDrift} />
+        <KpiCard title="UUID fehlt" value={formatNum(uuidMissing)} severity={uuidMissing > 0 ? "warn" : "ok"} icon={<Fingerprint className="h-4 w-4" />} info={COMPLIANCE_KPI.uuidMissing} />
+        <KpiCard title="Annotation leer" value={formatNum(annotationEmpty)} subtitle={`${complianceVms.length > 0 ? Math.round(annotationEmpty / complianceVms.length * 100) : 0}%`} icon={<Tag className="h-4 w-4" />} info={COMPLIANCE_KPI.annotationEmpty} />
       </KpiGrid>
 
       {vcenterVersions.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Globe className="h-4 w-4" /> vCenter Versionsstand</h3>
+          <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterVersion} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Globe className="h-4 w-4" /> vCenter Versionsstand</h3>
+          </InfoTooltip>
           <div className="space-y-2">{vcenterVersions.map((v) => (<div key={`${v.name}-${v.fullname}-${v.apiVersion}`} className="flex flex-wrap gap-4 text-sm"><span className="font-semibold">{v.name}</span><span className="font-mono-data text-xs text-muted-foreground">{v.fullname}</span><span className="text-xs text-muted-foreground">API: {v.apiVersion}</span></div>))}</div>
         </div>
       )}
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">HW Version Verteilung</h3>
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.hwVersionDistribution} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">HW Version Verteilung</h3>
+        </InfoTooltip>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={hwVersionChart}><XAxis dataKey="name" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="value" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /></BarChart>
         </ResponsiveContainer>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3><VirtualTable data={complianceVms} columns={compColumns} globalFilter={globalFilter} onRowClick={onOpenVmDetail} /></div>
+      <div><InfoTooltip entry={COMPLIANCE_SECTIONS.complianceTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3></InfoTooltip><VirtualTable data={complianceVms} columns={compColumns} globalFilter={globalFilter} onRowClick={onOpenVmDetail} /></div>
     </TabsContent>
   );
 }
@@ -113,21 +130,23 @@ function renderOperationsTabPanel({
   return (
     <TabsContent value="operations" className="space-y-4">
       <KpiGrid>
-        <KpiCard title="Tools Upgrade" value={formatNum(toolsUpgradeable)} severity={toolsUpgradeable > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />
-        <KpiCard title="NTP/DNS Issues" value={formatNum(ntpDnsData.length)} severity={ntpDnsData.length > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} />
-        <KpiCard title="HW Upgrade Backlog" value={formatNum(hwUpgradeBacklog.length)} severity={hwUpgradeBacklog.length > 0 ? "warn" : "ok"} />
-        <KpiCard title="Latency Sonderfälle" value={formatNum(latencyNonNormal)} severity={latencyNonNormal > 0 ? "warn" : "ok"} />
+        <KpiCard title="Tools Upgrade" value={formatNum(toolsUpgradeable)} severity={toolsUpgradeable > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} info={OPERATIONS_KPI.toolsUpgradeable} />
+        <KpiCard title="NTP/DNS Issues" value={formatNum(ntpDnsData.length)} severity={ntpDnsData.length > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={OPERATIONS_KPI.ntpDnsIssues} />
+        <KpiCard title="HW Upgrade Backlog" value={formatNum(hwUpgradeBacklog.length)} severity={hwUpgradeBacklog.length > 0 ? "warn" : "ok"} info={OPERATIONS_KPI.hwUpgradeBacklog} />
+        <KpiCard title="Latency Sonderfälle" value={formatNum(latencyNonNormal)} severity={latencyNonNormal > 0 ? "warn" : "ok"} info={OPERATIONS_KPI.latencyNonNormal} />
       </KpiGrid>
 
-      {ntpDnsData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenHostDetail} /></div>)}
+      {ntpDnsData.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3></InfoTooltip><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenHostDetail} /></div>)}
 
-      {hwUpgradeBacklog.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} /></div>)}
+      {hwUpgradeBacklog.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.hwUpgradeBacklog} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3></InfoTooltip><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} /></div>)}
 
-      {toolsWavePlan.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3><VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={globalFilter} height={250} /></div>)}
+      {toolsWavePlan.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.toolsWavePlan} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3></InfoTooltip><VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={globalFilter} height={250} /></div>)}
 
       {latencyNonNormal > 0 && (
         <div className="rounded-lg border border-warning/30 bg-card/30 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-warning">Latency Sensitivity Sonderfälle ({latencyNonNormal})</h3>
+          <InfoTooltip entry={COMPLIANCE_SECTIONS.latencyCases} side="bottom">
+            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-warning">Latency Sensitivity Sonderfälle ({latencyNonNormal})</h3>
+          </InfoTooltip>
           <div className="space-y-1">{collectLatencySpecialCases(complianceVms).map((v) => (<div key={v.vmName} className="flex gap-3 text-sm"><span className="font-mono-data">{v.vmName}</span><span className="text-warning">{v.latencySensitivity}</span><span className="text-muted-foreground">{v.cluster}</span></div>))}</div>
         </div>
       )}
@@ -167,26 +186,30 @@ function renderInfrastructureTabPanel({
   return (
     <TabsContent value="infrastructure" className="space-y-4">
       <KpiGrid>
-        <KpiCard title="Maintenance" value={formatNum(maintenanceHosts)} severity={maintenanceHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Hosts" value={formatNum(hostsWithEsxVersion.length)} severity="ok" icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Treiber-Einträge" value={formatNum(driverInventory.length)} severity={driverInventory.length > 0 ? "ok" : "warn"} icon={<Wifi className="h-4 w-4" />} />
-        <KpiCard title="CPU Mix Cluster" value={formatNum(cpuMix.length)} severity={cpuMix.length > 0 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} />
+        <KpiCard title="Maintenance" value={formatNum(maintenanceHosts)} severity={maintenanceHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.maintenanceHosts} />
+        <KpiCard title="Hosts" value={formatNum(hostsWithEsxVersion.length)} severity="ok" icon={<Server className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.hosts} />
+        <KpiCard title="Treiber-Einträge" value={formatNum(driverInventory.length)} severity={driverInventory.length > 0 ? "ok" : "warn"} icon={<Wifi className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.driverEntries} />
+        <KpiCard title="CPU Mix Cluster" value={formatNum(cpuMix.length)} severity={cpuMix.length > 0 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.cpuMix} />
       </KpiGrid>
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">ESXi Version/Build</h3>
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiBuild} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">ESXi Version/Build</h3>
+        </InfoTooltip>
         <ResponsiveContainer width="100%" height={280}>
           <PieChart><Pie data={buildChart} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={85} strokeWidth={0}>{buildChart.map((entry, index) => <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />)}</Pie><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "11px" }} /></PieChart>
         </ResponsiveContainer>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>
+      <div><InfoTooltip entry={COMPLIANCE_SECTIONS.hostInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3></InfoTooltip><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>
 
-      {driverInventory.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverInventory.length})</h3><VirtualTable data={driverInventory} columns={driverColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>)}
+      {driverInventory.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.driverInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverInventory.length})</h3></InfoTooltip><VirtualTable data={driverInventory} columns={driverColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>)}
 
       {cpuMix.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Cpu className="h-4 w-4" /> CPU-Generationen Mix je Cluster</h3>
+          <InfoTooltip entry={COMPLIANCE_SECTIONS.cpuMix} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Cpu className="h-4 w-4" /> CPU-Generationen Mix je Cluster</h3>
+          </InfoTooltip>
           <div className="space-y-2">{cpuMix.map((c) => (<div key={c.cluster} className="flex items-start gap-2 text-sm"><span className="font-medium text-warning">{c.cluster}</span><span className="text-muted-foreground">— {c.models} Modelle: {c.list}</span></div>))}</div>
         </div>
       )}
@@ -213,10 +236,11 @@ function parseVmHwVersion(value: string | null | undefined): number | null {
 }
 
 const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
+  { accessorKey: "vmName", header: "VM", meta: { info: COMPLIANCE_COLUMNS.vmName } },
   {
     accessorKey: "hwVersion",
     header: "HW Version",
+    meta: { info: COMPLIANCE_COLUMNS.hwVersion },
     cell: ({ getValue }) => {
       const raw = getValue() as string | null;
       const hwVersion = parseVmHwVersion(raw);
@@ -231,13 +255,13 @@ const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
       return raw || "—";
     },
   },
-  { accessorKey: "firmware", header: "Firmware" },
-  { accessorKey: "secureBoot", header: "Secure Boot", cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
-  { accessorKey: "cbt", header: "CBT", cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
-  { accessorKey: "osDrift", header: "OS Drift", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
-  { accessorKey: "uuidMissing", header: "UUID fehlt", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
-  { accessorKey: "annotationEmpty", header: "Annotation leer", cell: ({ getValue }) => getValue() ? <span className="text-muted-foreground">Ja</span> : "Nein" },
-  { accessorKey: "cluster", header: "Cluster" },
+  { accessorKey: "firmware", header: "Firmware", meta: { info: COMPLIANCE_COLUMNS.firmware } },
+  { accessorKey: "secureBoot", header: "Secure Boot", meta: { info: COMPLIANCE_COLUMNS.secureBoot }, cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
+  { accessorKey: "cbt", header: "CBT", meta: { info: COMPLIANCE_COLUMNS.cbt }, cell: ({ getValue }) => { const v = getValue() as boolean | null; return v === true ? <span className="text-success">Ja</span> : v === false ? <span className="text-warning">Nein</span> : "—"; }},
+  { accessorKey: "osDrift", header: "OS Drift", meta: { info: COMPLIANCE_COLUMNS.osDrift }, cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
+  { accessorKey: "uuidMissing", header: "UUID fehlt", meta: { info: COMPLIANCE_COLUMNS.uuidMissing }, cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
+  { accessorKey: "annotationEmpty", header: "Annotation leer", meta: { info: COMPLIANCE_COLUMNS.annotationEmpty }, cell: ({ getValue }) => getValue() ? <span className="text-muted-foreground">Ja</span> : "Nein" },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: COMPLIANCE_COLUMNS.cluster } },
 ];
 
 function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<NormalizedHost, unknown>[] {
@@ -245,6 +269,7 @@ function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<No
     {
       accessorKey: "host",
       header: "Host",
+      meta: { info: HOST_COLUMNS.host },
       cell: ({ row }) => (
         <button
           type="button"
@@ -255,48 +280,48 @@ function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<No
         </button>
       ),
     },
-    { accessorKey: "cluster", header: "Cluster" },
-    { accessorKey: "version", header: "ESXi Version" },
-    { accessorKey: "build", header: "Build" },
-    { accessorKey: "cpuModel", header: "CPU Model" },
-    { accessorKey: "vendor", header: "Vendor" },
-    { accessorKey: "model", header: "Model" },
-    { accessorKey: "maintenanceMode", header: "Maintenance", cell: ({ getValue }) => { const v = getValue() as string; return v === "True" ? <span className="text-warning">Ja</span> : "Nein"; }},
+    { accessorKey: "cluster", header: "Cluster", meta: { info: HOST_COLUMNS.cluster } },
+    { accessorKey: "version", header: "ESXi Version", meta: { info: HOST_COLUMNS.version } },
+    { accessorKey: "build", header: "Build", meta: { info: HOST_COLUMNS.build } },
+    { accessorKey: "cpuModel", header: "CPU Model", meta: { info: HOST_COLUMNS.cpuModel } },
+    { accessorKey: "vendor", header: "Vendor", meta: { info: HOST_COLUMNS.vendor } },
+    { accessorKey: "model", header: "Model", meta: { info: HOST_COLUMNS.model } },
+    { accessorKey: "maintenanceMode", header: "Maintenance", meta: { info: HOST_COLUMNS.maintenanceMode }, cell: ({ getValue }) => { const v = getValue() as string; return v === "True" ? <span className="text-warning">Ja</span> : "Nein"; }},
   ];
 }
 
 const driverColumns: ColumnDef<DriverRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "device", header: "Device" },
-  { accessorKey: "type", header: "Typ" },
-  { accessorKey: "driver", header: "Treiber" },
-  { accessorKey: "model", header: "Modell" },
+  { accessorKey: "host", header: "Host", meta: { info: DRIVER_COLUMNS.host } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: DRIVER_COLUMNS.cluster } },
+  { accessorKey: "device", header: "Device", meta: { info: DRIVER_COLUMNS.device } },
+  { accessorKey: "type", header: "Typ", meta: { info: DRIVER_COLUMNS.type } },
+  { accessorKey: "driver", header: "Treiber", meta: { info: DRIVER_COLUMNS.driver } },
+  { accessorKey: "model", header: "Modell", meta: { info: DRIVER_COLUMNS.model } },
 ];
 
 const ntpColumns: ColumnDef<NtpRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "ntpServers", header: "NTP Server" },
-  { accessorKey: "ntpdRunning", header: "NTPD", cell: ({ getValue }) => getValue() ? <span className="text-success">Ja</span> : <span className="text-destructive">Nein</span> },
-  { accessorKey: "dnsServers", header: "DNS Server" },
-  { accessorKey: "dhcp", header: "DHCP", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
-  { accessorKey: "issues", header: "Probleme", cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
+  { accessorKey: "host", header: "Host", meta: { info: NTP_COLUMNS.host } },
+  { accessorKey: "ntpServers", header: "NTP Server", meta: { info: NTP_COLUMNS.ntpServers } },
+  { accessorKey: "ntpdRunning", header: "NTPD", meta: { info: NTP_COLUMNS.ntpdRunning }, cell: ({ getValue }) => getValue() ? <span className="text-success">Ja</span> : <span className="text-destructive">Nein</span> },
+  { accessorKey: "dnsServers", header: "DNS Server", meta: { info: NTP_COLUMNS.dnsServers } },
+  { accessorKey: "dhcp", header: "DHCP", meta: { info: NTP_COLUMNS.dhcp }, cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
+  { accessorKey: "issues", header: "Probleme", meta: { info: NTP_COLUMNS.issues }, cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
 ];
 
 const toolsWaveColumns: ColumnDef<ToolsWaveRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "upgradeableCount", header: "Upgradeable" },
-  { accessorKey: "totalVms", header: "VMs gesamt" },
-  { accessorKey: "pct", header: "% Upgradeable", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)}%` },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: TOOLS_WAVE_COLUMNS.cluster } },
+  { accessorKey: "upgradeableCount", header: "Upgradeable", meta: { info: TOOLS_WAVE_COLUMNS.upgradeableCount } },
+  { accessorKey: "totalVms", header: "VMs gesamt", meta: { info: TOOLS_WAVE_COLUMNS.totalVms } },
+  { accessorKey: "pct", header: "% Upgradeable", meta: { info: TOOLS_WAVE_COLUMNS.pct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)}%` },
 ];
 
 const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "hwVersion", header: "HW Version" },
-  { accessorKey: "upgradeStatus", header: "Upgrade Status" },
-  { accessorKey: "upgradePolicy", header: "Policy" },
-  { accessorKey: "target", header: "Ziel" },
-  { accessorKey: "cluster", header: "Cluster" },
+  { accessorKey: "vm", header: "VM", meta: { info: HW_UPGRADE_COLUMNS.vm } },
+  { accessorKey: "hwVersion", header: "HW Version", meta: { info: HW_UPGRADE_COLUMNS.hwVersion } },
+  { accessorKey: "upgradeStatus", header: "Upgrade Status", meta: { info: HW_UPGRADE_COLUMNS.upgradeStatus } },
+  { accessorKey: "upgradePolicy", header: "Policy", meta: { info: HW_UPGRADE_COLUMNS.upgradePolicy } },
+  { accessorKey: "target", header: "Ziel", meta: { info: HW_UPGRADE_COLUMNS.target } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: HW_UPGRADE_COLUMNS.cluster } },
 ];
 
 function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {

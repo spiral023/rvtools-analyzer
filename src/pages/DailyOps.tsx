@@ -13,6 +13,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { DAILY_OPS_KPI, DAILY_OPS_COLUMNS, DAILY_OPS_SECTIONS } from "@/lib/glossaries/dailyOps";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedSnapshot, NormalizedHealth } from "@/domain/models/types";
 
@@ -67,42 +69,42 @@ function formatSinceCreation(value: string | null): string {
 }
 
 const issueColumns: ColumnDef<NormalizedVm, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "configStatus", header: "Config Status", cell: ({ getValue }) => {
+  { accessorKey: "vmName", header: "VM", meta: { info: DAILY_OPS_COLUMNS.vmName } },
+  { accessorKey: "configStatus", header: "Config Status", meta: { info: DAILY_OPS_COLUMNS.configStatus }, cell: ({ getValue }) => {
     const v = getValue() as string;
     return <span className={v === "green" ? "text-success" : v === "yellow" ? "text-warning" : "text-destructive"}>{v || "—"}</span>;
   }},
-  { accessorKey: "connectionState", header: "Verbindung" },
-  { accessorKey: "powerState", header: "Power" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "osConfig", header: "OS" },
+  { accessorKey: "connectionState", header: "Verbindung", meta: { info: DAILY_OPS_COLUMNS.connectionState } },
+  { accessorKey: "powerState", header: "Power", meta: { info: DAILY_OPS_COLUMNS.powerState } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: DAILY_OPS_COLUMNS.cluster } },
+  { accessorKey: "host", header: "Host", meta: { info: DAILY_OPS_COLUMNS.host } },
+  { accessorKey: "osConfig", header: "OS", meta: { info: DAILY_OPS_COLUMNS.osConfig } },
 ];
 
 const healthColumns: ColumnDef<NormalizedHealth, unknown>[] = [
-  { accessorKey: "entity", header: "Entity" },
-  { accessorKey: "messageType", header: "Typ" },
-  { accessorKey: "message", header: "Meldung" },
+  { accessorKey: "entity", header: "Entity", meta: { info: DAILY_OPS_COLUMNS.entity } },
+  { accessorKey: "messageType", header: "Typ", meta: { info: DAILY_OPS_COLUMNS.messageType } },
+  { accessorKey: "message", header: "Meldung", meta: { info: DAILY_OPS_COLUMNS.message } },
 ];
 
 const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "snapshotName", header: "Snapshot" },
-  { accessorKey: "description", header: "Beschreibung" },
-  { accessorKey: "dateTaken", header: "Erstellt", cell: ({ getValue }) => formatSnapshotCreated((getValue() as string | null) ?? null) },
-  { accessorKey: "dateTaken", id: "ageDays", header: "Seit Erstellung", cell: ({ getValue }) => {
+  { accessorKey: "vmName", header: "VM", meta: { info: DAILY_OPS_COLUMNS.vmName } },
+  { accessorKey: "snapshotName", header: "Snapshot", meta: { info: DAILY_OPS_COLUMNS.snapshotName } },
+  { accessorKey: "description", header: "Beschreibung", meta: { info: DAILY_OPS_COLUMNS.description } },
+  { accessorKey: "dateTaken", header: "Erstellt", meta: { info: DAILY_OPS_COLUMNS.dateTaken }, cell: ({ getValue }) => formatSnapshotCreated((getValue() as string | null) ?? null) },
+  { accessorKey: "dateTaken", id: "ageDays", header: "Seit Erstellung", meta: { info: DAILY_OPS_COLUMNS.ageDays }, cell: ({ getValue }) => {
     const value = (getValue() as string | null) ?? null;
     const diffDays = snapshotAgeDays(value);
     const className = diffDays !== null && diffDays > 14 ? "text-destructive font-semibold" : diffDays !== null && diffDays > 7 ? "text-warning" : "";
     return <span className={className}>{formatSinceCreation(value)}</span>;
   }},
-  { accessorKey: "sizeMiB", header: "Größe (GiB)", cell: ({ getValue }) => {
+  { accessorKey: "sizeMiB", header: "Größe (GiB)", meta: { info: DAILY_OPS_COLUMNS.sizeMiB }, cell: ({ getValue }) => {
     const v = getValue() as number | null;
     if (v === null) return "—";
     const gib = v / 1024;
     return <span className={v > 51200 ? "text-destructive font-semibold" : v > 20480 ? "text-warning" : ""}>{gib.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</span>;
   }},
-  { accessorKey: "quiesced", header: "Quiesced", cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
+  { accessorKey: "quiesced", header: "Quiesced", meta: { info: DAILY_OPS_COLUMNS.quiesced }, cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
 ];
 
 export default function DailyOps() {
@@ -169,18 +171,20 @@ export default function DailyOps() {
       <FilterBar />
       <GlobalFilterScopeHint text="Snapshots, Tools, CD/USB und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter." />
       <KpiGrid>
-        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-        <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} />
-        <KpiCard title="Consolidation" value={formatNum(consolidationNeeded.length)} severity={consolidationNeeded.length > 0 ? "warn" : "ok"} />
-        <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} />
-        <KpiCard title="VM Snapshots" value={formatNum(filteredVmSnapshots.length)} severity={filteredVmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} />
-        <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} />
-        <KpiCard title="CD/USB verbunden" value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} />
+        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={DAILY_OPS_KPI.healthEvents} />
+        <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} info={DAILY_OPS_KPI.configIssues} />
+        <KpiCard title="Consolidation" value={formatNum(consolidationNeeded.length)} severity={consolidationNeeded.length > 0 ? "warn" : "ok"} info={DAILY_OPS_KPI.consolidation} />
+        <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} info={DAILY_OPS_KPI.disconnected} />
+        <KpiCard title="VM Snapshots" value={formatNum(filteredVmSnapshots.length)} severity={filteredVmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} info={DAILY_OPS_KPI.vmSnapshots} />
+        <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} info={DAILY_OPS_KPI.toolsIssues} />
+        <KpiCard title="CD/USB verbunden" value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} info={DAILY_OPS_KPI.cdUsb} />
       </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Health Events nach Typ</h3>
+          <InfoTooltip entry={DAILY_OPS_SECTIONS.healthByType} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health Events nach Typ</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={healthByType} layout="vertical">
               <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -191,7 +195,9 @@ export default function DailyOps() {
           </ResponsiveContainer>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Power State</h3>
+          <InfoTooltip entry={DAILY_OPS_SECTIONS.powerState} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Power State</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
@@ -205,19 +211,25 @@ export default function DailyOps() {
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3>
+        <InfoTooltip entry={DAILY_OPS_SECTIONS.configIssuesTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3>
+        </InfoTooltip>
         <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
       </div>
 
       {filteredVmSnapshots.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
+          <InfoTooltip entry={DAILY_OPS_SECTIONS.snapshotsTable} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
+          </InfoTooltip>
           <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
         </div>
       )}
       {healthEvents.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3>
+          <InfoTooltip entry={DAILY_OPS_SECTIONS.healthTable} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3>
+          </InfoTooltip>
           <VirtualTable data={healthEvents} columns={healthColumns} globalFilter={filters.search} />
         </div>
       )}

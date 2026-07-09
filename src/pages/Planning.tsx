@@ -18,15 +18,17 @@ import { Map, Save, GitCompare, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, Scenario, ScenarioGroup } from "@/domain/models/types";
 import { toast } from "sonner";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { PLANNING_COLUMNS, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { id: "__selection", header: "", enableSorting: false, size: 40 },
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "powerState", header: "Power" },
-  { accessorKey: "cpuCount", header: "vCPU" },
-  { accessorKey: "memoryMiB", header: "RAM GiB", cell: ({ row }) => (row.original.memoryMiB / 1024).toFixed(1) },
+  { accessorKey: "vmName", header: "VM", meta: { info: PLANNING_COLUMNS.vmName } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: PLANNING_COLUMNS.cluster } },
+  { accessorKey: "host", header: "Host", meta: { info: PLANNING_COLUMNS.host } },
+  { accessorKey: "powerState", header: "Power", meta: { info: PLANNING_COLUMNS.powerState } },
+  { accessorKey: "cpuCount", header: "vCPU", meta: { info: PLANNING_COLUMNS.cpuCount } },
+  { accessorKey: "memoryMiB", header: "RAM GiB", meta: { info: PLANNING_COLUMNS.memoryMiB }, cell: ({ row }) => (row.original.memoryMiB / 1024).toFixed(1) },
 ];
 
 function makeId(): string {
@@ -227,7 +229,9 @@ export default function Planning() {
 
               {activeScenario.groups.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground">Gruppen</h3>
+                  <InfoTooltip entry={PLANNING_SECTIONS.groups} side="bottom">
+                    <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Gruppen</h3>
+                  </InfoTooltip>
                   {activeScenario.groups.map((g) => (
                     <Card key={g.id} className="flex items-center justify-between gap-3 p-3">
                       <div className="min-w-0">
@@ -249,7 +253,9 @@ export default function Planning() {
 
               {whatIfResult && whatIfResult.clusters.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground">What-If Zusammenfassung</h3>
+                  <InfoTooltip entry={PLANNING_SECTIONS.whatIf} side="bottom">
+                    <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">What-If Zusammenfassung</h3>
+                  </InfoTooltip>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     {whatIfResult.clusters.slice(0, 4).map((c) => (
                       <Card key={c.clusterName} className="p-3 space-y-1">
@@ -273,7 +279,9 @@ export default function Planning() {
           )}
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM-Auswahl</h3>
+            <InfoTooltip entry={PLANNING_SECTIONS.vmSelection} side="bottom">
+              <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Auswahl</h3>
+            </InfoTooltip>
             <VirtualTable
               data={vms}
               columns={vmColumns}

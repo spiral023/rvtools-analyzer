@@ -14,6 +14,18 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  STORAGE_KPI,
+  STORAGE_PARTITION_COLUMNS,
+  STORAGE_MULTIPATH_COLUMNS,
+  STORAGE_DEADPATH_COLUMNS,
+  STORAGE_DISK_COLUMNS,
+  STORAGE_BACKUP_COLUMNS,
+  STORAGE_SCSI_COLUMNS,
+  STORAGE_DSLIFECYCLE_COLUMNS,
+  STORAGE_SECTIONS,
+} from "@/lib/glossaries/storageBackup";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PartitionRow { snapshotId: string; vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
@@ -25,75 +37,76 @@ interface ScsiRow { snapshotId: string; vm: string; controller: string; scsiUnit
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "disk", header: "Partition" },
-  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "consumedMiB", header: "Konsumiert", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "freeMiB", header: "Frei", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : "text-success"}>{formatPct(v)}</span>; }},
+  { accessorKey: "vm", header: "VM", meta: { info: STORAGE_PARTITION_COLUMNS.vm } },
+  { accessorKey: "disk", header: "Partition", meta: { info: STORAGE_PARTITION_COLUMNS.disk } },
+  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_PARTITION_COLUMNS.capacityMiB } },
+  { accessorKey: "consumedMiB", header: "Konsumiert", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_PARTITION_COLUMNS.consumedMiB } },
+  { accessorKey: "freeMiB", header: "Frei", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_PARTITION_COLUMNS.freeMiB } },
+  { accessorKey: "freePct", header: "Frei %", meta: { info: STORAGE_PARTITION_COLUMNS.freePct }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : "text-success"}>{formatPct(v)}</span>; }},
 ];
 
 const mpColumns: ColumnDef<MultipathRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "datastore", header: "Datastore" },
-  { accessorKey: "policy", header: "Policy" },
-  { accessorKey: "state", header: "Status", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "ok" ? "text-success" : "text-destructive font-semibold"}>{v}</span>; }},
-  { accessorKey: "paths", header: "Pfade" },
-  { accessorKey: "activePaths", header: "Aktiv" },
-  { accessorKey: "deadPaths", header: "Tote Pfade", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{v}</span>; }},
+  { accessorKey: "host", header: "Host", meta: { info: STORAGE_MULTIPATH_COLUMNS.host } },
+  { accessorKey: "datastore", header: "Datastore", meta: { info: STORAGE_MULTIPATH_COLUMNS.datastore } },
+  { accessorKey: "policy", header: "Policy", meta: { info: STORAGE_MULTIPATH_COLUMNS.policy } },
+  { accessorKey: "state", header: "Status", meta: { info: STORAGE_MULTIPATH_COLUMNS.state }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "ok" ? "text-success" : "text-destructive font-semibold"}>{v}</span>; }},
+  { accessorKey: "paths", header: "Pfade", meta: { info: STORAGE_MULTIPATH_COLUMNS.paths } },
+  { accessorKey: "activePaths", header: "Aktiv", meta: { info: STORAGE_MULTIPATH_COLUMNS.activePaths } },
+  { accessorKey: "deadPaths", header: "Tote Pfade", meta: { info: STORAGE_MULTIPATH_COLUMNS.deadPaths }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{v}</span>; }},
 ];
 
 const deadPathHostColumns: ColumnDef<DeadPathHostRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "affectedDevices", header: "Betroffene Devices", cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
-  { accessorKey: "deadPaths", header: "Tote Pfade gesamt", cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
-  { accessorKey: "datastores", header: "Betroffene Datastores", cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[360px] truncate" title={v}>{v || "—"}</div>; }},
+  { accessorKey: "host", header: "Host", meta: { info: STORAGE_DEADPATH_COLUMNS.host } },
+  { accessorKey: "affectedDevices", header: "Betroffene Devices", meta: { info: STORAGE_DEADPATH_COLUMNS.affectedDevices }, cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
+  { accessorKey: "deadPaths", header: "Tote Pfade gesamt", meta: { info: STORAGE_DEADPATH_COLUMNS.deadPaths }, cell: ({ getValue }) => <span className="text-destructive font-semibold">{getValue() as number}</span> },
+  { accessorKey: "datastores", header: "Betroffene Datastores", meta: { info: STORAGE_DEADPATH_COLUMNS.datastores }, cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[360px] truncate" title={v}>{v || "—"}</div>; }},
 ];
 
 const diskColumns: ColumnDef<DiskRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "disk", header: "Disk" },
+  { accessorKey: "vm", header: "VM", meta: { info: STORAGE_DISK_COLUMNS.vm } },
+  { accessorKey: "disk", header: "Disk", meta: { info: STORAGE_DISK_COLUMNS.disk } },
   {
     accessorKey: "diskPath",
     header: "Disk Path",
+    meta: { info: STORAGE_DISK_COLUMNS.diskPath },
     cell: ({ getValue }) => {
       const value = getValue() as string;
       return <div className="max-w-[360px] truncate" title={value || "—"}>{value || "—"}</div>;
     },
   },
-  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "thin", header: "Thin", cell: ({ getValue }) => getValue() ? "Ja" : "Nein" },
-  { accessorKey: "mode", header: "Mode" },
-  { accessorKey: "raw", header: "RDM", cell: ({ getValue }) => getValue() ? "Ja" : "—" },
-  { accessorKey: "controller", header: "Controller" },
-  { accessorKey: "scsiUnit", header: "SCSI Unit" },
+  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_DISK_COLUMNS.capacityMiB } },
+  { accessorKey: "thin", header: "Thin", cell: ({ getValue }) => getValue() ? "Ja" : "Nein", meta: { info: STORAGE_DISK_COLUMNS.thin } },
+  { accessorKey: "mode", header: "Mode", meta: { info: STORAGE_DISK_COLUMNS.mode } },
+  { accessorKey: "raw", header: "RDM", cell: ({ getValue }) => getValue() ? "Ja" : "—", meta: { info: STORAGE_DISK_COLUMNS.raw } },
+  { accessorKey: "controller", header: "Controller", meta: { info: STORAGE_DISK_COLUMNS.controller } },
+  { accessorKey: "scsiUnit", header: "SCSI Unit", meta: { info: STORAGE_DISK_COLUMNS.scsiUnit } },
 ];
 
 const backupColumns: ColumnDef<BackupRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "backupStatus", header: "Backup Status" },
-  { accessorKey: "lastBackup", header: "Letztes Backup" },
-  { accessorKey: "ageDays", header: "Alter (Tage)", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 7 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v >= 0 ? v : "—"}</span>; }},
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : v === "kein Backup" ? "text-destructive" : "text-success"}>{v}</span>; }},
+  { accessorKey: "vm", header: "VM", meta: { info: STORAGE_BACKUP_COLUMNS.vm } },
+  { accessorKey: "backupStatus", header: "Backup Status", meta: { info: STORAGE_BACKUP_COLUMNS.backupStatus } },
+  { accessorKey: "lastBackup", header: "Letztes Backup", meta: { info: STORAGE_BACKUP_COLUMNS.lastBackup } },
+  { accessorKey: "ageDays", header: "Alter (Tage)", meta: { info: STORAGE_BACKUP_COLUMNS.ageDays }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 7 ? "text-destructive font-semibold" : v > 3 ? "text-warning" : "text-success"}>{v >= 0 ? v : "—"}</span>; }},
+  { accessorKey: "risk", header: "Risiko", meta: { info: STORAGE_BACKUP_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : v === "kein Backup" ? "text-destructive" : "text-success"}>{v}</span>; }},
 ];
 
 const scsiColumns: ColumnDef<ScsiRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "controller", header: "Controller" },
-  { accessorKey: "scsiUnit", header: "SCSI Unit #" },
-  { accessorKey: "disk", header: "Disk" },
-  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "mode", header: "Disk Mode" },
+  { accessorKey: "vm", header: "VM", meta: { info: STORAGE_SCSI_COLUMNS.vm } },
+  { accessorKey: "controller", header: "Controller", meta: { info: STORAGE_SCSI_COLUMNS.controller } },
+  { accessorKey: "scsiUnit", header: "SCSI Unit #", meta: { info: STORAGE_SCSI_COLUMNS.scsiUnit } },
+  { accessorKey: "disk", header: "Disk", meta: { info: STORAGE_SCSI_COLUMNS.disk } },
+  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_SCSI_COLUMNS.capacityMiB } },
+  { accessorKey: "mode", header: "Disk Mode", meta: { info: STORAGE_SCSI_COLUMNS.mode } },
 ];
 
 const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
-  { accessorKey: "name", header: "Datastore" },
-  { accessorKey: "type", header: "Typ" },
-  { accessorKey: "version", header: "Version" },
-  { accessorKey: "upgradeable", header: "Upgradeable", cell: ({ getValue }) => { const v = getValue() as string; return v.toLowerCase() === "true" ? <span className="text-warning">Ja</span> : <span className="text-success">Nein</span>; }},
-  { accessorKey: "mha", header: "MHA" },
-  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
+  { accessorKey: "name", header: "Datastore", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.name } },
+  { accessorKey: "type", header: "Typ", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.type } },
+  { accessorKey: "version", header: "Version", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.version } },
+  { accessorKey: "upgradeable", header: "Upgradeable", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.upgradeable }, cell: ({ getValue }) => { const v = getValue() as string; return v.toLowerCase() === "true" ? <span className="text-warning">Ja</span> : <span className="text-success">Nein</span>; }},
+  { accessorKey: "mha", header: "MHA", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.mha } },
+  { accessorKey: "capacityMiB", header: "Kapazität", cell: ({ getValue }) => formatBytes(getValue() as number), meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.capacityMiB } },
+  { accessorKey: "freePct", header: "Frei %", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.freePct }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
 ];
 
 export default function StorageBackup() {
@@ -206,20 +219,22 @@ export default function StorageBackup() {
       <FilterBar />
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
       <KpiGrid>
-        <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} />
-        <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} />
-        <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} />
-        <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-        <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" />
-        <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} />
-        <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} />
-        <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} />
-        <KpiCard title="RDM / VMFS Upg." value={`${formatNum(rdmDisks)} / ${formatNum(upgradeableDs)}`} icon={<Layers className="h-4 w-4" />} />
+        <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} info={STORAGE_KPI.partitions} />
+        <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} info={STORAGE_KPI.critical} />
+        <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} info={STORAGE_KPI.warning} />
+        <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.multipathIssues} />
+        <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" info={STORAGE_KPI.deadPaths} />
+        <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} info={STORAGE_KPI.noBackup} />
+        <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
+        <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.thinDisks} />
+        <KpiCard title="RDM / VMFS Upg." value={`${formatNum(rdmDisks)} / ${formatNum(upgradeableDs)}`} icon={<Layers className="h-4 w-4" />} info={STORAGE_KPI.rdmUpgradeable} />
       </KpiGrid>
 
       {partChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Gast-Partitionen mit wenig Platz</h3>
+          <InfoTooltip entry={STORAGE_SECTIONS.partitionChart} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen mit wenig Platz</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={partChart} layout="vertical">
               <XAxis type="number" domain={[0, 30]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -233,13 +248,15 @@ export default function StorageBackup() {
         </div>
       )}
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Gast-Partitionen</h3><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+      <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-      {backupData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+      {backupData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.backupTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3></InfoTooltip><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
 
       {snapshotBackupConflicts.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
+          <InfoTooltip entry={STORAGE_SECTIONS.snapshotConflicts} side="bottom">
+            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
+          </InfoTooltip>
           <p className="text-xs text-muted-foreground mb-3">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
           <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
         </div>
@@ -247,16 +264,18 @@ export default function StorageBackup() {
 
       {deadPathHosts.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
+          <InfoTooltip entry={STORAGE_SECTIONS.deadPathHosts} side="bottom">
+            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
+          </InfoTooltip>
           <p className="text-xs text-muted-foreground mb-3">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit `Oper. State != ok` abgleichen für akute Device-Ausfälle.</p>
           <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
         </div>
       )}
 
-      {multipaths.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
-      {disks.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
-      {scsiMapping.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
-      {dsLifecycle.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
+      {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+      {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
+      {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
       {vmDetailDialog}
       {hostDetailDialog}
     </div>

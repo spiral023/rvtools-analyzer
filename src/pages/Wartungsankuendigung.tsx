@@ -20,6 +20,8 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { WARTUNG_KPI, WARTUNG_COLUMNS, WARTUNG_SECTIONS } from "@/lib/glossaries/wartung";
 import { useActiveSnapshotIds, useClusters, useHosts, useRawSheet, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceAssignments, useMaintenanceSettings } from "@/hooks/useMaintenance";
 import {
@@ -733,6 +735,7 @@ export default function Wartungsankuendigung() {
     {
       accessorKey: "name",
       header: "Name",
+      meta: { info: WARTUNG_COLUMNS.name },
       cell: ({ getValue }) => {
         const value = getValue() as string;
         return (
@@ -745,16 +748,19 @@ export default function Wartungsankuendigung() {
     {
       accessorKey: "hosts",
       header: "Hosts",
+      meta: { info: WARTUNG_COLUMNS.hosts },
       cell: ({ getValue }) => <span className="tabular-nums">{formatNum(getValue() as number)}</span>,
     },
     {
       accessorKey: "totalVms",
       header: "VMs",
+      meta: { info: WARTUNG_COLUMNS.totalVms },
       cell: ({ getValue }) => <span className="tabular-nums">{formatNum(getValue() as number)}</span>,
     },
     {
       accessorKey: "type",
       header: "Typ",
+      meta: { info: WARTUNG_COLUMNS.type },
       cell: ({ getValue }) => {
         const value = getValue() as MaintenanceClusterType;
         return <Badge variant={value === "Spezial" ? "destructive" : "secondary"}>{value}</Badge>;
@@ -763,6 +769,7 @@ export default function Wartungsankuendigung() {
     {
       accessorKey: "windows",
       header: "Wartungsfenster",
+      meta: { info: WARTUNG_COLUMNS.windows },
       cell: ({ row }) => {
         const value = joinWindows(row.original.windows);
         return (
@@ -775,6 +782,7 @@ export default function Wartungsankuendigung() {
     {
       accessorKey: "contacts",
       header: "Verantwortliche",
+      meta: { info: WARTUNG_COLUMNS.contacts },
       cell: ({ row }) => {
         const value = joinRecipients(row.original);
         return (
@@ -832,10 +840,10 @@ export default function Wartungsankuendigung() {
       <FilterBar />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} />
-        <KpiCard title="Selektiert" value={formatNum(selectedRows.length)} />
-        <KpiCard title="Spezial" value={formatNum(rows.filter((row) => row.type === "Spezial").length)} severity="warn" />
-        <KpiCard title="Ohne Empfänger" value={formatNum(rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length)} severity={rows.some((row) => row.contacts.length === 0 && row.additionalEmails.length === 0) ? "warn" : "ok"} />
+        <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} info={WARTUNG_KPI.cluster} />
+        <KpiCard title="Selektiert" value={formatNum(selectedRows.length)} info={WARTUNG_KPI.selektiert} />
+        <KpiCard title="Spezial" value={formatNum(rows.filter((row) => row.type === "Spezial").length)} severity="warn" info={WARTUNG_KPI.spezial} />
+        <KpiCard title="Ohne Empfänger" value={formatNum(rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length)} severity={rows.some((row) => row.contacts.length === 0 && row.additionalEmails.length === 0) ? "warn" : "ok"} info={WARTUNG_KPI.ohneEmpfaenger} />
       </div>
 
       {!settings.companyName && (
@@ -858,9 +866,11 @@ export default function Wartungsankuendigung() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,860px)_minmax(420px,1fr)]">
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            Cluster im aktiven Snapshot-Scope ({searchedRows.length})
-          </h3>
+          <InfoTooltip entry={WARTUNG_SECTIONS.clusterTable} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+              Cluster im aktiven Snapshot-Scope ({searchedRows.length})
+            </h3>
+          </InfoTooltip>
           <VirtualTable
             data={searchedRows}
             columns={columns}

@@ -7,6 +7,15 @@ import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { VariantDetailDialog, type VariantDetail } from "@/components/network/VariantDetailDialog";
 import { Network, Router, Cable, Server, GitCompare, AlertTriangle, Layers } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  NET_HOST_KPI,
+  NET_VARIANT_COLUMNS,
+  NET_DRIFT_COLUMNS,
+  NET_DVS_COLUMNS,
+  NET_NICDETAIL_COLUMNS,
+  NET_HOST_SECTIONS,
+} from "@/lib/glossaries/networking";
 import type { ColumnDef } from "@tanstack/react-table";
 
 /* ------------------------------------------------------------------ */
@@ -25,39 +34,39 @@ interface HostConfig { host: string; cluster: string; nics: { device: string; sw
 /* ------------------------------------------------------------------ */
 
 const variantColumns: ColumnDef<VariantRow, unknown>[] = [
-  { accessorKey: "label", header: "Variante", cell: ({ getValue }) => <span className="font-mono-data font-semibold">{getValue() as string}</span> },
-  { accessorKey: "hostCount", header: "Hosts" },
-  { accessorKey: "clusters", header: "Cluster", cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[200px] truncate" title={v}>{v || "—"}</div>; } },
-  { accessorKey: "nicCount", header: "NICs/Host" },
-  { accessorKey: "summary", header: "Belegung (vmnic → Switch / Uplink)", cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[460px] truncate font-mono-data text-xs" title={v}>{v}</div>; } },
-  { accessorKey: "hosts", header: "Host-Namen", cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[220px] truncate text-xs text-muted-foreground" title={v}>{v}</div>; } },
+  { accessorKey: "label", header: "Variante", meta: { info: NET_VARIANT_COLUMNS.label }, cell: ({ getValue }) => <span className="font-mono-data font-semibold">{getValue() as string}</span> },
+  { accessorKey: "hostCount", header: "Hosts", meta: { info: NET_VARIANT_COLUMNS.hostCount } },
+  { accessorKey: "clusters", header: "Cluster", meta: { info: NET_VARIANT_COLUMNS.clusters }, cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[200px] truncate" title={v}>{v || "—"}</div>; } },
+  { accessorKey: "nicCount", header: "NICs/Host", meta: { info: NET_VARIANT_COLUMNS.nicCount } },
+  { accessorKey: "summary", header: "Belegung (vmnic → Switch / Uplink)", meta: { info: NET_VARIANT_COLUMNS.summary }, cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[460px] truncate font-mono-data text-xs" title={v}>{v}</div>; } },
+  { accessorKey: "hosts", header: "Host-Namen", meta: { info: NET_VARIANT_COLUMNS.hosts }, cell: ({ getValue }) => { const v = getValue() as string; return <div className="max-w-[220px] truncate text-xs text-muted-foreground" title={v}>{v}</div>; } },
 ];
 
 const driftColumns: ColumnDef<DriftRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "isVariant", header: "Ist-Variante", cell: ({ getValue }) => <span className="text-destructive font-semibold font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "expected", header: "Soll (Cluster-Mehrheit)", cell: ({ getValue }) => <span className="text-success font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "host", header: "Host", meta: { info: NET_DRIFT_COLUMNS.host } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: NET_DRIFT_COLUMNS.cluster } },
+  { accessorKey: "isVariant", header: "Ist-Variante", meta: { info: NET_DRIFT_COLUMNS.isVariant }, cell: ({ getValue }) => <span className="text-destructive font-semibold font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "expected", header: "Soll (Cluster-Mehrheit)", meta: { info: NET_DRIFT_COLUMNS.expected }, cell: ({ getValue }) => <span className="text-success font-mono-data">{getValue() as string}</span> },
 ];
 
 const dvsColumns: ColumnDef<DvsRow, unknown>[] = [
-  { accessorKey: "name", header: "vDS" },
-  { accessorKey: "version", header: "Version" },
-  { accessorKey: "maxMtu", header: "Max MTU", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v && v !== 1500 && v !== 9000 ? "text-warning" : ""}>{v || "—"}</span>; } },
-  { accessorKey: "ports", header: "# Ports", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "members", header: "Host Members" },
-  { accessorKey: "uplinksPerHost", header: "Uplinks/Host" },
-  { accessorKey: "consistent", header: "Einheitlich", cell: ({ row }) => { if (row.original.uplinksPerHost === "—") return <span className="text-muted-foreground">— (keine Uplinks im Snapshot)</span>; return row.original.consistent ? <span className="text-success">Ja</span> : <span className="text-warning font-semibold">Nein</span>; } },
+  { accessorKey: "name", header: "vDS", meta: { info: NET_DVS_COLUMNS.name } },
+  { accessorKey: "version", header: "Version", meta: { info: NET_DVS_COLUMNS.version } },
+  { accessorKey: "maxMtu", header: "Max MTU", meta: { info: NET_DVS_COLUMNS.maxMtu }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v && v !== 1500 && v !== 9000 ? "text-warning" : ""}>{v || "—"}</span>; } },
+  { accessorKey: "ports", header: "# Ports", meta: { info: NET_DVS_COLUMNS.ports }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "members", header: "Host Members", meta: { info: NET_DVS_COLUMNS.members } },
+  { accessorKey: "uplinksPerHost", header: "Uplinks/Host", meta: { info: NET_DVS_COLUMNS.uplinksPerHost } },
+  { accessorKey: "consistent", header: "Einheitlich", meta: { info: NET_DVS_COLUMNS.consistent }, cell: ({ row }) => { if (row.original.uplinksPerHost === "—") return <span className="text-muted-foreground">— (keine Uplinks im Snapshot)</span>; return row.original.consistent ? <span className="text-success">Ja</span> : <span className="text-warning font-semibold">Nein</span>; } },
 ];
 
 const nicColumns: ColumnDef<NicDetailRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "device", header: "vmnic" },
-  { accessorKey: "speed", header: "Speed (Mbps)", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "switchName", header: "Switch", cell: ({ getValue }) => { const v = getValue() as string; return v || <span className="text-warning">nicht zugewiesen</span>; } },
-  { accessorKey: "switchType", header: "Typ", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "Distributed" ? "text-info" : v === "Standard" ? "" : "text-muted-foreground"}>{v}</span>; } },
-  { accessorKey: "uplink", header: "Uplink-Port", cell: ({ getValue }) => { const v = getValue() as string; return v || "—"; } },
+  { accessorKey: "host", header: "Host", meta: { info: NET_NICDETAIL_COLUMNS.host } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: NET_NICDETAIL_COLUMNS.cluster } },
+  { accessorKey: "device", header: "vmnic", meta: { info: NET_NICDETAIL_COLUMNS.device } },
+  { accessorKey: "speed", header: "Speed (Mbps)", meta: { info: NET_NICDETAIL_COLUMNS.speed }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "switchName", header: "Switch", meta: { info: NET_NICDETAIL_COLUMNS.switchName }, cell: ({ getValue }) => { const v = getValue() as string; return v || <span className="text-warning">nicht zugewiesen</span>; } },
+  { accessorKey: "switchType", header: "Typ", meta: { info: NET_NICDETAIL_COLUMNS.switchType }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "Distributed" ? "text-info" : v === "Standard" ? "" : "text-muted-foreground"}>{v}</span>; } },
+  { accessorKey: "uplink", header: "Uplink-Port", meta: { info: NET_NICDETAIL_COLUMNS.uplink }, cell: ({ getValue }) => { const v = getValue() as string; return v || "—"; } },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -255,36 +264,44 @@ export function HostNetworkPanel() {
       <p className="text-sm text-muted-foreground">vmnic-zu-Switch-Belegung der Hosts, aggregierte Konfigurations-Varianten und vDS-Übersicht. Infrastruktur-Sicht — nicht vom globalen VM-Filter betroffen.</p>
 
       <KpiGrid>
-        <KpiCard title="Hosts" value={formatNum(hostCount)} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="vDS" value={formatNum(rawDvSwitch.length)} icon={<Router className="h-4 w-4" />} />
-        <KpiCard title="vSwitch (Std.)" value={formatNum(vssNames.size)} icon={<Network className="h-4 w-4" />} />
-        <KpiCard title="Uplinks gesamt" value={formatNum(totalUplinks)} icon={<Cable className="h-4 w-4" />} />
-        <KpiCard title="Konfig-Varianten" value={formatNum(variants.length)} severity={variants.length > 1 ? "warn" : "ok"} icon={<GitCompare className="h-4 w-4" />} />
-        <KpiCard title="Drift-Hosts" value={formatNum(driftRows.length)} severity={driftRows.length > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <KpiCard title="Hosts" value={formatNum(hostCount)} icon={<Server className="h-4 w-4" />} info={NET_HOST_KPI.hosts} />
+        <KpiCard title="vDS" value={formatNum(rawDvSwitch.length)} icon={<Router className="h-4 w-4" />} info={NET_HOST_KPI.vds} />
+        <KpiCard title="vSwitch (Std.)" value={formatNum(vssNames.size)} icon={<Network className="h-4 w-4" />} info={NET_HOST_KPI.vss} />
+        <KpiCard title="Uplinks gesamt" value={formatNum(totalUplinks)} icon={<Cable className="h-4 w-4" />} info={NET_HOST_KPI.uplinks} />
+        <KpiCard title="Konfig-Varianten" value={formatNum(variants.length)} severity={variants.length > 1 ? "warn" : "ok"} icon={<GitCompare className="h-4 w-4" />} info={NET_HOST_KPI.variants} />
+        <KpiCard title="Drift-Hosts" value={formatNum(driftRows.length)} severity={driftRows.length > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_HOST_KPI.driftHosts} />
       </KpiGrid>
 
       {driftRows.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-destructive">Konfigurations-Abweichungen ({driftRows.length})</h3>
+          <InfoTooltip entry={NET_HOST_SECTIONS.driftTable} side="bottom">
+            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Konfigurations-Abweichungen ({driftRows.length})</h3>
+          </InfoTooltip>
           <p className="text-xs text-muted-foreground mb-3">Hosts, deren vmnic-Belegung von der Mehrheit ihres Clusters abweicht — potenzieller Standardisierungs-Drift.</p>
           <VirtualTable data={driftRows} columns={driftColumns} globalFilter={filters.search} height={Math.min(300, 80 + driftRows.length * 40)} onRowClick={openHostDetail} />
         </div>
       )}
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Konfigurations-Varianten ({variants.length}) · Klick öffnet Detailansicht</h3>
+        <InfoTooltip entry={NET_HOST_SECTIONS.variantTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Konfigurations-Varianten ({variants.length}) · Klick öffnet Detailansicht</h3>
+        </InfoTooltip>
         <VirtualTable data={variants} columns={variantColumns} globalFilter={filters.search} height={Math.min(360, 80 + variants.length * 44)} onRowClick={(row) => setSelectedVariantLabel(row.label)} />
       </div>
 
       {dvsRows.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">vDS-Membership ({dvsRows.length})</h3>
+          <InfoTooltip entry={NET_HOST_SECTIONS.dvsTable} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vDS-Membership ({dvsRows.length})</h3>
+          </InfoTooltip>
           <VirtualTable data={dvsRows} columns={dvsColumns} globalFilter={filters.search} height={Math.min(320, 80 + dvsRows.length * 44)} />
         </div>
       )}
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground flex items-center gap-2"><Layers className="h-4 w-4" /> Uplink-Belegung Detail ({nicDetail.length})</h3>
+        <InfoTooltip entry={NET_HOST_SECTIONS.nicDetailTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Layers className="h-4 w-4" /> Uplink-Belegung Detail ({nicDetail.length})</h3>
+        </InfoTooltip>
         <VirtualTable data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} onRowClick={openHostDetail} />
       </div>
       <VariantDetailDialog

@@ -7,6 +7,8 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { VERSIONS_KPI, VERSIONS_COLUMNS, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { buildReleaseUsageRows, getLatestRelease, type ReleaseUsageRow } from "@/lib/vmwareReleaseCatalog";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
@@ -23,6 +25,7 @@ const releaseColumns: ColumnDef<ReleaseUsageRow, unknown>[] = [
   {
     accessorKey: "title",
     header: "Release",
+    meta: { info: VERSIONS_COLUMNS.title },
     cell: ({ row }) => (
       <a
         href={row.original.releaseNotesUrl}
@@ -34,17 +37,19 @@ const releaseColumns: ColumnDef<ReleaseUsageRow, unknown>[] = [
       </a>
     ),
   },
-  { accessorKey: "version", header: "Version", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "version", header: "Version", meta: { info: VERSIONS_COLUMNS.version }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   {
     accessorKey: "releaseTimestamp",
     header: "Release Date",
+    meta: { info: VERSIONS_COLUMNS.releaseTimestamp },
     cell: ({ row }) => <span className="font-mono-data">{row.original.releaseDateLabel}</span>,
   },
-  { accessorKey: "build", header: "ISO Build", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "usageCount", header: "In Nutzung", cell: ({ row }) => `${formatNum(row.original.usageCount)} / ${formatNum(row.original.totalAssets)}` },
+  { accessorKey: "build", header: "ISO Build", meta: { info: VERSIONS_COLUMNS.build }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "usageCount", header: "In Nutzung", meta: { info: VERSIONS_COLUMNS.usageCount }, cell: ({ row }) => `${formatNum(row.original.usageCount)} / ${formatNum(row.original.totalAssets)}` },
   {
     accessorKey: "adoptionPct",
     header: "Adoption",
+    meta: { info: VERSIONS_COLUMNS.adoptionPct },
     cell: ({ getValue }) => {
       const value = getValue() as number;
       return (
@@ -138,38 +143,44 @@ export function VmwareVersionsPanel() {
       </p>
 
       <KpiGrid>
-        <KpiCard title="Aktive vCenter" value={formatNum(totalActiveVcenters)} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Aktive ESXi Hosts" value={formatNum(totalActiveHosts)} icon={<Cpu className="h-4 w-4" />} />
+        <KpiCard title="Aktive vCenter" value={formatNum(totalActiveVcenters)} icon={<Server className="h-4 w-4" />} info={VERSIONS_KPI.activeVcenters} />
+        <KpiCard title="Aktive ESXi Hosts" value={formatNum(totalActiveHosts)} icon={<Cpu className="h-4 w-4" />} info={VERSIONS_KPI.activeHosts} />
         <KpiCard
           title={`vCenter auf ${latestVcenterLabel}`}
           value={formatNum(vcenterLatestUsage)}
           subtitle={`${totalActiveVcenters > 0 ? Math.round((vcenterLatestUsage / totalActiveVcenters) * 100) : 0}%`}
           severity={totalActiveVcenters > 0 && vcenterLatestUsage < totalActiveVcenters ? "warn" : "ok"}
+          info={VERSIONS_KPI.vcenterOnLatest}
         />
         <KpiCard
           title={`ESXi auf ${latestEsxiLabel}`}
           value={formatNum(esxiLatestUsage)}
           subtitle={`${totalActiveHosts > 0 ? Math.round((esxiLatestUsage / totalActiveHosts) * 100) : 0}%`}
           severity={totalActiveHosts > 0 && esxiLatestUsage < totalActiveHosts ? "warn" : "ok"}
+          info={VERSIONS_KPI.esxiOnLatest}
         />
         <KpiCard
           title="vCenter Releases erkannt"
           value={formatNum(trackedVcenterUsage)}
           subtitle={`${totalActiveVcenters > 0 ? Math.round((trackedVcenterUsage / totalActiveVcenters) * 100) : 0}% abgedeckt`}
           severity={trackedVcenterUsage < totalActiveVcenters ? "warn" : "ok"}
+          info={VERSIONS_KPI.vcenterTracked}
         />
         <KpiCard
           title="ESXi Releases erkannt"
           value={formatNum(trackedEsxiUsage)}
           subtitle={`${totalActiveHosts > 0 ? Math.round((trackedEsxiUsage / totalActiveHosts) * 100) : 0}% abgedeckt`}
           severity={trackedEsxiUsage < totalActiveHosts ? "warn" : "ok"}
+          info={VERSIONS_KPI.esxiTracked}
         />
       </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-border/50 bg-card/30">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">vCenter Release Nutzung</CardTitle>
+            <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterReleaseUsage} side="bottom">
+              <CardTitle className="w-fit cursor-help text-sm font-semibold">vCenter Release Nutzung</CardTitle>
+            </InfoTooltip>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
@@ -189,7 +200,9 @@ export function VmwareVersionsPanel() {
 
         <Card className="border-border/50 bg-card/30">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">ESXi Release Nutzung</CardTitle>
+            <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiReleaseUsage} side="bottom">
+              <CardTitle className="w-fit cursor-help text-sm font-semibold">ESXi Release Nutzung</CardTitle>
+            </InfoTooltip>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
@@ -209,16 +222,20 @@ export function VmwareVersionsPanel() {
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-          Neueste vCenter Versionen
-        </h3>
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterVersionsTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+            Neueste vCenter Versionen
+          </h3>
+        </InfoTooltip>
         <VirtualTable data={vcenterRows} columns={releaseColumns} height={260} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-          Neueste ESXi Versionen
-        </h3>
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiVersionsTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+            Neueste ESXi Versionen
+          </h3>
+        </InfoTooltip>
         <VirtualTable data={esxiRows} columns={releaseColumns} height={260} />
       </div>
     </div>

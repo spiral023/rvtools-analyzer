@@ -8,6 +8,16 @@ import { Network, ShieldAlert, Router, Cable, AlertTriangle } from "lucide-react
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  NET_SECURITY_KPI,
+  NET_POLICY_COLUMNS,
+  NET_VMK_COLUMNS,
+  NET_NIC_COLUMNS,
+  NET_UPLINK_COLUMNS,
+  NET_TEAMING_COLUMNS,
+  NET_SECURITY_SECTIONS,
+} from "@/lib/glossaries/networking";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PolicyRow { name: string; type: string; vlan: string; promiscuous: boolean; macChanges: boolean; forgedTransmits: boolean; policy: string }
@@ -18,50 +28,50 @@ interface TeamingRow { name: string; type: string; policy: string; rollingOrder:
 interface VlanChartRow { vlan: string; count: number; vlanName: string }
 
 const policyColumns: ColumnDef<PolicyRow, unknown>[] = [
-  { accessorKey: "name", header: "Port/Switch" },
-  { accessorKey: "type", header: "Typ" },
-  { accessorKey: "vlan", header: "VLAN" },
-  { accessorKey: "promiscuous", header: "Promiscuous", cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-destructive font-semibold" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
-  { accessorKey: "macChanges", header: "MAC Changes", cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
-  { accessorKey: "forgedTransmits", header: "Forged Transmits", cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
-  { accessorKey: "policy", header: "Teaming" },
+  { accessorKey: "name", header: "Port/Switch", meta: { info: NET_POLICY_COLUMNS.name } },
+  { accessorKey: "type", header: "Typ", meta: { info: NET_POLICY_COLUMNS.type } },
+  { accessorKey: "vlan", header: "VLAN", meta: { info: NET_POLICY_COLUMNS.vlan } },
+  { accessorKey: "promiscuous", header: "Promiscuous", meta: { info: NET_POLICY_COLUMNS.promiscuous }, cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-destructive font-semibold" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
+  { accessorKey: "macChanges", header: "MAC Changes", meta: { info: NET_POLICY_COLUMNS.macChanges }, cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
+  { accessorKey: "forgedTransmits", header: "Forged Transmits", meta: { info: NET_POLICY_COLUMNS.forgedTransmits }, cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : "text-success"}>{v ? "AN" : "Aus"}</span>; }},
+  { accessorKey: "policy", header: "Teaming", meta: { info: NET_POLICY_COLUMNS.policy } },
 ];
 
 const vmkColumns: ColumnDef<VmkRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "portGroup", header: "Port Group" },
-  { accessorKey: "device", header: "Device" },
-  { accessorKey: "ip", header: "IP" },
-  { accessorKey: "subnet", header: "Subnet" },
-  { accessorKey: "mtu", header: "MTU", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v !== 1500 && v !== 9000 ? "text-warning" : ""}>{v}</span>; }},
-  { accessorKey: "dhcp", header: "DHCP", cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : ""}>{v ? "Ja" : "Nein"}</span>; }},
+  { accessorKey: "host", header: "Host", meta: { info: NET_VMK_COLUMNS.host } },
+  { accessorKey: "portGroup", header: "Port Group", meta: { info: NET_VMK_COLUMNS.portGroup } },
+  { accessorKey: "device", header: "Device", meta: { info: NET_VMK_COLUMNS.device } },
+  { accessorKey: "ip", header: "IP", meta: { info: NET_VMK_COLUMNS.ip } },
+  { accessorKey: "subnet", header: "Subnet", meta: { info: NET_VMK_COLUMNS.subnet } },
+  { accessorKey: "mtu", header: "MTU", meta: { info: NET_VMK_COLUMNS.mtu }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v !== 1500 && v !== 9000 ? "text-warning" : ""}>{v}</span>; }},
+  { accessorKey: "dhcp", header: "DHCP", meta: { info: NET_VMK_COLUMNS.dhcp }, cell: ({ getValue }) => { const v = getValue() as boolean; return <span className={v ? "text-warning" : ""}>{v ? "Ja" : "Nein"}</span>; }},
 ];
 
 const nicColumns: ColumnDef<NicRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "device", header: "NIC" },
-  { accessorKey: "speed", header: "Speed (Mbps)", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "duplex", header: "Full Duplex", cell: ({ getValue }) => getValue() ? "Ja" : "Nein" },
-  { accessorKey: "driver", header: "Treiber" },
-  { accessorKey: "mac", header: "MAC" },
+  { accessorKey: "host", header: "Host", meta: { info: NET_NIC_COLUMNS.host } },
+  { accessorKey: "device", header: "NIC", meta: { info: NET_NIC_COLUMNS.device } },
+  { accessorKey: "speed", header: "Speed (Mbps)", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: NET_NIC_COLUMNS.speed } },
+  { accessorKey: "duplex", header: "Full Duplex", cell: ({ getValue }) => getValue() ? "Ja" : "Nein", meta: { info: NET_NIC_COLUMNS.duplex } },
+  { accessorKey: "driver", header: "Treiber", meta: { info: NET_NIC_COLUMNS.driver } },
+  { accessorKey: "mac", header: "MAC", meta: { info: NET_NIC_COLUMNS.mac } },
 ];
 
 const uplinkColumns: ColumnDef<UplinkRow, unknown>[] = [
-  { accessorKey: "port", header: "Portgroup" },
-  { accessorKey: "switchName", header: "Switch" },
-  { accessorKey: "activeUplinks", header: "Active Uplinks" },
-  { accessorKey: "standbyUplinks", header: "Standby Uplinks" },
-  { accessorKey: "redundant", header: "Redundant", cell: ({ getValue }) => getValue() ? <span className="text-success">Ja</span> : <span className="text-destructive">Nein</span> },
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "port", header: "Portgroup", meta: { info: NET_UPLINK_COLUMNS.port } },
+  { accessorKey: "switchName", header: "Switch", meta: { info: NET_UPLINK_COLUMNS.switchName } },
+  { accessorKey: "activeUplinks", header: "Active Uplinks", meta: { info: NET_UPLINK_COLUMNS.activeUplinks } },
+  { accessorKey: "standbyUplinks", header: "Standby Uplinks", meta: { info: NET_UPLINK_COLUMNS.standbyUplinks } },
+  { accessorKey: "redundant", header: "Redundant", meta: { info: NET_UPLINK_COLUMNS.redundant }, cell: ({ getValue }) => getValue() ? <span className="text-success">Ja</span> : <span className="text-destructive">Nein</span> },
+  { accessorKey: "risk", header: "Risiko", meta: { info: NET_UPLINK_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
 const teamingColumns: ColumnDef<TeamingRow, unknown>[] = [
-  { accessorKey: "name", header: "Port/Switch" },
-  { accessorKey: "type", header: "Typ" },
-  { accessorKey: "policy", header: "Policy" },
-  { accessorKey: "rollingOrder", header: "Rolling Order", cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
-  { accessorKey: "notifySwitch", header: "Notify Switch", cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
-  { accessorKey: "issues", header: "Auffälligkeiten", cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
+  { accessorKey: "name", header: "Port/Switch", meta: { info: NET_TEAMING_COLUMNS.name } },
+  { accessorKey: "type", header: "Typ", meta: { info: NET_TEAMING_COLUMNS.type } },
+  { accessorKey: "policy", header: "Policy", meta: { info: NET_TEAMING_COLUMNS.policy } },
+  { accessorKey: "rollingOrder", header: "Rolling Order", meta: { info: NET_TEAMING_COLUMNS.rollingOrder }, cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
+  { accessorKey: "notifySwitch", header: "Notify Switch", meta: { info: NET_TEAMING_COLUMNS.notifySwitch }, cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
+  { accessorKey: "issues", header: "Auffälligkeiten", meta: { info: NET_TEAMING_COLUMNS.issues }, cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
 ];
 
 export function NetworkSecurityPanel() {
@@ -174,18 +184,20 @@ export function NetworkSecurityPanel() {
   return (
     <div className="space-y-6">
       <KpiGrid>
-        <KpiCard title="Portgroups" value={formatNum(policies.length)} icon={<Network className="h-4 w-4" />} />
-        <KpiCard title="Security Drift" value={formatNum(securityDrift.length)} severity={securityDrift.length > 0 ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} />
-        <KpiCard title="Promiscuous" value={formatNum(promiscuousCount)} severity={promiscuousCount > 0 ? "crit" : "ok"} />
-        <KpiCard title="MTU Varianten" value={formatNum(mtuValues)} severity={mtuValues > 2 ? "warn" : "ok"} icon={<Router className="h-4 w-4" />} />
-        <KpiCard title="VMK DHCP" value={formatNum(dhcpVmk)} severity={dhcpVmk > 0 ? "warn" : "ok"} />
-        <KpiCard title="Uplink SPOF" value={formatNum(uplinkData.length)} severity={uplinkData.length > 0 ? "warn" : "ok"} icon={<Cable className="h-4 w-4" />} />
-        <KpiCard title="Teaming Issues" value={formatNum(teamingData.length)} severity={teamingData.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <KpiCard title="Portgroups" value={formatNum(policies.length)} icon={<Network className="h-4 w-4" />} info={NET_SECURITY_KPI.portgroups} />
+        <KpiCard title="Security Drift" value={formatNum(securityDrift.length)} severity={securityDrift.length > 0 ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} info={NET_SECURITY_KPI.securityDrift} />
+        <KpiCard title="Promiscuous" value={formatNum(promiscuousCount)} severity={promiscuousCount > 0 ? "crit" : "ok"} info={NET_SECURITY_KPI.promiscuous} />
+        <KpiCard title="MTU Varianten" value={formatNum(mtuValues)} severity={mtuValues > 2 ? "warn" : "ok"} icon={<Router className="h-4 w-4" />} info={NET_SECURITY_KPI.mtuVariants} />
+        <KpiCard title="VMK DHCP" value={formatNum(dhcpVmk)} severity={dhcpVmk > 0 ? "warn" : "ok"} info={NET_SECURITY_KPI.vmkDhcp} />
+        <KpiCard title="Uplink SPOF" value={formatNum(uplinkData.length)} severity={uplinkData.length > 0 ? "warn" : "ok"} icon={<Cable className="h-4 w-4" />} info={NET_SECURITY_KPI.uplinkSpof} />
+        <KpiCard title="Teaming Issues" value={formatNum(teamingData.length)} severity={teamingData.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_SECURITY_KPI.teamingIssues} />
       </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VLAN Verteilung (Top 20)</h3>
+          <InfoTooltip entry={NET_SECURITY_SECTIONS.vlanChart} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VLAN Verteilung (Top 20)</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={vlanChart}>
               <XAxis dataKey="vlan" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -211,23 +223,25 @@ export function NetworkSecurityPanel() {
           </ResponsiveContainer>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Link Speed Verteilung</h3>
+          <InfoTooltip entry={NET_SECURITY_SECTIONS.speedChart} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Link Speed Verteilung</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={speedChart}><XAxis dataKey="speed" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /></BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Security Policies ({policies.length})</h3><VirtualTable data={policies} columns={policyColumns} globalFilter={filters.search} /></div>
+      <div><InfoTooltip entry={NET_SECURITY_SECTIONS.policiesTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Security Policies ({policies.length})</h3></InfoTooltip><VirtualTable data={policies} columns={policyColumns} globalFilter={filters.search} /></div>
 
-      {uplinkData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Uplink Redundanz Risiken ({uplinkData.length})</h3><VirtualTable data={uplinkData} columns={uplinkColumns} globalFilter={filters.search} height={300} /></div>)}
-      {teamingData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">NIC Teaming Auffälligkeiten ({teamingData.length})</h3><VirtualTable data={teamingData} columns={teamingColumns} globalFilter={filters.search} height={300} /></div>)}
-      {dvSwitchDrift.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">dVSwitch Config Drift ({dvSwitchDrift.length})</h3>
+      {uplinkData.length > 0 && (<div><InfoTooltip entry={NET_SECURITY_SECTIONS.uplinkTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Uplink Redundanz Risiken ({uplinkData.length})</h3></InfoTooltip><VirtualTable data={uplinkData} columns={uplinkColumns} globalFilter={filters.search} height={300} /></div>)}
+      {teamingData.length > 0 && (<div><InfoTooltip entry={NET_SECURITY_SECTIONS.teamingTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">NIC Teaming Auffälligkeiten ({teamingData.length})</h3></InfoTooltip><VirtualTable data={teamingData} columns={teamingColumns} globalFilter={filters.search} height={300} /></div>)}
+      {dvSwitchDrift.length > 0 && (<div><InfoTooltip entry={NET_SECURITY_SECTIONS.driftTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">dVSwitch Config Drift ({dvSwitchDrift.length})</h3></InfoTooltip>
         <div className="space-y-1">{dvSwitchDrift.map((drift) => (<div key={`${drift.port}-${drift.field}-${drift.expected}`} className="flex gap-3 text-sm rounded bg-muted/30 px-3 py-1.5"><span className="font-mono-data">{drift.port}</span><span className="text-warning">{drift.field}</span><span>Ist: <span className="font-mono-data">{drift.value}</span></span><span className="text-muted-foreground">Soll: <span className="font-mono-data">{drift.expected}</span></span></div>))}</div>
       </div>)}
 
-      {vmkAdapters.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMkernel Adapter ({vmkAdapters.length})</h3><VirtualTable data={vmkAdapters} columns={vmkColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
-      {nics.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Physische NICs ({nics.length})</h3><VirtualTable data={nics} columns={nicColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {vmkAdapters.length > 0 && (<div><InfoTooltip entry={NET_SECURITY_SECTIONS.vmkTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMkernel Adapter ({vmkAdapters.length})</h3></InfoTooltip><VirtualTable data={vmkAdapters} columns={vmkColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {nics.length > 0 && (<div><InfoTooltip entry={NET_SECURITY_SECTIONS.nicTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Physische NICs ({nics.length})</h3></InfoTooltip><VirtualTable data={nics} columns={nicColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
       {hostDetailDialog}
     </div>
   );

@@ -32,6 +32,8 @@ import {
   DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT,
   type HardwareModelGroup,
 } from "@/lib/hardwareVariants";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { HARDWARE_KPI, HARDWARE_SECTIONS } from "@/lib/glossaries/hardware";
 
 export type { HostDetail } from "@/lib/conversion";
 
@@ -618,10 +620,10 @@ export default function Hardware() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} />
-        <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} />
-        <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} />
+        <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} info={HARDWARE_KPI.hosts} />
+        <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} info={HARDWARE_KPI.variants} />
+        <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} info={HARDWARE_KPI.vendors} />
+        <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} info={HARDWARE_KPI.vms} />
       </div>
 
       {/* Charts */}
@@ -629,7 +631,9 @@ export default function Hardware() {
         {/* Model distribution bar */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Host-Modellvarianten Verteilung</CardTitle>
+            <InfoTooltip entry={HARDWARE_SECTIONS.modelDistribution} side="bottom">
+              <CardTitle className="w-fit cursor-help text-sm font-semibold">Host-Modellvarianten Verteilung</CardTitle>
+            </InfoTooltip>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={Math.max(200, modelBarData.length * 38)}>
@@ -655,7 +659,9 @@ export default function Hardware() {
         {/* Vendor pie */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Hersteller</CardTitle>
+            <InfoTooltip entry={HARDWARE_SECTIONS.vendorDistribution} side="bottom">
+              <CardTitle className="w-fit cursor-help text-sm font-semibold">Hersteller</CardTitle>
+            </InfoTooltip>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
             <ResponsiveContainer width="100%" height={220}>
@@ -684,7 +690,9 @@ export default function Hardware() {
 
       {/* Model cards grid */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Modelle und Varianten im Detail</h2>
+        <InfoTooltip entry={HARDWARE_SECTIONS.modelDetail} side="bottom">
+          <h2 className="mb-3 w-fit cursor-help text-lg font-semibold">Modelle und Varianten im Detail</h2>
+        </InfoTooltip>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {modelGroups.map((g) => (
             <ModelCard

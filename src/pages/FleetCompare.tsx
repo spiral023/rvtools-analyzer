@@ -12,6 +12,8 @@ import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, NormalizedCluster, NormalizedDatastore, NormalizedHealth, NormalizedSnapshot as NormSnap, SnapshotMeta } from "@/domain/models/types";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { FLEET_KPI, FLEET_COLUMNS, FLEET_SECTIONS } from "@/lib/glossaries/fleetCompare";
 
 interface VCenterSummary {
   vcenterId: string; displayName: string; vmCount: number; poweredOn: number;
@@ -21,18 +23,18 @@ interface VCenterSummary {
 }
 
 const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
-  { accessorKey: "displayName", header: "vCenter" },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "poweredOn", header: "Powered On", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "hostCount", header: "Hosts", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "clusterCount", header: "Cluster", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "totalRamGiB", header: "RAM", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
-  { accessorKey: "avgDsFree", header: "Ø DS Frei", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 15 ? "text-destructive" : v < 25 ? "text-warning" : "text-success"}>{formatPct(v)}</span>; }},
-  { accessorKey: "cpuOvercommit", header: "CPU OC", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive" : v > 3 ? "text-warning" : ""}>{v.toFixed(1)}:1</span>; }},
-  { accessorKey: "snapshotCount", header: "Snapshots" },
-  { accessorKey: "securityDrift", header: "Sec. Drift" },
-  { accessorKey: "healthIssues", header: "Health", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-warning" : "text-success"}>{formatNum(v)}</span>; }},
-  { accessorKey: "riskScore", header: "Risiko Score", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 50 ? "text-destructive font-semibold" : v > 25 ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "displayName", header: "vCenter", meta: { info: FLEET_COLUMNS.displayName } },
+  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.vmCount } },
+  { accessorKey: "poweredOn", header: "Powered On", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.poweredOn } },
+  { accessorKey: "hostCount", header: "Hosts", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.hostCount } },
+  { accessorKey: "clusterCount", header: "Cluster", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.clusterCount } },
+  { accessorKey: "totalRamGiB", header: "RAM", cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB`, meta: { info: FLEET_COLUMNS.totalRamGiB } },
+  { accessorKey: "avgDsFree", header: "Ø DS Frei", meta: { info: FLEET_COLUMNS.avgDsFree }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 15 ? "text-destructive" : v < 25 ? "text-warning" : "text-success"}>{formatPct(v)}</span>; }},
+  { accessorKey: "cpuOvercommit", header: "CPU OC", meta: { info: FLEET_COLUMNS.cpuOvercommit }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive" : v > 3 ? "text-warning" : ""}>{v.toFixed(1)}:1</span>; }},
+  { accessorKey: "snapshotCount", header: "Snapshots", meta: { info: FLEET_COLUMNS.snapshotCount } },
+  { accessorKey: "securityDrift", header: "Sec. Drift", meta: { info: FLEET_COLUMNS.securityDrift } },
+  { accessorKey: "healthIssues", header: "Health", meta: { info: FLEET_COLUMNS.healthIssues }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-warning" : "text-success"}>{formatNum(v)}</span>; }},
+  { accessorKey: "riskScore", header: "Risiko Score", meta: { info: FLEET_COLUMNS.riskScore }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 50 ? "text-destructive font-semibold" : v > 25 ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
 export default function FleetCompare() {
@@ -111,7 +113,7 @@ export default function FleetCompare() {
         <h1 className="text-2xl font-bold">Fleet Compare</h1>
         <FilterBar />
         <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte von mindestens 2 verschiedenen vCentern hoch, um eine Fleet-Analyse durchzuführen." />
-        {summaries.length === 1 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3><VirtualTable data={summaries} columns={fleetColumns} /></div>)}
+        {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>)}
       </div>
     );
   }
@@ -121,22 +123,24 @@ export default function FleetCompare() {
       <h1 className="text-2xl font-bold">Fleet Compare</h1>
       <FilterBar />
       <KpiGrid>
-        <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} />
-        <KpiCard title="Hosts Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.hostCount, 0))} />
-        <KpiCard title="Health Issues" value={formatNum(summaries.reduce((s, v) => s + v.healthIssues, 0))} severity={summaries.some((s) => s.healthIssues > 0) ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-        <KpiCard title="Security Drift" value={formatNum(summaries.reduce((s, v) => s + v.securityDrift, 0))} severity={summaries.some((s) => s.securityDrift > 0) ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} />
-        <KpiCard title="Risiko Total" value={totalRisk} severity={totalRisk > 100 ? "crit" : totalRisk > 50 ? "warn" : "ok"} />
+        <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} info={FLEET_KPI.vcenter} />
+        <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} info={FLEET_KPI.vmsTotal} />
+        <KpiCard title="Hosts Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.hostCount, 0))} info={FLEET_KPI.hostsTotal} />
+        <KpiCard title="Health Issues" value={formatNum(summaries.reduce((s, v) => s + v.healthIssues, 0))} severity={summaries.some((s) => s.healthIssues > 0) ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={FLEET_KPI.healthIssues} />
+        <KpiCard title="Security Drift" value={formatNum(summaries.reduce((s, v) => s + v.securityDrift, 0))} severity={summaries.some((s) => s.securityDrift > 0) ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} info={FLEET_KPI.securityDrift} />
+        <KpiCard title="Risiko Total" value={totalRisk} severity={totalRisk > 100 ? "crit" : totalRisk > 50 ? "warn" : "ok"} info={FLEET_KPI.riskTotal} />
       </KpiGrid>
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">vCenter Vergleich</h3>
+        <InfoTooltip entry={FLEET_SECTIONS.compareChart} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Vergleich</h3>
+        </InfoTooltip>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={compareChart}><XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "12px" }} /><Bar dataKey="VMs" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /><Bar dataKey="Hosts" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /><Bar dataKey="Datastores" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} /></BarChart>
         </ResponsiveContainer>
       </div>
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Fleet Übersicht</h3><VirtualTable data={summaries} columns={fleetColumns} /></div>
+      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Fleet Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>
     </div>
   );
 }

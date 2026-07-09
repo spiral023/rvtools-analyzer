@@ -13,6 +13,18 @@ import { Gauge, MemoryStick, Activity, Network, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  PERFORMANCE_KPI,
+  PERFORMANCE_PERF_COLUMNS,
+  PERFORMANCE_MEM_COLUMNS,
+  PERFORMANCE_ENTITLEMENT_COLUMNS,
+  PERFORMANCE_FT_COLUMNS,
+  PERFORMANCE_VMNET_COLUMNS,
+  PERFORMANCE_SIOC_COLUMNS,
+  PERFORMANCE_NIC_COLUMNS,
+  PERFORMANCE_SECTIONS,
+} from "@/lib/glossaries/performance";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 
@@ -24,69 +36,69 @@ interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: numb
 interface NicQualityRow { host: string; device: string; speed: number; duplex: boolean; issue: string }
 
 const perfColumns: ColumnDef<NormalizedVm, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "cpuReady", header: "CPU Ready %", cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v > 10 ? "text-destructive font-semibold" : v > 5 ? "text-warning" : ""}>{v.toFixed(1)}%</span>; }},
-  { accessorKey: "cpuCount", header: "vCPU" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "powerState", header: "Power" },
+  { accessorKey: "vmName", header: "VM", meta: { info: PERFORMANCE_PERF_COLUMNS.vmName } },
+  { accessorKey: "cpuReady", header: "CPU Ready %", meta: { info: PERFORMANCE_PERF_COLUMNS.cpuReady }, cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v > 10 ? "text-destructive font-semibold" : v > 5 ? "text-warning" : ""}>{v.toFixed(1)}%</span>; }},
+  { accessorKey: "cpuCount", header: "vCPU", meta: { info: PERFORMANCE_PERF_COLUMNS.cpuCount } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: PERFORMANCE_PERF_COLUMNS.cluster } },
+  { accessorKey: "host", header: "Host", meta: { info: PERFORMANCE_PERF_COLUMNS.host } },
+  { accessorKey: "powerState", header: "Power", meta: { info: PERFORMANCE_PERF_COLUMNS.powerState } },
 ];
 
 const memColumns: ColumnDef<MemoryIssueVm, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "sizeMiB", header: "RAM", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "swapped", header: "Swapped MiB", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-destructive font-semibold" : ""}>{v.toLocaleString("de-DE")}</span>; }},
-  { accessorKey: "ballooned", header: "Ballooned MiB", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-warning font-semibold" : ""}>{v.toLocaleString("de-DE")}</span>; }},
-  { accessorKey: "active", header: "Active MiB", cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "host", header: "Host" },
+  { accessorKey: "vmName", header: "VM", meta: { info: PERFORMANCE_MEM_COLUMNS.vmName } },
+  { accessorKey: "sizeMiB", header: "RAM", meta: { info: PERFORMANCE_MEM_COLUMNS.sizeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "swapped", header: "Swapped MiB", meta: { info: PERFORMANCE_MEM_COLUMNS.swapped }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-destructive font-semibold" : ""}>{v.toLocaleString("de-DE")}</span>; }},
+  { accessorKey: "ballooned", header: "Ballooned MiB", meta: { info: PERFORMANCE_MEM_COLUMNS.ballooned }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-warning font-semibold" : ""}>{v.toLocaleString("de-DE")}</span>; }},
+  { accessorKey: "active", header: "Active MiB", meta: { info: PERFORMANCE_MEM_COLUMNS.active }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: PERFORMANCE_MEM_COLUMNS.cluster } },
+  { accessorKey: "host", header: "Host", meta: { info: PERFORMANCE_MEM_COLUMNS.host } },
 ];
 
 const entitlementColumns: ColumnDef<EntitlementRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "cluster", header: "Cluster" },
-  { accessorKey: "cpuEntitlement", header: "CPU Entitlement" },
-  { accessorKey: "cpuDrsEntitlement", header: "DRS Entitlement" },
-  { accessorKey: "cpuOverall", header: "CPU Overall" },
-  { accessorKey: "cpuDelta", header: "CPU Delta", cell: ({ getValue }) => { const v = getValue() as number; return <span className={Math.abs(v) > 500 ? "text-warning font-semibold" : ""}>{v}</span>; }},
-  { accessorKey: "memEntitlement", header: "Mem Entitl." },
-  { accessorKey: "memActive", header: "Mem Active" },
-  { accessorKey: "memDelta", header: "Mem Delta", cell: ({ getValue }) => { const v = getValue() as number; return <span className={Math.abs(v) > 1024 ? "text-warning font-semibold" : ""}>{v}</span>; }},
+  { accessorKey: "vm", header: "VM", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.vm } },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.cluster } },
+  { accessorKey: "cpuEntitlement", header: "CPU Entitlement", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.cpuEntitlement } },
+  { accessorKey: "cpuDrsEntitlement", header: "DRS Entitlement", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.cpuDrsEntitlement } },
+  { accessorKey: "cpuOverall", header: "CPU Overall", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.cpuOverall } },
+  { accessorKey: "cpuDelta", header: "CPU Delta", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.cpuDelta }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={Math.abs(v) > 500 ? "text-warning font-semibold" : ""}>{v}</span>; }},
+  { accessorKey: "memEntitlement", header: "Mem Entitl.", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.memEntitlement } },
+  { accessorKey: "memActive", header: "Mem Active", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.memActive } },
+  { accessorKey: "memDelta", header: "Mem Delta", meta: { info: PERFORMANCE_ENTITLEMENT_COLUMNS.memDelta }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={Math.abs(v) > 1024 ? "text-warning font-semibold" : ""}>{v}</span>; }},
 ];
 
 const ftColumns: ColumnDef<FtRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "ftState", header: "FT State" },
-  { accessorKey: "ftRole", header: "FT Role" },
-  { accessorKey: "ftLatency", header: "Latency (ms)" },
-  { accessorKey: "ftSecLatency", header: "Sec. Latency (ms)" },
-  { accessorKey: "ftBandwidth", header: "Bandwidth" },
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "vm", header: "VM", meta: { info: PERFORMANCE_FT_COLUMNS.vm } },
+  { accessorKey: "ftState", header: "FT State", meta: { info: PERFORMANCE_FT_COLUMNS.ftState } },
+  { accessorKey: "ftRole", header: "FT Role", meta: { info: PERFORMANCE_FT_COLUMNS.ftRole } },
+  { accessorKey: "ftLatency", header: "Latency (ms)", meta: { info: PERFORMANCE_FT_COLUMNS.ftLatency } },
+  { accessorKey: "ftSecLatency", header: "Sec. Latency (ms)", meta: { info: PERFORMANCE_FT_COLUMNS.ftSecLatency } },
+  { accessorKey: "ftBandwidth", header: "Bandwidth", meta: { info: PERFORMANCE_FT_COLUMNS.ftBandwidth } },
+  { accessorKey: "risk", header: "Risiko", meta: { info: PERFORMANCE_FT_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
 const vmNetColumns: ColumnDef<VmNetAnomalyRow, unknown>[] = [
-  { accessorKey: "vm", header: "VM" },
-  { accessorKey: "nic", header: "NIC" },
-  { accessorKey: "network", header: "Netzwerk" },
-  { accessorKey: "connected", header: "Verbunden", cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-destructive">Nein</span> },
-  { accessorKey: "ipv4", header: "IPv4" },
-  { accessorKey: "issue", header: "Problem", cell: ({ getValue }) => <span className="text-warning">{getValue() as string}</span> },
+  { accessorKey: "vm", header: "VM", meta: { info: PERFORMANCE_VMNET_COLUMNS.vm } },
+  { accessorKey: "nic", header: "NIC", meta: { info: PERFORMANCE_VMNET_COLUMNS.nic } },
+  { accessorKey: "network", header: "Netzwerk", meta: { info: PERFORMANCE_VMNET_COLUMNS.network } },
+  { accessorKey: "connected", header: "Verbunden", meta: { info: PERFORMANCE_VMNET_COLUMNS.connected }, cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-destructive">Nein</span> },
+  { accessorKey: "ipv4", header: "IPv4", meta: { info: PERFORMANCE_VMNET_COLUMNS.ipv4 } },
+  { accessorKey: "issue", header: "Problem", meta: { info: PERFORMANCE_VMNET_COLUMNS.issue }, cell: ({ getValue }) => <span className="text-warning">{getValue() as string}</span> },
 ];
 
 const siocColumns: ColumnDef<SiocRow, unknown>[] = [
-  { accessorKey: "datastore", header: "Datastore" },
-  { accessorKey: "siocEnabled", header: "SIOC", cell: ({ getValue }) => getValue() ? <span className="text-success">An</span> : <span className="text-muted-foreground">Aus</span> },
-  { accessorKey: "siocThreshold", header: "Threshold (ms)" },
-  { accessorKey: "freePct", header: "Frei %", cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive" : v < 20 ? "text-warning" : ""}>{v.toFixed(1)}%</span>; }},
-  { accessorKey: "risk", header: "Risiko", cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : ""}>{v}</span>; }},
+  { accessorKey: "datastore", header: "Datastore", meta: { info: PERFORMANCE_SIOC_COLUMNS.datastore } },
+  { accessorKey: "siocEnabled", header: "SIOC", meta: { info: PERFORMANCE_SIOC_COLUMNS.siocEnabled }, cell: ({ getValue }) => getValue() ? <span className="text-success">An</span> : <span className="text-muted-foreground">Aus</span> },
+  { accessorKey: "siocThreshold", header: "Threshold (ms)", meta: { info: PERFORMANCE_SIOC_COLUMNS.siocThreshold } },
+  { accessorKey: "freePct", header: "Frei %", meta: { info: PERFORMANCE_SIOC_COLUMNS.freePct }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive" : v < 20 ? "text-warning" : ""}>{v.toFixed(1)}%</span>; }},
+  { accessorKey: "risk", header: "Risiko", meta: { info: PERFORMANCE_SIOC_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : ""}>{v}</span>; }},
 ];
 
 const nicQualityColumns: ColumnDef<NicQualityRow, unknown>[] = [
-  { accessorKey: "host", header: "Host" },
-  { accessorKey: "device", header: "NIC" },
-  { accessorKey: "speed", header: "Speed (Mbps)", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "duplex", header: "Full Duplex", cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
-  { accessorKey: "issue", header: "Problem", cell: ({ getValue }) => <span className="text-warning">{getValue() as string}</span> },
+  { accessorKey: "host", header: "Host", meta: { info: PERFORMANCE_NIC_COLUMNS.host } },
+  { accessorKey: "device", header: "NIC", meta: { info: PERFORMANCE_NIC_COLUMNS.device } },
+  { accessorKey: "speed", header: "Speed (Mbps)", meta: { info: PERFORMANCE_NIC_COLUMNS.speed }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "duplex", header: "Full Duplex", meta: { info: PERFORMANCE_NIC_COLUMNS.duplex }, cell: ({ getValue }) => getValue() ? "Ja" : <span className="text-warning">Nein</span> },
+  { accessorKey: "issue", header: "Problem", meta: { info: PERFORMANCE_NIC_COLUMNS.issue }, cell: ({ getValue }) => <span className="text-warning">{getValue() as string}</span> },
 ];
 
 export default function PerformancePage() {
@@ -232,18 +244,20 @@ export default function PerformancePage() {
       <FilterBar />
       <GlobalFilterScopeHint text="Multipath, Datastore-SIOC und Host-NIC-Qualität bleiben unverändert; VM-bezogene Performance-Sichten folgen dem globalen Filter." />
       <KpiGrid>
-        <KpiCard title="CPU Ready Hotspots" value={formatNum(hotspots)} severity={hotspots > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} subtitle="> 5% Ready" />
-        <KpiCard title="Memory Pressure" value={formatNum(memoryIssues.length)} severity={memoryIssues.length > 0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
-        <KpiCard title="Entitlement Gaps" value={formatNum(entitlementFull.length)} severity={entitlementFull.length > 0 ? "warn" : "ok"} icon={<Zap className="h-4 w-4" />} />
-        <KpiCard title="FT VMs" value={formatNum(ftData.length)} severity={ftData.some((f) => f.risk === "hoch") ? "crit" : ftData.length > 0 ? "warn" : "ok"} />
-        <KpiCard title="VM Netz-Anomalien" value={formatNum(vmNetAnomalies.length)} severity={vmNetAnomalies.length > 0 ? "warn" : "ok"} icon={<Network className="h-4 w-4" />} />
-        <KpiCard title="Multipath Issues" value={formatNum(multipathIssues)} severity={multipathIssues > 0 ? "crit" : "ok"} icon={<Activity className="h-4 w-4" />} />
-        <KpiCard title="NIC Qualität" value={formatNum(nicQuality.length)} severity={nicQuality.length > 0 ? "warn" : "ok"} subtitle="Probleme" />
+        <KpiCard title="CPU Ready Hotspots" value={formatNum(hotspots)} severity={hotspots > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} subtitle="> 5% Ready" info={PERFORMANCE_KPI.cpuReadyHotspots} />
+        <KpiCard title="Memory Pressure" value={formatNum(memoryIssues.length)} severity={memoryIssues.length > 0 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} info={PERFORMANCE_KPI.memoryPressure} />
+        <KpiCard title="Entitlement Gaps" value={formatNum(entitlementFull.length)} severity={entitlementFull.length > 0 ? "warn" : "ok"} icon={<Zap className="h-4 w-4" />} info={PERFORMANCE_KPI.entitlementGaps} />
+        <KpiCard title="FT VMs" value={formatNum(ftData.length)} severity={ftData.some((f) => f.risk === "hoch") ? "crit" : ftData.length > 0 ? "warn" : "ok"} info={PERFORMANCE_KPI.ftVms} />
+        <KpiCard title="VM Netz-Anomalien" value={formatNum(vmNetAnomalies.length)} severity={vmNetAnomalies.length > 0 ? "warn" : "ok"} icon={<Network className="h-4 w-4" />} info={PERFORMANCE_KPI.vmNetAnomalies} />
+        <KpiCard title="Multipath Issues" value={formatNum(multipathIssues)} severity={multipathIssues > 0 ? "crit" : "ok"} icon={<Activity className="h-4 w-4" />} info={PERFORMANCE_KPI.multipathIssues} />
+        <KpiCard title="NIC Qualität" value={formatNum(nicQuality.length)} severity={nicQuality.length > 0 ? "warn" : "ok"} subtitle="Probleme" info={PERFORMANCE_KPI.nicQuality} />
       </KpiGrid>
 
       {topChart.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Top CPU Ready VMs</h3>
+          <InfoTooltip entry={PERFORMANCE_SECTIONS.topCpuReady} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Top CPU Ready VMs</h3>
+          </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topChart} layout="vertical">
               <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
@@ -257,19 +271,19 @@ export default function PerformancePage() {
         </div>
       )}
 
-      <div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">CPU Ready Details</h3><VirtualTable data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+      <div><InfoTooltip entry={PERFORMANCE_SECTIONS.cpuReadyDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">CPU Ready Details</h3></InfoTooltip><VirtualTable data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-      {memoryIssues.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3><VirtualTable data={memoryIssues} columns={memColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>)}
+      {memoryIssues.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.memoryPressure} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3></InfoTooltip><VirtualTable data={memoryIssues} columns={memColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>)}
 
-      {entitlementFull.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3><VirtualTable data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
+      {entitlementFull.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.entitlementGaps} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3></InfoTooltip><VirtualTable data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
 
-      {ftData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3><VirtualTable data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} onRowClick={openVmDetail} /></div>)}
+      {ftData.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.ftLatency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3></InfoTooltip><VirtualTable data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} onRowClick={openVmDetail} /></div>)}
 
-      {vmNetAnomalies.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3><VirtualTable data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
+      {vmNetAnomalies.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.vmNetAnomalies} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3></InfoTooltip><VirtualTable data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
 
-      {siocData.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
+      {siocData.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
 
-      {nicQuality.length > 0 && (<div><h3 className="mb-3 text-sm font-semibold text-muted-foreground">Host NIC Link Qualität ({nicQuality.length})</h3><VirtualTable data={nicQuality} columns={nicQualityColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} /></div>)}
+      {nicQuality.length > 0 && (<div><InfoTooltip entry={PERFORMANCE_SECTIONS.nicQuality} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host NIC Link Qualität ({nicQuality.length})</h3></InfoTooltip><VirtualTable data={nicQuality} columns={nicQualityColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} /></div>)}
       {vmDetailDialog}
       {hostDetailDialog}
     </div>

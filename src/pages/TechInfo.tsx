@@ -13,6 +13,13 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { applyVmScopeToVms } from "@/lib/vmScope";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  TECHINFO_KPI,
+  TECHINFO_SERVER_COLUMNS,
+  TECHINFO_CLIENT_COLUMNS,
+  TECHINFO_SECTIONS,
+} from "@/lib/glossaries/techInfo";
 import type { TechInfoClientLatest } from "@/domain/models/types";
 
 interface TechInfoVmRow {
@@ -34,17 +41,18 @@ interface TechInfoVmRow {
 }
 
 const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "serverType", header: "Servertyp", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "comment", header: "Kommentar", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "sysvDepartment", header: "SysV Abteilung", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "sysvDeputy", header: "SysVStv", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vmName", header: "VM", meta: { info: TECHINFO_SERVER_COLUMNS.vmName } },
+  { accessorKey: "serverType", header: "Servertyp", meta: { info: TECHINFO_SERVER_COLUMNS.serverType }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", meta: { info: TECHINFO_SERVER_COLUMNS.maintenanceWindow }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "operatingSystem", header: "Betriebssystem", meta: { info: TECHINFO_SERVER_COLUMNS.operatingSystem }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "comment", header: "Kommentar", meta: { info: TECHINFO_SERVER_COLUMNS.comment }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysv", header: "SysV", meta: { info: TECHINFO_SERVER_COLUMNS.sysv }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysvDepartment", header: "SysV Abteilung", meta: { info: TECHINFO_SERVER_COLUMNS.sysvDepartment }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysvDeputy", header: "SysVStv", meta: { info: TECHINFO_SERVER_COLUMNS.sysvDeputy }, cell: ({ getValue }) => getValue() || "—" },
   {
     accessorKey: "sysvDeputyConflict",
     header: "SysV = SysVStv",
+    meta: { info: TECHINFO_SERVER_COLUMNS.sysvDeputyConflict },
     cell: ({ getValue }) => {
       const conflict = getValue() as boolean | null;
       if (conflict === null) return "—";
@@ -52,42 +60,43 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
       return <Badge variant="destructive">Verstoß</Badge>;
     },
   },
-  { accessorKey: "sysvDeputyDepartment", header: "SysVStv Abteilung", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "clusterFromTechInfo", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysvDeputyDepartment", header: "SysVStv Abteilung", meta: { info: TECHINFO_SERVER_COLUMNS.sysvDeputyDepartment }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "clusterFromTechInfo", header: "Cluster", meta: { info: TECHINFO_SERVER_COLUMNS.clusterFromTechInfo }, cell: ({ getValue }) => getValue() || "—" },
   {
     accessorKey: "cvBackup",
     header: "CV-Backup",
+    meta: { info: TECHINFO_SERVER_COLUMNS.cvBackup },
     cell: ({ getValue }) => {
       const val = getValue() as boolean | null;
       if (val === null) return "—";
       return val ? "Ja" : "Nein";
     },
   },
-  { accessorKey: "bz", header: "BZ", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "az", header: "AZ", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "bz", header: "BZ", meta: { info: TECHINFO_SERVER_COLUMNS.bz }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "az", header: "AZ", meta: { info: TECHINFO_SERVER_COLUMNS.az }, cell: ({ getValue }) => getValue() || "—" },
 ];
 
 const clientColumns: ColumnDef<TechInfoClientLatest, unknown>[] = [
-  { accessorKey: "clientName", header: "Name" },
-  { accessorKey: "blz", header: "BLZ", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "standort", header: "Standort", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "ip", header: "IP", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "macAddress", header: "MAC Adresse", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "poolName", header: "Poolname", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "modifiedBy", header: "Geändert von", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "modifiedAt", header: "Änderungsdatum", cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
-  { accessorKey: "createdBy", header: "Erstellt von", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "createdAt", header: "Erstellungsdatum", cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
-  { accessorKey: "user", header: "User", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "hardware", header: "Hardware", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "os", header: "OS", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "cluster", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "vcenter", header: "vCenter", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "site", header: "Site", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "insider", header: "Insider", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "hwChanges", header: "HW Änderungen", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "monitoring", header: "Monitoring", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "domain", header: "Domäne", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "clientName", header: "Name", meta: { info: TECHINFO_CLIENT_COLUMNS.clientName } },
+  { accessorKey: "blz", header: "BLZ", meta: { info: TECHINFO_CLIENT_COLUMNS.blz }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "standort", header: "Standort", meta: { info: TECHINFO_CLIENT_COLUMNS.standort }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "ip", header: "IP", meta: { info: TECHINFO_CLIENT_COLUMNS.ip }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "macAddress", header: "MAC Adresse", meta: { info: TECHINFO_CLIENT_COLUMNS.macAddress }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "poolName", header: "Poolname", meta: { info: TECHINFO_CLIENT_COLUMNS.poolName }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "modifiedBy", header: "Geändert von", meta: { info: TECHINFO_CLIENT_COLUMNS.modifiedBy }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "modifiedAt", header: "Änderungsdatum", meta: { info: TECHINFO_CLIENT_COLUMNS.modifiedAt }, cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
+  { accessorKey: "createdBy", header: "Erstellt von", meta: { info: TECHINFO_CLIENT_COLUMNS.createdBy }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "createdAt", header: "Erstellungsdatum", meta: { info: TECHINFO_CLIENT_COLUMNS.createdAt }, cell: ({ getValue }) => formatIsoDateTime(getValue() as string | null) },
+  { accessorKey: "user", header: "User", meta: { info: TECHINFO_CLIENT_COLUMNS.user }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "hardware", header: "Hardware", meta: { info: TECHINFO_CLIENT_COLUMNS.hardware }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "os", header: "OS", meta: { info: TECHINFO_CLIENT_COLUMNS.os }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: TECHINFO_CLIENT_COLUMNS.cluster }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vcenter", header: "vCenter", meta: { info: TECHINFO_CLIENT_COLUMNS.vcenter }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "site", header: "Site", meta: { info: TECHINFO_CLIENT_COLUMNS.site }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "insider", header: "Insider", meta: { info: TECHINFO_CLIENT_COLUMNS.insider }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "hwChanges", header: "HW Änderungen", meta: { info: TECHINFO_CLIENT_COLUMNS.hwChanges }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "monitoring", header: "Monitoring", meta: { info: TECHINFO_CLIENT_COLUMNS.monitoring }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "domain", header: "Domäne", meta: { info: TECHINFO_CLIENT_COLUMNS.domain }, cell: ({ getValue }) => getValue() || "—" },
 ];
 
 export default function TechInfo() {
@@ -215,16 +224,20 @@ export default function TechInfo() {
       <h1 className="text-2xl font-bold">Tech-Info</h1>
       <FilterBar />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} />
-        <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} />
-        <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfo)} severity={vmWithoutTechInfo > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} />
+        <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
+        <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />
+        <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfo)} severity={vmWithoutTechInfo > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
+        <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
+        </InfoTooltip>
         <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
       </div>
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VM Tech-Info Clients ({searchedClientRows.length})</h3>
+        <InfoTooltip entry={TECHINFO_SECTIONS.clientTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Clients ({searchedClientRows.length})</h3>
+        </InfoTooltip>
         {techInfoClients.length === 0 ? (
           <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
         ) : (
