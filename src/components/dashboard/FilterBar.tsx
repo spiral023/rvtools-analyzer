@@ -33,13 +33,12 @@ export function FilterBar() {
   }, [searchLocal, setFilters]);
 
   const handleVcenterChange = useCallback((value: string) => {
-    if (value === "all") setFilters({ vcenterIds: [], snapshotIds: [] });
-    else setFilters({ vcenterIds: [value], snapshotIds: [] });
+    if (value === "all") setFilters({ vcenterIds: [] });
+    else setFilters({ vcenterIds: [value] });
   }, [setFilters]);
 
   const hasFilters =
     filters.vcenterIds.length > 0 ||
-    filters.snapshotIds.length > 0 ||
     filters.search !== "" ||
     hasVmScopeFilter(filters);
 

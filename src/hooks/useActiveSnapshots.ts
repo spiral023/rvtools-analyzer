@@ -24,23 +24,21 @@ export function useActiveSnapshotIds() {
   });
 
   const activeSnapshotIds = useMemo(() => {
-    const currentSnapshotIds = new Set(snapshots.map((snapshot) => snapshot.snapshotId));
-    const selectedSnapshotIds = filters.snapshotIds.filter((snapshotId) => currentSnapshotIds.has(snapshotId));
-    if (selectedSnapshotIds.length > 0) return selectedSnapshotIds;
-
     const currentVcenterIds = new Set(snapshots.map((snapshot) => snapshot.vcenterId));
     const selectedVcenterIds = filters.vcenterIds.filter((vcenterId) => currentVcenterIds.has(vcenterId));
-    const latestMap = new Map<string, { id: string; ts: string }>();
     const vcenterIdSet = new Set(selectedVcenterIds);
     const filtered = selectedVcenterIds.length
       ? snapshots.filter((s) => vcenterIdSet.has(s.vcenterId))
       : snapshots;
+    // Pro vCenter existiert nur ein Stand. Die Reduktion je vcenterId ist defensiv:
+    // falls doch mehrere vorhanden sind, gewinnt der neueste Export.
+    const latestByVcenter = new Map<string, { id: string; ts: string }>();
     for (const s of filtered) {
-      const e = latestMap.get(s.vcenterId);
-      if (!e || s.exportTs > e.ts) latestMap.set(s.vcenterId, { id: s.snapshotId, ts: s.exportTs });
+      const e = latestByVcenter.get(s.vcenterId);
+      if (!e || s.exportTs > e.ts) latestByVcenter.set(s.vcenterId, { id: s.snapshotId, ts: s.exportTs });
     }
-    return [...latestMap.values()].map((v) => v.id);
-  }, [snapshots, filters.snapshotIds, filters.vcenterIds]);
+    return [...latestByVcenter.values()].map((v) => v.id);
+  }, [snapshots, filters.vcenterIds]);
 
   return { snapshots, activeSnapshotIds, filters };
 }

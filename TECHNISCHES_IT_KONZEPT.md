@@ -23,7 +23,7 @@ Ein technisches IT-Konzept für eine Webapp sollte mindestens folgende Punkte en
 
 ## 2. Kurzbeschreibung der Anwendung
 
-RVTools Analyzer ist eine clientseitige Single-Page-App zur Analyse von RVTools-Exporten aus VMware-Umgebungen. VMware-Admins importieren lokal eine RVTools-XLSX-Datei und erhalten Dashboards zu Inventar, Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware, Lifecycle, Licensing und Snapshot-Vergleich.
+RVTools Analyzer ist eine clientseitige Single-Page-App zur Analyse von RVTools-Exporten aus VMware-Umgebungen. VMware-Admins importieren lokal eine RVTools-XLSX-Datei und erhalten Dashboards zu Inventar, Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware, Lifecycle, Licensing und vCenter-Vergleich.
 
 Die Anwendung hat kein Backend und keine serverseitige Datenbank. Der Server liefert nur statische Dateien aus. Die importierten RVTools- und Tech-Info-Daten werden im Browser des jeweiligen Clients verarbeitet und in IndexedDB gespeichert.
 
@@ -57,7 +57,7 @@ Wichtig: Der private Webserver erhält im normalen App-Betrieb keine importierte
 | Lokale Datenbank | `idb`, `src/data/db/index.ts` | IndexedDB-Schema, Query- und Delete-Helper |
 | Datenabfragen | TanStack Query, `src/hooks/useActiveSnapshots.ts` | Cache, Filterung, Snapshot-Auswahl |
 | Tabellen | TanStack Table/Virtual | Performante Darstellung großer Tabellen |
-| Diagramme | Recharts | KPI- und Trendvisualisierung |
+| Diagramme | Recharts | KPI- und Diagrammvisualisierung |
 
 ## 5. Datenfluss beim Import
 

@@ -89,7 +89,7 @@ function TestProviders({ children }: { children: React.ReactNode }) {
 }
 
 function Probe({ filters }: { filters?: Partial<FilterState> }) {
-  const { filters: currentFilters, setFilters } = useFilterState();
+  const { setFilters } = useFilterState();
   const { activeSnapshotIds } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { data: healthEvents = [] } = useHealthEvents();
@@ -101,7 +101,6 @@ function Probe({ filters }: { filters?: Partial<FilterState> }) {
   return (
     <>
       <div data-testid="active-snapshots">{activeSnapshotIds.join(",")}</div>
-      <div data-testid="selected-snapshots">{currentFilters.snapshotIds.join(",")}</div>
       <div data-testid="vms">{vms.map((entry) => entry.vmName).join(",")}</div>
       <div data-testid="health">{healthEvents.map((entry) => entry.entity).join(",")}</div>
     </>
@@ -113,7 +112,7 @@ beforeEach(async () => {
 });
 
 describe("useActiveSnapshotIds", () => {
-  it("selects the latest snapshot for each vCenter when no explicit snapshot filter is set", async () => {
+  it("selects the latest export for each vCenter (defensive reduction if several exist)", async () => {
     await putSnapshot(snapshot("vc1-old", "vc-1", "2026-01-01T00:00:00.000Z"));
     await putSnapshot(snapshot("vc1-new", "vc-1", "2026-02-01T00:00:00.000Z"));
     await putSnapshot(snapshot("vc2-new", "vc-2", "2026-01-15T00:00:00.000Z"));
@@ -125,19 +124,7 @@ describe("useActiveSnapshotIds", () => {
     });
   });
 
-  it("falls back to current snapshots when the saved snapshot filter only contains deleted IDs", async () => {
-    await putSnapshot(snapshot("vc1-new", "vc-1", "2026-02-01T00:00:00.000Z"));
-    await putSnapshot(snapshot("vc2-new", "vc-2", "2026-01-15T00:00:00.000Z"));
-
-    render(<Probe filters={{ snapshotIds: ["deleted-snapshot"] }} />, { wrapper: TestProviders });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("active-snapshots")).toHaveTextContent("vc1-new,vc2-new");
-      expect(screen.getByTestId("selected-snapshots")).toBeEmptyDOMElement();
-    });
-  });
-
-  it("filters VMs by explicit snapshot, cluster, and search text", async () => {
+  it("filters VMs by the active per-vCenter export, cluster, and search text", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
     await putSnapshot(snapshot("snap-2", "vc-1", "2026-02-01T00:00:00.000Z"));
     await batchPut("entities_vm", [
@@ -149,7 +136,7 @@ describe("useActiveSnapshotIds", () => {
 
     await act(async () => {
       render(
-        <Probe filters={{ snapshotIds: ["snap-2"], clusters: ["CL-Prod"], search: "app" }} />,
+        <Probe filters={{ clusters: ["CL-Prod"], search: "app" }} />,
         { wrapper: TestProviders },
       );
     });

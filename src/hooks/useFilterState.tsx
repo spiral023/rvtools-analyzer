@@ -1,10 +1,9 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { FilterState, SnapshotId } from "@/domain/models/types";
+import type { FilterState } from "@/domain/models/types";
 import { getSnapshots, getUiState, putUiState } from "@/data/db";
 
 const defaultFilter: FilterState = {
-  snapshotIds: [],
   vcenterIds: [],
   clusters: [],
   hosts: [],
@@ -23,14 +22,12 @@ interface FilterContextValue {
   filters: FilterState;
   setFilters: (f: Partial<FilterState>) => void;
   resetFilters: () => void;
-  activeSnapshotIds: SnapshotId[];
 }
 
 const FilterContext = createContext<FilterContextValue>({
   filters: defaultFilter,
   setFilters: () => {},
   resetFilters: () => {},
-  activeSnapshotIds: [],
 });
 
 export const useFilterState = () => useContext(FilterContext);
@@ -55,18 +52,13 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const effectiveFilters = useMemo(() => {
     if (!snapshotsLoaded) return filters;
 
-    const validSnapshotIds = new Set(snapshots.map((snapshot) => snapshot.snapshotId));
     const validVcenterIds = new Set(snapshots.map((snapshot) => snapshot.vcenterId));
-    const snapshotIds = filters.snapshotIds.filter((snapshotId) => validSnapshotIds.has(snapshotId));
     const vcenterIds = filters.vcenterIds.filter((vcenterId) => validVcenterIds.has(vcenterId));
-    if (snapshotIds.length === filters.snapshotIds.length && vcenterIds.length === filters.vcenterIds.length) {
+    if (vcenterIds.length === filters.vcenterIds.length) {
       return filters;
     }
-    return { ...filters, snapshotIds, vcenterIds };
+    return { ...filters, vcenterIds };
   }, [filters, snapshots, snapshotsLoaded]);
-
-  // activeSnapshotIds: use selected or empty (pages will handle fallback to latest)
-  const activeSnapshotIds = effectiveFilters.snapshotIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -107,8 +99,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   }, [effectiveFilters]);
 
   const contextValue = useMemo(
-    () => ({ filters: effectiveFilters, setFilters, resetFilters, activeSnapshotIds }),
-    [activeSnapshotIds, effectiveFilters, resetFilters, setFilters],
+    () => ({ filters: effectiveFilters, setFilters, resetFilters }),
+    [effectiveFilters, resetFilters, setFilters],
   );
 
   return (

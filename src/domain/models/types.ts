@@ -358,7 +358,6 @@ export interface KpiCardData {
 }
 
 export interface FilterState {
-  snapshotIds: SnapshotId[];
   vcenterIds: VCenterId[];
   clusters: string[];
   hosts: string[];

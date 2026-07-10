@@ -39,7 +39,7 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
   "/upload": {
     term: "Uploads & Snapshots",
     description:
-      "RVTools-Exporte (.xlsx) importieren und Datenstände verwalten. Jeder Import ist ein Snapshot; ohne Filter wird je vCenter automatisch der neueste ausgewertet.",
+      "RVTools-Exporte (.xlsx) importieren und Datenstände verwalten. Je vCenter wird ein aktueller Stand gehalten; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.",
   },
   "/daily-ops": {
     term: "Daily Ops",

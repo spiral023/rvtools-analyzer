@@ -4,7 +4,7 @@
 
 **Lokales Analyse-Dashboard für RVTools-Exporte aus VMware-Umgebungen**
 
-Importiere RVTools-XLSX-Dateien, vergleiche Snapshots pro vCenter und finde operative Risiken, Kapazitätsengpässe, Lifecycle-Themen und Konfigurationsauffälligkeiten direkt im Browser.
+Importiere RVTools-XLSX-Dateien, analysiere und vergleiche mehrere vCenter und finde operative Risiken, Kapazitätsengpässe, Lifecycle-Themen und Konfigurationsauffälligkeiten direkt im Browser.
 
 ![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.x-149ECA?logo=react&logoColor=white)
@@ -19,7 +19,7 @@ Importiere RVTools-XLSX-Dateien, vergleiche Snapshots pro vCenter und finde oper
 
 ## Für VMware-Admins
 
-RVTools Analyzer ist für den Alltag von VMware-Administratoren gebaut: Inventur prüfen, Health-Themen priorisieren, Kapazitätsrisiken sichtbar machen und mehrere vCenter- oder Zeitstände miteinander vergleichen.
+RVTools Analyzer ist für den Alltag von VMware-Administratoren gebaut: Inventur prüfen, Health-Themen priorisieren, Kapazitätsrisiken sichtbar machen und mehrere vCenter miteinander vergleichen.
 
 Die Anwendung läuft vollständig clientseitig. Es gibt kein Backend, keinen Server-Upload und keine zentrale Datenbank. Importierte RVTools-Daten bleiben im Browser des jeweiligen Clients.
 
@@ -35,17 +35,17 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 | Welche Portgroups, VLANs, dvSwitches und Security-Settings sind auffällig? | **Network / Security** |
 | Welche Host-Uplinks, VMkernel-Adapter und pNICs sind relevant? | **Host-Netzwerk** |
 | Welche ESXi-/vCenter-Versionen und Lifecycle-Themen sind sichtbar? | **Compliance / Lifecycle**, **VMware Versions** |
-| Wie unterscheiden sich Umgebungen oder Snapshots? | **Fleet Compare** |
+| Wie unterscheiden sich meine vCenter-Umgebungen? | **Fleet Compare** |
 
 ## Highlights
 
 | Bereich | Nutzen |
 |---|---|
-| **RVTools-Import** | Upload von `.xlsx`/`.xls`, Fortschritt, Duplikaterkennung per SHA-256 und Snapshot-Verwaltung |
+| **RVTools-Import** | Upload von `.xlsx`/`.xls`, Fortschritt, Duplikaterkennung per SHA-256 und Verwaltung der importierten Stände |
 | **Local-first** | Analyse ohne Backend; Daten liegen lokal in IndexedDB pro Browser-Origin |
-| **Mehrere vCenter** | Snapshots werden pro vCenter verwaltet, gefiltert und vergleichbar gemacht |
+| **Mehrere vCenter** | Je vCenter wird ein aktueller Stand verwaltet und gefiltert; verschiedene vCenter sind vergleichbar. Ein neuer Export ersetzt den bisherigen Stand desselben vCenters |
 | **Admin-Dashboards** | Fokus auf Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware, Lifecycle und Licensing |
-| **Globale VM-Filter** | Feldbasierte Filter, Textsuche und automatische Auswahl des neuesten Snapshots je vCenter |
+| **Globale VM-Filter** | Feldbasierte Filter und Textsuche über den importierten Stand je vCenter |
 | **Große Exporte** | XLSX-Parsing im Web Worker und virtuelle Tabellen für große RVTools-Dateien |
 | **Tech-Info-Erweiterung** | Optionale Zuordnung zusätzlicher CMDB-/Betriebsdaten wie Wartungsfenster, SysV, Standort und Backup-Flag |
 
@@ -54,19 +54,19 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 ```mermaid
 flowchart LR
   A[RVTools Export ausführen] --> B[XLSX lokal importieren]
-  B --> C[Snapshot pro vCenter speichern]
+  B --> C[Aktuellen Stand pro vCenter speichern]
   C --> D[Filter setzen]
   D --> E[Dashboards prüfen]
   E --> F[Findings priorisieren]
-  F --> G[Späteren Export vergleichen]
+  F --> G[vCenter gegenüberstellen]
 ```
 
 1. RVTools-Export aus der VMware-Umgebung erzeugen.
 2. Datei unter **Uploads & Snapshots** importieren.
-3. Optional mehrere vCenter oder wiederholte Exporte importieren.
+3. Optional weitere vCenter importieren. Ein erneuter Export desselben vCenters ersetzt dessen bisherigen Stand.
 4. Über globale Filter den Scope eingrenzen, z. B. Cluster, OS, Power-State oder VM-Name.
 5. Dashboards für Betrieb, Kapazität, Performance und Lifecycle prüfen.
-6. Bei Bedarf Snapshots im **Fleet Compare** gegenüberstellen.
+6. Bei Bedarf mehrere vCenter im **Fleet Compare** gegenüberstellen.
 
 ## Schnellstart
 
@@ -122,7 +122,7 @@ http://localhost:5173
 | `/licensing` | Licensing | Lizenznutzung, Editionen und Effizienzsicht |
 | `/tech-info` | Tech-Info | Betriebsdaten je VM, z. B. Servertyp, Wartungsfenster, SysV und Backup-Flag |
 | `/vmware-versions` | VMware Versions | Erkannte vCenter-/ESXi-Builds und Abdeckung bekannter Releases |
-| `/fleet-compare` | Fleet Compare | Vergleich mehrerer Snapshots oder Umgebungen |
+| `/fleet-compare` | Fleet Compare | Vergleich mehrerer vCenter-Umgebungen |
 
 ## Unterstützte Daten
 

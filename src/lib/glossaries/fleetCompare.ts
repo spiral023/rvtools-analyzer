@@ -3,8 +3,8 @@ import type { GlossaryEntry } from "@/lib/glossary";
 /**
  * Glossar für die Seite „Fleet Compare“.
  *
- * Zielgruppe: VMware-Administrator:innen. Fleet Compare stellt je vCenter den
- * jeweils neuesten Snapshot gegenüber, um Größe, Auslastung und Risiko der
+ * Zielgruppe: VMware-Administrator:innen. Fleet Compare stellt die vCenter mit
+ * ihrem jeweils aktuellen Stand gegenüber, um Größe, Auslastung und Risiko der
  * Umgebungen zu vergleichen.
  */
 
@@ -17,7 +17,7 @@ export const FLEET_KPI: Record<string, GlossaryEntry> = {
   vcenter: {
     term: "vCenter",
     description:
-      "Anzahl der verglichenen vCenter. Verglichen wird je vCenter automatisch der neueste Snapshot – für einen fairen Vorher/Nachher-Blick auf getrennte Umgebungen.",
+      "Anzahl der verglichenen vCenter. Verglichen wird je vCenter der aktuelle Stand – für einen fairen Blick auf getrennte Umgebungen.",
     source: "berechnet",
   },
   vmsTotal: {
@@ -58,7 +58,7 @@ export const FLEET_KPI: Record<string, GlossaryEntry> = {
 export const FLEET_COLUMNS: Record<string, GlossaryEntry> = {
   displayName: {
     term: "vCenter",
-    description: "Anzeigename des vCenter, dessen neuester Snapshot in dieser Zeile ausgewertet wird.",
+    description: "Anzeigename des vCenter, dessen aktueller Stand in dieser Zeile ausgewertet wird.",
     source: "berechnet",
   },
   vmCount: {

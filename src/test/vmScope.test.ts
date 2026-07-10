@@ -44,7 +44,6 @@ function makeVm(overrides: Partial<NormalizedVm> = {}): NormalizedVm {
 
 function makeFilter(overrides: Partial<FilterState> = {}): FilterState {
   return {
-    snapshotIds: [],
     vcenterIds: [],
     clusters: [],
     hosts: [],

@@ -42,22 +42,23 @@ export function useGlobalVmFilterEngine(
     staleTime: STALE_MS,
   });
   const activeSnapshotIds = useMemo(() => {
-    if (filters.snapshotIds.length > 0) return filters.snapshotIds;
-    const latestMap = new Map<string, { id: string; ts: string }>();
     const vcenterIdSet = new Set(filters.vcenterIds);
     const filteredSnapshots = filters.vcenterIds.length
       ? snapshots.filter((snapshot) => vcenterIdSet.has(snapshot.vcenterId))
       : snapshots;
 
+    // Pro vCenter existiert nur ein Stand; die Reduktion je vcenterId ist defensiv,
+    // falls doch mehrere vorhanden sind, gewinnt der neueste Export.
+    const latestByVcenter = new Map<string, { id: string; ts: string }>();
     for (const snapshot of filteredSnapshots) {
-      const existing = latestMap.get(snapshot.vcenterId);
+      const existing = latestByVcenter.get(snapshot.vcenterId);
       if (!existing || snapshot.exportTs > existing.ts) {
-        latestMap.set(snapshot.vcenterId, { id: snapshot.snapshotId, ts: snapshot.exportTs });
+        latestByVcenter.set(snapshot.vcenterId, { id: snapshot.snapshotId, ts: snapshot.exportTs });
       }
     }
 
-    return [...latestMap.values()].map((entry) => entry.id);
-  }, [filters.snapshotIds, filters.vcenterIds, snapshots]);
+    return [...latestByVcenter.values()].map((entry) => entry.id);
+  }, [filters.vcenterIds, snapshots]);
 
   const { data: allVms = [] } = useQuery({
     queryKey: ["vms", activeSnapshotIds],

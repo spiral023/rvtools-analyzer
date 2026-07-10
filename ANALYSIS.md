@@ -19,9 +19,9 @@ Empfohlene Schluessel fuer Zusammenfuehrung:
 - `cluster_key`: `vCluster.Name` plus `vcenter_id`
 - `ds_key`: `vDatastore.Name` plus `vcenter_id`
 
-Mehrere Exporte historisieren:
-- Jede Datei als Snapshot laden und `export_ts` setzen.
-- Trendanalysen immer auf identischen Keys mit zeitlicher Reihenfolge berechnen.
+Mehrere vCenter zusammenführen:
+- Je vCenter wird der aktuelle Export als Snapshot geladen; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.
+- Cross-vCenter-Analysen (Fleet-Sicht) laufen über `vcenter_id` auf identischen Keys.
 
 ## Kategorien und Analysen
 
@@ -35,19 +35,18 @@ Mehrere Exporte historisieren:
 | VMware Tools Hygiene | Gastagent-Qualitaet | `vTools` | `Tools != toolsOk` oder `Upgradeable != No` | Heatmap Cluster x Status |
 | Snapshot Hygiene | Risiko fuer Backup/Performance | `vSnapshot` | Snapshot-Anzahl, Snapshot-Alter, `Size MiB (total)` | Top-Liste nach Alter/Groesse |
 | CD/USB Exposure | Versehentlich verbundene Devices finden | `vCD`, `vUSB` | Anzahl verbundener Devices je VM | Tabelle + Ampel |
-| Powerstate Verteilung | Basisinventar fuer Betrieb | `vInfo` | Count `poweredOn/off/suspended` | Donut + Trendlinie |
+| Powerstate Verteilung | Basisinventar fuer Betrieb | `vInfo` | Count `poweredOn/off/suspended` | Donut |
 
 ## 2) Kapazitaet und Sizing
 | Analyse | Nutzen fuer Admin | Datenquellen | KPI/Regel | Visualisierung |
 |---|---|---|---|---|
 | Cluster CPU Overcommit | Fruehe Ueberlastungsindikatoren | `vCPU`, `vCluster` | `sum(vCPU.CPUs poweredOn) / vCluster.NumCpuThreads` | Cluster-Ranking |
 | Cluster RAM Overcommit | Kapazitaetsplanung RAM | `vMemory`, `vCluster` | `sum(vMemory.Size MiB poweredOn) / vCluster.TotalMemory` | Balken + Schwellwerte |
-| Datastore Headroom | Speicherrisiko minimieren | `vDatastore` | `Free %`, `Free MiB` | Ampel + Trend |
-| Datastore Days-to-Full | Proaktive Erweiterungsplanung | `vDatastore` historisch | Lineare Prognose aus `In Use MiB`-Trend | Forecast-Chart |
+| Datastore Headroom | Speicherrisiko minimieren | `vDatastore` | `Free %`, `Free MiB` | Ampel |
 | Host Dichte | Konsolidierungsdruck erkennen | `vHost`, `vCPU` | VMs/Host, vCPU/Core | Scatter Plot |
 | Resource Pool Pressure | Fehlkonfigurationen bei Limits/Reservations | `vRP` | Hohe Reservations, harte Limits, Expandable=False | Tabelle nach Risiko |
 | Thin-Provisioning Risiko | Ueberbuchung kontrollieren | `vDisk`, `vDatastore` | Anteil `Thin=True` + geringer DS-Freespace | Bubble Chart |
-| Unshared vs Provisioned | Einsparpotenzial und Speicherwirkgrad | `vInfo`, `vDatastore` | `Unshared MiB`, `Provisioned MiB`, `In Use MiB` | KPI-Trend |
+| Unshared vs Provisioned | Einsparpotenzial und Speicherwirkgrad | `vInfo`, `vDatastore` | `Unshared MiB`, `Provisioned MiB`, `In Use MiB` | KPI-Kacheln |
 
 ## 3) Performance und Troubleshooting
 | Analyse | Nutzen fuer Admin | Datenquellen | KPI/Regel | Visualisierung |
@@ -120,7 +119,7 @@ Mehrere Exporte historisieren:
 | Datastore Effizienz | Speicherkosten steuern | `vDatastore`, `vInfo` | Provisioned vs InUse vs Free | Wasserfallchart |
 
 ## 9) Multi-vCenter Fleet Analysen
-Diese Analysen sind nur mit mehreren Exportdateien sinnvoll.
+Diese Analysen sind nur mit mehreren vCentern sinnvoll.
 
 | Analyse | Zweck | Datenquellen | Ergebnis |
 |---|---|---|---|
@@ -128,8 +127,7 @@ Diese Analysen sind nur mit mehreren Exportdateien sinnvoll.
 | Einheitlichkeit von Policies | Betriebsstandardisierung | `vSwitch`, `vPort`, `dvPort`, `vInfo` | Abweichungsbericht je vCenter |
 | Konsolidierter Risikoindex | Priorisierung teamweit | `vHealth`, `vSnapshot`, `vDatastore`, `vMemory` | Gesamt-Risiko je vCenter/Cluster |
 | Shared Services Impact | Abhaengigkeiten uebergreifend sehen | `vDatastore`, `vMultiPath`, `dvSwitch` | Kritische gemeinsame Komponenten |
-| Wachstumstrends je Standort | Kapazitaetsplanung standortuebergreifend | Historisierte Exporte | Forecast je vCenter |
-| Betriebsqualitaet Score | SLA/OLA Vergleich | mehrere Kategorien | Monatsvergleich pro vCenter |
+| Betriebsqualitaet Score | SLA/OLA Vergleich | mehrere Kategorien | Vergleich pro vCenter |
 
 ## Dashboard-Vorschlaege (fertige Sichten)
 ## A) Daily Admin Cockpit
@@ -141,9 +139,9 @@ Diese Analysen sind nur mit mehreren Exportdateien sinnvoll.
 
 ## B) Capacity Board (woche/monat)
 - Cluster CPU/RAM Overcommit
-- Datastore Headroom + Days-to-Full
+- Datastore Headroom
 - VM-Dichte pro Host und Cluster
-- Wachstumstrend `Provisioned MiB` und `In Use MiB`
+- `Provisioned MiB` vs. `In Use MiB` je Datastore
 
 ## C) Security und Compliance Board
 - Security Policy Drift (Promiscuous/MAC/Forged)
@@ -159,7 +157,7 @@ Diese Analysen sind nur mit mehreren Exportdateien sinnvoll.
 
 ## E) Management Summary
 - Top Risiken (10 Punkte)
-- Kapazitaetslage 30/60/90 Tage
+- Aktuelle Kapazitaetslage (Overcommit, Headroom)
 - Lizenzstatus und Ablauf
 - Standardisierungsgrad ueber vCenter
 
@@ -182,12 +180,12 @@ Diese Werte sind als Startpunkt gedacht und sollten je Umgebung kalibriert werde
 |---|---|---|
 | Taeglich | Stabilitaet und schnelle Reaktion | Daily Admin Cockpit, Health, Snapshots, Freespace |
 | Woechentlich | Fehlerpraevention | Capacity Board, Policy Drift, Backup Frische |
-| Monatlich | Planung und Governance | Trend/Forecast, Lifecycle, Lizenz, Standardisierung |
+| Monatlich | Planung und Governance | Lifecycle, Lizenz, Standardisierung |
 | Vor Wartungsfenster | Risiko minimieren | Troubleshooting Board, Multipath/NIC/HA Checks |
 
 ## Nutzen fuer den VMware Administrator
 - Schnellere Stoerungsanalyse durch korrelierte Sicht auf VM, Host, Netzwerk und Storage.
-- Bessere Planbarkeit von Ressourcen durch trendbasierte Kapazitaetsanalysen.
+- Bessere Planbarkeit von Ressourcen durch Kapazitaets- und Overcommit-Analysen.
 - Weniger Betriebsrisiko durch standardisierte Health-, Compliance- und Backup-Kontrollen.
 - Hoehere Transparenz ueber mehrere vCenter fuer Team, Architektur und Management.
 
