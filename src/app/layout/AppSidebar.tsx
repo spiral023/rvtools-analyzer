@@ -25,6 +25,7 @@ import {
   Server,
   ClipboardList,
   CalendarClock,
+  CircleInfo,
   Map,
 } from "lucide-react";
 
@@ -52,6 +53,10 @@ const compareNav = [
 const toolsNav = [
   { title: "Wartungsankündigung", url: "/wartungsankuendigung", icon: CalendarClock },
   { title: "Planung", url: "/planning", icon: Map },
+];
+
+const infoNav = [
+  { title: "Impressum", url: "/impressum", icon: CircleInfo },
 ];
 
 function NavSection({
@@ -95,9 +100,12 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-sidebar-border">
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">
-          RV
-        </div>
+        <img
+          src="/favicon-master.png"
+          alt=""
+          aria-hidden="true"
+          className="h-8 w-8 rounded-md object-cover outline outline-1 outline-white/10"
+        />
         <div className="flex flex-col">
           <span className="text-sm font-semibold text-foreground">RVTools</span>
           <span className="text-[10px] text-muted-foreground">Analyzer</span>
@@ -108,6 +116,7 @@ export function AppSidebar() {
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
         <NavSection label="Vergleich" items={compareNav} />
+        <NavSection label="Info" items={infoNav} />
       </SidebarContent>
     </Sidebar>
   );

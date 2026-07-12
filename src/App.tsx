@@ -27,6 +27,7 @@ const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const Settings = lazy(() => import("@/pages/Settings"));
+const Impressum = lazy(() => import("@/pages/Impressum"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -77,6 +78,7 @@ const App = () => (
                   <Route path="/planning" element={<Planning />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/fleet-compare" element={<FleetCompare />} />
+                  <Route path="/impressum" element={<Impressum />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
