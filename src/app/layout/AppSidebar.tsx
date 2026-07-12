@@ -25,7 +25,7 @@ import {
   Server,
   ClipboardList,
   CalendarClock,
-  CircleInfo,
+  Info,
   Map,
 } from "lucide-react";
 
@@ -56,7 +56,7 @@ const toolsNav = [
 ];
 
 const infoNav = [
-  { title: "Impressum", url: "/impressum", icon: CircleInfo },
+  { title: "Impressum", url: "/impressum", icon: Info },
 ];
 
 function NavSection({
