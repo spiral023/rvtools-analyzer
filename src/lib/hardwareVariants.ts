@@ -111,3 +111,58 @@ export function buildHardwareModelGroups(
     (a, b) => b.count - a.count || a.modelLabel.localeCompare(b.modelLabel, "de-DE", { numeric: true, sensitivity: "base" }),
   );
 }
+
+export const NO_CLUSTER_LABEL = "Ohne Cluster";
+
+export interface VariantClusterBreakdown {
+  cluster: string;
+  hosts: number;
+  cores: number;
+  ramMiB: number;
+  vms: number;
+}
+
+export interface VariantSummary {
+  clusterBreakdown: VariantClusterBreakdown[];
+  clusterNames: string[];
+  totalCores: number;
+  totalGhz: number;
+  totalRamMiB: number;
+  totalVms: number;
+}
+
+export function buildVariantSummary(group: HardwareModelGroup): VariantSummary {
+  const byCluster = new Map<string, VariantClusterBreakdown>();
+  let totalRamMiB = 0;
+  let totalVms = 0;
+
+  for (const host of group.hosts) {
+    const cluster = host.cluster || NO_CLUSTER_LABEL;
+    let entry = byCluster.get(cluster);
+    if (!entry) {
+      entry = { cluster, hosts: 0, cores: 0, ramMiB: 0, vms: 0 };
+      byCluster.set(cluster, entry);
+    }
+    entry.hosts += 1;
+    entry.cores += host.totalCores || 0;
+    entry.ramMiB += host.memoryMiB || 0;
+    entry.vms += host.vmCount || 0;
+    totalRamMiB += host.memoryMiB || 0;
+    totalVms += host.vmCount || 0;
+  }
+
+  const clusterBreakdown = [...byCluster.values()].sort((a, b) =>
+    a.cluster.localeCompare(b.cluster, "de-DE", { numeric: true, sensitivity: "base" }),
+  );
+  const totalCores = (group.totalCores || 0) * group.count;
+  const totalGhz = Math.round((totalCores * (group.speedMHz || 0)) / 100) / 10;
+
+  return {
+    clusterBreakdown,
+    clusterNames: clusterBreakdown.map((c) => c.cluster),
+    totalCores,
+    totalGhz,
+    totalRamMiB,
+    totalVms,
+  };
+}
