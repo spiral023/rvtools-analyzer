@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Separator } from "@/components/ui/separator";
 import { GitCompare, ChevronDown, Network, Server } from "lucide-react";
 import { CHART_COLORS } from "@/lib/chartStyles";
+import { getUplinkDiagramLabel } from "@/lib/networkDiagram";
 
 /* ------------------------------------------------------------------ */
 /*  Typen                                                              */
@@ -177,7 +178,7 @@ function NetworkDiagram({ nics, switchGroups, hostCount }: { nics: VariantNic[];
               {nic.device}
             </text>
             <text x={px} y={portY + 28} fontSize={9} textAnchor="middle" fill="hsl(var(--muted-foreground))">
-              {speed || "—"}
+              {getUplinkDiagramLabel(nic.uplink)}
             </text>
           </g>
         );
