@@ -38,6 +38,67 @@ export const HARDWARE_KPI: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Spalten der Varianten-Übersicht                                    */
+/* ------------------------------------------------------------------ */
+export const HARDWARE_VARIANT_COLUMNS: Record<string, GlossaryEntry> = {
+  model: {
+    term: "Variante",
+    description: "Hardware-Modell der Variante. Mehrere Modellbezeichnungen desselben Profils werden mit „/“ zusammengefasst.",
+    source: `${RV} · vHost · „Model“`,
+  },
+  cpuModel: {
+    term: "CPU-Modell",
+    description: "CPU-Typ der Variante. Teil der Varianten-Signatur.",
+    source: `${RV} · vHost · „CPU Model“`,
+  },
+  vendor: {
+    term: "Hersteller",
+    description: "Hardware-Hersteller der Variante.",
+    source: `${RV} · vHost · „Vendor“`,
+  },
+  hosts: {
+    term: "Hosts",
+    description: "Anzahl der ESXi-Hosts mit dieser Hardware-Variante.",
+  },
+  clusters: {
+    term: "Cluster",
+    description: "Anzahl der Cluster, in denen Hosts dieser Variante Mitglied sind. Die Clusternamen erscheinen beim Überfahren der Zelle.",
+  },
+  coresPerHost: {
+    term: "Cores/Host",
+    description: "Physische CPU-Kerne je Host dieser Variante.",
+    source: `${RV} · vHost · „# Cores“`,
+  },
+  ghzPerHost: {
+    term: "GHz/Host",
+    description: "CPU-Taktfrequenz je Host dieser Variante.",
+    source: `${RV} · vHost · „Speed“`,
+  },
+  ramPerHost: {
+    term: "RAM/Host",
+    description: "Arbeitsspeicher je Host. Bei abweichenden RAM-Größen innerhalb der Variante werden alle Werte bzw. der Bereich angezeigt.",
+    source: `${RV} · vHost · „# Memory“`,
+  },
+  totalCores: {
+    term: "Cores Σ",
+    description: "Physische CPU-Kerne aller Hosts der Variante (Cores je Host × Anzahl Hosts).",
+  },
+  totalGhz: {
+    term: "GHz Σ",
+    description: "Grobe Rechenkapazität der Variante: Cores gesamt × CPU-Takt.",
+  },
+  totalRam: {
+    term: "RAM Σ",
+    description: "Summe des Arbeitsspeichers aller Hosts der Variante.",
+  },
+  totalVms: {
+    term: "VMs Σ",
+    description: "Summe der VMs, die auf Hosts dieser Variante laufen.",
+    source: `${RV} · vHost · „# VMs“`,
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                     */
 /* ------------------------------------------------------------------ */
 export const HARDWARE_SECTIONS: Record<string, GlossaryEntry> = {

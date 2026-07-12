@@ -82,6 +82,10 @@ export function VirtualTable<T, TColumn = T>({
 
   const { rows } = table.getRowModel();
 
+  const hasFooter = table
+    .getVisibleLeafColumns()
+    .some((column) => column.columnDef.footer !== undefined);
+
   const sortedRowIds = selectionEnabled && getRowId
     ? rows.map((r) => getRowId(r.original))
     : [];
@@ -128,7 +132,7 @@ export function VirtualTable<T, TColumn = T>({
   });
 
   // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
-  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT;
+  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT + (hasFooter ? ROW_HEIGHT : 0);
   const effectiveHeight = Math.min(height, contentHeight);
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -287,6 +291,24 @@ export function VirtualTable<T, TColumn = T>({
               </tr>
             )}
           </tbody>
+          {hasFooter && (
+            <tfoot className="sticky bottom-0 z-10 bg-card border-t border-border">
+              {table.getFooterGroups().map((footerGroup) => (
+                <tr key={footerGroup.id}>
+                  {footerGroup.headers.map((header) => (
+                    <td
+                      key={header.id}
+                      className="whitespace-nowrap px-3 py-2 text-sm font-semibold"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.footer, header.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tfoot>
+          )}
         </table>
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">

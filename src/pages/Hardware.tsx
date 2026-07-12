@@ -21,7 +21,7 @@ import {
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
   Server, Cpu, HardDrive, Network as NetworkIcon,
-  ChevronRight, Layers, MonitorCog, CircuitBoard, Info, Copy, ArrowUpDown,
+  ChevronRight, Layers, MonitorCog, CircuitBoard, Info, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { SheetRow, NormalizedVm } from "@/domain/models/types";
@@ -33,10 +33,11 @@ import {
   DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT,
   NO_CLUSTER_LABEL,
   type HardwareModelGroup,
-  type VariantSummary,
 } from "@/lib/hardwareVariants";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { HARDWARE_KPI, HARDWARE_SECTIONS } from "@/lib/glossaries/hardware";
+import { HARDWARE_KPI, HARDWARE_SECTIONS, HARDWARE_VARIANT_COLUMNS } from "@/lib/glossaries/hardware";
+import { VirtualTable } from "@/components/tables/VirtualTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 export type { HostDetail } from "@/lib/conversion";
 
@@ -250,43 +251,23 @@ function ModelCard({
 /*  Variant Summary Table                                              */
 /* ------------------------------------------------------------------ */
 
-interface VariantRow {
+interface VariantTableRow {
   group: HardwareModelGroup;
-  summary: VariantSummary;
+  model: string;
+  cpuModel: string;
+  vendor: string;
+  hosts: number;
+  clusters: number;
+  clusterNames: string;
+  coresPerHost: number;
+  ghzPerHost: number;
+  ramPerHost: string;
+  ramPerHostMiB: number;
+  totalCores: number;
+  totalGhz: number;
+  totalRamMiB: number;
+  totalVms: number;
 }
-
-type VariantSortKey =
-  | "model" | "vendor" | "hosts" | "clusters"
-  | "coresPerHost" | "ghzPerHost" | "ramPerHost"
-  | "totalCores" | "totalGhz" | "totalRam" | "totalVms";
-
-const VARIANT_SORT_VALUES: Record<VariantSortKey, (row: VariantRow) => string | number> = {
-  model: (r) => r.group.modelLabel,
-  vendor: (r) => r.group.vendor,
-  hosts: (r) => r.group.count,
-  clusters: (r) => r.summary.clusterNames.length,
-  coresPerHost: (r) => r.group.totalCores,
-  ghzPerHost: (r) => r.group.speedMHz,
-  ramPerHost: (r) => r.group.memoryMiB,
-  totalCores: (r) => r.summary.totalCores,
-  totalGhz: (r) => r.summary.totalGhz,
-  totalRam: (r) => r.summary.totalRamMiB,
-  totalVms: (r) => r.summary.totalVms,
-};
-
-const VARIANT_COLUMNS: Array<{ key: VariantSortKey; label: string; numeric: boolean }> = [
-  { key: "model", label: "Variante", numeric: false },
-  { key: "vendor", label: "Hersteller", numeric: false },
-  { key: "hosts", label: "Hosts", numeric: true },
-  { key: "clusters", label: "Cluster", numeric: true },
-  { key: "coresPerHost", label: "Cores/Host", numeric: true },
-  { key: "ghzPerHost", label: "GHz/Host", numeric: true },
-  { key: "ramPerHost", label: "RAM/Host", numeric: true },
-  { key: "totalCores", label: "Cores Σ", numeric: true },
-  { key: "totalGhz", label: "GHz Σ", numeric: true },
-  { key: "totalRam", label: "RAM Σ", numeric: true },
-  { key: "totalVms", label: "VMs Σ", numeric: true },
-];
 
 function formatGhzCapacity(ghz: number): string {
   if (!ghz) return "—";
@@ -300,116 +281,129 @@ function VariantSummaryTable({
   groups: HardwareModelGroup[];
   onSelect: (group: HardwareModelGroup) => void;
 }) {
-  const [sortKey, setSortKey] = useState<VariantSortKey>("hosts");
-  const [sortDesc, setSortDesc] = useState(true);
-
-  const rows = useMemo<VariantRow[]>(
-    () => groups.map((group) => ({ group, summary: buildVariantSummary(group) })),
+  const rows = useMemo<VariantTableRow[]>(
+    () =>
+      groups.map((group) => {
+        const summary = buildVariantSummary(group);
+        return {
+          group,
+          model: group.modelLabel || "Unknown",
+          cpuModel: group.cpuModel,
+          vendor: group.vendor,
+          hosts: group.count,
+          clusters: summary.clusterNames.length,
+          clusterNames: summary.clusterNames.join(", "),
+          coresPerHost: group.totalCores,
+          ghzPerHost: group.speedMHz ? Math.round(group.speedMHz / 10) / 100 : 0,
+          ramPerHost: formatMemorySummary(group.memoryValuesMiB, group.memoryMiB),
+          ramPerHostMiB: group.memoryMiB,
+          totalCores: summary.totalCores,
+          totalGhz: summary.totalGhz,
+          totalRamMiB: summary.totalRamMiB,
+          totalVms: summary.totalVms,
+        };
+      }),
     [groups],
   );
 
-  const sortedRows = useMemo(() => {
-    const getValue = VARIANT_SORT_VALUES[sortKey];
-    return [...rows].sort((a, b) => {
-      const va = getValue(a);
-      const vb = getValue(b);
-      const cmp = typeof va === "number" && typeof vb === "number"
-        ? va - vb
-        : String(va).localeCompare(String(vb), "de-DE", { numeric: true, sensitivity: "base" });
-      return sortDesc ? -cmp : cmp;
-    });
-  }, [rows, sortKey, sortDesc]);
-
-  const totals = useMemo(
-    () => rows.reduce(
+  const columns = useMemo<ColumnDef<VariantTableRow, unknown>[]>(() => {
+    const totals = rows.reduce(
       (acc, r) => ({
-        hosts: acc.hosts + r.group.count,
-        cores: acc.cores + r.summary.totalCores,
-        ghz: acc.ghz + r.summary.totalGhz,
-        ramMiB: acc.ramMiB + r.summary.totalRamMiB,
-        vms: acc.vms + r.summary.totalVms,
+        hosts: acc.hosts + r.hosts,
+        cores: acc.cores + r.totalCores,
+        ghz: acc.ghz + r.totalGhz,
+        ramMiB: acc.ramMiB + r.totalRamMiB,
+        vms: acc.vms + r.totalVms,
       }),
       { hosts: 0, cores: 0, ghz: 0, ramMiB: 0, vms: 0 },
-    ),
-    [rows],
-  );
-
-  const toggleSort = (key: VariantSortKey) => {
-    if (key === sortKey) {
-      setSortDesc((d) => !d);
-    } else {
-      setSortKey(key);
-      setSortDesc(VARIANT_COLUMNS.find((c) => c.key === key)?.numeric ?? true);
-    }
-  };
+    );
+    return [
+      {
+        accessorKey: "model",
+        header: "Variante",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.model },
+        cell: ({ getValue }) => <span className="font-mono-data font-semibold">{getValue() as string}</span>,
+        footer: () => `Gesamt (${rows.length} ${rows.length === 1 ? "Variante" : "Varianten"})`,
+      },
+      {
+        accessorKey: "cpuModel",
+        header: "CPU-Modell",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.cpuModel },
+        cell: ({ getValue }) => <span className="text-xs text-muted-foreground">{getValue() as string}</span>,
+      },
+      {
+        accessorKey: "vendor",
+        header: "Hersteller",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.vendor },
+        cell: ({ getValue }) => shortenVendor(getValue() as string),
+      },
+      {
+        accessorKey: "hosts",
+        header: "Hosts",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.hosts },
+        footer: () => String(totals.hosts),
+      },
+      {
+        accessorKey: "clusters",
+        header: "Cluster",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.clusters },
+        cell: ({ row }) => <span title={row.original.clusterNames}>{row.original.clusters}</span>,
+      },
+      {
+        accessorKey: "coresPerHost",
+        header: "Cores/Host",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.coresPerHost },
+        cell: ({ getValue }) => (getValue() as number) || "—",
+      },
+      {
+        accessorKey: "ghzPerHost",
+        header: "GHz/Host",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.ghzPerHost },
+        cell: ({ row }) => formatCpuClock(row.original.group.speedMHz),
+      },
+      {
+        accessorKey: "ramPerHost",
+        header: "RAM/Host",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.ramPerHost },
+        sortingFn: (a, b) => a.original.ramPerHostMiB - b.original.ramPerHostMiB,
+      },
+      {
+        accessorKey: "totalCores",
+        header: "Cores Σ",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.totalCores },
+        cell: ({ getValue }) => (getValue() as number) || "—",
+        footer: () => String(totals.cores),
+      },
+      {
+        accessorKey: "totalGhz",
+        header: "GHz Σ",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.totalGhz },
+        cell: ({ getValue }) => formatGhzCapacity(getValue() as number),
+        footer: () => formatGhzCapacity(totals.ghz),
+      },
+      {
+        accessorKey: "totalRamMiB",
+        header: "RAM Σ",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.totalRam },
+        cell: ({ getValue }) => formatMemory(getValue() as number),
+        footer: () => formatMemory(totals.ramMiB),
+      },
+      {
+        accessorKey: "totalVms",
+        header: "VMs Σ",
+        meta: { info: HARDWARE_VARIANT_COLUMNS.totalVms },
+        footer: () => String(totals.vms),
+      },
+    ];
+  }, [rows]);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-border text-[10px] uppercase text-muted-foreground">
-            {VARIANT_COLUMNS.map((col) => (
-              <th key={col.key} className={`py-2 pr-3 ${col.numeric ? "text-right" : "text-left"}`}>
-                <button
-                  type="button"
-                  onClick={() => toggleSort(col.key)}
-                  className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sortKey === col.key ? "text-foreground" : ""}`}
-                >
-                  {col.label}
-                  <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedRows.map(({ group, summary }) => (
-            <tr
-              key={group.signature}
-              onClick={() => onSelect(group)}
-              className="cursor-pointer border-b border-border/40 hover:bg-muted/30 transition-colors"
-            >
-              <td className="py-2 pr-3">
-                <p className="font-mono-data font-semibold">{group.modelLabel || "Unknown"}</p>
-                <p className="text-[10px] text-muted-foreground">{group.cpuModel}</p>
-              </td>
-              <td className="py-2 pr-3">{shortenVendor(group.vendor)}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">{group.count}</td>
-              <td
-                className="py-2 pr-3 text-right font-mono-data"
-                title={summary.clusterNames.join(", ")}
-              >
-                {summary.clusterNames.length}
-              </td>
-              <td className="py-2 pr-3 text-right font-mono-data">{group.totalCores || "—"}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">{formatCpuClock(group.speedMHz)}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">
-                {formatMemorySummary(group.memoryValuesMiB, group.memoryMiB)}
-              </td>
-              <td className="py-2 pr-3 text-right font-mono-data">{summary.totalCores || "—"}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">{formatGhzCapacity(summary.totalGhz)}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">{formatMemory(summary.totalRamMiB)}</td>
-              <td className="py-2 pr-3 text-right font-mono-data">{summary.totalVms}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-border font-semibold">
-            <td className="py-2 pr-3">Gesamt ({rows.length} Varianten)</td>
-            <td className="py-2 pr-3" />
-            <td className="py-2 pr-3 text-right font-mono-data">{totals.hosts}</td>
-            <td className="py-2 pr-3" />
-            <td className="py-2 pr-3" />
-            <td className="py-2 pr-3" />
-            <td className="py-2 pr-3" />
-            <td className="py-2 pr-3 text-right font-mono-data">{totals.cores}</td>
-            <td className="py-2 pr-3 text-right font-mono-data">{formatGhzCapacity(totals.ghz)}</td>
-            <td className="py-2 pr-3 text-right font-mono-data">{formatMemory(totals.ramMiB)}</td>
-            <td className="py-2 pr-3 text-right font-mono-data">{totals.vms}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+    <VirtualTable
+      data={rows}
+      columns={columns}
+      initialSorting={[{ id: "hosts", desc: true }]}
+      onRowClick={(row) => onSelect(row.group)}
+    />
   );
 }
 
@@ -986,16 +980,12 @@ export default function Hardware() {
       </div>
 
       {/* Variant summary table */}
-      <Card>
-        <CardHeader className="pb-2">
-          <InfoTooltip entry={HARDWARE_SECTIONS.variantSummary} side="bottom">
-            <CardTitle className="w-fit cursor-help text-sm font-semibold">Varianten-Übersicht</CardTitle>
-          </InfoTooltip>
-        </CardHeader>
-        <CardContent>
-          <VariantSummaryTable groups={modelGroups} onSelect={setSelectedVariant} />
-        </CardContent>
-      </Card>
+      <div>
+        <InfoTooltip entry={HARDWARE_SECTIONS.variantSummary} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Varianten-Übersicht</h3>
+        </InfoTooltip>
+        <VariantSummaryTable groups={modelGroups} onSelect={setSelectedVariant} />
+      </div>
 
       {/* Model cards grid */}
       <div>
