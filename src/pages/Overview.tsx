@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVmsWithTechInfo, useHosts, useDatastores, useHealthEvents, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -10,13 +11,15 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "@/components/charts/recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { buildHostClusterDistribution } from "@/lib/hostClusterDistribution";
+import { buildAverageVm } from "@/lib/averageVm";
+import { buildVmJoinKey, filterRowsByMatchingVmJoinKeys } from "@/lib/globalFilter";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_OS_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
 
@@ -83,11 +86,25 @@ export default function Overview() {
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
   const critDs = datastores.filter((d) => d.freePct !== null && d.freePct < 10).length;
 
-  const powerData = useMemo(() => [
-    { name: "Powered On", value: poweredOn },
-    { name: "Powered Off", value: poweredOff },
-    { name: "Suspended", value: filteredVms.filter((v) => v.powerState === "suspended").length },
-  ].filter((d) => d.value > 0), [filteredVms, poweredOn, poweredOff]);
+  // Raw-Sheets exakt auf die aktuell gefilterten VMs beschränken – filterVmRows berücksichtigt
+  // Suche/Cluster/Host nicht, daher wird der Scope direkt aus filteredVms gebildet.
+  const scopedVmJoinKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const vm of filteredVms) keys.add(buildVmJoinKey(vm.snapshotId, vm.vmName));
+    return keys;
+  }, [filteredVms]);
+
+  const averageVm = useMemo(
+    () =>
+      buildAverageVm({
+        vms: filteredVms,
+        memoryRows: filterRowsByMatchingVmJoinKeys(rawMemoryRows, scopedVmJoinKeys),
+        diskRows: filterRowsByMatchingVmJoinKeys(rawDiskRows, scopedVmJoinKeys),
+        partitionRows: filterRowsByMatchingVmJoinKeys(rawPartitionRows, scopedVmJoinKeys),
+        networkRows: filterRowsByMatchingVmJoinKeys(rawNetworkRows, scopedVmJoinKeys),
+      }),
+    [filteredVms, rawMemoryRows, rawDiskRows, rawPartitionRows, rawNetworkRows, scopedVmJoinKeys],
+  );
 
   const hostClusterDistribution = useMemo(() => buildHostClusterDistribution(hosts), [hosts]);
   const clusterCount = hostClusterDistribution.reduce((sum, bucket) => sum + bucket.clusterCount, 0);
@@ -138,46 +155,31 @@ export default function Overview() {
         <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} info={OVERVIEW_KPI.datastores} />
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={OVERVIEW_SECTIONS.powerState} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Power State</h3>
-          </InfoTooltip>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie data={powerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} strokeWidth={0}>
-                {powerData.map((entry, index) => <Cell key={entry.name} fill={SEVERITY_COLORS[index]} />)}
-              </Pie>
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Legend wrapperStyle={{ fontSize: "12px" }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
-            <div className="mb-3 w-fit cursor-help">
-              <h3 className="text-sm font-semibold text-muted-foreground">Host-Verteilung je Cluster</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatNum(clusterCount)} Cluster · {hostCountRange}
-              </p>
-            </div>
-          </InfoTooltip>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={hostClusterDistribution} margin={{ top: 12, right: 12, left: -18, bottom: 4 }}>
-              <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-              <XAxis dataKey="hostCount" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "Hosts je Cluster", position: "insideBottom", offset: -1, ...CHART_AXIS_STYLE }} />
-              <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} label={{ value: "Cluster", angle: -90, position: "insideLeft", offset: 10, ...CHART_AXIS_STYLE }} />
-              <Tooltip
-                contentStyle={CHART_TOOLTIP_STYLE}
-                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                labelFormatter={(value) => `${formatNum(Number(value))} Hosts je Cluster`}
-                formatter={(value: number) => [formatNum(value), "Cluster"]}
-              />
-              <Bar dataKey="clusterCount" name="Cluster" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <AverageVmPanel avg={averageVm} />
+      <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+        <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
+          <div className="mb-3 w-fit cursor-help">
+            <h3 className="text-sm font-semibold text-muted-foreground">Host-Verteilung je Cluster</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatNum(clusterCount)} Cluster · {hostCountRange}
+            </p>
+          </div>
+        </InfoTooltip>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={hostClusterDistribution} margin={{ top: 12, right: 12, left: -18, bottom: 4 }}>
+            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            <XAxis dataKey="hostCount" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "Hosts je Cluster", position: "insideBottom", offset: -1, ...CHART_AXIS_STYLE }} />
+            <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} label={{ value: "Cluster", angle: -90, position: "insideLeft", offset: 10, ...CHART_AXIS_STYLE }} />
+            <Tooltip
+              contentStyle={CHART_TOOLTIP_STYLE}
+              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+              labelFormatter={(value) => `${formatNum(Number(value))} Hosts je Cluster`}
+              formatter={(value: number) => [formatNum(value), "Cluster"]}
+            />
+            <Bar dataKey="clusterCount" name="Cluster" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

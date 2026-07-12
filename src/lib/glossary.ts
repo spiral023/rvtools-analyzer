@@ -228,10 +228,10 @@ export const OVERVIEW_OS_COLUMNS: Record<string, GlossaryEntry> = {
 /*  Overview – Abschnitts-Überschriften (Sinn + Arbeitsweise)         */
 /* ------------------------------------------------------------------ */
 export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
-  powerState: {
-    term: "VM Power State",
+  averageVm: {
+    term: "Durchschnittliche VM",
     description:
-      "Verteilung aller VMs nach Energiezustand. Ein hoher Anteil „Powered Off“ weist auf Aufräumpotenzial hin – ausgeschaltete VMs belegen weiterhin Storage.",
+      "Synthetische „typische“ VM als Mittelwert aller VMs im aktuellen Filter: vCPU-Kerne, RAM-Größe sowie Speicherbelegung (belegt/aktiv), Disks, provisionierte Kapazität, Partitionen und NICs – jeweils je VM. Ändert sich vCenter-Auswahl, Suche oder Filter, wird der Durchschnitt sofort auf diese Auswahl neu berechnet.",
   },
   hostsPerCluster: {
     term: "Host-Verteilung je Cluster",
