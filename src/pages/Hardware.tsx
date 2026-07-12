@@ -31,6 +31,7 @@ import {
   buildHardwareModelGroups,
   buildVariantSummary,
   DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT,
+  NO_CLUSTER_LABEL,
   type HardwareModelGroup,
   type VariantSummary,
 } from "@/lib/hardwareVariants";
@@ -413,6 +414,132 @@ function VariantSummaryTable({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Variant Detail Dialog                                              */
+/* ------------------------------------------------------------------ */
+
+function VariantDetailDialog({
+  group,
+  open,
+  onClose,
+  onSelectHost,
+}: {
+  group: HardwareModelGroup | null;
+  open: boolean;
+  onClose: () => void;
+  onSelectHost: (h: HostDetail) => void;
+}) {
+  if (!group) return null;
+
+  const summary = buildVariantSummary(group);
+  const sortedHosts = [...group.hosts].sort((a, b) =>
+    a.host.localeCompare(b.host, "de-DE", { numeric: true, sensitivity: "base" }),
+  );
+
+  const kpis: Array<[string, string]> = [
+    ["Hosts", String(group.count)],
+    ["Cores Σ", String(summary.totalCores)],
+    ["GHz Σ", formatGhzCapacity(summary.totalGhz)],
+    ["RAM Σ", formatMemory(summary.totalRamMiB)],
+    ["VMs Σ", String(summary.totalVms)],
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Layers className="h-6 w-6" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-semibold">{group.modelLabel || "Unknown"}</DialogTitle>
+              <p className="text-xs text-muted-foreground">
+                {group.vendor} · {group.cpuModel} · {group.cpuSockets || "?"} Sockel ·{" "}
+                {group.totalCores || "?"} Cores · {formatCpuClock(group.speedMHz)}
+              </p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="max-h-[calc(85vh-100px)]">
+          <div className="p-6 space-y-6">
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {kpis.map(([label, val]) => (
+                <div key={label} className="rounded-lg bg-muted/40 px-3 py-2 text-center">
+                  <p className="text-lg font-bold font-mono-data">{val}</p>
+                  <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <Separator />
+
+            {/* Cluster breakdown */}
+            <section>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Layers className="h-3.5 w-3.5" /> Cluster ({summary.clusterBreakdown.length})
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[10px] uppercase text-muted-foreground">
+                      <th className="py-2 pr-3">Cluster</th>
+                      <th className="py-2 pr-3 text-right">Hosts</th>
+                      <th className="py-2 pr-3 text-right">Cores</th>
+                      <th className="py-2 pr-3 text-right">RAM</th>
+                      <th className="py-2 pr-3 text-right">VMs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.clusterBreakdown.map((c) => (
+                      <tr key={c.cluster} className="border-b border-border/40">
+                        <td className="py-2 pr-3">{c.cluster}</td>
+                        <td className="py-2 pr-3 text-right font-mono-data">{c.hosts}</td>
+                        <td className="py-2 pr-3 text-right font-mono-data">{c.cores}</td>
+                        <td className="py-2 pr-3 text-right font-mono-data">{formatMemory(c.ramMiB)}</td>
+                        <td className="py-2 pr-3 text-right font-mono-data">{c.vms}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <Separator />
+
+            {/* Hosts */}
+            <section>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <Server className="h-3.5 w-3.5" /> Hosts ({sortedHosts.length})
+              </h4>
+              <div className="space-y-1">
+                {sortedHosts.map((h) => (
+                  <button
+                    type="button"
+                    key={h.host}
+                    onClick={() => onSelectHost(h)}
+                    className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent/60 transition-colors group/row"
+                  >
+                    <span className="font-mono-data text-xs truncate">{h.host}</span>
+                    <span className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{h.cluster || NO_CLUSTER_LABEL}</span>
+                      <span className="font-mono-data">{formatMemory(h.memoryMiB)}</span>
+                      <span className="font-mono-data">{h.vmCount} VMs</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover/row:opacity-100 transition-opacity" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Host Detail Dialog                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -685,6 +812,7 @@ export default function Hardware() {
   const { allVms = [] } = useVms();
 
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<HardwareModelGroup | null>(null);
   const [countRamAsVariant, setCountRamAsVariant] = useState(false);
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
@@ -865,7 +993,7 @@ export default function Hardware() {
           </InfoTooltip>
         </CardHeader>
         <CardContent>
-          <VariantSummaryTable groups={modelGroups} onSelect={() => {}} />
+          <VariantSummaryTable groups={modelGroups} onSelect={setSelectedVariant} />
         </CardContent>
       </Card>
 
@@ -884,6 +1012,17 @@ export default function Hardware() {
           ))}
         </div>
       </div>
+
+      {/* Variant detail dialog */}
+      <VariantDetailDialog
+        group={selectedVariant}
+        open={!!selectedVariant}
+        onClose={() => setSelectedVariant(null)}
+        onSelectHost={(h) => {
+          setSelectedVariant(null);
+          setSelectedHost(h);
+        }}
+      />
 
       {/* Detail dialog */}
       <HostDetailDialog
