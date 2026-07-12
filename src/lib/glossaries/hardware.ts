@@ -51,6 +51,11 @@ export const HARDWARE_SECTIONS: Record<string, GlossaryEntry> = {
     description:
       "Verteilung der Hosts nach Hersteller. Zeigt die Abhängigkeit von einzelnen Lieferanten und hilft bei Support-, Wartungsvertrags- und Beschaffungsentscheidungen.",
   },
+  variantSummary: {
+    term: "Varianten-Übersicht",
+    description:
+      "Sortierbare Tabelle aller Hardware-Varianten mit Werten je Host (Cores, Takt, RAM) und Gesamtwerten je Variante (Cores, GHz, RAM, VMs). GHz gesamt = Cores gesamt × CPU-Takt, als grobe Rechenkapazität. Klicke eine Zeile für die Detailansicht der Variante.",
+  },
   modelDetail: {
     term: "Modelle und Varianten im Detail",
     description:
