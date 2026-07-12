@@ -143,6 +143,44 @@ describe("persistAllowedRawSheetRows", () => {
     expect(persisted).toBe(3);
     expect(batches).toEqual([2, 1]);
   });
+
+  it("stores rows compactly and rehydrates every column, including ones only present in later rows", async () => {
+    const { persistAllowedRawSheetRows } = await import("@/domain/services/importService");
+    const { getRawSheetRows, getRawSheetFieldNames, getDb } = await import("@/data/db");
+    const sheets: ParsedSheetData[] = [
+      {
+        sheetName: "vInfo",
+        // headers stammt (wie im Parser) nur aus Zeile 0 – "Notes" fehlt hier bewusst.
+        headers: ["VM", "CPUs"],
+        rows: [
+          { VM: "APP01", CPUs: 4 },
+          { VM: "APP02", CPUs: 2, Notes: "extra" },
+        ],
+      },
+    ];
+
+    await persistAllowedRawSheetRows({ sheets, snapshotId: "snap-compact" });
+
+    // Kompaktes Persistenzformat: eine Header-Zeile + Zeilen als Wert-Arrays ohne Spaltennamen.
+    const db = await getDb();
+    const header = await db.get("rawSheetHeaders", ["snap-compact", "vInfo"]);
+    expect(header?.headers).toEqual(["VM", "CPUs", "Notes"]);
+    const storedRow = await db.get("rawSheets", ["snap-compact", "vInfo", 1]);
+    expect(storedRow).toMatchObject({ values: ["APP02", 2, "extra"] });
+    expect(storedRow).not.toHaveProperty("data");
+
+    // Leseseite liefert weiterhin die hydratisierte Record-Form; fehlende Zellen werden null.
+    const rows = await getRawSheetRows(["snap-compact"], "vInfo");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].data).toEqual({ VM: "APP01", CPUs: 4, Notes: null });
+    expect(rows[1].data).toEqual({ VM: "APP02", CPUs: 2, Notes: "extra" });
+
+    await expect(getRawSheetFieldNames(["snap-compact"], "vInfo")).resolves.toEqual([
+      "CPUs",
+      "Notes",
+      "VM",
+    ]);
+  });
 });
 
 describe("importRvtoolsXlsx", () => {

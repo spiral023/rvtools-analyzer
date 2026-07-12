@@ -2,6 +2,8 @@ import { openDB, type IDBPDatabase, type DBSchema } from "idb";
 import type {
   SnapshotMeta,
   SheetRow,
+  StoredSheetRow,
+  RawSheetHeader,
   NormalizedVm,
   NormalizedHost,
   NormalizedCluster,
@@ -31,8 +33,15 @@ interface RVToolsDBSchema extends DBSchema {
   };
   rawSheets: {
     key: [string, string, number];
-    value: SheetRow;
+    // StoredSheetRow = kompaktes Format (ab DB v17). SheetRow = Alt-Format mit `data`-Record,
+    // das für vor v17 importierte Snapshots weiterhin gelesen werden muss.
+    value: StoredSheetRow | SheetRow;
     indexes: { snapshotId: string; sheetName: string; "snapshotId_sheetName": [string, string] };
+  };
+  rawSheetHeaders: {
+    key: [string, string];
+    value: RawSheetHeader;
+    indexes: { snapshotId: string };
   };
   entities_vm: { key: string; value: NormalizedVm; indexes: { snapshotId: string } };
   entities_host: { key: string; value: NormalizedHost; indexes: { snapshotId: string } };
@@ -88,20 +97,20 @@ interface RVToolsDBSchema extends DBSchema {
   };
 }
 
-export type StoreName = "snapshots" | "rawSheets" | "entities_vm" | "entities_host"
+export type StoreName = "snapshots" | "rawSheets" | "rawSheetHeaders" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest"
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "scenarios";
-type SnapshotScopedStoreName = "rawSheets" | "entities_vm" | "entities_host" | "entities_cluster"
+type SnapshotScopedStoreName = "rawSheets" | "rawSheetHeaders" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 16;
+const DB_VERSION = 17;
 const ALL_STORES: StoreName[] = [
-  "snapshots", "rawSheets", "entities_vm", "entities_host",
+  "snapshots", "rawSheets", "rawSheetHeaders", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
@@ -132,6 +141,12 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           raw.createIndex("snapshotId", "snapshotId");
           raw.createIndex("sheetName", "sheetName");
           raw.createIndex("snapshotId_sheetName", ["snapshotId", "sheetName"]);
+        }
+        // v17: Spaltenüberschriften der Rohdaten werden einmal pro Snapshot+Sheet abgelegt,
+        // damit die Zeilen kompakt als Wert-Arrays gespeichert werden können.
+        if (!db.objectStoreNames.contains("rawSheetHeaders")) {
+          const headers = db.createObjectStore("rawSheetHeaders", { keyPath: ["snapshotId", "sheetName"] });
+          headers.createIndex("snapshotId", "snapshotId");
         }
         if (!db.objectStoreNames.contains("entities_vm")) {
           db.createObjectStore("entities_vm", { keyPath: "vmKey" }).createIndex("snapshotId", "snapshotId");
@@ -328,6 +343,21 @@ export async function getBySnapshotIds<T>(
   return perId.flat() as unknown as T[];
 }
 
+/**
+ * Führt eine gespeicherte Zeile in die hydratisierte {@link SheetRow}-Form zurück.
+ * Kompaktes Format (ab v17): Werte werden per `headers` auf Spaltennamen abgebildet.
+ * Alt-Format (vor v17): der `data`-Record wird unverändert übernommen.
+ */
+function hydrateSheetRow(row: StoredSheetRow | SheetRow, headers: readonly string[] | undefined): SheetRow {
+  if ("data" in row) return row;
+  const data: SheetRow["data"] = {};
+  const cols = headers ?? [];
+  for (let i = 0; i < cols.length; i++) {
+    data[cols[i]] = row.values[i] ?? null;
+  }
+  return { snapshotId: row.snapshotId, sheetName: row.sheetName, rowIndex: row.rowIndex, data };
+}
+
 /** Get raw sheet rows for specific snapshot+sheet combinations */
 export async function getRawSheetRows(
   snapshotIds: string[],
@@ -336,7 +366,13 @@ export async function getRawSheetRows(
   if (snapshotIds.length === 0) return [];
   const db = await getDb();
   const perId = await Promise.all(
-    snapshotIds.map((sid) => db.getAllFromIndex("rawSheets", "snapshotId_sheetName", [sid, sheetName])),
+    snapshotIds.map(async (sid) => {
+      const [rows, header] = await Promise.all([
+        db.getAllFromIndex("rawSheets", "snapshotId_sheetName", [sid, sheetName]),
+        db.get("rawSheetHeaders", [sid, sheetName]),
+      ]);
+      return rows.map((row) => hydrateSheetRow(row, header?.headers));
+    }),
   );
   return perId.flat();
 }
@@ -351,8 +387,14 @@ export async function getRawSheetFieldNames(
 
   await Promise.all(
     snapshotIds.map(async (sid) => {
+      const header = await db.get("rawSheetHeaders", [sid, sheetName]);
+      if (header) {
+        for (const key of header.headers) keys.add(key);
+        return;
+      }
+      // Alt-Format (vor v17): Spalten aus der ersten Zeile ableiten.
       const row = await db.get("rawSheets", [sid, sheetName, 0]);
-      if (row) {
+      if (row && "data" in row) {
         for (const key of Object.keys(row.data)) keys.add(key);
       }
     }),
@@ -413,6 +455,10 @@ export async function batchPut<S extends StoreName>(
     }
     await tx.done;
   });
+}
+
+export async function batchPutRawSheetHeaders(items: RawSheetHeader[], batchSize = 500): Promise<void> {
+  await batchPut("rawSheetHeaders", items, batchSize);
 }
 
 export async function batchPutTechInfoImports(items: TechInfoImportMeta[], batchSize = 1000): Promise<void> {
@@ -537,7 +583,7 @@ export async function estimateSnapshotSizesBytes(snapshotIds: string[]): Promise
   if (snapshotIds.length === 0) return {};
   const db = await getDb();
   const scopedStores: SnapshotScopedStoreName[] = [
-    "rawSheets", "entities_vm", "entities_host", "entities_cluster",
+    "rawSheets", "rawSheetHeaders", "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];
   const entries = await Promise.all(snapshotIds.map(async (snapshotId) => {
@@ -602,6 +648,7 @@ const DELETE_CHUNK_SIZE = 5000;
 const STORE_DELETE_LABELS: Record<StoreName, string> = {
   snapshots: "Snapshot-Metadaten",
   rawSheets: "Rohdaten (Sheets)",
+  rawSheetHeaders: "Rohdaten-Spalten",
   entities_vm: "VMs",
   entities_host: "Hosts",
   entities_cluster: "Cluster",
@@ -639,7 +686,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheets" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows",
+  storeName: "rawSheets" | "rawSheetHeaders" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -700,7 +747,7 @@ export async function deleteAllData(onProgress?: DeleteProgressCallback): Promis
 
 export async function deleteSnapshot(snapshotId: string, onProgress?: DeleteProgressCallback): Promise<void> {
   const db = await getDb();
-  const prefixStores = ["rawSheets", "metrics_cache"] as const;
+  const prefixStores = ["rawSheets", "rawSheetHeaders", "metrics_cache"] as const;
   const indexStores = [
     "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health",

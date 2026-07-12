@@ -3,6 +3,7 @@ import {
   getSnapshotsByVcenterId,
   putSnapshot,
   batchPut,
+  batchPutRawSheetHeaders,
   deleteSnapshot,
   getTechInfoImportByChecksum,
   putTechInfoImport,
@@ -38,7 +39,8 @@ import type {
   NormalizedDatastore,
   NormalizedSnapshot,
   NormalizedHealth,
-  SheetRow,
+  StoredSheetRow,
+  RawSheetHeader,
   SheetStats,
   ParsedSheetData,
   WorkerParseResult,
@@ -110,7 +112,8 @@ interface PersistRawSheetRowsOptions {
   sheets: ParsedSheetData[];
   snapshotId: string;
   batchSize?: number;
-  putBatch?: (rows: SheetRow[]) => Promise<void>;
+  putBatch?: (rows: StoredSheetRow[]) => Promise<void>;
+  putHeaders?: (headers: RawSheetHeader[]) => Promise<void>;
   onBatchPersisted?: (persistedRows: number) => void;
 }
 
@@ -183,6 +186,26 @@ function toRawRowData(row: Record<string, unknown>): Record<string, string | num
   return out;
 }
 
+/**
+ * Vollständige, geordnete Spaltenliste eines Sheets. `sheet.headers` stammt nur aus der
+ * ersten Zeile (leere Zellen lässt der Parser weg), daher wird die Union über alle Zeilen
+ * gebildet – sonst gingen Spalten verloren, die erst in späteren Zeilen auftreten.
+ */
+function buildRawHeaderUnion(sheet: ParsedSheetData): string[] {
+  const seen = new Set<string>();
+  const headers: string[] = [];
+  const add = (key: string) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    headers.push(key);
+  };
+  for (const header of sheet.headers) add(header);
+  for (const row of sheet.rows) {
+    for (const key of Object.keys(row)) add(key);
+  }
+  return headers;
+}
+
 async function runSequential<T>(
   items: readonly T[],
   task: (item: T, index: number) => Promise<void>,
@@ -198,10 +221,12 @@ export async function persistAllowedRawSheetRows({
   snapshotId,
   batchSize = 5000,
   putBatch = (rows) => batchPut("rawSheets", rows, batchSize),
+  putHeaders = (headers) => batchPutRawSheetHeaders(headers),
   onBatchPersisted,
 }: PersistRawSheetRowsOptions): Promise<number> {
-  let batch: SheetRow[] = [];
-  const batches: SheetRow[][] = [];
+  const headerRecords: RawSheetHeader[] = [];
+  let batch: StoredSheetRow[] = [];
+  const batches: StoredSheetRow[][] = [];
   let persistedRows = 0;
 
   const queueBatch = () => {
@@ -213,18 +238,23 @@ export async function persistAllowedRawSheetRows({
 
   for (const sheet of sheets) {
     if (!RAW_SHEET_ALLOWLIST.has(sheet.sheetName)) continue;
+    const headers = buildRawHeaderUnion(sheet);
+    headerRecords.push({ snapshotId, sheetName: sheet.sheetName, headers });
     for (let i = 0; i < sheet.rows.length; i++) {
+      const row = sheet.rows[i];
       batch.push({
         snapshotId,
         sheetName: sheet.sheetName,
         rowIndex: i,
-        data: toRawRowData(sheet.rows[i]),
+        values: headers.map((header) => toRawCellValue(row[header])),
       });
       if (batch.length >= batchSize) queueBatch();
     }
   }
 
   queueBatch();
+  // Header zuerst persistieren: ohne sie lassen sich die kompakten Wert-Arrays nicht lesen.
+  if (headerRecords.length > 0) await putHeaders(headerRecords);
   await runSequential(batches, async (currentBatch) => {
     await putBatch(currentBatch);
     persistedRows += currentBatch.length;

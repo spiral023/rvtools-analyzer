@@ -36,11 +36,35 @@ export interface SnapshotMeta {
   importDurationMs?: number;
 }
 
+/**
+ * Hydratisierte Sheet-Zeile für die Leseseite (`getRawSheetRows`, alle `useRawSheet`-Consumer).
+ * Die Rohdaten werden intern kompakt als {@link StoredSheetRow} + {@link RawSheetHeader}
+ * persistiert und beim Lesen in diese Record-Form zurückgeführt.
+ */
 export interface SheetRow {
   snapshotId: SnapshotId;
   sheetName: string;
   rowIndex: number;
   data: Record<string, string | number | boolean | null>;
+}
+
+/**
+ * Kompakt persistierte Sheet-Zeile: Werte in der Reihenfolge der zugehörigen
+ * {@link RawSheetHeader}, ohne die Spaltennamen pro Zeile zu wiederholen. Das spart
+ * bei breiten Sheets den mit Abstand größten Teil des IndexedDB-Speichers.
+ */
+export interface StoredSheetRow {
+  snapshotId: SnapshotId;
+  sheetName: string;
+  rowIndex: number;
+  values: (string | number | boolean | null)[];
+}
+
+/** Spaltenüberschriften eines roh persistierten Sheets – einmal pro Snapshot + Sheet. */
+export interface RawSheetHeader {
+  snapshotId: SnapshotId;
+  sheetName: string;
+  headers: string[];
 }
 
 export interface TechInfoImportMeta {

@@ -104,7 +104,8 @@ Die lokale Datenbank heißt `rvtools-analyzer`, aktuell mit `DB_VERSION = 16`. S
 | Store | Inhalt |
 |---|---|
 | `snapshots` | Snapshot-Metadaten, vCenter-ID, Exportzeit, Dateiname, SHA-256 |
-| `rawSheets` | Rohdaten ausgewählter RVTools-Sheets |
+| `rawSheets` | Rohdaten ausgewählter RVTools-Sheets (kompakt als Wert-Arrays je Zeile) |
+| `rawSheetHeaders` | Spaltenüberschriften der Rohdaten, einmal je Snapshot + Sheet |
 | `entities_vm` | Normalisierte VM-Daten |
 | `entities_host` | Normalisierte Host-Daten |
 | `entities_cluster` | Normalisierte Cluster-Daten |
