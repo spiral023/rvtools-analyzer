@@ -234,9 +234,9 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
       "Verteilung aller VMs nach Energiezustand. Ein hoher Anteil „Powered Off“ weist auf Aufräumpotenzial hin – ausgeschaltete VMs belegen weiterhin Storage.",
   },
   hostsPerCluster: {
-    term: "Hosts je Cluster",
+    term: "Host-Verteilung je Cluster",
     description:
-      "Anzahl physischer ESXi-Hosts pro Cluster (Top 10). Hilft, ungleich dimensionierte Cluster und HA-Reserven auf einen Blick einzuordnen.",
+      "Zeigt, wie viele Cluster jeweils dieselbe Anzahl physischer ESXi-Hosts haben. So werden typische Clustergrößen und Ausreißer sichtbar, ohne einzelne Clusternamen aufzulisten.",
   },
   osPerCluster: {
     term: "Betriebssysteme je Cluster",

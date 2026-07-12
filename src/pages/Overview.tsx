@@ -10,12 +10,13 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
+import { buildHostClusterDistribution } from "@/lib/hostClusterDistribution";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_OS_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
 
@@ -88,13 +89,11 @@ export default function Overview() {
     { name: "Suspended", value: filteredVms.filter((v) => v.powerState === "suspended").length },
   ].filter((d) => d.value > 0), [filteredVms, poweredOn, poweredOff]);
 
-  const clusterData = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const h of hosts) { if (h.cluster) map.set(h.cluster, (map.get(h.cluster) || 0) + 1); }
-    return [...map.entries()]
-      .map(([name, count]) => ({ name, hosts: count }))
-      .sort((a, b) => b.hosts - a.hosts || a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" }));
-  }, [hosts]);
+  const hostClusterDistribution = useMemo(() => buildHostClusterDistribution(hosts), [hosts]);
+  const clusterCount = hostClusterDistribution.reduce((sum, bucket) => sum + bucket.clusterCount, 0);
+  const hostCountRange = hostClusterDistribution.length > 0
+    ? `${hostClusterDistribution[0].hostCount}–${hostClusterDistribution.at(-1)?.hostCount} Hosts`
+    : "Keine Cluster";
 
   const vmsForTable = useMemo<OverviewVmRow[]>(
     () =>
@@ -156,14 +155,26 @@ export default function Overview() {
         </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Hosts je Cluster</h3>
+            <div className="mb-3 w-fit cursor-help">
+              <h3 className="text-sm font-semibold text-muted-foreground">Host-Verteilung je Cluster</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatNum(clusterCount)} Cluster · {hostCountRange}
+              </p>
+            </div>
           </InfoTooltip>
-          <ResponsiveContainer width="100%" height={Math.max(240, clusterData.length * 32)}>
-            <BarChart data={clusterData} layout="vertical" margin={{ left: 12 }}>
-              <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={145} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="hosts" fill={SEVERITY_COLORS[0]} radius={[0, 4, 4, 0]} />
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={hostClusterDistribution} margin={{ top: 12, right: 12, left: -18, bottom: 4 }}>
+              <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+              <XAxis dataKey="hostCount" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "Hosts je Cluster", position: "insideBottom", offset: -1, ...CHART_AXIS_STYLE }} />
+              <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} label={{ value: "Cluster", angle: -90, position: "insideLeft", offset: 10, ...CHART_AXIS_STYLE }} />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                labelFormatter={(value) => `${formatNum(Number(value))} Hosts je Cluster`}
+                formatter={(value: number) => [formatNum(value), "Cluster"]}
+              />
+              <Bar dataKey="clusterCount" name="Cluster" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
             </BarChart>
           </ResponsiveContainer>
         </div>
