@@ -51,7 +51,7 @@ export default function Impressum() {
           <img
             src="/favicon-master.png"
             alt="RVTools Analyzer Logo"
-            className="h-40 w-40 rounded-[2rem] object-cover shadow-[0_20px_55px_-25px_hsl(var(--primary)/0.7)] outline outline-1 outline-white/10 sm:h-48 sm:w-48"
+            className="h-40 w-40 rounded-[2rem] object-cover shadow-[0_20px_55px_-25px_hsl(var(--primary)/0.7)] outline outline-1 outline-black/10 sm:h-48 sm:w-48 dark:outline-white/10"
           />
         </div>
       </section>

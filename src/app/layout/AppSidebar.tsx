@@ -104,7 +104,7 @@ export function AppSidebar() {
           src="/favicon-master.png"
           alt=""
           aria-hidden="true"
-          className="h-8 w-8 rounded-md object-cover outline outline-1 outline-white/10"
+          className="h-8 w-8 rounded-md object-cover outline outline-1 outline-black/10 dark:outline-white/10"
         />
         <div className="flex flex-col">
           <span className="text-sm font-semibold text-foreground">RVTools</span>
