@@ -91,7 +91,9 @@ export default function Overview() {
   const clusterData = useMemo(() => {
     const map = new Map<string, number>();
     for (const h of hosts) { if (h.cluster) map.set(h.cluster, (map.get(h.cluster) || 0) + 1); }
-    return [...map.entries()].map(([name, count]) => ({ name, hosts: count })).slice(0, 10);
+    return [...map.entries()]
+      .map(([name, count]) => ({ name, hosts: count }))
+      .sort((a, b) => b.hosts - a.hosts || a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" }));
   }, [hosts]);
 
   const vmsForTable = useMemo<OverviewVmRow[]>(
@@ -156,12 +158,12 @@ export default function Overview() {
           <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Hosts je Cluster</h3>
           </InfoTooltip>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={clusterData}>
-              <XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+          <ResponsiveContainer width="100%" height={Math.max(240, clusterData.length * 32)}>
+            <BarChart data={clusterData} layout="vertical" margin={{ left: 12 }}>
+              <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" width={145} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="hosts" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="hosts" fill={SEVERITY_COLORS[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

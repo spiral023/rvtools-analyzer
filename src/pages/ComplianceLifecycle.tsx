@@ -67,7 +67,7 @@ function ComplianceTabPanel({
   uuidMissing: number;
   annotationEmpty: number;
   complianceVms: ComplianceVm[];
-  vcenterVersions: Array<{ name: string; fullname: string; apiVersion: string }>;
+  vcenterVersions: Array<{ name: string; fullname: string; version: string; build: string; apiVersion: string }>;
   hwVersionChart: Array<{ name: string; value: number }>;
   globalFilter: string;
   onOpenVmDetail: (row: unknown) => void;
@@ -88,7 +88,24 @@ function ComplianceTabPanel({
           <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterVersion} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Globe className="h-4 w-4" /> vCenter Versionsstand</h3>
           </InfoTooltip>
-          <div className="space-y-2">{vcenterVersions.map((v) => (<div key={`${v.name}-${v.fullname}-${v.apiVersion}`} className="flex flex-wrap gap-4 text-sm"><span className="font-semibold">{v.name}</span><span className="font-mono-data text-xs text-muted-foreground">{v.fullname}</span><span className="text-xs text-muted-foreground">API: {v.apiVersion}</span></div>))}</div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {vcenterVersions.map((v) => (
+              <div key={`${v.name}-${v.fullname}-${v.apiVersion}`} className="group rounded-md border border-border/60 bg-background/30 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5 rounded bg-primary/10 p-1.5 text-primary"><Server className="h-3.5 w-3.5" /></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold" title={v.name}>{v.name || "vCenter Server"}</p>
+                    <p className="mt-0.5 truncate font-mono-data text-[11px] text-muted-foreground" title={v.fullname}>{v.fullname || v.version || "Version nicht gemeldet"}</p>
+                  </div>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/50 pt-2 text-xs">
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Version</dt><dd className="mt-0.5 font-mono-data text-foreground">{v.version || "—"}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Build</dt><dd className="mt-0.5 font-mono-data text-foreground">{v.build || "—"}</dd></div>
+                  <div className="col-span-2"><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">API</dt><dd className="mt-0.5 font-mono-data text-foreground">{v.apiVersion || "—"}</dd></div>
+                </dl>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -273,8 +290,11 @@ function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<No
       cell: ({ row }) => (
         <button
           type="button"
-          className="font-mono-data hover:underline"
-          onClick={() => onSelectHost(row.original.host)}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelectHost(row.original.host);
+          }}
         >
           {row.original.host}
         </button>

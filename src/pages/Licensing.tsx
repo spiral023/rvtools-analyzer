@@ -7,11 +7,9 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Key, AlertTriangle, CheckCircle2, Power, Database, Server } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
+import { Key, AlertTriangle, CheckCircle2, Power, Database, Server, Gauge } from "lucide-react";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { formatRvtoolsDate } from "@/lib/vmDetail";
-import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   LICENSING_KPI,
@@ -81,7 +79,10 @@ export default function Licensing() {
   const critUtil = licenses.filter((l) => l.usedPct > 95).length;
   const expiring = licenses.filter((l) => l.expiration !== "Never" && l.expiration !== "—").length;
 
-  const utilizationChart = useMemo(() => licenses.map((l) => ({ name: l.name.length > 25 ? l.name.slice(0, 22) + "…" : l.name, usedPct: Math.round(l.usedPct * 10) / 10 })), [licenses]);
+  const utilizationLicenses = useMemo(
+    () => [...licenses].sort((a, b) => b.usedPct - a.usedPct),
+    [licenses],
+  );
 
   // Idle/Shutdown Candidates
   const idleCandidates = useMemo<IdleRow[]>(() => {
@@ -136,14 +137,29 @@ export default function Licensing() {
         <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} info={LICENSING_KPI.datastores} />
       </KpiGrid>
 
-      {utilizationChart.length > 0 && (
+      {utilizationLicenses.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <InfoTooltip entry={LICENSING_SECTIONS.utilizationChart} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Lizenzauslastung</h3>
+            <h3 className="mb-1 flex w-fit items-center gap-2 cursor-help text-sm font-semibold text-muted-foreground"><Gauge className="h-4 w-4" /> Lizenzauslastung</h3>
           </InfoTooltip>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={utilizationChart} layout="vertical"><XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="name" width={180} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="usedPct" radius={[0, 4, 4, 0]}>{utilizationChart.map((entry) => <Cell key={entry.name} fill={entry.usedPct > 95 ? CHART_COLORS.danger : entry.usedPct > 85 ? CHART_COLORS.warning : CHART_COLORS.success} />)}</Bar></BarChart>
-          </ResponsiveContainer>
+          <p className="mb-4 text-xs text-muted-foreground">Karten zeigen Verbrauch, Restkapazität und den Schwellenstatus je Lizenz auf einen Blick.</p>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {utilizationLicenses.map((license) => {
+              const severity = license.usedPct > 95 ? "crit" : license.usedPct > 85 ? "warn" : "ok";
+              const accentClass = severity === "crit" ? "bg-destructive" : severity === "warn" ? "bg-warning" : "bg-success";
+              const textClass = severity === "crit" ? "text-destructive" : severity === "warn" ? "text-warning" : "text-success";
+              return (
+                <div key={`${license.name}-${license.key}`} className="rounded-md border border-border/60 bg-background/30 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold" title={license.name}>{license.name || "Unbenannte Lizenz"}</p><p className="mt-0.5 text-xs text-muted-foreground">{license.costUnit || "Einheiten"}</p></div>
+                    <span className={`shrink-0 font-mono-data text-lg font-semibold ${textClass}`}>{formatPct(license.usedPct)}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full transition-all ${accentClass}`} style={{ width: `${Math.min(license.usedPct, 100)}%` }} /></div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground"><span><span className="font-mono-data text-foreground">{formatNum(license.used)}</span> verwendet</span><span><span className="font-mono-data text-foreground">{formatNum(Math.max(license.total - license.used, 0))}</span> frei</span></div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -35,7 +35,7 @@ export function InfoTooltip({
       <TooltipContent
         side={side}
         align={align}
-        className="max-w-[300px] border-border/80 bg-popover p-0 shadow-lg"
+        className="max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal break-words border-border/80 bg-popover p-0 shadow-lg"
       >
         <GlossaryCard entry={entry} />
       </TooltipContent>

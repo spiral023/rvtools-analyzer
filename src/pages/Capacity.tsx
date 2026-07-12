@@ -14,6 +14,7 @@ import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
 import { aggregateCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import {
   CAPACITY_KPI,
   CAPACITY_RISK_KPI,
@@ -366,8 +367,11 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   }},
   { accessorKey: "hotHosts", header: "Hot Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hotHosts }, cell: ({ row }) => {
     const hotHosts = row.original.hotHosts;
-    const hosts = row.original.hosts || 1;
-    return `${hotHosts}/${hosts}`;
+    const hosts = row.original.hosts;
+    const severity = getHotHostSeverity(hotHosts, hosts);
+    const className = severity === "crit" ? "text-destructive font-semibold" : severity === "warn" ? "text-warning font-semibold" : "text-success font-semibold";
+    const percentage = hosts > 0 ? (hotHosts / hosts) * 100 : 0;
+    return <span className={className}>{hotHosts}/{hosts} <span className="text-xs font-normal">({percentage.toFixed(0)} %)</span></span>;
   }},
   { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => {
     const v = getValue() as boolean | null;
