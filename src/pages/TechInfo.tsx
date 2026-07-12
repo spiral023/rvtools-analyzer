@@ -13,6 +13,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { applyVmScopeToVms } from "@/lib/vmScope";
+import { partitionTechInfoByActiveVms } from "@/lib/techInfoVmScope";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   TECHINFO_KPI,
@@ -20,7 +21,7 @@ import {
   TECHINFO_CLIENT_COLUMNS,
   TECHINFO_SECTIONS,
 } from "@/lib/glossaries/techInfo";
-import type { TechInfoClientLatest } from "@/domain/models/types";
+import type { NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 
 interface TechInfoVmRow {
   vmName: string;
@@ -99,6 +100,14 @@ const clientColumns: ColumnDef<TechInfoClientLatest, unknown>[] = [
   { accessorKey: "domain", header: "Domäne", meta: { info: TECHINFO_CLIENT_COLUMNS.domain }, cell: ({ getValue }) => getValue() || "—" },
 ];
 
+const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
+  { accessorKey: "vmName", header: "VM" },
+  { accessorKey: "cluster", header: "Cluster", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "host", header: "Host", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "powerState", header: "Power-Status", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "osConfig", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
+];
+
 export default function TechInfo() {
   const { snapshots, filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
@@ -132,29 +141,34 @@ export default function TechInfo() {
     return map;
   }, [techInfoLatest]);
 
+  const { serverVms, clientRows, vmsWithoutTechInfo } = useMemo(
+    () => partitionTechInfoByActiveVms(scopeVms, techInfoLatest, techInfoClients),
+    [scopeVms, techInfoLatest, techInfoClients],
+  );
+
   const rows = useMemo<TechInfoVmRow[]>(
     () =>
-      scopeVms.map((vm) => {
-        const techInfo = byVmName.get(vm.vmName.trim().toLowerCase()) ?? null;
+      serverVms.map((vm) => {
+        const techInfo = byVmName.get(vm.vmName.trim().toLowerCase())!;
         return {
           vmName: vm.vmName,
-          serverType: techInfo?.serverType ?? null,
-          maintenanceWindow: techInfo?.maintenanceWindow ?? null,
-          operatingSystem: techInfo?.operatingSystem ?? null,
-          comment: techInfo?.comment ?? null,
-          sysv: techInfo?.sysv ?? null,
-          sysvDepartment: techInfo?.sysvDepartment ?? null,
-          sysvDeputy: techInfo?.sysvDeputy ?? null,
-          sysvDeputyConflict: techInfo ? hasIdenticalSysvAndDeputy(techInfo.sysv, techInfo.sysvDeputy) : null,
-          sysvDeputyDepartment: techInfo?.sysvDeputyDepartment ?? null,
-          bz: techInfo?.bz ?? null,
-          clusterFromTechInfo: techInfo?.clusterFromTechInfo ?? null,
-          cvBackup: techInfo?.cvBackup ?? null,
-          az: techInfo?.az ?? null,
-          hasTechInfo: techInfo !== null,
+          serverType: techInfo.serverType,
+          maintenanceWindow: techInfo.maintenanceWindow,
+          operatingSystem: techInfo.operatingSystem,
+          comment: techInfo.comment,
+          sysv: techInfo.sysv,
+          sysvDepartment: techInfo.sysvDepartment,
+          sysvDeputy: techInfo.sysvDeputy,
+          sysvDeputyConflict: hasIdenticalSysvAndDeputy(techInfo.sysv, techInfo.sysvDeputy),
+          sysvDeputyDepartment: techInfo.sysvDeputyDepartment,
+          bz: techInfo.bz,
+          clusterFromTechInfo: techInfo.clusterFromTechInfo,
+          cvBackup: techInfo.cvBackup,
+          az: techInfo.az,
+          hasTechInfo: true,
         };
       }),
-    [scopeVms, byVmName],
+    [serverVms, byVmName],
   );
 
   const searchedRows = useMemo(() => {
@@ -188,8 +202,8 @@ export default function TechInfo() {
     const byClientNameAsc = (a: TechInfoClientLatest, b: TechInfoClientLatest) =>
       a.clientName.localeCompare(b.clientName, "de-DE", { numeric: true, sensitivity: "base" });
     const q = filters.search.trim().toLowerCase();
-    if (!q) return techInfoClients.slice().sort(byClientNameAsc);
-    return techInfoClients.filter((row) => {
+    if (!q) return clientRows.slice().sort(byClientNameAsc);
+    return clientRows.filter((row) => {
       const values = [
         row.clientName, row.blz, row.standort, row.ip, row.macAddress, row.poolName,
         row.modifiedBy, row.modifiedAt, row.createdBy, row.createdAt, row.user,
@@ -198,13 +212,24 @@ export default function TechInfo() {
       ];
       return values.some((v) => String(v ?? "").toLowerCase().includes(q));
     }).sort(byClientNameAsc);
-  }, [techInfoClients, filters.search]);
+  }, [clientRows, filters.search]);
 
-  const vmTotal = searchedRows.length;
-  const vmWithTechInfo = searchedRows.filter((row) => row.hasTechInfo).length;
-  const vmWithoutTechInfo = vmTotal - vmWithTechInfo;
+  const searchedUnassignedRows = useMemo(() => {
+    const byVmNameAsc = (a: NormalizedVm, b: NormalizedVm) =>
+      a.vmName.localeCompare(b.vmName, "de-DE", { numeric: true, sensitivity: "base" });
+    const q = filters.search.trim().toLowerCase();
+    if (!q) return vmsWithoutTechInfo.slice().sort(byVmNameAsc);
+    return vmsWithoutTechInfo.filter((vm) => {
+      const values = [vm.vmName, vm.cluster, vm.host, vm.powerState, vm.osConfig];
+      return values.some((value) => String(value ?? "").toLowerCase().includes(q));
+    }).sort(byVmNameAsc);
+  }, [filters.search, vmsWithoutTechInfo]);
 
-  if (snapshots.length === 0 && techInfoClients.length === 0) {
+  const vmTotal = scopeVms.length;
+  const vmWithoutTechInfoTotal = vmsWithoutTechInfo.length;
+  const vmWithTechInfo = vmTotal - vmWithoutTechInfoTotal;
+
+  if (snapshots.length === 0) {
     return (
       <div className="space-y-6 animate-fade-in">
         <h1 className="text-2xl font-bold">Tech-Info</h1>
@@ -226,7 +251,7 @@ export default function TechInfo() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
         <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />
-        <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfo)} severity={vmWithoutTechInfo > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
+        <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfoTotal)} severity={vmWithoutTechInfoTotal > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
       </div>
       <div>
         <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">
@@ -243,6 +268,10 @@ export default function TechInfo() {
         ) : (
           <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
         )}
+      </div>
+      <div>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs ohne Tech-Info ({searchedUnassignedRows.length})</h3>
+        <VirtualTable data={searchedUnassignedRows} columns={unassignedColumns} height={460} onRowClick={openVmDetail} />
       </div>
       {vmDetailDialog}
       {clientDetailDialog}
