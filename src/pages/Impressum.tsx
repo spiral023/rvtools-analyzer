@@ -3,11 +3,14 @@ import {
   Database,
   Mail,
   MapPin,
+  RotateCcw,
   ShieldCheck,
   Workflow,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useOnboarding } from "@/hooks/useOnboarding";
 
 const privacyFacts = [
   {
@@ -31,6 +34,8 @@ const privacyFacts = [
 ];
 
 export default function Impressum() {
+  const { openOnboarding } = useOnboarding();
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8">
       <section className="grid overflow-hidden rounded-2xl bg-card shadow-[0_0_0_1px_hsl(var(--border)),0_24px_64px_-40px_hsl(var(--primary)/0.45)] lg:grid-cols-[1.35fr_0.65fr]">
@@ -45,6 +50,15 @@ export default function Impressum() {
             Der RVTools Analyzer wertet RVTools-XLSX-Exporte lokal aus und macht Informationen zu Infrastruktur,
             Kapazität, Performance, Netzwerk, Hardware und Lifecycle übersichtlich nutzbar.
           </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-7 w-fit"
+            onClick={openOnboarding}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+            Onboarding erneut starten
+          </Button>
         </div>
 
         <div className="flex min-h-56 items-center justify-center bg-primary/[0.06] p-10 lg:min-h-80">

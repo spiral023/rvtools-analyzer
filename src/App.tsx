@@ -8,6 +8,9 @@ import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { AppLayout } from "@/app/layout/AppLayout";
+import { ImportProvider } from "@/hooks/useImportController";
+import { OnboardingProvider } from "@/hooks/useOnboarding";
+import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
@@ -54,37 +57,42 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <FilterProvider>
-            <SelectionProvider>
-            <AppLayout>
-              <Suspense fallback={<PageFallback />}>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/overview" replace />} />
-                  <Route path="/overview" element={<Overview />} />
-                  <Route path="/upload" element={<UploadSnapshots />} />
-                  <Route path="/upload/diagnostics" element={<Diagnostics />} />
-                  <Route path="/daily-ops" element={<DailyOps />} />
-                  <Route path="/capacity" element={<Capacity />} />
-                  <Route path="/performance" element={<PerformancePage />} />
-                  <Route path="/storage-backup" element={<StorageBackup />} />
-                  <Route path="/network-security" element={<Networking initialTab="security" />} />
-                  <Route path="/host-network" element={<Networking initialTab="host" />} />
-                  <Route path="/compliance" element={<ComplianceLifecycle />} />
-                  <Route path="/hardware" element={<Hardware />} />
-                  <Route path="/licensing" element={<Licensing />} />
-                  <Route path="/tech-info" element={<TechInfo />} />
-                  <Route path="/vmware-versions" element={<ComplianceLifecycle initialTab="versions" />} />
-                  <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
-                  <Route path="/planning" element={<Planning />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/fleet-compare" element={<FleetCompare />} />
-                  <Route path="/impressum" element={<Impressum />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </AppLayout>
-            </SelectionProvider>
-          </FilterProvider>
+          <ImportProvider>
+            <OnboardingProvider>
+              <FilterProvider>
+                <SelectionProvider>
+                  <AppLayout>
+                    <Suspense fallback={<PageFallback />}>
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/overview" replace />} />
+                        <Route path="/overview" element={<Overview />} />
+                        <Route path="/upload" element={<UploadSnapshots />} />
+                        <Route path="/upload/diagnostics" element={<Diagnostics />} />
+                        <Route path="/daily-ops" element={<DailyOps />} />
+                        <Route path="/capacity" element={<Capacity />} />
+                        <Route path="/performance" element={<PerformancePage />} />
+                        <Route path="/storage-backup" element={<StorageBackup />} />
+                        <Route path="/network-security" element={<Networking initialTab="security" />} />
+                        <Route path="/host-network" element={<Networking initialTab="host" />} />
+                        <Route path="/compliance" element={<ComplianceLifecycle />} />
+                        <Route path="/hardware" element={<Hardware />} />
+                        <Route path="/licensing" element={<Licensing />} />
+                        <Route path="/tech-info" element={<TechInfo />} />
+                        <Route path="/vmware-versions" element={<ComplianceLifecycle initialTab="versions" />} />
+                        <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
+                        <Route path="/planning" element={<Planning />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/fleet-compare" element={<FleetCompare />} />
+                        <Route path="/impressum" element={<Impressum />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </Suspense>
+                  </AppLayout>
+                  <OnboardingDialog />
+                </SelectionProvider>
+              </FilterProvider>
+            </OnboardingProvider>
+          </ImportProvider>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
