@@ -1,13 +1,22 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ImportResult } from "@/domain/models/types";
+import { importRvtoolsXlsx } from "@/domain/services/importService";
 import { ImportProvider } from "@/hooks/useImportController";
 import {
   ONBOARDING_STORAGE_KEY,
   OnboardingProvider,
 } from "@/hooks/useOnboarding";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+
+vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn() }));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+
+const mockedImport = vi.mocked(importRvtoolsXlsx);
 
 function renderDialog() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -25,7 +34,10 @@ function renderDialog() {
 }
 
 describe("OnboardingDialog", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    mockedImport.mockReset();
+  });
 
   it("zeigt vier Seiten und schließt mit gespeichertem Status ab", () => {
     renderDialog();
@@ -47,5 +59,54 @@ describe("OnboardingDialog", () => {
 
     expect(localStorage.getItem(ONBOARDING_STORAGE_KEY)).toBe("seen");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("setzt die Tour während eines laufenden Imports fort", async () => {
+    let finishImport!: (value: ImportResult) => void;
+    mockedImport.mockImplementation((_file, onProgress) => {
+      onProgress?.({ step: "Rohdaten speichern", percent: 61, detail: "infra.xlsx" });
+      return new Promise((resolve) => {
+        finishImport = resolve;
+      });
+    });
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Tour starten" }));
+
+    fireEvent.change(screen.getByLabelText(/Excel-Dateien auswählen/i), {
+      target: { files: [new File(["x"], "infra.xlsx")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(screen.getByRole("heading", { name: "Der globale Systemfilter" })).toBeInTheDocument();
+    expect(await screen.findByText("61 %")).toBeInTheDocument();
+    await act(async () => {
+      finishImport({ success: true, fileKind: "rvtools", warnings: [], errors: [] });
+    });
+    expect(await screen.findByText("Import abgeschlossen")).toBeInTheDocument();
+  });
+
+  it("bietet nach einem Importfehler eine neue Auswahl und die Upload-Seite an", async () => {
+    mockedImport.mockResolvedValue({
+      success: false,
+      fileKind: "rvtools",
+      warnings: [],
+      errors: ["Datei beschädigt"],
+    });
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Tour starten" }));
+
+    fireEvent.change(screen.getByLabelText(/Excel-Dateien auswählen/i), {
+      target: { files: [new File(["x"], "broken.xlsx")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("broken.xlsx: Datei beschädigt");
+    expect(screen.getByRole("link", { name: "Zu Uploads & Snapshots" })).toHaveAttribute(
+      "href",
+      "/upload",
+    );
+    expect(screen.getByLabelText("Andere Excel-Dateien auswählen")).toHaveAttribute("multiple");
   });
 });

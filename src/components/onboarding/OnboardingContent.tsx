@@ -7,6 +7,53 @@ import {
   Server,
   ShieldCheck,
 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useImportController } from "@/hooks/useImportController";
+
+function ImportRecovery() {
+  const { importing, items, importFiles } = useImportController();
+  const failedItems = items.filter((item) => item.status === "error");
+
+  if (failedItems.length === 0) return null;
+
+  return (
+    <div
+      role="alert"
+      className="mt-6 rounded-2xl border border-destructive/40 bg-destructive/5 p-4"
+    >
+      <p className="font-semibold">Mindestens eine Datei konnte nicht importiert werden.</p>
+      <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
+        {failedItems.map((item) => (
+          <li key={item.id}>
+            {item.fileName}: {item.result?.errors.join(", ")}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <label className="inline-flex min-h-10 cursor-pointer items-center rounded-md border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent">
+          Andere Dateien auswählen
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            multiple
+            disabled={importing}
+            className="sr-only"
+            aria-label="Andere Excel-Dateien auswählen"
+            onChange={(event) => {
+              if (event.target.files) void importFiles(event.target.files);
+            }}
+          />
+        </label>
+        <Link
+          to="/upload"
+          className="inline-flex min-h-10 items-center rounded-md px-4 text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Zu Uploads &amp; Snapshots
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export function WelcomePage() {
   return (
@@ -134,6 +181,7 @@ export function FeaturesPage() {
         AUCH DABEI · DAILY OPS · CAPACITY · PERFORMANCE · STORAGE/BACKUP · LIFECYCLE ·
         FLEET COMPARE · PLANUNG
       </p>
+      <ImportRecovery />
     </section>
   );
 }

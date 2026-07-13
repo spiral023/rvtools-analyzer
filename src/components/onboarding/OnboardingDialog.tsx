@@ -12,6 +12,8 @@ import {
   WelcomePage,
 } from "@/components/onboarding/OnboardingContent";
 import { OnboardingImportPage } from "@/components/onboarding/OnboardingImportPage";
+import { OnboardingImportStatus } from "@/components/onboarding/OnboardingImportStatus";
+import { useImportController } from "@/hooks/useImportController";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +34,7 @@ function OnboardingPage({ page }: { page: number }) {
 
 export function OnboardingDialog() {
   const navigate = useNavigate();
+  const { items } = useImportController();
   const { open, page, direction, dismiss, next, previous } = useOnboarding();
 
   const finish = () => {
@@ -51,6 +54,7 @@ export function OnboardingDialog() {
             <span className="font-mono text-xs text-primary">0{page + 1} / 04</span>
             <p className="text-sm font-medium">{pageTitles[page]}</p>
           </div>
+          {page >= 1 && items.length > 0 ? <OnboardingImportStatus /> : null}
           <button
             type="button"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
