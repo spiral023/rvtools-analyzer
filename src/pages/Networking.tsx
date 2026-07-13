@@ -6,8 +6,9 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NetworkSecurityPanel } from "@/pages/NetworkSecurity";
 import { HostNetworkPanel } from "@/pages/HostNetwork";
+import { VlanUsagePanel } from "@/pages/VlanUsage";
 
-type NetworkTab = "security" | "host";
+type NetworkTab = "security" | "host" | "vlan";
 
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
   const { snapshots } = useActiveSnapshotIds();
@@ -34,6 +35,7 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
         <TabsList className="h-auto w-full justify-start gap-1 p-1">
           <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
           <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
+          <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="security" className="space-y-4">
@@ -42,6 +44,10 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
 
         <TabsContent value="host" className="space-y-4">
           <HostNetworkPanel />
+        </TabsContent>
+
+        <TabsContent value="vlan" className="space-y-4">
+          <VlanUsagePanel />
         </TabsContent>
       </Tabs>
     </div>

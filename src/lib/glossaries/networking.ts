@@ -466,3 +466,70 @@ export const NET_HOST_SECTIONS: Record<string, GlossaryEntry> = {
       "vmnic-genaue Sicht über alle Hosts: welcher Uplink an welchem Switch und Port hängt. Nutze die Suche, um einzelne Hosts zu isolieren; ein Klick öffnet die Host-Details.",
   },
 };
+
+/* ================================================================== */
+/*  Tab „VLAN-Nutzung“ (VlanUsagePanel)                               */
+/* ================================================================== */
+
+export const NET_VLANUSAGE_KPI: Record<string, GlossaryEntry> = {
+  activeVlans: {
+    term: "Aktive VLANs",
+    description:
+      "Anzahl unterschiedlicher VLAN-IDs, an denen mindestens ein VM-Adapter verbunden ist (Connected = true). Portgruppen ohne VLAN-Match sind nicht mitgezählt.",
+    source: `${RV} · vNetwork · „Connected“/„Network“ · join vPort/dvPort`,
+  },
+  clusters: {
+    term: "Cluster",
+    description: "Anzahl der Cluster mit verbundenen VM-Adaptern in dieser Ansicht (inkl. Portgruppen ohne VLAN-Match).",
+    source: `${RV} · vNetwork · „Cluster“ (Fallback vInfo)`,
+  },
+  connectedVms: {
+    term: "Verbundene VMs",
+    description:
+      "Anzahl unterschiedlicher VMs mit mindestens einem verbundenen Netzwerkadapter (Connected = true).",
+    source: `${RV} · vNetwork · „VM“/„Connected“`,
+  },
+  unmatched: {
+    term: "Ohne Portgruppen-Match",
+    description:
+      "VMs, deren verbundene Portgruppe in vPort/dvPort keiner VLAN-ID zugeordnet werden konnte (VLAN „?“). Hinweis auf fehlende/uneinheitliche Portgruppen-Daten.",
+    source: `${RV} · vNetwork · „Network“ ohne Treffer in vPort/dvPort`,
+  },
+};
+
+export const NET_VLANUSAGE_COLUMNS: Record<string, GlossaryEntry> = {
+  cluster: {
+    term: "Cluster",
+    description: "Cluster, in dem das VLAN aktiv genutzt wird. „Unbekannt“, wenn keine Cluster-Angabe vorliegt.",
+    source: `${RV} · vNetwork · „Cluster“ (Fallback vInfo · „Cluster“)`,
+  },
+  vlan: {
+    term: "VLAN",
+    description: "VLAN-ID der genutzten Portgruppe. „0 (untagged)“ = kein Tagging, „?“ = kein Portgruppen-Match.",
+    source: `${RV} · vPort · „VLAN“ / dvPort · „VLAN“`,
+  },
+  portgroups: {
+    term: "Portgruppe(n)",
+    description: "Alle verbundenen Portgruppen dieses VLANs im Cluster.",
+    source: `${RV} · vNetwork · „Network“`,
+  },
+  vmCount: {
+    term: "# VMs",
+    description: "Anzahl unterschiedlicher VMs mit verbundenem Adapter in diesem VLAN und Cluster.",
+    source: `${RV} · vNetwork · „VM“`,
+  },
+  hostCount: {
+    term: "# Hosts",
+    description: "Anzahl unterschiedlicher ESXi-Hosts, auf denen diese VMs laufen.",
+    source: `${RV} · vNetwork · „Host“`,
+  },
+};
+
+export const NET_VLANUSAGE_SECTIONS: Record<string, GlossaryEntry> = {
+  table: {
+    term: "VLAN-Nutzung pro Cluster",
+    description:
+      "Welche VLANs innerhalb eines Clusters tatsächlich von VMs genutzt werden (verbundene Adapter). Ergänzt die konfigurationsbasierte VLAN-Verteilung um die reale Nutzung. Join: vNetwork → vPort/dvPort über den Portgruppen-Namen.",
+    source: `${RV} · vNetwork · join vPort/dvPort`,
+  },
+};
