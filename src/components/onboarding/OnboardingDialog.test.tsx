@@ -61,6 +61,18 @@ describe("OnboardingDialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("kennzeichnet die adaptive Onboarding-Fläche und den Fortschritt", () => {
+    renderDialog();
+
+    const page = screen.getByRole("heading", { name: /Infrastruktur/ }).closest("main");
+    expect(page).toHaveAttribute("data-direction", "forward");
+    expect(page).toHaveClass("onboarding-page");
+    expect(screen.getByRole("dialog")).toHaveClass("onboarding-surface", "bg-background");
+    expect(screen.getByLabelText("Onboarding-Fortschritt")).toHaveClass(
+      "onboarding-progress-track",
+    );
+  });
+
   it("setzt die Tour während eines laufenden Imports fort", async () => {
     let finishImport!: (value: ImportResult) => void;
     mockedImport.mockImplementation((_file, onProgress) => {

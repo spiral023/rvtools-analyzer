@@ -44,7 +44,7 @@ export function OnboardingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && dismiss()}>
-      <DialogContent className="flex h-[84vh] w-[90vw] max-w-[1360px] flex-col gap-0 overflow-hidden border-primary/20 bg-background p-0 max-sm:h-[96dvh] max-sm:w-[96vw] sm:rounded-2xl">
+      <DialogContent className="onboarding-surface flex h-[84vh] w-[90vw] max-w-[1360px] flex-col gap-0 overflow-hidden border-primary/20 bg-background p-0 max-sm:h-[96dvh] max-sm:w-[96vw] sm:rounded-2xl">
         <DialogTitle className="sr-only">Einführung in den RVTools Analyzer</DialogTitle>
         <DialogDescription className="sr-only">
           Vierseitige Produkttour mit optionalem Excel-Import.
@@ -79,7 +79,7 @@ export function OnboardingDialog() {
           >
             Zurück
           </Button>
-          <div className="flex gap-2" aria-label="Onboarding-Fortschritt">
+          <div className="onboarding-progress-track" aria-label="Onboarding-Fortschritt">
             {pageTitles.map((title, index) => (
               <span
                 key={title}

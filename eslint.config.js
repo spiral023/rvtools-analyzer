@@ -32,6 +32,8 @@ export default tseslint.config(
       "src/components/ui/**/*.{ts,tsx}",
       "src/app/layout/ThemeProvider.tsx",
       "src/hooks/useFilterState.tsx",
+      "src/hooks/useImportController.tsx",
+      "src/hooks/useOnboarding.tsx",
       "src/hooks/useSelection.tsx",
     ],
     rules: {
