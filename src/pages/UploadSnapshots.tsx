@@ -6,8 +6,7 @@ import {
   estimateSnapshotSizesBytes, estimateTechInfoImportSizesBytes, estimateTechInfoClientImportSizesBytes,
 } from "@/data/db";
 import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
-import { importRvtoolsXlsx } from "@/domain/services/importService";
-import type { ImportProgress } from "@/domain/services/importService";
+import { fileKindLabel, useImportController } from "@/hooks/useImportController";
 import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,50 +15,32 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import type { ImportFileKind, ImportResult, SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta } from "@/domain/models/types";
+import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta } from "@/domain/models/types";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
   | { kind: "tech-info"; id: string; importedAt: string; techInfo: TechInfoImportMeta }
   | { kind: "tech-info-client"; id: string; importedAt: string; techInfoClient: TechInfoClientImportMeta };
 
-function fileKindLabel(kind: ImportFileKind | undefined): string {
-  if (kind === "tech-info") return "Tech-Info Server";
-  if (kind === "tech-info-client") return "Tech-Info Client";
-  return "RVTools";
-}
-
 type UploadState = {
-  importing: boolean;
   dragOver: boolean;
-  lastResult: ImportResult | null;
   deleteAllOpen: boolean;
-  progress: ImportProgress | null;
   deleting: boolean;
   deleteProgress: DeleteProgress | null;
 };
 
 type UploadAction =
-  | { type: "set-importing"; value: boolean }
   | { type: "set-drag-over"; value: boolean }
-  | { type: "set-last-result"; value: ImportResult | null }
   | { type: "set-delete-all-open"; value: boolean }
-  | { type: "set-progress"; value: ImportProgress | null }
   | { type: "set-deleting"; value: boolean }
   | { type: "set-delete-progress"; value: DeleteProgress | null };
 
 function uploadReducer(state: UploadState, action: UploadAction): UploadState {
   switch (action.type) {
-    case "set-importing":
-      return { ...state, importing: action.value };
     case "set-drag-over":
       return { ...state, dragOver: action.value };
-    case "set-last-result":
-      return { ...state, lastResult: action.value };
     case "set-delete-all-open":
       return { ...state, deleteAllOpen: action.value };
-    case "set-progress":
-      return { ...state, progress: action.value };
     case "set-deleting":
       return { ...state, deleting: action.value };
     case "set-delete-progress":
@@ -91,16 +72,17 @@ function useUploadSnapshotsView() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputId = "snapshot-upload-input";
+  const { importing, items, importFiles } = useImportController();
   const [uploadState, dispatch] = useReducer(uploadReducer, {
-    importing: false,
     dragOver: false,
-    lastResult: null,
     deleteAllOpen: false,
-    progress: null,
     deleting: false,
     deleteProgress: null,
   });
-  const { importing, dragOver, lastResult, deleteAllOpen, progress, deleting, deleteProgress } = uploadState;
+  const { dragOver, deleteAllOpen, deleting, deleteProgress } = uploadState;
+  const activeItem = items.find((item) => item.status === "running") ?? items.at(-1) ?? null;
+  const progress = activeItem?.progress ?? null;
+  const lastResult = [...items].reverse().find((item) => item.result)?.result ?? null;
 
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
@@ -141,31 +123,8 @@ function useUploadSnapshotsView() {
   const invalidateAll = useCallback(() => { queryClient.invalidateQueries(); refetch(); }, [queryClient, refetch]);
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const xlsxFiles = Array.from(files).filter((f) =>
-      f.name.endsWith(".xlsx") || f.name.endsWith(".xls") || f.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    if (xlsxFiles.length === 0) { toast.error("Keine gültige XLSX-Datei ausgewählt."); return; }
-    dispatch({ type: "set-importing", value: true });
-    const importFileAt = async (index: number): Promise<void> => {
-      const file = xlsxFiles[index];
-      if (!file) return;
-      try {
-        dispatch({ type: "set-progress", value: { step: "Vorbereitung", percent: 0, detail: file.name } });
-        const result = await importRvtoolsXlsx(file, (nextProgress) => dispatch({ type: "set-progress", value: nextProgress }));
-        dispatch({ type: "set-last-result", value: result });
-        const kindLabel = fileKindLabel(result.fileKind);
-        if (result.success) toast.success(`"${file.name}" (${kindLabel}) erfolgreich importiert.`);
-        else toast.error(`Fehler bei "${file.name}" (${kindLabel}): ${result.errors.join(", ")}`);
-      } catch (err) {
-        toast.error(`Import fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      await importFileAt(index + 1);
-    };
-    await importFileAt(0);
-    dispatch({ type: "set-importing", value: false });
-    dispatch({ type: "set-progress", value: null });
-    invalidateAll();
-  }, [invalidateAll]);
+    await importFiles(files);
+  }, [importFiles]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); dispatch({ type: "set-drag-over", value: false });
@@ -243,7 +202,7 @@ function useUploadSnapshotsView() {
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
       >
-        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple disabled={importing} className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
