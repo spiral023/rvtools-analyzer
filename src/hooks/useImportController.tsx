@@ -72,10 +72,12 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
 
       const allFiles = Array.from(input);
-      const validFiles = allFiles.filter(isSpreadsheetFile);
-      const rejected = allFiles
-        .filter((file) => !isSpreadsheetFile(file))
-        .map((file) => file.name);
+      const validFiles: File[] = [];
+      const rejected: string[] = [];
+      for (const file of allFiles) {
+        if (isSpreadsheetFile(file)) validFiles.push(file);
+        else rejected.push(file.name);
+      }
       setRejectedFileNames(rejected);
 
       if (rejected.length > 0) {

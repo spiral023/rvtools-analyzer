@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,8 +35,17 @@ function OnboardingPage({ page }: { page: number }) {
 
 export function OnboardingDialog() {
   const navigate = useNavigate();
+  const pageRef = useRef<HTMLElement>(null);
   const { items } = useImportController();
   const { open, page, direction, dismiss, next, previous } = useOnboarding();
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      pageRef.current?.querySelector<HTMLElement>(".onboarding-heading")?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, page]);
 
   const finish = () => {
     dismiss();
@@ -64,6 +74,7 @@ export function OnboardingDialog() {
           </button>
         </header>
         <main
+          ref={pageRef}
           key={page}
           data-direction={direction}
           className="onboarding-page flex-1 overflow-y-auto p-6 sm:p-10"
