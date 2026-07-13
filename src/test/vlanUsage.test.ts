@@ -87,4 +87,15 @@ describe("buildVlanUsage", () => {
     const rows = buildVlanUsage(vNetwork, vPort, [], []);
     expect(rows.map((r) => `${r.cluster}/${r.vlan}`)).toEqual(["Alpha/20", "Alpha/10", "Beta/10"]);
   });
+
+  it("keeps cluster names that contain spaces intact and groups correctly", () => {
+    const vPort = [row({ "Port Group": "PG-Web", VLAN: "100" })];
+    const vNetwork = [
+      row({ VM: "v1", Network: "PG-Web", Connected: true, Cluster: "Prod Cluster", Host: "h1" }),
+      row({ VM: "v2", Network: "PG-Web", Connected: true, Cluster: "Prod Cluster", Host: "h2" }),
+    ];
+    const rows = buildVlanUsage(vNetwork, vPort, [], []);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ cluster: "Prod Cluster", vlan: "100", vmCount: 2, hostCount: 2 });
+  });
 });

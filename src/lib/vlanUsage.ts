@@ -22,6 +22,8 @@ const isConnected = (v: unknown): boolean => v === true || s(v).toLowerCase() ==
 const normalizeVlan = (raw: string): string => (raw === "" || raw === "0" ? "0 (untagged)" : raw);
 
 interface Acc {
+  cluster: string;
+  vlan: string;
   portgroups: Set<string>;
   vms: Set<string>;
   hosts: Set<string>;
@@ -65,10 +67,10 @@ export function buildVlanUsage(
     if (!cluster) cluster = "Unbekannt";
     const host = s(r.data["Host"]);
 
-    const key = `${cluster} ${vlan}`;
+    const key = `${cluster}\0${vlan}`;
     let acc = groups.get(key);
     if (!acc) {
-      acc = { portgroups: new Set(), vms: new Set(), hosts: new Set() };
+      acc = { cluster, vlan, portgroups: new Set(), vms: new Set(), hosts: new Set() };
       groups.set(key, acc);
     }
     if (pg) acc.portgroups.add(pg);
@@ -77,18 +79,13 @@ export function buildVlanUsage(
   }
 
   const collator = new Intl.Collator("de-DE", { numeric: true, sensitivity: "base" });
-  return [...groups.entries()]
-    .map(([key, acc]) => {
-      const spaceIndex = key.indexOf(" ");
-      const cluster = key.substring(0, spaceIndex);
-      const vlan = key.substring(spaceIndex + 1);
-      return {
-        cluster,
-        vlan,
-        portgroups: [...acc.portgroups].sort((a, b) => collator.compare(a, b)).join(", "),
-        vmCount: acc.vms.size,
-        hostCount: acc.hosts.size,
-      };
-    })
+  return [...groups.values()]
+    .map((acc) => ({
+      cluster: acc.cluster,
+      vlan: acc.vlan,
+      portgroups: [...acc.portgroups].sort((a, b) => collator.compare(a, b)).join(", "),
+      vmCount: acc.vms.size,
+      hostCount: acc.hosts.size,
+    }))
     .sort((a, b) => collator.compare(a.cluster, b.cluster) || b.vmCount - a.vmCount);
 }
