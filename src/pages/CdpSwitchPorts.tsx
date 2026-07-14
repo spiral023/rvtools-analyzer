@@ -37,7 +37,7 @@ const columns: ColumnDef<CdpLatest, unknown>[] = [
     cell: ({ row, getValue }) => {
       const v = getValue() as string | null;
       if (!v) return "—";
-      return <div className="max-w-[280px] truncate" title={row.original.cdpSoftware ?? v}>{v}</div>;
+      return <div className="max-w-[280px] truncate" title={row.original.cdpSoftware ? `${v} — ${row.original.cdpSoftware}` : v}>{v}</div>;
     },
   },
   { accessorKey: "cdpPortId", header: "Port", meta: { info: NET_CDP_COLUMNS.cdpPortId }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
