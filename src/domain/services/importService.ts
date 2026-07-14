@@ -15,6 +15,11 @@ import {
   batchPutTechInfoClientRows,
   batchPutTechInfoClientLatest,
   getTechInfoClientLatestByClientNames,
+  getCdpImportByChecksum,
+  putCdpImport,
+  batchPutCdpRows,
+  batchPutCdpLatest,
+  getCdpLatestByHostAdapterKeys,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -29,6 +34,9 @@ import {
   normalizeVcenterId,
   isTechInfoNewerOrEqual,
   TECH_INFO_CLIENT_REQUIRED_HEADERS,
+  CDP_REQUIRED_HEADERS,
+  mapCdpDisplayFields,
+  buildHostAdapterKey,
 } from "@/lib/xlsx/parseHelpers";
 import { shortId } from "@/lib/shortId";
 import type {
@@ -49,6 +57,8 @@ import type {
   TechInfoRow,
   TechInfoClientLatest,
   TechInfoClientRow,
+  CdpRow,
+  CdpLatest,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -438,6 +448,20 @@ export async function importRvtoolsXlsx(
       return await importTechInfoClientXlsx(file, checksum, parsed, warnings, errors, report);
     }
 
+    if (parsed.fileKind === "cdp") {
+      return await importCdpCsv(file, checksum, parsed, warnings, errors, report);
+    }
+
+    // CSV-Dateien, die keine CDP-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
+    const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+    if (isCsv) {
+      return {
+        success: false,
+        warnings,
+        errors: [...errors, "Keine gültige CDP-CSV erkannt (erwartete Spalten: VMHost, PhysicalAdapter, CDPDeviceID, CDPAvailable)."],
+      };
+    }
+
     return await importRvtoolsParsed(file, checksum, parsed, warnings, errors, report, importStartedAt);
   } catch (err) {
     return { success: false, warnings, errors: [...errors, err instanceof Error ? err.message : String(err)] };
@@ -791,4 +815,122 @@ async function importTechInfoClientXlsx(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Tech-Info-Client Zeilen`);
   return { success: true, fileKind: "tech-info-client", warnings, errors, sheetStats };
+}
+
+const CDP_UI_HEADERS = [
+  "vCenter", "Cluster", "HostConnectionState", "LinkStatus", "MACAddress",
+  "CDPPortID", "CDPManagementIP", "CDPSwitchAddress", "CDPHardwarePlatform",
+  "CDPSoftwareVersion", "CDPNativeVLAN", "CDPMTU", "QueryStatus",
+] as const;
+
+function findCdpSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    CDP_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+export async function importCdpCsv(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getCdpImportByChecksum(checksum);
+  if (existing) {
+    return {
+      success: false,
+      fileKind: "cdp",
+      warnings: [],
+      errors: ["Diese CDP-Datei wurde bereits importiert."],
+    };
+  }
+
+  const cdpSheet = findCdpSheet(parsed.sheets);
+  if (!cdpSheet) {
+    return {
+      success: false,
+      fileKind: "cdp",
+      warnings,
+      errors: [...errors, "Keine gültige CDP-CSV erkannt (erwartete Spalten: VMHost, PhysicalAdapter, CDPDeviceID, CDPAvailable)."],
+    };
+  }
+
+  for (const header of CDP_UI_HEADERS) {
+    if (!cdpSheet.headers.includes(header)) {
+      warnings.push(`CDP Spalte "${header}" fehlt. Wert wird als leer übernommen.`);
+    }
+  }
+
+  const importedAt = new Date().toISOString();
+  const cdpImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [cdpSheet.sheetName]: { rowCount: cdpSheet.rows.length, columnCount: cdpSheet.headers.length },
+  };
+
+  report("CDP Metadaten speichern", 35);
+  await putCdpImport({
+    cdpImportId,
+    importedAt,
+    fileName: file.name,
+    fileChecksum: checksum,
+    rowCount: cdpSheet.rows.length,
+    columnCount: cdpSheet.headers.length,
+  });
+
+  report("CDP Zeilen speichern", 45, `${cdpSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  const fullRows: CdpRow[] = [];
+  const latestCandidates = new Map<string, CdpLatest>();
+  for (let i = 0; i < cdpSheet.rows.length; i++) {
+    const row = cdpSheet.rows[i];
+    const host = toStr(row["VMHost"]);
+    const adapter = toStr(row["PhysicalAdapter"]);
+    if (!host || !adapter) {
+      warnings.push(`CDP Zeile ${i + 1}: VMHost oder PhysicalAdapter ist leer, Zeile wurde übersprungen.`);
+      continue;
+    }
+
+    const hostNorm = normalizeVmNameForMatch(host);
+    const hostAdapterKey = buildHostAdapterKey(host, adapter);
+    fullRows.push({
+      cdpImportId,
+      rowIndex: i,
+      host,
+      hostNorm,
+      adapter,
+      hostAdapterKey,
+      importedAt,
+      rawData: toRawRowData(row),
+    });
+
+    latestCandidates.set(hostAdapterKey, {
+      hostAdapterKey,
+      hostNorm,
+      host,
+      adapter,
+      importedAt,
+      cdpImportId,
+      rowIndex: i,
+      ...mapCdpDisplayFields(row),
+    });
+  }
+
+  await batchPutCdpRows(fullRows, 5000);
+
+  report("CDP Latest aktualisieren", 75);
+  const existingLatest = await getCdpLatestByHostAdapterKeys([...latestCandidates.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.hostAdapterKey, entry]));
+  const latestUpdates: CdpLatest[] = [];
+  for (const [key, candidate] of latestCandidates.entries()) {
+    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutCdpLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} CDP Zeilen`);
+  return { success: true, fileKind: "cdp", warnings, errors, sheetStats };
 }
