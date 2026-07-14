@@ -9,6 +9,8 @@ interface EmptyStateProps {
   description: string;
   actionLabel?: string;
   actionTo?: string;
+  /** Zusätzliche Aktion(en), unterhalb des Primär-Buttons gerendert (z. B. ein sekundärer Button). */
+  children?: ReactNode;
 }
 
 export function EmptyState({
@@ -17,6 +19,7 @@ export function EmptyState({
   description,
   actionLabel,
   actionTo,
+  children,
 }: EmptyStateProps) {
   const navigate = useNavigate();
 
@@ -29,14 +32,14 @@ export function EmptyState({
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
         {description}
       </p>
-      {actionLabel && actionTo && (
-        <Button
-          className="mt-4"
-          onClick={() => navigate(actionTo)}
-        >
-          {actionLabel}
-        </Button>
-      )}
+      {(actionLabel && actionTo) || children ? (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {actionLabel && actionTo && (
+            <Button onClick={() => navigate(actionTo)}>{actionLabel}</Button>
+          )}
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

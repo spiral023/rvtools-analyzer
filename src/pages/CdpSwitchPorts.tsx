@@ -1,16 +1,21 @@
-import { useMemo } from "react";
-import { Cable, HelpCircle, Router, Server } from "lucide-react";
+import { lazy, Suspense, useMemo, useState } from "react";
+import { Cable, FileCode2, HelpCircle, Router, Server } from "lucide-react";
 import { useActiveSnapshotIds, useAllCdpLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Button } from "@/components/ui/button";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { filterCdpRows } from "@/lib/cdp";
 import { NET_CDP_KPI, NET_CDP_COLUMNS, NET_CDP_SECTIONS } from "@/lib/glossaries/networking";
 import type { CdpLatest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
+
+// Lazy: prism + PowerShell-Grammatik landen in einem eigenen Chunk und werden
+// erst geladen, wenn das Skript-Fenster geöffnet wird.
+const CdpScriptDialog = lazy(() => import("@/components/network/CdpScriptDialog"));
 
 function textCell(value: string | null) {
   return value ?? "—";
@@ -51,6 +56,7 @@ const columns: ColumnDef<CdpLatest, unknown>[] = [
 export function CdpPanel() {
   const { filters } = useActiveSnapshotIds();
   const { data: allRows = [] } = useAllCdpLatest();
+  const [scriptOpen, setScriptOpen] = useState(false);
 
   const rows = useMemo(() => filterCdpRows(allRows, filters), [allRows, filters]);
 
@@ -64,15 +70,29 @@ export function CdpPanel() {
     [rows],
   );
 
+  const scriptDialog = scriptOpen ? (
+    <Suspense fallback={null}>
+      <CdpScriptDialog open={scriptOpen} onClose={() => setScriptOpen(false)} />
+    </Suspense>
+  ) : null;
+
   if (allRows.length === 0) {
     return (
-      <EmptyState
-        icon={<Cable className="h-6 w-6" />}
-        title="Keine CDP-Daten"
-        description="Laden Sie eine CDP-CSV auf der Upload-Seite hoch, um die physische Switch-Anbindung auszuwerten."
-        actionLabel="Zum Upload"
-        actionTo="/upload"
-      />
+      <>
+        <EmptyState
+          icon={<Cable className="h-6 w-6" />}
+          title="Keine CDP-Daten"
+          description="Laden Sie eine CDP-CSV auf der Upload-Seite hoch, um die physische Switch-Anbindung auszuwerten."
+          actionLabel="Zum Upload"
+          actionTo="/upload"
+        >
+          <Button variant="outline" onClick={() => setScriptOpen(true)}>
+            <FileCode2 className="mr-1.5 h-4 w-4" />
+            Abruf-Skript anzeigen
+          </Button>
+        </EmptyState>
+        {scriptDialog}
+      </>
     );
   }
 
@@ -86,11 +106,18 @@ export function CdpPanel() {
       </KpiGrid>
 
       <div>
-        <InfoTooltip entry={NET_CDP_SECTIONS.table} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Switch-Ports pro Adapter ({rows.length})</h3>
-        </InfoTooltip>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <InfoTooltip entry={NET_CDP_SECTIONS.table} side="bottom">
+            <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Switch-Ports pro Adapter ({rows.length})</h3>
+          </InfoTooltip>
+          <Button variant="outline" size="sm" onClick={() => setScriptOpen(true)}>
+            <FileCode2 className="mr-1.5 h-4 w-4" />
+            Abruf-Skript
+          </Button>
+        </div>
         <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="cdp-switch-ports" />
       </div>
+      {scriptDialog}
     </div>
   );
 }
