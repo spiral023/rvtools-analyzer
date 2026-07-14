@@ -300,3 +300,119 @@ describe("Tech-Info import listing and deletion", () => {
     expect(latest.operatingSystem).toBe("Windows");
   });
 });
+
+describe("CDP import listing and deletion", () => {
+  const makeLatest = (over: Partial<import("@/domain/models/types").CdpLatest>): import("@/domain/models/types").CdpLatest => ({
+    hostAdapterKey: "esx01::vmnic0",
+    hostNorm: "esx01",
+    host: "esx01",
+    adapter: "vmnic0",
+    importedAt: "2026-01-02T00:00:00.000Z",
+    cdpImportId: "cdp-new",
+    rowIndex: 0,
+    vcenter: null, cluster: null, hostConnectionState: null, linkStatus: null,
+    mac: null, cdpDeviceId: null, cdpPortId: null, cdpMgmtIp: null,
+    cdpSwitchAddress: null, cdpPlatform: null, cdpSoftware: null,
+    nativeVlan: null, mtu: null, cdpAvailable: null, queryStatus: null,
+    ...over,
+  });
+
+  it("lists CDP imports and restores older latest rows after deleting the newest import", async () => {
+    const {
+      batchPutCdpLatest, batchPutCdpRows, deleteCdpImport,
+      getCdpImports, getAllCdpLatest, getCdpLatestByHostAdapterKeys, putCdpImport,
+    } = await import("./index");
+
+    await putCdpImport({
+      cdpImportId: "cdp-old", importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: "cdp-old.csv", fileChecksum: "old", rowCount: 1, columnCount: 18,
+    });
+    await putCdpImport({
+      cdpImportId: "cdp-new", importedAt: "2026-01-02T00:00:00.000Z",
+      fileName: "cdp-new.csv", fileChecksum: "new", rowCount: 1, columnCount: 18,
+    });
+
+    await batchPutCdpRows([
+      {
+        cdpImportId: "cdp-old", rowIndex: 0, host: "esx01", hostNorm: "esx01",
+        adapter: "vmnic0", hostAdapterKey: "esx01::vmnic0",
+        importedAt: "2026-01-01T00:00:00.000Z",
+        rawData: { VMHost: "esx01", PhysicalAdapter: "vmnic0", CDPDeviceID: "switch-alt", CDPAvailable: "True" },
+      },
+      {
+        cdpImportId: "cdp-new", rowIndex: 0, host: "esx01", hostNorm: "esx01",
+        adapter: "vmnic0", hostAdapterKey: "esx01::vmnic0",
+        importedAt: "2026-01-02T00:00:00.000Z",
+        rawData: { VMHost: "esx01", PhysicalAdapter: "vmnic0", CDPDeviceID: "switch-neu", CDPAvailable: "True" },
+      },
+    ]);
+    await batchPutCdpLatest([makeLatest({ cdpDeviceId: "switch-neu", cdpAvailable: true })]);
+
+    const imports = await getCdpImports();
+    expect(imports.map((entry) => entry.cdpImportId)).toEqual(["cdp-new", "cdp-old"]);
+
+    await deleteCdpImport("cdp-new");
+
+    const remaining = await getCdpImports();
+    expect(remaining.map((entry) => entry.cdpImportId)).toEqual(["cdp-old"]);
+
+    const [latest] = await getCdpLatestByHostAdapterKeys(["esx01::vmnic0"]);
+    expect(latest.cdpImportId).toBe("cdp-old");
+    expect(latest.cdpDeviceId).toBe("switch-alt");
+
+    const all = await getAllCdpLatest();
+    expect(all).toHaveLength(1);
+  });
+
+  it("removes latest entries entirely when the only import is deleted", async () => {
+    const { batchPutCdpLatest, batchPutCdpRows, deleteCdpImport, getAllCdpLatest, putCdpImport } =
+      await import("./index");
+
+    await putCdpImport({
+      cdpImportId: "cdp-only", importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: "cdp.csv", fileChecksum: "only", rowCount: 1, columnCount: 18,
+    });
+    await batchPutCdpRows([
+      {
+        cdpImportId: "cdp-only", rowIndex: 0, host: "esx02", hostNorm: "esx02",
+        adapter: "vmnic1", hostAdapterKey: "esx02::vmnic1",
+        importedAt: "2026-01-01T00:00:00.000Z",
+        rawData: { VMHost: "esx02", PhysicalAdapter: "vmnic1", CDPDeviceID: "sw", CDPAvailable: "True" },
+      },
+    ]);
+    await batchPutCdpLatest([
+      makeLatest({ hostAdapterKey: "esx02::vmnic1", hostNorm: "esx02", host: "esx02", adapter: "vmnic1", cdpImportId: "cdp-only", importedAt: "2026-01-01T00:00:00.000Z" }),
+    ]);
+
+    await deleteCdpImport("cdp-only");
+    await expect(getAllCdpLatest()).resolves.toHaveLength(0);
+  });
+
+  it("estimates per-import sizes and includes cdp stores in deleteAllData", async () => {
+    const { putCdpImport, batchPutCdpRows, estimateCdpImportSizesBytes, deleteAllData, getCdpImports } =
+      await import("./index");
+    await putCdpImport({
+      cdpImportId: "cdp-1", importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: "cdp.csv", fileChecksum: "c1", rowCount: 2, columnCount: 18,
+    });
+    await batchPutCdpRows([
+      {
+        cdpImportId: "cdp-1", rowIndex: 0, host: "esx01", hostNorm: "esx01",
+        adapter: "vmnic0", hostAdapterKey: "esx01::vmnic0",
+        importedAt: "2026-01-01T00:00:00.000Z", rawData: { VMHost: "esx01" },
+      },
+      {
+        cdpImportId: "cdp-1", rowIndex: 1, host: "esx01", hostNorm: "esx01",
+        adapter: "vmnic1", hostAdapterKey: "esx01::vmnic1",
+        importedAt: "2026-01-01T00:00:00.000Z", rawData: { VMHost: "esx01" },
+      },
+    ]);
+
+    const sizes = await estimateCdpImportSizesBytes(["cdp-1", "cdp-unbekannt"]);
+    expect(sizes["cdp-1"]).toBeGreaterThan(0);
+    expect(sizes["cdp-unbekannt"]).toBe(0);
+
+    await deleteAllData();
+    await expect(getCdpImports()).resolves.toHaveLength(0);
+  });
+});
