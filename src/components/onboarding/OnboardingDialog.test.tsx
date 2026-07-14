@@ -73,6 +73,18 @@ describe("OnboardingDialog", () => {
     );
   });
 
+  it("fokussiert beim ersten Öffnen den Dialog statt eines Bedienelements", async () => {
+    renderDialog();
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+
+    expect(screen.getByRole("heading", { name: /Infrastruktur/ })).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "Überspringen" })).not.toHaveFocus();
+    expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
   it("setzt die Tour während eines laufenden Imports fort", async () => {
     let finishImport!: (value: ImportResult) => void;
     mockedImport.mockImplementation((_file, onProgress) => {

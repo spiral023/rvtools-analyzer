@@ -35,12 +35,13 @@ function OnboardingPage({ page }: { page: number }) {
 
 export function OnboardingDialog() {
   const navigate = useNavigate();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const { items } = useImportController();
   const { open, page, direction, dismiss, next, previous } = useOnboarding();
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || page === 0) return;
     const frame = requestAnimationFrame(() => {
       pageRef.current?.querySelector<HTMLElement>(".onboarding-heading")?.focus();
     });
@@ -54,7 +55,14 @@ export function OnboardingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && dismiss()}>
-      <DialogContent className="onboarding-surface flex h-[84vh] w-[90vw] max-w-[1360px] flex-col gap-0 overflow-hidden border-primary/20 bg-background p-0 max-sm:h-[96dvh] max-sm:w-[96vw] sm:rounded-2xl">
+      <DialogContent
+        ref={dialogRef}
+        className="onboarding-surface flex h-[84vh] w-[90vw] max-w-[1360px] flex-col gap-0 overflow-hidden border-primary/20 bg-background p-0 outline-none max-sm:h-[96dvh] max-sm:w-[96vw] sm:rounded-2xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          dialogRef.current?.focus();
+        }}
+      >
         <DialogTitle className="sr-only">Einführung in den RVTools Analyzer</DialogTitle>
         <DialogDescription className="sr-only">
           Vierseitige Produkttour mit optionalem Excel-Import.
