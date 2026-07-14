@@ -36,18 +36,21 @@ interface ImportContextValue {
 
 const ImportContext = createContext<ImportContextValue | null>(null);
 
-export function isSpreadsheetFile(file: File): boolean {
+export function isSupportedImportFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return (
     name.endsWith(".xlsx") ||
     name.endsWith(".xls") ||
-    file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    name.endsWith(".csv") ||
+    file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.type === "text/csv"
   );
 }
 
 export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "tech-info") return "Tech-Info Server";
   if (kind === "tech-info-client") return "Tech-Info Client";
+  if (kind === "cdp") return "CDP-Netzwerkdaten";
   return "RVTools";
 }
 
@@ -75,7 +78,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       const validFiles: File[] = [];
       const rejected: string[] = [];
       for (const file of allFiles) {
-        if (isSpreadsheetFile(file)) validFiles.push(file);
+        if (isSupportedImportFile(file)) validFiles.push(file);
         else rejected.push(file.name);
       }
       setRejectedFileNames(rejected);
@@ -89,8 +92,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       const queued: ImportQueueItem[] = validFiles.map((file, index) => ({
         id: `${batchId}-${index}-${file.name}`,
         fileName: file.name,
-        progress: null,
-        result: null,
+        progress: null as ImportProgress | null,
+        result: null as ImportResult | null,
         status: "queued",
       }));
 
