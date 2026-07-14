@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -150,6 +150,52 @@ export interface TechInfoClientLatest {
   hwChanges: string | null;
   monitoring: string | null;
   domain: string | null;
+}
+
+export interface CdpImportMeta {
+  cdpImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+export interface CdpRow {
+  cdpImportId: string;
+  rowIndex: number;
+  host: string;
+  hostNorm: string;
+  adapter: string;
+  /** `${hostNorm}::${adapterNorm}` — Primärschlüssel in cdp_latest, Index in cdp_rows. */
+  hostAdapterKey: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface CdpLatest {
+  hostAdapterKey: string;
+  hostNorm: string;
+  host: string;
+  adapter: string;
+  importedAt: string;
+  cdpImportId: string;
+  rowIndex: number;
+  vcenter: string | null;
+  cluster: string | null;
+  hostConnectionState: string | null;
+  linkStatus: string | null;
+  mac: string | null;
+  cdpDeviceId: string | null;
+  cdpPortId: string | null;
+  cdpMgmtIp: string | null;
+  cdpSwitchAddress: string | null;
+  cdpPlatform: string | null;
+  cdpSoftware: string | null;
+  nativeVlan: string | null;
+  mtu: string | null;
+  cdpAvailable: boolean | null;
+  queryStatus: string | null;
 }
 
 export interface MaintenanceSettings {

@@ -18,11 +18,14 @@ import type {
   TechInfoClientImportMeta,
   TechInfoClientRow,
   TechInfoClientLatest,
+  CdpImportMeta,
+  CdpRow,
+  CdpLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   Scenario,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -81,6 +84,21 @@ interface RVToolsDBSchema extends DBSchema {
     value: TechInfoClientLatest;
     indexes: { importedAt: string };
   };
+  cdp_imports: {
+    key: string;
+    value: CdpImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  cdp_rows: {
+    key: [string, number];
+    value: CdpRow;
+    indexes: { cdpImportId: string; hostAdapterKey: string };
+  };
+  cdp_latest: {
+    key: string;
+    value: CdpLatest;
+    indexes: { hostNorm: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -102,19 +120,21 @@ export type StoreName = "snapshots" | "rawSheets" | "rawSheetHeaders" | "entitie
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest"
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
+  | "cdp_imports" | "cdp_rows" | "cdp_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "scenarios";
 type SnapshotScopedStoreName = "rawSheets" | "rawSheetHeaders" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 17;
+const DB_VERSION = 18;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheets", "rawSheetHeaders", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
   "techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest",
+  "cdp_imports", "cdp_rows", "cdp_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "scenarios",
 ];
 
@@ -199,6 +219,21 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         if (!db.objectStoreNames.contains("techinfo_client_latest")) {
           const latest = db.createObjectStore("techinfo_client_latest", { keyPath: "clientNameNorm" });
           latest.createIndex("importedAt", "importedAt");
+        }
+        // v18: CDP-Netzwerkdaten (CSV-Import) — Muster wie Tech-Info.
+        if (!db.objectStoreNames.contains("cdp_imports")) {
+          const imports = db.createObjectStore("cdp_imports", { keyPath: "cdpImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("cdp_rows")) {
+          const rows = db.createObjectStore("cdp_rows", { keyPath: ["cdpImportId", "rowIndex"] });
+          rows.createIndex("cdpImportId", "cdpImportId");
+          rows.createIndex("hostAdapterKey", "hostAdapterKey");
+        }
+        if (!db.objectStoreNames.contains("cdp_latest")) {
+          const latest = db.createObjectStore("cdp_latest", { keyPath: "hostAdapterKey" });
+          latest.createIndex("hostNorm", "hostNorm");
         }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
@@ -498,6 +533,42 @@ export async function batchPutTechInfoClientLatest(items: TechInfoClientLatest[]
   await batchPut("techinfo_client_latest", items, batchSize);
 }
 
+export async function getCdpImportByChecksum(checksum: string): Promise<CdpImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("cdp_imports", "fileChecksum", checksum);
+}
+
+export async function getCdpImports(): Promise<CdpImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("cdp_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+export async function putCdpImport(meta: CdpImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("cdp_imports", meta);
+}
+
+export async function batchPutCdpRows(items: CdpRow[], batchSize = 5000): Promise<void> {
+  await batchPut("cdp_rows", items, batchSize);
+}
+
+export async function batchPutCdpLatest(items: CdpLatest[], batchSize = 5000): Promise<void> {
+  await batchPut("cdp_latest", items, batchSize);
+}
+
+export async function getAllCdpLatest(): Promise<CdpLatest[]> {
+  const db = await getDb();
+  return db.getAll("cdp_latest");
+}
+
+export async function getCdpLatestByHostAdapterKeys(keys: string[]): Promise<CdpLatest[]> {
+  if (keys.length === 0) return [];
+  const db = await getDb();
+  const values = await Promise.all([...new Set(keys)].map((key) => db.get("cdp_latest", key)));
+  return values.filter((v): v is CdpLatest => Boolean(v));
+}
+
 /* ---------- diagnostics ---------- */
 
 export interface StoreDiagnostics {
@@ -564,8 +635,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -617,6 +688,17 @@ export async function estimateTechInfoClientImportSizesBytes(importIds: string[]
   return Object.fromEntries(entries);
 }
 
+/** Geschätzte IndexedDB-Größe je CDP-Import. */
+export async function estimateCdpImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "cdp_rows", "cdpImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
+}
+
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -663,6 +745,9 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   techinfo_client_imports: "Tech-Info Client Importe",
   techinfo_client_rows: "Tech-Info Client Zeilen",
   techinfo_client_latest: "Tech-Info Client Latest",
+  cdp_imports: "CDP Importe",
+  cdp_rows: "CDP Zeilen",
+  cdp_latest: "CDP Latest",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   scenarios: "Szenarien",
@@ -686,7 +771,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheets" | "rawSheetHeaders" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows",
+  storeName: "rawSheets" | "rawSheetHeaders" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -873,4 +958,46 @@ export async function deleteTechInfoClientImport(techInfoClientImportId: string)
   await db.delete("techinfo_client_imports", techInfoClientImportId);
   await deleteTechInfoClientRowsByImportId(techInfoClientImportId);
   await Promise.all([...affectedClientNames].map((clientNameNorm) => rebuildTechInfoClientLatestForClient(clientNameNorm)));
+}
+
+function buildCdpLatestFromRow(row: CdpRow): CdpLatest {
+  return {
+    hostAdapterKey: row.hostAdapterKey,
+    hostNorm: row.hostNorm,
+    host: row.host,
+    adapter: row.adapter,
+    importedAt: row.importedAt,
+    cdpImportId: row.cdpImportId,
+    rowIndex: row.rowIndex,
+    ...mapCdpDisplayFields(row.rawData),
+  };
+}
+
+async function rebuildCdpLatestForKey(hostAdapterKey: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("cdp_rows", "hostAdapterKey", hostAdapterKey);
+  const latestRow = rows.reduce<CdpRow | null>((latest, row) => {
+    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
+    return latest;
+  }, null);
+
+  if (!latestRow) {
+    await db.delete("cdp_latest", hostAdapterKey);
+    return;
+  }
+
+  await db.put("cdp_latest", buildCdpLatestFromRow(latestRow));
+}
+
+export async function deleteCdpImport(cdpImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("cdp_rows", "cdpImportId", cdpImportId);
+  const affectedKeys = new Set<string>();
+  for (const row of rows) {
+    if (row.hostAdapterKey) affectedKeys.add(row.hostAdapterKey);
+  }
+
+  await db.delete("cdp_imports", cdpImportId);
+  await deleteByKeyPrefix("cdp_rows", cdpImportId);
+  await Promise.all([...affectedKeys].map((key) => rebuildCdpLatestForKey(key)));
 }

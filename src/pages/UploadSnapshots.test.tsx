@@ -11,8 +11,8 @@ const { importFiles } = vi.hoisted(() => ({
 vi.mock("@/hooks/useImportController", () => ({
   useImportController: () => ({
     importing: false,
-    items: [],
-    rejectedFileNames: [],
+    items: [] as import("@/hooks/useImportController").ImportQueueItem[],
+    rejectedFileNames: [] as string[],
     importFiles,
     clearImportState: vi.fn(),
   }),
@@ -41,7 +41,7 @@ describe("UploadSnapshots", () => {
       </QueryClientProvider>,
     );
     const input = screen.getByLabelText(
-      /RVTools, Tech-Info Server oder Tech-Info Client XLSX-Datei/i,
+      /RVTools, Tech-Info oder CDP-Datei/i,
     );
     const files = [new File(["a"], "a.xlsx"), new File(["b"], "b.xlsx")];
 
