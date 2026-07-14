@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedCluster, NormalizedDatastore, NormalizedHost, NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
+import type { HardwareModelGroup } from "@/lib/hardwareVariants";
 import {
   buildClientDetailMarkdown,
   buildClusterDetailMarkdown,
   buildHostDetailMarkdown,
+  buildHardwareVariantMarkdown,
   buildVmDetailMarkdown,
 } from "@/lib/detailMarkdown";
 
@@ -118,6 +120,22 @@ const datastore: NormalizedDatastore = {
   siocEnabled: true,
 };
 
+const hardwareVariant: HardwareModelGroup = {
+  signature: "dell|r750",
+  modelLabel: "PowerEdge R750",
+  models: ["PowerEdge R750"],
+  vendor: "Dell Inc.",
+  cpuModel: "Intel Xeon Gold",
+  cpuSockets: 2,
+  coresPerCpu: 24,
+  totalCores: 48,
+  speedMHz: 2200,
+  memoryMiB: 524288,
+  memoryValuesMiB: [524288],
+  hosts: [host, { ...host, host: "esx02.local" }],
+  count: 2,
+};
+
 const techInfoClient: TechInfoClientLatest = {
   clientNameNorm: "vdi-client-01",
   clientName: "VDI-CLIENT-01",
@@ -173,6 +191,17 @@ describe("detail markdown builders", () => {
     expect(markdown).toContain("| RAM | 512.0 GiB |");
     expect(markdown).toContain("## Laufende VMs");
     expect(markdown).toContain("| APP-01 | poweredOn | 4 | 8.0 GiB |");
+  });
+
+  it("builds a hardware variant summary with cluster and host inventory", () => {
+    const markdown = buildHardwareVariantMarkdown(hardwareVariant);
+
+    expect(markdown).toContain("# Hardware-Variante PowerEdge R750");
+    expect(markdown).toContain("| Hosts | 2 |");
+    expect(markdown).toContain("## Cluster-Aufschlüsselung");
+    expect(markdown).toContain("| Cluster-A | 2 | 96 | 1.0 TiB | 40 |");
+    expect(markdown).toContain("## Hosts");
+    expect(markdown).toContain("| esx01.local | Cluster-A | 48 | 512.0 GiB | 20 |");
   });
 
   it("builds a client detail summary from tech-info data", () => {

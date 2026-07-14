@@ -7,6 +7,7 @@ import type {
   TechInfoClientLatest,
 } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
+import { buildVariantSummary, type HardwareModelGroup } from "@/lib/hardwareVariants";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 
@@ -282,6 +283,52 @@ export function buildHostDetailMarkdown(host: HostDetail, data: HostMarkdownData
         formatBytes(vm.memoryMiB),
         vm.cluster,
         vm.resourcePool,
+      ]),
+    ),
+  ].join("\n");
+}
+
+export function buildHardwareVariantMarkdown(group: HardwareModelGroup): string {
+  const summary = buildVariantSummary(group);
+
+  return [
+    `# Hardware-Variante ${group.modelLabel}`,
+    "",
+    section("Konfiguration", [
+      ["Hersteller", group.vendor],
+      ["Modell", group.modelLabel],
+      ["CPU Modell", group.cpuModel],
+      ["Sockel", group.cpuSockets],
+      ["Kerne/Sockel", group.coresPerCpu],
+      ["Takt", group.speedMHz ? `${formatNum(group.speedMHz)} MHz` : "—"],
+      ["Hosts", group.count],
+      ["CPU-Kerne gesamt", summary.totalCores],
+      ["CPU-Leistung gesamt", `${formatNum(summary.totalGhz)} GHz`],
+      ["RAM gesamt", formatBytes(summary.totalRamMiB)],
+      ["VMs", summary.totalVms],
+    ]),
+    "## Cluster-Aufschlüsselung",
+    "",
+    markdownTable(
+      ["Cluster", "Hosts", "Cores", "RAM", "VMs"],
+      summary.clusterBreakdown.map((cluster) => [
+        cluster.cluster,
+        cluster.hosts,
+        cluster.cores,
+        formatBytes(cluster.ramMiB),
+        cluster.vms,
+      ]),
+    ),
+    "## Hosts",
+    "",
+    markdownTable(
+      ["Host", "Cluster", "Cores", "RAM", "VMs"],
+      sortByName(group.hosts, (host) => host.host).map((host) => [
+        host.host,
+        host.cluster,
+        host.totalCores,
+        formatBytes(host.memoryMiB),
+        host.vmCount,
       ]),
     ),
   ].join("\n");

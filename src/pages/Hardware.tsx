@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,7 +27,7 @@ import {
 import { toast } from "sonner";
 import type { SheetRow, NormalizedVm } from "@/domain/models/types";
 import { buildHostDetails, bool, str, type HostDetail } from "@/lib/conversion";
-import { buildHostDetailMarkdown } from "@/lib/detailMarkdown";
+import { buildHardwareVariantMarkdown, buildHostDetailMarkdown } from "@/lib/detailMarkdown";
 import {
   buildHardwareModelGroups,
   buildVariantSummary,
@@ -411,7 +412,7 @@ function VariantSummaryTable({
 /*  Variant Detail Dialog                                              */
 /* ------------------------------------------------------------------ */
 
-function VariantDetailDialog({
+export function VariantDetailDialog({
   group,
   open,
   onClose,
@@ -437,9 +438,29 @@ function VariantDetailDialog({
     ["VMs Σ", String(summary.totalVms)],
   ];
 
+  const copyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(buildHardwareVariantMarkdown(group));
+      toast.success("Varianten-Details als Markdown kopiert.");
+    } catch {
+      toast.error("Varianten-Details konnten nicht kopiert werden.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden p-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => void copyMarkdown()}
+          className="absolute right-10 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="Varianten-Details als Markdown kopieren"
+          title="Als Markdown kopieren"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -453,6 +474,9 @@ function VariantDetailDialog({
               </p>
             </div>
           </div>
+          <DialogDescription className="sr-only">
+            Hardware-Variante mit Cluster- und Host-Übersicht
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(85vh-100px)]">
