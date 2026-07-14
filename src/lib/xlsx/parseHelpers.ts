@@ -15,7 +15,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -27,6 +27,7 @@ const RVTOOLS_CANONICAL_SHEETS = new Set([
 
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
 export const TECH_INFO_CLIENT_REQUIRED_HEADERS = ["Name", "BLZ", "MAC Adresse", "Poolname"] as const;
+export const CDP_REQUIRED_HEADERS = ["VMHost", "PhysicalAdapter", "CDPDeviceID", "CDPAvailable"] as const;
 
 export interface SheetShapeForDetection {
   sheetName: string;
@@ -89,6 +90,11 @@ export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFi
   );
   if (hasTechInfoClientHeaders) return "tech-info-client";
 
+  const hasCdpHeaders = sheets.some((sheet) =>
+    CDP_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasCdpHeaders) return "cdp";
+
   return "rvtools";
 }
 
@@ -142,6 +148,53 @@ export function mapTechInfoClientDisplayFields(row: Record<string, unknown>): Te
     monitoring: toStr(row["Monitoring"]),
     domain: toStr(row["Domäne"]),
   };
+}
+
+export interface CdpDisplayFields {
+  vcenter: string | null;
+  cluster: string | null;
+  hostConnectionState: string | null;
+  linkStatus: string | null;
+  mac: string | null;
+  cdpDeviceId: string | null;
+  cdpPortId: string | null;
+  cdpMgmtIp: string | null;
+  cdpSwitchAddress: string | null;
+  cdpPlatform: string | null;
+  cdpSoftware: string | null;
+  nativeVlan: string | null;
+  mtu: string | null;
+  cdpAvailable: boolean | null;
+  queryStatus: string | null;
+}
+
+export function mapCdpDisplayFields(row: Record<string, unknown>): CdpDisplayFields {
+  return {
+    vcenter: toStr(row["vCenter"]),
+    cluster: toStr(row["Cluster"]),
+    hostConnectionState: toStr(row["HostConnectionState"]),
+    linkStatus: toStr(row["LinkStatus"]),
+    mac: toStr(row["MACAddress"]),
+    cdpDeviceId: toStr(row["CDPDeviceID"]),
+    cdpPortId: toStr(row["CDPPortID"]),
+    cdpMgmtIp: toStr(row["CDPManagementIP"]),
+    cdpSwitchAddress: toStr(row["CDPSwitchAddress"]),
+    cdpPlatform: toStr(row["CDPHardwarePlatform"]),
+    cdpSoftware: toStr(row["CDPSoftwareVersion"]),
+    nativeVlan: toStr(row["CDPNativeVLAN"]),
+    mtu: toStr(row["CDPMTU"]),
+    cdpAvailable: toBool(row["CDPAvailable"]),
+    queryStatus: toStr(row["QueryStatus"]),
+  };
+}
+
+export function buildHostAdapterKey(host: string, adapter: string): string {
+  return `${normalizeVmNameForMatch(host)}::${adapter.trim().toLowerCase()}`;
+}
+
+/** vCenter-Anzeigename → vcenterId, identische Konvention wie beim RVTools-Import. */
+export function normalizeVcenterId(vcenterName: string): string {
+  return vcenterName.trim().toLowerCase().replace(/[^a-z0-9.-]/g, "_") || "unknown-vcenter";
 }
 
 export function isTechInfoNewerOrEqual(candidateImportedAt: string, currentImportedAt: string | null | undefined): boolean {

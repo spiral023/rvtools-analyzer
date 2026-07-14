@@ -26,6 +26,7 @@ import {
   mapTechInfoDisplayFields,
   mapTechInfoClientDisplayFields,
   normalizeVmNameForMatch,
+  normalizeVcenterId,
   isTechInfoNewerOrEqual,
   TECH_INFO_CLIENT_REQUIRED_HEADERS,
 } from "@/lib/xlsx/parseHelpers";
@@ -470,7 +471,7 @@ async function importRvtoolsParsed(
   const fileMeta = parseRvtoolsExportFileName(file.name);
   const vcenterDisplayName = (fileMeta?.vcenterName || parsed.vcenterName || "unknown-vcenter").trim();
   const exportTs = fileMeta?.exportTs || parsed.exportTs || new Date().toISOString();
-  const vcenterId = vcenterDisplayName.toLowerCase().replace(/[^a-z0-9.-]/g, "_") || "unknown-vcenter";
+  const vcenterId = normalizeVcenterId(vcenterDisplayName);
 
   const sheetStats: Record<string, SheetStats> = {};
   for (const sheet of parsed.sheets) {
