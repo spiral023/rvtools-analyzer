@@ -533,3 +533,103 @@ export const NET_VLANUSAGE_SECTIONS: Record<string, GlossaryEntry> = {
     source: `${RV} · vNetwork · join vPort/dvPort`,
   },
 };
+
+/* ================================================================== */
+/*  Tab „CDP/Switch-Ports"                                             */
+/* ================================================================== */
+
+const CDP = "CDP-CSV";
+
+export const NET_CDP_KPI: Record<string, GlossaryEntry> = {
+  hostsWithCdp: {
+    term: "Hosts mit CDP-Daten",
+    description:
+      "ESX-Hosts, für die mindestens ein physischer Adapter CDP-Nachbarschaftsdaten liefert. Grundlage für die Nachvollziehbarkeit der physischen Switch-Anbindung.",
+    source: `${CDP} · „VMHost" / „CDPAvailable"`,
+  },
+  adapters: {
+    term: "Physische Adapter",
+    description:
+      "Anzahl aller importierten physischen Adapter (vmnic/vusb) im aktuellen Filter — eine Zeile pro Host und Adapter, neuester Import gewinnt.",
+    source: `${CDP} · „PhysicalAdapter"`,
+  },
+  adaptersWithoutCdp: {
+    term: "Adapter ohne CDP-Daten",
+    description:
+      "Adapter, für die keine CDP-Daten vorliegen (z. B. USB-NICs oder Ports an Switches ohne CDP). Für Uplinks an Cisco-Switches ist ein fehlender CDP-Eintrag ein Hinweis auf deaktiviertes CDP oder einen inaktiven Link.",
+    source: `${CDP} · „CDPAvailable"`,
+  },
+  switches: {
+    term: "Eindeutige Switches",
+    description:
+      "Anzahl unterschiedlicher physischer Switches (CDP Device ID), an denen die gefilterten Hosts angeschlossen sind.",
+    source: `${CDP} · „CDPDeviceID"`,
+  },
+};
+
+export const NET_CDP_COLUMNS: Record<string, GlossaryEntry> = {
+  host: {
+    term: "Host",
+    description: "ESX-Host, zu dem der physische Adapter gehört.",
+    source: `${CDP} · „VMHost"`,
+  },
+  cluster: {
+    term: "Cluster",
+    description: "Cluster-Zuordnung des Hosts laut CDP-Export.",
+    source: `${CDP} · „Cluster"`,
+  },
+  adapter: {
+    term: "Adapter",
+    description: "Physischer Netzwerkadapter des Hosts (vmnic/vusb).",
+    source: `${CDP} · „PhysicalAdapter"`,
+  },
+  linkStatus: {
+    term: "Link",
+    description: "Link-Status des Adapters zum Zeitpunkt des Exports (Up/Down).",
+    source: `${CDP} · „LinkStatus"`,
+  },
+  cdpDeviceId: {
+    term: "Switch",
+    description: "CDP Device ID des angeschlossenen Switches. Tooltip zeigt die Software-Version.",
+    source: `${CDP} · „CDPDeviceID"`,
+  },
+  cdpPortId: {
+    term: "Port",
+    description: "Switch-Port, an dem der Adapter angeschlossen ist.",
+    source: `${CDP} · „CDPPortID"`,
+  },
+  nativeVlan: {
+    term: "Native VLAN",
+    description: "Native (untagged) VLAN des Switch-Ports laut CDP.",
+    source: `${CDP} · „CDPNativeVLAN"`,
+  },
+  mtu: {
+    term: "MTU",
+    description: "MTU des Switch-Ports laut CDP. Abweichungen innerhalb eines Clusters deuten auf inkonsistente Jumbo-Frame-Konfiguration hin.",
+    source: `${CDP} · „CDPMTU"`,
+  },
+  cdpPlatform: {
+    term: "Plattform",
+    description: "Hardware-Plattform des Switches (z. B. Nexus-Modell).",
+    source: `${CDP} · „CDPHardwarePlatform"`,
+  },
+  cdpMgmtIp: {
+    term: "Mgmt-IP",
+    description: "Management-IP-Adresse des Switches laut CDP.",
+    source: `${CDP} · „CDPManagementIP"`,
+  },
+  mac: {
+    term: "MAC",
+    description: "MAC-Adresse des physischen Adapters.",
+    source: `${CDP} · „MACAddress"`,
+  },
+};
+
+export const NET_CDP_SECTIONS: Record<string, GlossaryEntry> = {
+  table: {
+    term: "Switch-Ports pro Adapter",
+    description:
+      "Eine Zeile pro Host und physischem Adapter mit der per CDP ermittelten Switch-Anbindung. Bei mehreren Importen gewinnt je Host+Adapter der neueste Stand.",
+    source: `${CDP} · neuester Import je Host+Adapter`,
+  },
+};
