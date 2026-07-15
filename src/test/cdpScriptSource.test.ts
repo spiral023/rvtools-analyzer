@@ -17,4 +17,9 @@ describe("CDP-Abruf-Skript-Quelle", () => {
       expect(cdpScriptSource).toContain(header);
     }
   });
+
+  it("verwendet den vCenter-Kurznamen im CSV-Dateinamen", () => {
+    expect(cdpScriptSource).toContain('$vCenterShortName = ($vCenter -split "\\.")[0]');
+    expect(cdpScriptSource).toContain('${vCenterShortName}_ESXi_CDP_Information_$timestamp.csv');
+  });
 });

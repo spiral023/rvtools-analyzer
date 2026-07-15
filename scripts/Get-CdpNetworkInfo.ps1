@@ -27,7 +27,6 @@ $ErrorActionPreference = "Stop"
 
 $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $defaultOutputDirectory = [Environment]::GetFolderPath("Desktop")
-$csvFileName = "vCenter_ESXi_CDP_Information_$timestamp.csv"
 
 $viConnection = $null
 $results = [System.Collections.Generic.List[object]]::new()
@@ -137,6 +136,9 @@ if ([string]::IsNullOrWhiteSpace($vCenter)) {
     Write-Error "Es wurde kein vCenter-Server angegeben."
     exit 1
 }
+
+$vCenterShortName = ($vCenter -split "\.")[0]
+$csvFileName = "${vCenterShortName}_ESXi_CDP_Information_$timestamp.csv"
 
 $username = Read-Host "Benutzername eingeben, z. B. user@vsphere.local"
 
