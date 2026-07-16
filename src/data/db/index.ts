@@ -2,8 +2,7 @@ import { openDB, type IDBPDatabase, type DBSchema } from "idb";
 import type {
   SnapshotMeta,
   SheetRow,
-  StoredSheetRow,
-  RawSheetHeader,
+  RawSheetBlob,
   NormalizedVm,
   NormalizedHost,
   NormalizedCluster,
@@ -26,6 +25,7 @@ import type {
   Scenario,
 } from "@/domain/models/types";
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { gunzipJson } from "@/lib/compression";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -34,16 +34,11 @@ interface RVToolsDBSchema extends DBSchema {
     value: SnapshotMeta;
     indexes: { vcenterId: string; exportTs: string; fileChecksum: string };
   };
-  rawSheets: {
-    key: [string, string, number];
-    // StoredSheetRow = kompaktes Format (ab DB v17). SheetRow = Alt-Format mit `data`-Record,
-    // das für vor v17 importierte Snapshots weiterhin gelesen werden muss.
-    value: StoredSheetRow | SheetRow;
-    indexes: { snapshotId: string; sheetName: string; "snapshotId_sheetName": [string, string] };
-  };
-  rawSheetHeaders: {
+  rawSheetBlobs: {
     key: [string, string];
-    value: RawSheetHeader;
+    // Ein gzip-komprimierter Blob pro Snapshot+Sheet (ab v19) statt einer Zeile pro Record —
+    // siehe docs/superpowers/specs/2026-07-17-rawsheet-compressed-blobs-design.md.
+    value: RawSheetBlob;
     indexes: { snapshotId: string };
   };
   entities_vm: { key: string; value: NormalizedVm; indexes: { snapshotId: string } };
@@ -115,7 +110,7 @@ interface RVToolsDBSchema extends DBSchema {
   };
 }
 
-export type StoreName = "snapshots" | "rawSheets" | "rawSheetHeaders" | "entities_vm" | "entities_host"
+export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entities_host"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest"
@@ -123,13 +118,13 @@ export type StoreName = "snapshots" | "rawSheets" | "rawSheetHeaders" | "entitie
   | "cdp_imports" | "cdp_rows" | "cdp_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "scenarios";
-type SnapshotScopedStoreName = "rawSheets" | "rawSheetHeaders" | "entities_vm" | "entities_host" | "entities_cluster"
+type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 18;
+const DB_VERSION = 19;
 const ALL_STORES: StoreName[] = [
-  "snapshots", "rawSheets", "rawSheetHeaders", "entities_vm", "entities_host",
+  "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
@@ -143,11 +138,33 @@ let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
 export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<RVToolsDBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         // Clean slate migration from old Dexie or older idb versions
         if (oldVersion < 12) {
           const existing = Array.from(db.objectStoreNames);
           for (const name of existing) db.deleteObjectStore(name);
+        }
+
+        // v19: rawSheets/rawSheetHeaders (eine Zeile pro Record) weichen komprimierten
+        // Sheet-Blobs (rawSheetBlobs, ein Record pro Snapshot+Sheet). Migrationscode lohnt
+        // sich für dieses interne Tool nicht — bestehende RVTools-Snapshots werden geleert,
+        // Tech-Info/CDP/Wartung/Szenarien bleiben erhalten. Nutzer importieren neu.
+        if (oldVersion > 0 && oldVersion < 19) {
+          const storesToClear = [
+            "snapshots", "entities_vm", "entities_host", "entities_cluster",
+            "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
+          ] as const;
+          for (const storeName of storesToClear) {
+            if (db.objectStoreNames.contains(storeName)) {
+              transaction.objectStore(storeName).clear();
+            }
+          }
+          // Legacy-Stores existieren nicht mehr im aktuellen Schema-Typ, daher `any`-Cast für
+          // deleteObjectStore/contains — zur Laufzeit sind sie in älteren DBs vorhanden.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- s.o.
+          const anyDb = db as any;
+          if (anyDb.objectStoreNames.contains("rawSheets")) anyDb.deleteObjectStore("rawSheets");
+          if (anyDb.objectStoreNames.contains("rawSheetHeaders")) anyDb.deleteObjectStore("rawSheetHeaders");
         }
 
         if (!db.objectStoreNames.contains("snapshots")) {
@@ -156,17 +173,9 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           snap.createIndex("exportTs", "exportTs");
           snap.createIndex("fileChecksum", "fileChecksum");
         }
-        if (!db.objectStoreNames.contains("rawSheets")) {
-          const raw = db.createObjectStore("rawSheets", { keyPath: ["snapshotId", "sheetName", "rowIndex"] });
-          raw.createIndex("snapshotId", "snapshotId");
-          raw.createIndex("sheetName", "sheetName");
-          raw.createIndex("snapshotId_sheetName", ["snapshotId", "sheetName"]);
-        }
-        // v17: Spaltenüberschriften der Rohdaten werden einmal pro Snapshot+Sheet abgelegt,
-        // damit die Zeilen kompakt als Wert-Arrays gespeichert werden können.
-        if (!db.objectStoreNames.contains("rawSheetHeaders")) {
-          const headers = db.createObjectStore("rawSheetHeaders", { keyPath: ["snapshotId", "sheetName"] });
-          headers.createIndex("snapshotId", "snapshotId");
+        if (!db.objectStoreNames.contains("rawSheetBlobs")) {
+          const blobs = db.createObjectStore("rawSheetBlobs", { keyPath: ["snapshotId", "sheetName"] });
+          blobs.createIndex("snapshotId", "snapshotId");
         }
         if (!db.objectStoreNames.contains("entities_vm")) {
           db.createObjectStore("entities_vm", { keyPath: "vmKey" }).createIndex("snapshotId", "snapshotId");
@@ -378,19 +387,25 @@ export async function getBySnapshotIds<T>(
   return perId.flat() as unknown as T[];
 }
 
-/**
- * Führt eine gespeicherte Zeile in die hydratisierte {@link SheetRow}-Form zurück.
- * Kompaktes Format (ab v17): Werte werden per `headers` auf Spaltennamen abgebildet.
- * Alt-Format (vor v17): der `data`-Record wird unverändert übernommen.
- */
-function hydrateSheetRow(row: StoredSheetRow | SheetRow, headers: readonly string[] | undefined): SheetRow {
-  if ("data" in row) return row;
-  const data: SheetRow["data"] = {};
-  const cols = headers ?? [];
-  for (let i = 0; i < cols.length; i++) {
-    data[cols[i]] = row.values[i] ?? null;
-  }
-  return { snapshotId: row.snapshotId, sheetName: row.sheetName, rowIndex: row.rowIndex, data };
+/** Bildet die entkomprimierten Werte-Zeilen eines Blobs auf die hydratisierte {@link SheetRow}-Form ab. */
+function hydrateSheetRows(
+  snapshotId: string,
+  sheetName: string,
+  headers: readonly string[],
+  values: readonly (string | number | boolean | null)[][],
+): SheetRow[] {
+  return values.map((rowValues, rowIndex) => {
+    const data: SheetRow["data"] = {};
+    for (let i = 0; i < headers.length; i++) {
+      data[headers[i]] = rowValues[i] ?? null;
+    }
+    return { snapshotId, sheetName, rowIndex, data };
+  });
+}
+
+export async function putRawSheetBlob(blob: RawSheetBlob): Promise<void> {
+  const db = await getDb();
+  await db.put("rawSheetBlobs", blob);
 }
 
 /** Get raw sheet rows for specific snapshot+sheet combinations */
@@ -402,11 +417,10 @@ export async function getRawSheetRows(
   const db = await getDb();
   const perId = await Promise.all(
     snapshotIds.map(async (sid) => {
-      const [rows, header] = await Promise.all([
-        db.getAllFromIndex("rawSheets", "snapshotId_sheetName", [sid, sheetName]),
-        db.get("rawSheetHeaders", [sid, sheetName]),
-      ]);
-      return rows.map((row) => hydrateSheetRow(row, header?.headers));
+      const blob = await db.get("rawSheetBlobs", [sid, sheetName]);
+      if (!blob) return [];
+      const values = await gunzipJson<(string | number | boolean | null)[][]>(blob.data);
+      return hydrateSheetRows(sid, sheetName, blob.headers, values);
     }),
   );
   return perId.flat();
@@ -422,16 +436,9 @@ export async function getRawSheetFieldNames(
 
   await Promise.all(
     snapshotIds.map(async (sid) => {
-      const header = await db.get("rawSheetHeaders", [sid, sheetName]);
-      if (header) {
-        for (const key of header.headers) keys.add(key);
-        return;
-      }
-      // Alt-Format (vor v17): Spalten aus der ersten Zeile ableiten.
-      const row = await db.get("rawSheets", [sid, sheetName, 0]);
-      if (row && "data" in row) {
-        for (const key of Object.keys(row.data)) keys.add(key);
-      }
+      const blob = await db.get("rawSheetBlobs", [sid, sheetName]);
+      if (!blob) return;
+      for (const key of blob.headers) keys.add(key);
     }),
   );
 
@@ -490,10 +497,6 @@ export async function batchPut<S extends StoreName>(
     }
     await tx.done;
   });
-}
-
-export async function batchPutRawSheetHeaders(items: RawSheetHeader[], batchSize = 500): Promise<void> {
-  await batchPut("rawSheetHeaders", items, batchSize);
 }
 
 export async function batchPutTechInfoImports(items: TechInfoImportMeta[], batchSize = 1000): Promise<void> {
@@ -571,10 +574,23 @@ export async function getCdpLatestByHostAdapterKeys(keys: string[]): Promise<Cdp
 
 /* ---------- diagnostics ---------- */
 
+/**
+ * Byte-Schätzung eines Store-Eintrags. `rawSheetBlobs` enthält ein `ArrayBuffer` in `data`,
+ * das `JSON.stringify` nicht sinnvoll erfasst (ergibt `"{}"`) — dafür wird `byteLength` direkt
+ * verwendet, was hier sogar einen exakten statt geschätzten Wert liefert.
+ */
+function estimateEntryBytes(storeName: StoreName, value: unknown): number {
+  if (storeName === "rawSheetBlobs") {
+    const blob = value as RawSheetBlob;
+    return blob.data.byteLength + JSON.stringify(blob.headers).length + 64;
+  }
+  return JSON.stringify(value).length;
+}
+
 export interface StoreDiagnostics {
   storeName: StoreName;
   count: number;
-  /** Hochgerechnete Schätzung basierend auf einer Stichprobe — kein exakter Byte-Wert. */
+  /** Hochgerechnete Schätzung basierend auf einer Stichprobe — kein exakter Byte-Wert (Ausnahme: `rawSheetBlobs`, dort exakt). */
   estimatedSizeBytes: number;
 }
 
@@ -597,7 +613,7 @@ export async function getStoreDiagnostics(sampleSize = 50): Promise<StoreDiagnos
       await tx.done;
 
       if (sample.length > 0) {
-        const sampleBytes = sample.reduce<number>((sum, value) => sum + JSON.stringify(value).length, 0);
+        const sampleBytes = sample.reduce<number>((sum, value) => sum + estimateEntryBytes(storeName, value), 0);
         const avgBytesPerEntry = sampleBytes / sample.length;
         estimatedSizeBytes = Math.round(avgBytesPerEntry * count);
       }
@@ -645,7 +661,7 @@ async function estimateSizeByIndex(
   if (count === 0) return 0;
   const sample: unknown[] = await anyDb.getAllFromIndex(storeName, indexName, key, SIZE_SAMPLE_COUNT);
   if (sample.length === 0) return 0;
-  const sampleBytes = sample.reduce<number>((sum, value) => sum + JSON.stringify(value).length, 0);
+  const sampleBytes = sample.reduce<number>((sum, value) => sum + estimateEntryBytes(storeName, value), 0);
   return Math.round((sampleBytes / sample.length) * count);
 }
 
@@ -654,7 +670,7 @@ export async function estimateSnapshotSizesBytes(snapshotIds: string[]): Promise
   if (snapshotIds.length === 0) return {};
   const db = await getDb();
   const scopedStores: SnapshotScopedStoreName[] = [
-    "rawSheets", "rawSheetHeaders", "entities_vm", "entities_host", "entities_cluster",
+    "rawSheetBlobs", "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health", "metrics_cache",
   ];
   const entries = await Promise.all(snapshotIds.map(async (snapshotId) => {
@@ -729,8 +745,7 @@ const DELETE_CHUNK_SIZE = 5000;
 
 const STORE_DELETE_LABELS: Record<StoreName, string> = {
   snapshots: "Snapshot-Metadaten",
-  rawSheets: "Rohdaten (Sheets)",
-  rawSheetHeaders: "Rohdaten-Spalten",
+  rawSheetBlobs: "Rohdaten (Sheets)",
   entities_vm: "VMs",
   entities_host: "Hosts",
   entities_cluster: "Cluster",
@@ -771,7 +786,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheets" | "rawSheetHeaders" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
+  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -794,7 +809,7 @@ async function deleteByKeyPrefix(
  * in Chunks über die Primärschlüssel (für Stores ohne snapshotId-Präfix im Key).
  */
 async function deleteBySnapshotIdIndex(
-  storeName: Exclude<SnapshotScopedStoreName, "rawSheets" | "metrics_cache">,
+  storeName: Exclude<SnapshotScopedStoreName, "rawSheetBlobs" | "metrics_cache">,
   snapshotId: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -832,7 +847,7 @@ export async function deleteAllData(onProgress?: DeleteProgressCallback): Promis
 
 export async function deleteSnapshot(snapshotId: string, onProgress?: DeleteProgressCallback): Promise<void> {
   const db = await getDb();
-  const prefixStores = ["rawSheets", "rawSheetHeaders", "metrics_cache"] as const;
+  const prefixStores = ["rawSheetBlobs", "metrics_cache"] as const;
   const indexStores = [
     "entities_vm", "entities_host", "entities_cluster",
     "entities_datastore", "entities_snapshot", "entities_health",

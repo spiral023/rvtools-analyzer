@@ -66,28 +66,29 @@ describe("timeSampleVmQuery", () => {
 
 describe("getRawSheetFieldNames", () => {
   it("returns raw sheet field names without reading full sheet rows", async () => {
-    const { batchPut, getRawSheetFieldNames } = await import("./index");
+    const { getDb, getRawSheetFieldNames } = await import("./index");
+    const { gzipJson } = await import("@/lib/compression");
+    const db = await getDb();
 
-    await batchPut("rawSheets", [
-      {
-        snapshotId: "snap-1",
-        sheetName: "vDisk",
-        rowIndex: 0,
-        data: { VM: "APP01", Disk: "Hard disk 1", "Capacity MiB": 1024 },
-      },
-      {
-        snapshotId: "snap-1",
-        sheetName: "vDisk",
-        rowIndex: 1,
-        data: { VM: "APP02", Disk: "Hard disk 1", "Capacity MiB": 2048, "Thin": true },
-      },
-      {
-        snapshotId: "snap-2",
-        sheetName: "vDisk",
-        rowIndex: 0,
-        data: { VM: "APP03", Datastore: "DS01" },
-      },
-    ]);
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snap-1",
+      sheetName: "vDisk",
+      headers: ["VM", "Disk", "Capacity MiB"],
+      rowCount: 2,
+      codec: "gzip-json-v1",
+      data: await gzipJson([
+        ["APP01", "Hard disk 1", 1024],
+        ["APP02", "Hard disk 1", 2048],
+      ]),
+    });
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snap-2",
+      sheetName: "vDisk",
+      headers: ["VM", "Datastore"],
+      rowCount: 1,
+      codec: "gzip-json-v1",
+      data: await gzipJson([["APP03", "DS01"]]),
+    });
 
     await expect(getRawSheetFieldNames(["snap-1", "snap-2"], "vDisk")).resolves.toEqual([
       "Capacity MiB",
@@ -151,7 +152,8 @@ describe("maintenance settings and assignments", () => {
 
 describe("deleteSnapshot", () => {
   const seedSnapshot = async (dbModule: typeof import("./index"), snapshotId: string, rowCount: number) => {
-    const { putSnapshot, batchPut } = dbModule;
+    const { putSnapshot, batchPut, getDb } = dbModule;
+    const { gzipJson } = await import("@/lib/compression");
     await putSnapshot({
       snapshotId,
       vcenterId: `vc-${snapshotId}`,
@@ -162,12 +164,16 @@ describe("deleteSnapshot", () => {
       fileChecksum: `chk-${snapshotId}`,
       sheetStats: { vInfo: { rowCount, columnCount: 2 } },
     });
-    await batchPut("rawSheets", Array.from({ length: rowCount }, (_, i) => ({
+    const db = await getDb();
+    const values = Array.from({ length: rowCount }, (_, i) => [`vm-${i}`, "poweredOn"]);
+    await db.put("rawSheetBlobs", {
       snapshotId,
       sheetName: "vInfo",
-      rowIndex: i,
-      data: { VM: `vm-${i}`, "Powerstate": "poweredOn" },
-    })));
+      headers: ["VM", "Powerstate"],
+      rowCount,
+      codec: "gzip-json-v1",
+      data: await gzipJson(values),
+    });
     await batchPut("entities_vm", Array.from({ length: 5 }, (_, i) => ({
       vmKey: `vm-${i}::vc-${snapshotId}`,
       snapshotId,
@@ -176,10 +182,12 @@ describe("deleteSnapshot", () => {
     })) as any);
   };
 
-  it("deletes raw rows and entities of one snapshot, keeps others, and reports monotonic progress up to 100", async () => {
+  it("deletes the raw sheet blob and entities of one snapshot, keeps others, and reports monotonic progress up to 100", async () => {
     const dbModule = await import("./index");
     const { deleteSnapshot, getSnapshots, getRawSheetRows, getBySnapshotIds } = dbModule;
-    // 6001 Zeilen => mehr als ein Lösch-Chunk (5000), damit der Chunk-Pfad getestet wird
+    // Zeilenreiche Sheets, um zu bestätigen, dass Kompression/Dekompression auch bei
+    // realistischer Größe funktioniert — die Löschung selbst ist unabhängig von rowCount,
+    // da ein Blob immer ein einziger Record ist.
     await seedSnapshot(dbModule, "snap-del", 6001);
     await seedSnapshot(dbModule, "snap-keep", 10);
 
@@ -198,13 +206,16 @@ describe("deleteSnapshot", () => {
     await expect(getBySnapshotIds("entities_vm", ["snap-keep"])).resolves.toHaveLength(5);
   }, 20000);
 
-  it("estimates a plausible per-snapshot size and clears everything via deleteAllData with progress", async () => {
+  it("estimates a plausible, compressed per-snapshot size and clears everything via deleteAllData with progress", async () => {
     const dbModule = await import("./index");
     const { deleteAllData, estimateSnapshotSizesBytes, getSnapshots, getRawSheetRows } = dbModule;
     await seedSnapshot(dbModule, "snap-1", 500);
 
     const sizes = await estimateSnapshotSizesBytes(["snap-1", "snap-unbekannt"]);
-    expect(sizes["snap-1"]).toBeGreaterThan(500 * 10);
+    // Verifiziert gegen echte gzip-Kompression dieser Testdaten (~1.2-1.7 KB) —
+    // deutlich unter dem, was 500 unkomprimierte Zeilen bräuchten (>5000 Bytes).
+    expect(sizes["snap-1"]).toBeGreaterThan(500);
+    expect(sizes["snap-1"]).toBeLessThan(5000);
     expect(sizes["snap-unbekannt"]).toBe(0);
 
     const percents: number[] = [];

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { batchPut, batchPutRawSheetHeaders, deleteAllData, putSnapshot } from "@/data/db";
+import { batchPut, deleteAllData, getDb, putSnapshot } from "@/data/db";
 import { FilterProvider, useFilterState } from "@/hooks/useFilterState";
 import { useActiveSnapshotIds, useHealthEvents, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import type { FilterState, NormalizedHealth, NormalizedVm, SnapshotMeta } from "@/domain/models/types";
@@ -123,11 +123,19 @@ function RawSheetProbe() {
 describe("useRawSheet", () => {
   it("keeps raw sheet rows cached for several minutes after unmount (page switch)", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
-    await batchPutRawSheetHeaders([{ snapshotId: "snap-1", sheetName: "vCPU", headers: ["VM", "CPUs"] }]);
-    await batchPut("rawSheets", [
-      { snapshotId: "snap-1", sheetName: "vCPU", rowIndex: 0, values: ["APP-01", 2] },
-      { snapshotId: "snap-1", sheetName: "vCPU", rowIndex: 1, values: ["DB-02", 4] },
-    ]);
+    const { gzipJson } = await import("@/lib/compression");
+    const db = await getDb();
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snap-1",
+      sheetName: "vCPU",
+      headers: ["VM", "CPUs"],
+      rowCount: 2,
+      codec: "gzip-json-v1",
+      data: await gzipJson([
+        ["APP-01", 2],
+        ["DB-02", 4],
+      ]),
+    });
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: React.ReactNode }) => (
