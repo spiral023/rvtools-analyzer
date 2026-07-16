@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Liest die CDP-Informationen aller physischen Netzwerkadapter
     aller ESXi-Hosts eines vCenters aus.
@@ -85,7 +85,7 @@ function Export-Windows1252Csv {
             )
         }
         catch {
-            # Provider wurde möglicherweise bereits registriert.
+            Write-Verbose "Windows-1252-Codepage-Provider war bereits registriert."
         }
     }
 
@@ -188,16 +188,16 @@ $csvPath = Join-Path `
 # ============================================================================
 
 try {
-    Write-Host ""
-    Write-Host "Verbinde mit vCenter $vCenter ..." -ForegroundColor Cyan
+    Write-Information "" -InformationAction Continue
+    Write-Information "Verbinde mit vCenter $vCenter ..." -InformationAction Continue
 
     $viConnection = Connect-VIServer `
         -Server $vCenter `
         -Credential $credential `
         -ErrorAction Stop
 
-    Write-Host "Verbindung erfolgreich hergestellt." -ForegroundColor Green
-    Write-Host ""
+    Write-Information "Verbindung erfolgreich hergestellt." -InformationAction Continue
+    Write-Information "" -InformationAction Continue
 
     $vmHosts = Get-VMHost |
         Sort-Object Name
@@ -206,8 +206,8 @@ try {
         throw "Im vCenter wurden keine ESXi-Hosts gefunden."
     }
 
-    Write-Host "$($vmHosts.Count) ESXi-Host(s) gefunden." -ForegroundColor Cyan
-    Write-Host ""
+    Write-Information "$($vmHosts.Count) ESXi-Host(s) gefunden." -InformationAction Continue
+    Write-Information "" -InformationAction Continue
 
     $hostNumber = 0
 
@@ -219,8 +219,8 @@ try {
             -Status "Host $hostNumber von $($vmHosts.Count): $($vmHost.Name)" `
             -PercentComplete (($hostNumber / $vmHosts.Count) * 100)
 
-        Write-Host "[$hostNumber/$($vmHosts.Count)] $($vmHost.Name)" `
-            -ForegroundColor Cyan
+        Write-Information "[$hostNumber/$($vmHosts.Count)] $($vmHost.Name)" `
+            -InformationAction Continue
 
         $clusterName = ""
 
@@ -332,9 +332,9 @@ try {
                 )
             }
 
-            Write-Host `
+            Write-Information `
                 "  $($physicalAdapters.Count) physische Adapter ausgelesen." `
-                -ForegroundColor Green
+                -InformationAction Continue
         }
         catch {
             $errorMessage = $_.Exception.Message
@@ -381,14 +381,14 @@ try {
         -InputObject $sortedResults `
         -Path $csvPath
 
-    Write-Host ""
-    Write-Host "Export erfolgreich abgeschlossen." -ForegroundColor Green
-    Write-Host "Anzahl CSV-Zeilen: $($sortedResults.Count)" -ForegroundColor Green
-    Write-Host "CSV-Datei:" -ForegroundColor Green
-    Write-Host $csvPath -ForegroundColor Yellow
+    Write-Information "" -InformationAction Continue
+    Write-Information "Export erfolgreich abgeschlossen." -InformationAction Continue
+    Write-Information "Anzahl CSV-Zeilen: $($sortedResults.Count)" -InformationAction Continue
+    Write-Information "CSV-Datei:" -InformationAction Continue
+    Write-Information $csvPath -InformationAction Continue
 
-    Write-Host ""
-    Write-Host "Vorschau:" -ForegroundColor Cyan
+    Write-Information "" -InformationAction Continue
+    Write-Information "Vorschau:" -InformationAction Continue
 
     $sortedResults |
         Select-Object `
@@ -406,14 +406,14 @@ catch {
 }
 finally {
     if ($viConnection) {
-        Write-Host ""
-        Write-Host "Trenne die vCenter-Verbindung ..." -ForegroundColor Cyan
+        Write-Information "" -InformationAction Continue
+        Write-Information "Trenne die vCenter-Verbindung ..." -InformationAction Continue
 
         Disconnect-VIServer `
             -Server $viConnection `
             -Confirm:$false `
             -ErrorAction SilentlyContinue
 
-        Write-Host "vCenter-Verbindung wurde getrennt." -ForegroundColor Green
+        Write-Information "vCenter-Verbindung wurde getrennt." -InformationAction Continue
     }
 }

@@ -22,4 +22,9 @@ describe("CDP-Abruf-Skript-Quelle", () => {
     expect(cdpScriptSource).toContain('$vCenterShortName = ($vCenter -split "\\.")[0]');
     expect(cdpScriptSource).toContain('${vCenterShortName}_ESXi_CDP_Information_$timestamp.csv');
   });
+
+  it("schreibt Statusmeldungen in den Informationsstrom", () => {
+    expect(cdpScriptSource).toContain("Write-Information");
+    expect(cdpScriptSource).not.toContain("Write-Host");
+  });
 });
