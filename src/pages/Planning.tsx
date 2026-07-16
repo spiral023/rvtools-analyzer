@@ -7,6 +7,7 @@ import { getRangeKeys } from "@/lib/selectionRange";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { SelectionBar } from "@/components/planning/SelectionBar";
 import { ScenarioList } from "@/components/planning/ScenarioList";
 import { WhatIfCompareDialog } from "@/components/planning/WhatIfCompareDialog";
@@ -40,7 +41,7 @@ function makeGroupId(): string {
 }
 
 export default function Planning() {
-  const { snapshots } = useActiveSnapshotIds();
+  const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { data: clusters = [] } = useClusters();
   const { selectedVmKeys, toggleVm, selectMany, deselectMany, clear, setSelection } = useSelection();
@@ -155,6 +156,8 @@ export default function Planning() {
     const group = activeScenario?.groups.find((g) => g.id === groupId);
     if (group) setSelection(group.vmKeys);
   };
+
+  if (snapshotsLoading) return <PageLoadingState title="Planung" />;
 
   if (snapshots.length === 0) {
     return (

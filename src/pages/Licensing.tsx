@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
@@ -63,7 +64,7 @@ const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
 ];
 
 export default function Licensing() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: rawLicense = [] } = useRawSheet("vLicense");
   const { vms, allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -117,6 +118,8 @@ export default function Licensing() {
       return { datastore: ds.name, provisionedMiB: prov, inUseMiB: inUse, freeMiB: ds.freeMiB || 0, efficiency: prov > 0 ? (inUse / prov) * 100 : 0 };
     }).sort((a, b) => b.efficiency - a.efficiency);
   }, [datastores]);
+
+  if (snapshotsLoading) return <PageLoadingState title="Licensing & Effizienz" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Licensing</h1><EmptyState icon={<Key className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

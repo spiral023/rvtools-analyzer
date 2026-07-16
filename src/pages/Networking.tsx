@@ -3,6 +3,7 @@ import { Network } from "lucide-react";
 import { useActiveSnapshotIds } from "@/hooks/useActiveSnapshots";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NetworkSecurityPanel } from "@/pages/NetworkSecurity";
 import { HostNetworkPanel } from "@/pages/HostNetwork";
@@ -12,8 +13,10 @@ import { CdpPanel } from "@/pages/CdpSwitchPorts";
 type NetworkTab = "security" | "host" | "vlan" | "cdp";
 
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
-  const { snapshots } = useActiveSnapshotIds();
+  const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
   const [activeTab, setActiveTab] = useState<NetworkTab>(initialTab);
+
+  if (snapshotsLoading) return <PageLoadingState title="Netzwerk" />;
 
   if (snapshots.length === 0) {
     return (

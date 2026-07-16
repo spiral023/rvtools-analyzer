@@ -5,6 +5,7 @@ import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
@@ -58,7 +59,7 @@ const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
 ];
 
 export default function Overview() {
-  const { snapshots, activeSnapshotIds, filters } = useActiveSnapshotIds();
+  const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [] } = useHosts();
@@ -127,6 +128,8 @@ export default function Overview() {
     () => buildClusterOsDistributionRows(filteredVms, osSource),
     [filteredVms, osSource],
   );
+
+  if (snapshotsLoading) return <PageLoadingState title="Overview" />;
 
   if (snapshots.length === 0) {
     return (

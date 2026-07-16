@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it } from "vitest";
-import { batchPut, deleteAllData, putSnapshot } from "@/data/db";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { batchPut, batchPutRawSheetHeaders, deleteAllData, putSnapshot } from "@/data/db";
 import { FilterProvider, useFilterState } from "@/hooks/useFilterState";
-import { useActiveSnapshotIds, useHealthEvents, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useHealthEvents, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import type { FilterState, NormalizedHealth, NormalizedVm, SnapshotMeta } from "@/domain/models/types";
 
 function snapshot(
@@ -109,6 +109,50 @@ function Probe({ filters }: { filters?: Partial<FilterState> }) {
 
 beforeEach(async () => {
   await deleteAllData();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function RawSheetProbe() {
+  const { data = [] } = useRawSheet("vCPU");
+  return <div data-testid="raw-rows">{data.length}</div>;
+}
+
+describe("useRawSheet", () => {
+  it("keeps raw sheet rows cached for several minutes after unmount (page switch)", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    await batchPutRawSheetHeaders([{ snapshotId: "snap-1", sheetName: "vCPU", headers: ["VM", "CPUs"] }]);
+    await batchPut("rawSheets", [
+      { snapshotId: "snap-1", sheetName: "vCPU", rowIndex: 0, values: ["APP-01", 2] },
+      { snapshotId: "snap-1", sheetName: "vCPU", rowIndex: 1, values: ["DB-02", 4] },
+    ]);
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <FilterProvider>{children}</FilterProvider>
+      </QueryClientProvider>
+    );
+
+    const first = render(<RawSheetProbe />, { wrapper });
+    await waitFor(() => {
+      expect(screen.getByTestId("raw-rows")).toHaveTextContent(/^2$/);
+    });
+
+    // Seitenwechsel simulieren: Query unmounten, 4 Minuten warten, Seite erneut öffnen.
+    vi.useFakeTimers();
+    first.unmount();
+    act(() => {
+      vi.advanceTimersByTime(4 * 60 * 1000);
+    });
+    vi.useRealTimers();
+
+    render(<RawSheetProbe />, { wrapper });
+    // Daten müssen sofort aus dem Cache kommen, ohne erneutes Laden aus IndexedDB.
+    expect(screen.getByTestId("raw-rows")).toHaveTextContent(/^2$/);
+  });
 });
 
 describe("useActiveSnapshotIds", () => {

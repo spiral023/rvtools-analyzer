@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
@@ -345,7 +346,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
 ];
 
 function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms, allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows } = useGlobalVmFilterEngine();
@@ -574,6 +575,8 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
     }
     return rows;
   }, [filteredRawVInfo]);
+
+  if (snapshotsLoading) return <PageLoadingState title="Compliance / Lifecycle" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Compliance / Lifecycle</h1><EmptyState icon={<Shield className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

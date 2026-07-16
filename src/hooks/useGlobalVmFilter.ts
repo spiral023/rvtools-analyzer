@@ -18,7 +18,8 @@ import { buildVmScopeJoinKeys } from "@/lib/vmScope";
 import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow } from "@/domain/models/types";
 
 const STALE_MS = 5 * 60 * 1000;
-const RAW_QUERY_GC_MS = 10 * 1000;
+// Muss staleTime entsprechen — siehe RAW_QUERY_GC_MS in useActiveSnapshots.ts.
+const RAW_QUERY_GC_MS = STALE_MS;
 
 export interface GlobalVmFilterEngineResult {
   fields: GlobalFilterField[];

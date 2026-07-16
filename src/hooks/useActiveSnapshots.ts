@@ -13,11 +13,14 @@ import type {
 
 // Shared staleTime: avoid refetching unchanged data on every page switch
 const STALE_MS = 5 * 60 * 1000; // 5 min
-const RAW_QUERY_GC_MS = 10 * 1000;
+// Muss staleTime entsprechen: ein kürzeres gcTime verwirft die großen Raw-Sheet-
+// Arrays bereits beim Seitenwechsel, sodass jede Rückkehr sie komplett neu aus
+// IndexedDB lädt und hydratisiert (30–90 s eingefrorene UI bei vielen Snapshots).
+const RAW_QUERY_GC_MS = STALE_MS;
 
 export function useActiveSnapshotIds() {
   const { filters } = useFilterState();
-  const { data: snapshots = [] } = useQuery({
+  const { data: snapshots = [], isPending: snapshotsLoading } = useQuery({
     queryKey: ["snapshots"],
     queryFn: getSnapshots,
     staleTime: STALE_MS,
@@ -40,7 +43,7 @@ export function useActiveSnapshotIds() {
     return [...latestByVcenter.values()].map((v) => v.id);
   }, [snapshots, filters.vcenterIds]);
 
-  return { snapshots, activeSnapshotIds, filters };
+  return { snapshots, activeSnapshotIds, filters, snapshotsLoading };
 }
 
 export function useBaseVms(enabled = true) {

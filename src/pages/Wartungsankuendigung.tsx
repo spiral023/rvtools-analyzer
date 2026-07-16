@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -650,7 +651,7 @@ function MaintenanceMailDialog({
 }
 
 export default function Wartungsankuendigung() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { data: clusters = [] } = useClusters();
   const { data: hosts = [] } = useHosts();
@@ -806,6 +807,8 @@ export default function Wartungsankuendigung() {
     })));
     toast.success(targetRows.length === 1 ? "Cluster-Zuweisung gespeichert." : "Cluster-Zuweisungen gespeichert.");
   };
+
+  if (snapshotsLoading) return <PageLoadingState title="Wartungsankündigung" />;
 
   if (snapshots.length === 0) {
     return (

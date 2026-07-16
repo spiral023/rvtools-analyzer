@@ -3,6 +3,7 @@ import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames, useAllTechInf
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
@@ -109,7 +110,7 @@ const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
 ];
 
 export default function TechInfo() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openClientDetail, clientDetailDialog } = useClientDetailDialog(allVms);
@@ -228,6 +229,8 @@ export default function TechInfo() {
   const vmTotal = scopeVms.length;
   const vmWithoutTechInfoTotal = vmsWithoutTechInfo.length;
   const vmWithTechInfo = vmTotal - vmWithoutTechInfoTotal;
+
+  if (snapshotsLoading) return <PageLoadingState title="Tech-Info" />;
 
   if (snapshots.length === 0) {
     return (

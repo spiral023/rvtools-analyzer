@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
@@ -110,7 +111,7 @@ const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
 ];
 
 export default function StorageBackup() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
@@ -208,6 +209,8 @@ export default function StorageBackup() {
 
   const partChart = useMemo(() =>
     partitions.filter((p) => p.freePct < 30).slice(0, 15).map((p) => ({ name: `${p.vm}:${p.disk}`.slice(0, 25), freePct: Math.round(p.freePct * 10) / 10 })), [partitions]);
+
+  if (snapshotsLoading) return <PageLoadingState title="Storage / Backup" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Storage / Backup</h1><EmptyState icon={<Database className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

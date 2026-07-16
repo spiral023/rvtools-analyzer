@@ -5,6 +5,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GitCompare, Server, Cpu, AlertTriangle, ShieldAlert } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
@@ -38,7 +39,7 @@ const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
 ];
 
 export default function FleetCompare() {
-  const { data: snapshots = [] } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
+  const { data: snapshots = [], isPending: snapshotsLoading } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
 
   const latestSnapshots = useMemo(() => {
     const map = new Map<string, SnapshotMeta>();
@@ -102,6 +103,8 @@ export default function FleetCompare() {
   const compareChart = useMemo(() => summaries.map((s) => ({ name: s.displayName.length > 15 ? s.displayName.slice(0, 12) + "…" : s.displayName, VMs: s.vmCount, Hosts: s.hostCount, Datastores: s.datastoreCount })), [summaries]);
 
   const totalRisk = summaries.reduce((s, v) => s + v.riskScore, 0);
+
+  if (snapshotsLoading) return <PageLoadingState title="Fleet Compare" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Fleet Compare</h1><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

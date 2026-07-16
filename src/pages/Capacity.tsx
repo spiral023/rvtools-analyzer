@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
@@ -397,7 +398,7 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
 ];
 
 function useCapacityPageData() {
-  const { snapshots, filters } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms } = useVms();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: clusters = [] } = useClusters();
@@ -606,6 +607,7 @@ function useCapacityPageData() {
 
   return {
     snapshots,
+    snapshotsLoading,
     filters,
     clusters,
     datastores,
@@ -641,6 +643,7 @@ function useCapacityPageData() {
 export default function Capacity() {
   const {
     snapshots,
+    snapshotsLoading,
     filters,
     clusters,
     datastores,
@@ -671,6 +674,8 @@ export default function Capacity() {
     avgVcpuPerCore,
     clusterRiskChart,
   } = useCapacityPageData();
+
+  if (snapshotsLoading) return <PageLoadingState title="Capacity" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Capacity</h1><EmptyState icon={<HardDrive className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
