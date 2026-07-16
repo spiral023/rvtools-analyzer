@@ -60,6 +60,23 @@ export function emptyAggregate(): ClusterAggregate {
   };
 }
 
+/**
+ * Gruppiert vHost-Rohzeilen einmalig nach Cluster-Namen. Vermeidet, dass
+ * {@link aggregateCluster} bei mehreren Clustern jeweils alle Zeilen erneut
+ * durchsucht (O(Cluster × Zeilen) → O(Zeilen + Cluster)).
+ */
+export function groupVHostRowsByCluster(rawVHostRows: SheetRow[]): Map<string, SheetRow[]> {
+  const grouped = new Map<string, SheetRow[]>();
+  for (const row of rawVHostRows) {
+    const name = String(row.data["Cluster"] ?? "").trim();
+    if (!name) continue;
+    const bucket = grouped.get(name);
+    if (bucket) bucket.push(row);
+    else grouped.set(name, [row]);
+  }
+  return grouped;
+}
+
 /** Baut das gemessene Ist-Aggregat eines Clusters aus den vHost-Rohzeilen. */
 export function aggregateCluster(clusterName: string, rawVHostRows: SheetRow[]): ClusterAggregate {
   const agg = emptyAggregate();

@@ -13,7 +13,7 @@ import { HardDrive, Cpu, MemoryStick, Server, Layers, AlertTriangle } from "luci
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis, CartesianGrid, ReferenceLine } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_AXIS_LABEL_STYLE } from "@/lib/chartStyles";
-import { aggregateCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
+import { aggregateCluster, groupVHostRowsByCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import {
@@ -475,21 +475,16 @@ function useCapacityPageData() {
   }, [hosts, vms]);
 
   const clusterCapacity = useMemo<ClusterCapacityRow[]>(() => {
-    const clusterNames = new Set<string>();
-    for (const r of rawVHost) {
-      const name = String(r.data["Cluster"] ?? "").trim();
-      if (name) clusterNames.add(name);
-    }
+    // Einmalig nach Cluster gruppieren, statt pro Cluster erneut alle Host-Zeilen
+    // zu durchsuchen (O(Zeilen + Cluster) statt O(Cluster × Zeilen)).
+    const rowsByCluster = groupVHostRowsByCluster(rawVHost);
     const clusterMap = new Map(clusters.map((c) => [c.name, c]));
 
-    return [...clusterNames].map((name) => {
-      const agg = aggregateCluster(name, rawVHost);
+    return [...rowsByCluster.entries()].map(([name, clusterRows]) => {
+      const agg = aggregateCluster(name, clusterRows);
       const clusterRef = clusterMap.get(name) ?? null;
       const m = metricsFromAggregate(agg, { clusterName: name, clusterRef, projected: false });
-      const datacenter = (() => {
-        const row = rawVHost.find((r) => String(r.data["Cluster"] ?? "").trim() === name);
-        return row ? String(row.data["Datacenter"] ?? "").trim() || "—" : "—";
-      })();
+      const datacenter = String(clusterRows[0]?.data["Datacenter"] ?? "").trim() || "—";
       const cpuSpread = Number.isFinite(agg.cpuMin) && Number.isFinite(agg.cpuMax) ? Math.round((agg.cpuMax - agg.cpuMin) * 10) / 10 : 0;
       const memorySpread = Number.isFinite(agg.memMin) && Number.isFinite(agg.memMax) ? Math.round((agg.memMax - agg.memMin) * 10) / 10 : 0;
       const clusterHostDelta = clusterRef?.numHosts != null ? agg.hosts - clusterRef.numHosts : null;

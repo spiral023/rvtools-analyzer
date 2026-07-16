@@ -320,13 +320,28 @@ export function collectReferencedRawFilterSources(
   return sources;
 }
 
+const fieldMapCache = new WeakMap<GlobalFilterField[], Map<string, GlobalFilterField>>();
+
+/**
+ * Baut die source:key → Field-Lookup-Map und cacht sie je `fields`-Array-Referenz.
+ * `evaluateGlobalFilter` wird einmal pro VM aufgerufen; ohne diesen Cache würde
+ * dieselbe Map bei jedem Fleet mit vielen VMs erneut aus `fields` aufgebaut.
+ */
+export function buildFieldMap(fields: GlobalFilterField[]): Map<string, GlobalFilterField> {
+  const cached = fieldMapCache.get(fields);
+  if (cached) return cached;
+  const map = new Map(fields.map((field) => [`${field.source}:${field.key}`, field]));
+  fieldMapCache.set(fields, map);
+  return map;
+}
+
 export function evaluateGlobalFilter(
   filter: GlobalFilterGroup | null,
   context: VmGlobalFilterContextEntry,
   fields: GlobalFilterField[],
 ): boolean {
   if (!filter || !hasGlobalFilterDefinition(filter)) return true;
-  const fieldMap = new Map(fields.map((field) => [`${field.source}:${field.key}`, field]));
+  const fieldMap = buildFieldMap(fields);
   return evaluateGroup(filter, context, fieldMap, null);
 }
 

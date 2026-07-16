@@ -4,6 +4,7 @@ import {
   applyVmMoves,
   estimateVmLoad,
   emptyAggregate,
+  groupVHostRowsByCluster,
   metricsFromAggregate,
 } from "@/domain/services/clusterCapacityEngine";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
@@ -82,6 +83,47 @@ describe("clusterCapacityEngine – aggregate & metrics (Vorher)", () => {
     const mixed = [...rows, hostRow({ Cluster: "B", Host: "esx-9" })];
     const agg = aggregateCluster("A", mixed);
     expect(agg.hosts).toBe(2);
+  });
+});
+
+describe("groupVHostRowsByCluster", () => {
+  it("gruppiert Host-Zeilen nach getrimmtem Cluster-Namen", () => {
+    const rows: SheetRow[] = [
+      hostRow({ Cluster: "A", Host: "esx-1" }),
+      hostRow({ Cluster: " B ", Host: "esx-2" }),
+      hostRow({ Cluster: "A", Host: "esx-3" }),
+    ];
+
+    const grouped = groupVHostRowsByCluster(rows);
+
+    expect([...grouped.keys()].sort()).toEqual(["A", "B"]);
+    expect(grouped.get("A")?.map((r) => r.data["Host"])).toEqual(["esx-1", "esx-3"]);
+    expect(grouped.get("B")?.map((r) => r.data["Host"])).toEqual(["esx-2"]);
+  });
+
+  it("ignoriert Zeilen ohne Cluster-Namen", () => {
+    const rows: SheetRow[] = [
+      hostRow({ Cluster: "", Host: "esx-1" }),
+      hostRow({ Cluster: "   ", Host: "esx-2" }),
+    ];
+
+    const grouped = groupVHostRowsByCluster(rows);
+
+    expect(grouped.size).toBe(0);
+  });
+
+  it("liefert pro Cluster dieselbe Aggregation wie ein voller Scan über alle Zeilen", () => {
+    const rows: SheetRow[] = [
+      hostRow({ Cluster: "A", Host: "esx-1" }),
+      hostRow({ Cluster: "B", Host: "esx-2", "# Cores": 6 }),
+      hostRow({ Cluster: "A", Host: "esx-3" }),
+    ];
+
+    const grouped = groupVHostRowsByCluster(rows);
+    const aggFromGroup = aggregateCluster("A", grouped.get("A") ?? []);
+    const aggFromFullScan = aggregateCluster("A", rows);
+
+    expect(aggFromGroup).toEqual(aggFromFullScan);
   });
 });
 

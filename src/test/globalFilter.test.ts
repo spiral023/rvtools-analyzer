@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { GlobalFilterGroup, NormalizedVm, SheetRow, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
+import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
 import {
+  buildFieldMap,
   buildGlobalFilterFields,
   buildVmJoinKey,
   collectReferencedRawFilterSources,
@@ -405,5 +406,34 @@ describe("global filter evaluator", () => {
         expect.objectContaining({ source: "vDisk", key: "Capacity MiB", label: "Capacity MiB", dataType: "text" }),
       ]),
     );
+  });
+});
+
+describe("buildFieldMap", () => {
+  it("reuses the same fieldMap instance for the same fields array reference", () => {
+    // evaluateGlobalFilter wird pro VM einmal aufgerufen; ohne Memoisierung
+    // würde die Map bei jedem Aufruf aus fields neu aufgebaut (O(VMs × Felder)).
+    const fields: GlobalFilterField[] = [
+      { source: "vm", key: "cpuCount", label: "CPU", dataType: "number" },
+    ];
+
+    const first = buildFieldMap(fields);
+    const second = buildFieldMap(fields);
+
+    expect(second).toBe(first);
+    expect(first.get("vm:cpuCount")).toEqual(fields[0]);
+  });
+
+  it("builds a fresh fieldMap for a different fields array reference", () => {
+    const fields: GlobalFilterField[] = [
+      { source: "vm", key: "cpuCount", label: "CPU", dataType: "number" },
+    ];
+    const otherFields = [...fields];
+
+    const first = buildFieldMap(fields);
+    const second = buildFieldMap(otherFields);
+
+    expect(second).not.toBe(first);
+    expect(second).toEqual(first);
   });
 });

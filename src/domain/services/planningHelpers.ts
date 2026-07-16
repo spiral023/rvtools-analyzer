@@ -3,6 +3,7 @@ import {
   aggregateCluster,
   applyVmMoves,
   estimateVmLoad,
+  groupVHostRowsByCluster,
   metricsFromAggregate,
   type ClusterMetrics,
 } from "@/domain/services/clusterCapacityEngine";
@@ -37,6 +38,9 @@ export function computeWhatIf(
 ): WhatIfResult {
   const vmByKey = new Map(allVms.map((v) => [v.vmKey, v]));
   const clusterRefMap = new Map(clusterRefs.map((c) => [c.name, c]));
+  // Einmalig nach Cluster gruppieren, statt pro betroffenem Cluster und pro
+  // verschobener VM erneut alle Host-Zeilen zu durchsuchen.
+  const rowsByCluster = groupVHostRowsByCluster(rawVHostRows);
 
   const affectedClusters = new Set<string>();
   const movesByCluster = new Map<string, { incoming: NormalizedVm[]; outgoing: NormalizedVm[] }>();
@@ -70,18 +74,20 @@ export function computeWhatIf(
   const results: WhatIfClusterResult[] = [];
 
   for (const clusterName of affectedClusters) {
-    const beforeAgg = aggregateCluster(clusterName, rawVHostRows);
+    const beforeAgg = aggregateCluster(clusterName, rowsByCluster.get(clusterName) ?? []);
     const clusterRef = clusterRefMap.get(clusterName) ?? null;
     const before = metricsFromAggregate(beforeAgg, { clusterName, clusterRef, projected: false });
 
     const moves = movesByCluster.get(clusterName) ?? { incoming: [], outgoing: [] };
 
     const incomingWithLoad = moves.incoming.map((vm) => {
-      const sourceAgg = aggregateCluster(vm.cluster ?? clusterName, rawVHostRows);
+      const sourceClusterName = vm.cluster ?? clusterName;
+      const sourceAgg = aggregateCluster(sourceClusterName, rowsByCluster.get(sourceClusterName) ?? []);
       return { vm, load: estimateVmLoad(sourceAgg, vm) };
     });
     const outgoingWithLoad = moves.outgoing.map((vm) => {
-      const sourceAgg = aggregateCluster(vm.cluster ?? clusterName, rawVHostRows);
+      const sourceClusterName = vm.cluster ?? clusterName;
+      const sourceAgg = aggregateCluster(sourceClusterName, rowsByCluster.get(sourceClusterName) ?? []);
       return { vm, load: estimateVmLoad(sourceAgg, vm) };
     });
 
