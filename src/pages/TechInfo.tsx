@@ -111,7 +111,7 @@ const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
 
 export default function TechInfo() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { allVms } = useVms();
+  const { allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openClientDetail, clientDetailDialog } = useClientDetailDialog(allVms);
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
@@ -133,8 +133,8 @@ export default function TechInfo() {
     [allVms, clusterFilterSet, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
   );
 
-  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));
-  const { data: techInfoClients = [] } = useAllTechInfoClientLatest();
+  const { data: techInfoLatest = [], isLoading: techInfoLoading } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));
+  const { data: techInfoClients = [], isLoading: techInfoClientsLoading } = useAllTechInfoClientLatest();
 
   const byVmName = useMemo(() => {
     const map = new Map<string, (typeof techInfoLatest)[number]>();
@@ -230,7 +230,8 @@ export default function TechInfo() {
   const vmWithoutTechInfoTotal = vmsWithoutTechInfo.length;
   const vmWithTechInfo = vmTotal - vmWithoutTechInfoTotal;
 
-  if (snapshotsLoading) return <PageLoadingState title="Tech-Info" />;
+  const dataLoading = snapshotsLoading || vmsLoading || techInfoLoading || techInfoClientsLoading;
+  if (dataLoading) return <PageLoadingState title="Tech-Info" />;
 
   if (snapshots.length === 0) {
     return (

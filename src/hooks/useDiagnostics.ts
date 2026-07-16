@@ -9,6 +9,7 @@ import {
   type StorageEstimateResult,
   type SampleQueryTiming,
 } from "@/data/db";
+import { getQueryTimings, type QueryTimingSummary } from "@/lib/queryTiming";
 import type { SnapshotMeta } from "@/domain/models/types";
 
 export interface MemoryDiagnostics {
@@ -46,6 +47,7 @@ export interface DiagnosticsResult {
   sampleQuery: SampleQueryTiming;
   memory: MemoryDiagnostics;
   cache: CacheDiagnostics[];
+  queryTimings: QueryTimingSummary[];
 }
 
 export function useDiagnostics(enabled: boolean) {
@@ -70,8 +72,9 @@ export function useDiagnostics(enabled: boolean) {
     const cache: CacheDiagnostics[] = [...cacheCounts.entries()]
       .map(([queryKey, entryCount]) => ({ queryKey, entryCount }))
       .sort((a, b) => b.entryCount - a.entryCount);
+    const queryTimings = getQueryTimings();
 
-    return { snapshots, stores, storage, sampleQuery, memory, cache };
+    return { snapshots, stores, storage, sampleQuery, memory, cache, queryTimings };
   }, [queryClient]);
 
   const query = useQuery({

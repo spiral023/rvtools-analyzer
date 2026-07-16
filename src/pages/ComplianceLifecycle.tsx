@@ -347,10 +347,10 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
 
 function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms, allVms } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows } = useGlobalVmFilterEngine();
-  const { data: hosts = [] } = useHosts();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const [activeTab, setActiveTab] = useState<ComplianceTab>(initialTab);
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
 
@@ -361,12 +361,14 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
   const loadHba = activeTab === "infrastructure";
   const loadNic = activeTab === "infrastructure";
 
-  const { data: rawVTools = [] } = useRawSheet("vTools", loadVTools);
-  const { data: rawVInfo = [] } = useRawSheet("vInfo", loadVInfo);
-  const { data: rawVSource = [] } = useRawSheet("vSource", loadVSource);
-  const { data: rawHBA = [] } = useRawSheet("vHBA", loadHba);
-  const { data: rawNIC = [] } = useRawSheet("vNIC", loadNic);
-  const { data: rawVHost = [] } = useRawSheet("vHost", loadVHost);
+  const { data: rawVTools = [], isLoading: rawVToolsLoading } = useRawSheet("vTools", loadVTools);
+  const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo", loadVInfo);
+  const { data: rawVSource = [], isLoading: rawVSourceLoading } = useRawSheet("vSource", loadVSource);
+  const { data: rawHBA = [], isLoading: rawHBALoading } = useRawSheet("vHBA", loadHba);
+  const { data: rawNIC = [], isLoading: rawNICLoading } = useRawSheet("vNIC", loadNic);
+  const { data: rawVHost = [], isLoading: rawVHostLoading } = useRawSheet("vHost", loadVHost);
+  const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || rawVToolsLoading
+    || rawVInfoLoading || rawVSourceLoading || rawHBALoading || rawNICLoading || rawVHostLoading;
   const filteredRawVTools = useMemo(() => filterVmRows(rawVTools), [filterVmRows, rawVTools]);
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
 
@@ -576,7 +578,7 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
     return rows;
   }, [filteredRawVInfo]);
 
-  if (snapshotsLoading) return <PageLoadingState title="Compliance / Lifecycle" />;
+  if (dataLoading) return <PageLoadingState title="Compliance / Lifecycle" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Compliance / Lifecycle</h1><EmptyState icon={<Shield className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

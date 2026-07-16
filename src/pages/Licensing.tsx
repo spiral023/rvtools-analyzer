@@ -65,12 +65,14 @@ const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
 
 export default function Licensing() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { data: rawLicense = [] } = useRawSheet("vLicense");
-  const { vms, allVms } = useVms();
+  const { data: rawLicense = [], isLoading: rawLicenseLoading } = useRawSheet("vLicense");
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
-  const { data: clusters = [] } = useClusters();
-  const { data: hosts = [] } = useHosts();
-  const { data: datastores = [] } = useDatastores();
+  const { data: clusters = [], isLoading: clustersLoading } = useClusters();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
+  const dataLoading = snapshotsLoading || rawLicenseLoading || vmsLoading || clustersLoading
+    || hostsLoading || datastoresLoading;
 
   const licenses = useMemo<LicenseRow[]>(() =>
     rawLicense.map((r) => { const total = Number(r.data["Total"] || 0); const used = Number(r.data["Used"] || 0); return { name: String(r.data["Name"] || ""), key: String(r.data["Key"] || ""), costUnit: String(r.data["Cost Unit"] || ""), total, used, usedPct: total > 0 ? (used / total) * 100 : 0, expiration: formatRvtoolsDate(r.data["Expiration Date"]), features: String(r.data["Features"] || "") }; }), [rawLicense]);
@@ -119,7 +121,7 @@ export default function Licensing() {
     }).sort((a, b) => b.efficiency - a.efficiency);
   }, [datastores]);
 
-  if (snapshotsLoading) return <PageLoadingState title="Licensing & Effizienz" />;
+  if (dataLoading) return <PageLoadingState title="Licensing & Effizienz" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Licensing</h1><EmptyState icon={<Key className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

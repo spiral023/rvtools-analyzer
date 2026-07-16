@@ -80,6 +80,28 @@ export default function Diagnostics() {
           </Card>
 
           <Card>
+            <CardHeader><CardTitle className="text-sm">Seiten-Ladezeiten (langsamste zuerst)</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {data.queryTimings.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Noch keine Messungen — beim Navigieren durch die Seiten werden hier die tatsächlichen Ladezeiten je Datenquelle protokolliert.
+                  </p>
+                )}
+                {data.queryTimings.map((t) => (
+                  <div key={t.queryKey} className="flex items-center justify-between text-sm border-b border-border/40 py-1.5 last:border-0">
+                    <span className="font-mono-data">{t.queryKey}</span>
+                    <span className="text-muted-foreground tabular-nums">
+                      zuletzt {t.lastDurationMs.toLocaleString("de-DE")} ms · Ø {t.avgDurationMs.toLocaleString("de-DE")} ms
+                      {" · "}{t.lastRowCount.toLocaleString("de-DE")} Zeilen · {t.sampleCount} Messung{t.sampleCount !== 1 && "en"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader><CardTitle className="text-sm">Browser-Laufzeit</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm">

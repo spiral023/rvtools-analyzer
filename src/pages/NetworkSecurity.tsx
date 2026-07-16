@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { Network, ShieldAlert, Router, Cable, AlertTriangle } from "lucide-react";
@@ -77,11 +78,12 @@ const teamingColumns: ColumnDef<TeamingRow, unknown>[] = [
 export function NetworkSecurityPanel() {
   const { filters } = useActiveSnapshotIds();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
-  const { data: rawVPort = [] } = useRawSheet("vPort");
-  const { data: rawDvPort = [] } = useRawSheet("dvPort");
-  const { data: rawDvSwitch = [] } = useRawSheet("dvSwitch");
-  const { data: rawVmk = [] } = useRawSheet("vSC_VMK");
-  const { data: rawNIC = [] } = useRawSheet("vNIC");
+  const { data: rawVPort = [], isLoading: rawVPortLoading } = useRawSheet("vPort");
+  const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useRawSheet("dvPort");
+  const { data: rawDvSwitch = [], isLoading: rawDvSwitchLoading } = useRawSheet("dvSwitch");
+  const { data: rawVmk = [], isLoading: rawVmkLoading } = useRawSheet("vSC_VMK");
+  const { data: rawNIC = [], isLoading: rawNICLoading } = useRawSheet("vNIC");
+  const dataLoading = rawVPortLoading || rawDvPortLoading || rawDvSwitchLoading || rawVmkLoading || rawNICLoading;
 
   const policies = useMemo<PolicyRow[]>(() => {
     const fromVPort = rawVPort.map((r) => ({ name: String(r.data["Port Group"] || ""), type: "Standard", vlan: String(r.data["VLAN"] || ""), promiscuous: String(r.data["Promiscuous Mode"] || "").toLowerCase() === "true", macChanges: String(r.data["Mac Changes"] || "").toLowerCase() === "true", forgedTransmits: String(r.data["Forged Transmits"] || "").toLowerCase() === "true", policy: String(r.data["Policy"] || "") }));
@@ -180,6 +182,8 @@ export function NetworkSecurityPanel() {
     }
     return rows;
   }, [rawDvSwitch]);
+
+  if (dataLoading) return <PanelLoadingState />;
 
   return (
     <div className="space-y-6">

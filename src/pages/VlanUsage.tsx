@@ -3,6 +3,7 @@ import { Network, Layers, Server, HelpCircle } from "lucide-react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -36,10 +37,11 @@ const columns: ColumnDef<VlanUsageRow, unknown>[] = [
 
 export function VlanUsagePanel() {
   const { filters } = useActiveSnapshotIds();
-  const { data: rawVNetwork = [] } = useRawSheet("vNetwork");
-  const { data: rawVPort = [] } = useRawSheet("vPort");
-  const { data: rawDvPort = [] } = useRawSheet("dvPort");
-  const { data: rawVInfo = [] } = useRawSheet("vInfo");
+  const { data: rawVNetwork = [], isLoading: rawVNetworkLoading } = useRawSheet("vNetwork");
+  const { data: rawVPort = [], isLoading: rawVPortLoading } = useRawSheet("vPort");
+  const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useRawSheet("dvPort");
+  const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo");
+  const dataLoading = rawVNetworkLoading || rawVPortLoading || rawDvPortLoading || rawVInfoLoading;
 
   const rows = useMemo(
     () => buildVlanUsage(rawVNetwork, rawVPort, rawDvPort, rawVInfo),
@@ -62,6 +64,8 @@ export function VlanUsagePanel() {
     }
     return set.size;
   }, [rawVNetwork]);
+
+  if (dataLoading) return <PanelLoadingState />;
 
   return (
     <div className="space-y-6">

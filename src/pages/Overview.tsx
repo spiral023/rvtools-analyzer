@@ -60,18 +60,21 @@ const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
 
 export default function Overview() {
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vmsWithTechInfo: filteredVms } = useVmsWithTechInfo();
+  const { vmsWithTechInfo: filteredVms, isLoading: vmsLoading } = useVmsWithTechInfo();
   const { filterVmRows } = useGlobalVmFilterEngine();
-  const { data: hosts = [] } = useHosts();
-  const { data: datastores = [] } = useDatastores();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { data: healthEvents = [] } = useHealthEvents();
-  const { data: rawCpuRows = [] } = useRawSheet("vCPU");
-  const { data: rawMemoryRows = [] } = useRawSheet("vMemory");
-  const { data: rawDiskRows = [] } = useRawSheet("vDisk");
-  const { data: rawPartitionRows = [] } = useRawSheet("vPartition");
-  const { data: rawNetworkRows = [] } = useRawSheet("vNetwork");
-  const { data: rawSnapshotRows = [] } = useRawSheet("vSnapshot");
-  const { data: rawToolsRows = [] } = useRawSheet("vTools");
+  const { data: rawCpuRows = [], isLoading: rawCpuLoading } = useRawSheet("vCPU");
+  const { data: rawMemoryRows = [], isLoading: rawMemoryLoading } = useRawSheet("vMemory");
+  const { data: rawDiskRows = [], isLoading: rawDiskLoading } = useRawSheet("vDisk");
+  const { data: rawPartitionRows = [], isLoading: rawPartitionLoading } = useRawSheet("vPartition");
+  const { data: rawNetworkRows = [], isLoading: rawNetworkLoading } = useRawSheet("vNetwork");
+  const { data: rawSnapshotRows = [], isLoading: rawSnapshotLoading } = useRawSheet("vSnapshot");
+  const { data: rawToolsRows = [], isLoading: rawToolsLoading } = useRawSheet("vTools");
+  const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || datastoresLoading
+    || rawCpuLoading || rawMemoryLoading || rawDiskLoading || rawPartitionLoading
+    || rawNetworkLoading || rawSnapshotLoading || rawToolsLoading;
 
   const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
   const [osSource, setOsSource] = useState<VmOsSource>("tools");
@@ -129,7 +132,7 @@ export default function Overview() {
     [filteredVms, osSource],
   );
 
-  if (snapshotsLoading) return <PageLoadingState title="Overview" />;
+  if (dataLoading) return <PageLoadingState title="Overview" />;
 
   if (snapshots.length === 0) {
     return (

@@ -4,6 +4,7 @@ import { useActiveSnapshotIds, useAllCdpLatest } from "@/hooks/useActiveSnapshot
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ function createColumns(onOpenHostDetail: (row: CdpLatest) => void): ColumnDef<Cd
 
 export function CdpPanel() {
   const { filters } = useActiveSnapshotIds();
-  const { data: allRows = [] } = useAllCdpLatest();
+  const { data: allRows = [], isLoading: allRowsLoading } = useAllCdpLatest();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const [scriptOpen, setScriptOpen] = useState(false);
 
@@ -93,6 +94,8 @@ export function CdpPanel() {
       <CdpScriptDialog open={scriptOpen} onClose={() => setScriptOpen(false)} />
     </Suspense>
   ) : null;
+
+  if (allRowsLoading) return <PanelLoadingState />;
 
   if (allRows.length === 0) {
     return (

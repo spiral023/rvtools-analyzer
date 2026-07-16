@@ -399,14 +399,16 @@ const clusterCapacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
 
 function useCapacityPageData() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms } = useVms();
+  const { vms, isLoading: vmsLoading } = useVms();
   const { filterVmRows } = useGlobalVmFilterEngine();
-  const { data: clusters = [] } = useClusters();
-  const { data: datastores = [] } = useDatastores();
-  const { data: hosts = [] } = useHosts();
-  const { data: rawVHost = [] } = useRawSheet("vHost");
-  const { data: rawRP = [] } = useRawSheet("vRP");
-  const { data: rawDisks = [] } = useRawSheet("vDisk");
+  const { data: clusters = [], isLoading: clustersLoading } = useClusters();
+  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: rawVHost = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
+  const { data: rawRP = [], isLoading: rawRPLoading } = useRawSheet("vRP");
+  const { data: rawDisks = [], isLoading: rawDisksLoading } = useRawSheet("vDisk");
+  const dataLoading = snapshotsLoading || vmsLoading || clustersLoading || datastoresLoading
+    || hostsLoading || rawVHostLoading || rawRPLoading || rawDisksLoading;
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
   const [selectedClusterName, setSelectedClusterName] = useState<string | null>(null);
 
@@ -602,7 +604,7 @@ function useCapacityPageData() {
 
   return {
     snapshots,
-    snapshotsLoading,
+    dataLoading,
     filters,
     clusters,
     datastores,
@@ -638,7 +640,7 @@ function useCapacityPageData() {
 export default function Capacity() {
   const {
     snapshots,
-    snapshotsLoading,
+    dataLoading,
     filters,
     clusters,
     datastores,
@@ -670,7 +672,7 @@ export default function Capacity() {
     clusterRiskChart,
   } = useCapacityPageData();
 
-  if (snapshotsLoading) return <PageLoadingState title="Capacity" />;
+  if (dataLoading) return <PageLoadingState title="Capacity" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Capacity</h1><EmptyState icon={<HardDrive className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

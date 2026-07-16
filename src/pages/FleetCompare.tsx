@@ -49,15 +49,15 @@ export default function FleetCompare() {
 
   const allSnapshotIds = latestSnapshots.map((s) => s.snapshotId);
 
-  const { data: allVms = [] } = useQuery({ queryKey: ["fleet-vms", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allHosts = [] } = useQuery({ queryKey: ["fleet-hosts", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allClusters = [] } = useQuery({ queryKey: ["fleet-clusters", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allDatastores = [] } = useQuery({ queryKey: ["fleet-ds", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allHealth = [] } = useQuery({ queryKey: ["fleet-health", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allSnaps = [] } = useQuery({ queryKey: ["fleet-snaps", allSnapshotIds], queryFn: () => getBySnapshotIds<NormSnap>("entities_snapshot", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allVms = [], isLoading: vmsLoading } = useQuery({ queryKey: ["fleet-vms", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allHosts = [], isLoading: hostsLoading } = useQuery({ queryKey: ["fleet-hosts", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allClusters = [], isLoading: clustersLoading } = useQuery({ queryKey: ["fleet-clusters", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allDatastores = [], isLoading: datastoresLoading } = useQuery({ queryKey: ["fleet-ds", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allHealth = [], isLoading: healthLoading } = useQuery({ queryKey: ["fleet-health", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allSnaps = [], isLoading: snapsLoading } = useQuery({ queryKey: ["fleet-snaps", allSnapshotIds], queryFn: () => getBySnapshotIds<NormSnap>("entities_snapshot", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
 
   // Security drift per vcenter (check dvPort)
-  const { data: rawDvPort = [] } = useQuery({ queryKey: ["fleet-dvport", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
+  const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["fleet-dvport", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
 
   const summaries = useMemo<VCenterSummary[]>(() =>
     latestSnapshots.map((snap) => {
@@ -104,7 +104,9 @@ export default function FleetCompare() {
 
   const totalRisk = summaries.reduce((s, v) => s + v.riskScore, 0);
 
-  if (snapshotsLoading) return <PageLoadingState title="Fleet Compare" />;
+  const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || clustersLoading
+    || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading;
+  if (dataLoading) return <PageLoadingState title="Fleet Compare" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Fleet Compare</h1><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

@@ -112,16 +112,16 @@ const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
 
 export default function StorageBackup() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { allVms } = useVms();
+  const { allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
-  const { data: rawPartitions = [] } = useRawSheet("vPartition");
-  const { data: rawMultiPath = [] } = useRawSheet("vMultiPath");
-  const { data: rawDisks = [] } = useRawSheet("vDisk");
-  const { data: rawVInfo = [] } = useRawSheet("vInfo");
-  const { data: rawDatastore = [] } = useRawSheet("vDatastore");
-  const { data: vmSnapshots = [] } = useVmSnapshots();
+  const { data: rawPartitions = [], isLoading: rawPartitionsLoading } = useRawSheet("vPartition");
+  const { data: rawMultiPath = [], isLoading: rawMultiPathLoading } = useRawSheet("vMultiPath");
+  const { data: rawDisks = [], isLoading: rawDisksLoading } = useRawSheet("vDisk");
+  const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo");
+  const { data: rawDatastore = [], isLoading: rawDatastoreLoading } = useRawSheet("vDatastore");
+  const { data: vmSnapshots = [], isLoading: vmSnapshotsLoading } = useVmSnapshots();
   const filteredRawPartitions = useMemo(() => filterVmRows(rawPartitions), [filterVmRows, rawPartitions]);
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
@@ -210,7 +210,9 @@ export default function StorageBackup() {
   const partChart = useMemo(() =>
     partitions.filter((p) => p.freePct < 30).slice(0, 15).map((p) => ({ name: `${p.vm}:${p.disk}`.slice(0, 25), freePct: Math.round(p.freePct * 10) / 10 })), [partitions]);
 
-  if (snapshotsLoading) return <PageLoadingState title="Storage / Backup" />;
+  const dataLoading = snapshotsLoading || vmsLoading || rawPartitionsLoading || rawMultiPathLoading
+    || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading;
+  if (dataLoading) return <PageLoadingState title="Storage / Backup" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Storage / Backup</h1><EmptyState icon={<Database className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

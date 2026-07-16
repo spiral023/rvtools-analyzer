@@ -104,16 +104,16 @@ const nicQualityColumns: ColumnDef<NicQualityRow, unknown>[] = [
 
 export default function PerformancePage() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms, allVms } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows } = useGlobalVmFilterEngine();
-  const { data: rawVMemory = [] } = useRawSheet("vMemory");
-  const { data: rawVCPU = [] } = useRawSheet("vCPU");
-  const { data: rawMultiPath = [] } = useRawSheet("vMultiPath");
-  const { data: rawVNetwork = [] } = useRawSheet("vNetwork");
-  const { data: rawNIC = [] } = useRawSheet("vNIC");
-  const { data: datastores = [] } = useDatastores();
+  const { data: rawVMemory = [], isLoading: rawVMemoryLoading } = useRawSheet("vMemory");
+  const { data: rawVCPU = [], isLoading: rawVCPULoading } = useRawSheet("vCPU");
+  const { data: rawMultiPath = [], isLoading: rawMultiPathLoading } = useRawSheet("vMultiPath");
+  const { data: rawVNetwork = [], isLoading: rawVNetworkLoading } = useRawSheet("vNetwork");
+  const { data: rawNIC = [], isLoading: rawNICLoading } = useRawSheet("vNIC");
+  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const filteredRawVMemory = useMemo(() => filterVmRows(rawVMemory), [filterVmRows, rawVMemory]);
   const filteredRawVCPU = useMemo(() => filterVmRows(rawVCPU), [filterVmRows, rawVCPU]);
   const filteredRawVNetwork = useMemo(() => filterVmRows(rawVNetwork), [filterVmRows, rawVNetwork]);
@@ -172,7 +172,7 @@ export default function PerformancePage() {
   }, [entitlementGaps, filteredRawVMemory]);
 
   // Actually get FT from raw vInfo
-  const { data: rawVInfo = [] } = useRawSheet("vInfo");
+  const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo");
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
   const ftData = useMemo<FtRow[]>(() => {
     const rows: FtRow[] = [];
@@ -235,7 +235,9 @@ export default function PerformancePage() {
     return rows;
   }, [rawNIC]);
 
-  if (snapshotsLoading) return <PageLoadingState title="Performance" />;
+  const dataLoading = snapshotsLoading || vmsLoading || rawVMemoryLoading || rawVCPULoading
+    || rawMultiPathLoading || rawVNetworkLoading || rawNICLoading || datastoresLoading || rawVInfoLoading;
+  if (dataLoading) return <PageLoadingState title="Performance" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Performance</h1><EmptyState icon={<Gauge className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);

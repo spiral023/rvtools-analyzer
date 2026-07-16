@@ -5,6 +5,7 @@ import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import { applyVmScopeToVms } from "@/lib/vmScope";
+import { timeQuery } from "@/lib/queryTiming";
 import type {
   NormalizedVm, NormalizedHost, NormalizedCluster,
   NormalizedDatastore, NormalizedSnapshot, NormalizedHealth,
@@ -48,19 +49,19 @@ export function useActiveSnapshotIds() {
 
 export function useBaseVms(enabled = true) {
   const { activeSnapshotIds } = useActiveSnapshotIds();
-  const { data: vms = [] } = useQuery({
+  const { data: vms = [], isLoading } = useQuery({
     queryKey: ["vms", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds),
+    queryFn: () => timeQuery("vms", () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds)),
     enabled: enabled && activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
 
-  return { vms, allVms: vms };
+  return { vms, allVms: vms, isLoading };
 }
 
 export function useVms() {
   const { filters } = useActiveSnapshotIds();
-  const { allVms: vms } = useBaseVms();
+  const { allVms: vms, isLoading } = useBaseVms();
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine(hasGlobalFilterDefinition(filters.globalFilter));
 
   const filtered = useMemo(() => {
@@ -90,14 +91,14 @@ export function useVms() {
     return result;
   }, [filters, hasActiveFilter, matchingVmKeys, vms]);
 
-  return { vms: filtered, allVms: vms };
+  return { vms: filtered, allVms: vms, isLoading };
 }
 
 export function useHosts() {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["hosts", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", activeSnapshotIds),
+    queryFn: () => timeQuery("hosts", () => getBySnapshotIds<NormalizedHost>("entities_host", activeSnapshotIds)),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
@@ -107,7 +108,7 @@ export function useClusters() {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["clusters", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", activeSnapshotIds),
+    queryFn: () => timeQuery("clusters", () => getBySnapshotIds<NormalizedCluster>("entities_cluster", activeSnapshotIds)),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
@@ -117,7 +118,7 @@ export function useDatastores() {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["datastores", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", activeSnapshotIds),
+    queryFn: () => timeQuery("datastores", () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", activeSnapshotIds)),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
@@ -127,7 +128,7 @@ export function useVmSnapshots() {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["vmSnapshots", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedSnapshot>("entities_snapshot", activeSnapshotIds),
+    queryFn: () => timeQuery("vmSnapshots", () => getBySnapshotIds<NormalizedSnapshot>("entities_snapshot", activeSnapshotIds)),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
@@ -138,7 +139,7 @@ export function useHealthEvents() {
   const { matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const query = useQuery({
     queryKey: ["health", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", activeSnapshotIds),
+    queryFn: () => timeQuery("health", () => getBySnapshotIds<NormalizedHealth>("entities_health", activeSnapshotIds)),
     enabled: activeSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
@@ -158,7 +159,7 @@ export function useRawSheet(sheetName: string, enabled = true) {
   const { activeSnapshotIds } = useActiveSnapshotIds();
   return useQuery({
     queryKey: ["rawSheet", sheetName, activeSnapshotIds],
-    queryFn: () => getRawSheetRows(activeSnapshotIds, sheetName),
+    queryFn: () => timeQuery(`rawSheet/${sheetName}`, () => getRawSheetRows(activeSnapshotIds, sheetName)),
     enabled: activeSnapshotIds.length > 0 && enabled,
     staleTime: STALE_MS,
     gcTime: RAW_QUERY_GC_MS,
@@ -180,7 +181,7 @@ export function useTechInfoLatestByVmNames(vmNames: string[], enabled = true) {
 
   return useQuery({
     queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
-    queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
+    queryFn: () => timeQuery("techInfoLatestByVmNames", () => getTechInfoLatestByVmNames(normalizedVmNames)),
     enabled: enabled && normalizedVmNames.length > 0,
     staleTime: STALE_MS,
   });
@@ -201,7 +202,7 @@ export function useTechInfoClientLatestByClientNames(clientNames: string[], enab
 
   return useQuery({
     queryKey: ["techInfoClientLatestByClientNames", normalizedClientNames],
-    queryFn: () => getTechInfoClientLatestByClientNames(normalizedClientNames),
+    queryFn: () => timeQuery("techInfoClientLatestByClientNames", () => getTechInfoClientLatestByClientNames(normalizedClientNames)),
     enabled: enabled && normalizedClientNames.length > 0,
     staleTime: STALE_MS,
   });
@@ -224,7 +225,7 @@ export function useAllCdpLatest() {
 }
 
 export function useVmsWithTechInfo() {
-  const { vms, allVms } = useVms();
+  const { vms, allVms, isLoading } = useVms();
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(vms.map((vm) => vm.vmName));
 
   const byVmName = useMemo(() => {
@@ -244,5 +245,5 @@ export function useVmsWithTechInfo() {
     [vms, byVmName],
   );
 
-  return { vmsWithTechInfo, vms, allVms, techInfoLatest };
+  return { vmsWithTechInfo, vms, allVms, techInfoLatest, isLoading };
 }

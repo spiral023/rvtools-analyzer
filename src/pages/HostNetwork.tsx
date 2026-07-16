@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { VariantDetailDialog, type VariantDetail } from "@/components/network/VariantDetailDialog";
@@ -95,9 +96,10 @@ export function HostNetworkPanel() {
   const { filters } = useActiveSnapshotIds();
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const [selectedVariantLabel, setSelectedVariantLabel] = useState<string | null>(null);
-  const { data: rawNIC = [] } = useRawSheet("vNIC");
-  const { data: rawVSwitch = [] } = useRawSheet("vSwitch");
-  const { data: rawDvSwitch = [] } = useRawSheet("dvSwitch");
+  const { data: rawNIC = [], isLoading: rawNICLoading } = useRawSheet("vNIC");
+  const { data: rawVSwitch = [], isLoading: rawVSwitchLoading } = useRawSheet("vSwitch");
+  const { data: rawDvSwitch = [], isLoading: rawDvSwitchLoading } = useRawSheet("dvSwitch");
+  const dataLoading = rawNICLoading || rawVSwitchLoading || rawDvSwitchLoading;
 
   // Pro Host die NIC-Belegung samt Switch-Typ und Fingerprint aufbauen.
   const hostConfigs = useMemo<HostConfig[]>(() => {
@@ -258,6 +260,8 @@ export function HostNetworkPanel() {
     return names;
   }, [rawVSwitch]);
   const totalUplinks = nicDetail.filter((n) => n.switchName !== "").length;
+
+  if (dataLoading) return <PanelLoadingState />;
 
   return (
     <div className="space-y-6">

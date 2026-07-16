@@ -42,8 +42,8 @@ function makeGroupId(): string {
 
 export default function Planning() {
   const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms } = useVms();
-  const { data: clusters = [] } = useClusters();
+  const { vms, isLoading: vmsLoading } = useVms();
+  const { data: clusters = [], isLoading: clustersLoading } = useClusters();
   const { selectedVmKeys, toggleVm, selectMany, deselectMany, clear, setSelection } = useSelection();
   const { scenarios, saveScenario, deleteScenario } = useScenarios();
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
@@ -157,7 +157,8 @@ export default function Planning() {
     if (group) setSelection(group.vmKeys);
   };
 
-  if (snapshotsLoading) return <PageLoadingState title="Planung" />;
+  const dataLoading = snapshotsLoading || vmsLoading || clustersLoading;
+  if (dataLoading) return <PageLoadingState title="Planung" />;
 
   if (snapshots.length === 0) {
     return (

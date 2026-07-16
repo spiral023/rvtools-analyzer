@@ -652,14 +652,14 @@ function MaintenanceMailDialog({
 
 export default function Wartungsankuendigung() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms } = useVms();
-  const { data: clusters = [] } = useClusters();
-  const { data: hosts = [] } = useHosts();
-  const { data: rawVHostRows = [] } = useRawSheet("vHost");
+  const { vms, isLoading: vmsLoading } = useVms();
+  const { data: clusters = [], isLoading: clustersLoading } = useClusters();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const vcenterIds = useMemo(() => [...new Set(clusters.map((cluster) => cluster.vcenterId))], [clusters]);
   const { assignments, saveAssignment, isSaving } = useMaintenanceAssignments(vcenterIds);
   const { settings } = useMaintenanceSettings();
-  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(vms.map((vm) => vm.vmName));
+  const { data: techInfoLatest = [], isLoading: techInfoLoading } = useTechInfoLatestByVmNames(vms.map((vm) => vm.vmName));
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
@@ -808,7 +808,9 @@ export default function Wartungsankuendigung() {
     toast.success(targetRows.length === 1 ? "Cluster-Zuweisung gespeichert." : "Cluster-Zuweisungen gespeichert.");
   };
 
-  if (snapshotsLoading) return <PageLoadingState title="Wartungsankündigung" />;
+  const dataLoading = snapshotsLoading || vmsLoading || clustersLoading || hostsLoading
+    || rawVHostLoading || techInfoLoading;
+  if (dataLoading) return <PageLoadingState title="Wartungsankündigung" />;
 
   if (snapshots.length === 0) {
     return (

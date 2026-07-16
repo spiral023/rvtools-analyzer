@@ -110,14 +110,14 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
 
 export default function DailyOps() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms, allVms } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
-  const { data: healthEvents = [] } = useHealthEvents();
-  const { data: vmSnapshots = [] } = useVmSnapshots();
-  const { data: rawVTools = [] } = useRawSheet("vTools");
-  const { data: rawVCD = [] } = useRawSheet("vCD");
-  const { data: rawVUSB = [] } = useRawSheet("vUSB");
+  const { data: healthEvents = [], isLoading: healthLoading } = useHealthEvents();
+  const { data: vmSnapshots = [], isLoading: vmSnapshotsLoading } = useVmSnapshots();
+  const { data: rawVTools = [], isLoading: rawVToolsLoading } = useRawSheet("vTools");
+  const { data: rawVCD = [], isLoading: rawVCDLoading } = useRawSheet("vCD");
+  const { data: rawVUSB = [], isLoading: rawVUSBLoading } = useRawSheet("vUSB");
   const filteredVmSnapshots = useMemo(
     () =>
       matchingVmJoinKeys
@@ -162,7 +162,9 @@ export default function DailyOps() {
     ].filter((d) => d.value > 0);
   }, [vms]);
 
-  if (snapshotsLoading) return <PageLoadingState title="Daily Ops" />;
+  const dataLoading = snapshotsLoading || vmsLoading || healthLoading || vmSnapshotsLoading
+    || rawVToolsLoading || rawVCDLoading || rawVUSBLoading;
+  if (dataLoading) return <PageLoadingState title="Daily Ops" />;
 
   if (snapshots.length === 0) {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Daily Ops</h1><EmptyState icon={<Activity className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
