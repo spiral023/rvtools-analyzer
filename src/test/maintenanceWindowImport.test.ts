@@ -136,6 +136,57 @@ describe("parseMaintenanceWindowText", () => {
     }));
   });
 
+  it("recovers after a middle block with a missing mask without shifting the next valid block", () => {
+    const validMasks = [
+      ALLOWED_MASK,
+      BLOCKED_MASK,
+      "01".repeat(24),
+      "10".repeat(24),
+      BLOCKED_MASK,
+      ALLOWED_MASK,
+      BLOCKED_MASK,
+    ];
+    const text = [
+      ...block("FIRST", "Vollständig"),
+      "BROKEN",
+      "Sonntagsmaske fehlt",
+      ...Array(6).fill(BLOCKED_MASK),
+      ...block("LATER", "Bleibt erhalten", validMasks),
+    ].join("\n");
+
+    const result = parseMaintenanceWindowText(text);
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["FIRST", "LATER"]);
+    expect(result.entries[1].definition.weeklySlots.map(slotsToExternalMask)).toEqual(validMasks);
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "incomplete-block",
+      block: 2,
+    }));
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "mask-length",
+      block: 2,
+      field: "Sonntag",
+    }));
+  });
+
+  it("parses a structurally identifiable block whose description cell is empty", () => {
+    const masks = [ALLOWED_MASK, ...Array(6).fill(BLOCKED_MASK)];
+    const result = parseMaintenanceWindowText([
+      "EMPTY-DESCRIPTION",
+      "   ",
+      ...masks,
+      ...block("NEXT", "Nächster Block"),
+    ].join("\r\n"));
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual([
+      "EMPTY-DESCRIPTION",
+      "NEXT",
+    ]);
+    expect(result.entries[0].definition.description).toBe("");
+    expect(result.entries[0].definition.weeklySlots.map(slotsToExternalMask)).toEqual(masks);
+    expect(result.errors).toEqual([]);
+  });
+
   it("marks every entry whose normalized abbreviation is duplicated", () => {
     const result = parseMaintenanceWindowText([
       ...block("OCP MO1", "Erste Definition"),
@@ -155,6 +206,17 @@ describe("parseMaintenanceWindowText", () => {
       code: "empty-abbreviation",
       block: 4,
       field: "abbreviation",
+      severity: "error",
+    }));
+  });
+
+  it.each([
+    ["sparse", Object.assign(Array<unknown>(9), { 0: "ABBR" })],
+    ["non-string", ["ABBR", "Beschreibung", 42, ...Array(6).fill(BLOCKED_MASK)]],
+  ])("returns a controlled issue for a %s runtime block", (_label, malformedBlock) => {
+    expect(() => validateMaintenanceWindowBlock(malformedBlock)).not.toThrow();
+    expect(validateMaintenanceWindowBlock(malformedBlock)).toContainEqual(expect.objectContaining({
+      code: "incomplete-block",
       severity: "error",
     }));
   });
@@ -197,6 +259,50 @@ describe("parseMaintenanceWindowText", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it.each([
+    ["am ersten und dritten Sonntag im Monat", 6, [1, 3]],
+    ["am fünften Montag im Monat", 0, [5]],
+    ["am letzten Freitag im Monat", 4, ["last"]],
+  ] as const)("supports bounded German monthly inflections in %s", (description, weekday, occurrences) => {
+    const result = parseMaintenanceWindowText(block("RULE", description).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([{ weekday, occurrences }]);
+  });
+
+  it.each([
+    "am vorletzten Sonntag im Monat",
+    "nicht am 1. Sonntag im Monat",
+    "kein dritter Montag im Monat",
+    "1. Sonntagsdienst im Monat",
+    "am allerletzten Freitag im Monat",
+  ])("does not infer monthly rules from unsupported or negated prose: %s", (description) => {
+    const result = parseMaintenanceWindowText(block("NO-RULE", description).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([]);
+  });
+
+  it.each([
+    "laut INF-VA 4711",
+    "gemäß Betriebsdokumentation",
+    "extern festgelegt",
+    "extern definiert",
+  ])("infers external handling from bounded reference wording: %s", (description) => {
+    const result = parseMaintenanceWindowText(block("EXTERNAL", description).join("\n"));
+
+    expect(result.entries[0].definition.handling).toBe("external");
+  });
+
+  it.each([
+    "Der Lautsprecher wird geprüft",
+    "Die Verlautbarung ist intern",
+    "lautloser Betrieb",
+    "nicht extern festgelegt",
+  ])("does not infer external handling from unrelated or negated wording: %s", (description) => {
+    const result = parseMaintenanceWindowText(block("REGULAR", description).join("\n"));
+
+    expect(result.entries[0].definition.handling).toBe("regular");
+  });
+
   it("warns when a supported weekday and time description conflicts with the mask", () => {
     const result = parseMaintenanceWindowText(block(
       "CONFLICT",
@@ -211,6 +317,44 @@ describe("parseMaintenanceWindowText", () => {
       field: "description",
     }));
     expect(result.entries[0].issues).toEqual(result.warnings);
+  });
+
+  it("uses one timestamp per parse run and a unique UUID for every entry", () => {
+    const result = parseMaintenanceWindowText([
+      ...block("ONE", "Erster Block"),
+      ...block("TWO", "Zweiter Block"),
+    ].join("\n"));
+
+    expect(new Set(result.entries.map((entry) => entry.definition.createdAt)).size).toBe(1);
+    expect(result.entries.every((entry) => (
+      entry.definition.updatedAt === entry.definition.createdAt
+    ))).toBe(true);
+    expect(new Set(result.entries.map((entry) => entry.definition.id)).size).toBe(2);
+    expect(result.entries.every((entry) => (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+        .test(entry.definition.id)
+    ))).toBe(true);
+  });
+
+  it("does not strip a header-like sequence that occurs after imported content", () => {
+    const result = parseMaintenanceWindowText([
+      ...block("FIRST", "Valider Inhalt"),
+      "Abkürzung",
+      "Details",
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+      "Samstag",
+      "Sonntag",
+    ].join("\n"));
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["FIRST"]);
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "incomplete-block",
+      block: 2,
+    }));
   });
 });
 
@@ -247,5 +391,66 @@ describe("buildMaintenanceImportPreview", () => {
     expect(preview[2].definition).toEqual(unchangedExisting);
     expect(parsed.entries).toEqual(entriesBefore);
     expect([unchangedExisting, changedExisting]).toEqual(existingBefore);
+  });
+
+  it("matches existing definitions from their abbreviation even when the cached normalized value is stale", () => {
+    const existing = definition("MATCH", {
+      normalizedAbbreviation: "veraltet",
+      description: "Gleicher Datensatz",
+    });
+    const parsed = parseMaintenanceWindowText(block("MATCH", "Gleicher Datensatz").join("\n"));
+
+    const preview = buildMaintenanceImportPreview(parsed.entries, [existing]);
+
+    expect(preview[0].status).toBe("update");
+    expect(preview[0].definition.id).toBe(existing.id);
+    expect(preview[0].definition.createdAt).toBe(existing.createdAt);
+  });
+
+  it("rejects duplicate normalized abbreviations in persisted definitions deterministically", () => {
+    const parsed = parseMaintenanceWindowText(block("DUP", "Import").join("\n"));
+    const existing = [
+      definition("DUP", { id: "first" }),
+      definition(" dup ", { id: "second" }),
+    ];
+
+    expect(() => buildMaintenanceImportPreview(parsed.entries, existing)).toThrow(
+      /Abkürzung.*mehrfach.*vorhanden/iu,
+    );
+  });
+
+  it("treats reordered and duplicated equivalent calendar rules as unchanged", () => {
+    const parsed = parseMaintenanceWindowText(block("CANON", "Kalenderregeln").join("\n"));
+    parsed.entries[0].definition.calendarRules = [
+      { weekday: 6, occurrences: [1, 3] },
+      { weekday: 0, occurrences: [2, "last"] },
+    ];
+    const existing = definition("CANON", {
+      description: "Kalenderregeln",
+      calendarRules: [
+        { weekday: 0, occurrences: ["last", 2, 2] },
+        { weekday: 6, occurrences: [3, 1, 3] },
+      ],
+    });
+
+    const preview = buildMaintenanceImportPreview(parsed.entries, [existing]);
+
+    expect(preview[0].status).toBe("unchanged");
+    expect(preview[0].definition).toEqual(existing);
+  });
+
+  it("deeply isolates preview definitions and issues from parsed input", () => {
+    const parsed = parseMaintenanceWindowText(block(
+      "CLONE",
+      "1. Sonntag im Monat 15:00 - 18:00",
+    ).join("\n"));
+    const before = structuredClone(parsed.entries);
+
+    const preview = buildMaintenanceImportPreview(parsed.entries, []);
+    preview[0].definition.weeklySlots[6][30] = true;
+    preview[0].definition.calendarRules[0].occurrences.push(2);
+    preview[0].issues[0].message = "verändert";
+
+    expect(parsed.entries).toEqual(before);
   });
 });

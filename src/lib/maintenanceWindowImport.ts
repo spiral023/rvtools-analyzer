@@ -60,19 +60,22 @@ const HEADER_TAIL = ["Details", ...DAY_LABELS] as const;
 const WEEKDAY_PATTERN = DAY_LABELS.join("|");
 const OCCURRENCE_TOKEN_PATTERN = [
   "[1-5]\\.",
-  "erste\\p{L}*",
-  "zweite\\p{L}*",
-  "dritte\\p{L}*",
-  "vierte\\p{L}*",
-  "fünfte\\p{L}*",
-  "letzte\\p{L}*",
+  "erst(?:e|en|er|es|em)",
+  "zweit(?:e|en|er|es|em)",
+  "dritt(?:e|en|er|es|em)",
+  "viert(?:e|en|er|es|em)",
+  "fünft(?:e|en|er|es|em)",
+  "letzt(?:e|en|er|es|em)",
 ].join("|");
 
 const MONTHLY_RULE_PATTERN = new RegExp(
-  `(${OCCURRENCE_TOKEN_PATTERN})(?:\\s*(?:,|und|oder)\\s*(${OCCURRENCE_TOKEN_PATTERN}))*\\s+(${WEEKDAY_PATTERN})`,
+  `(?<![\\p{L}\\p{N}])((?:${OCCURRENCE_TOKEN_PATTERN})(?:\\s*(?:,|und|oder)\\s*(?:${OCCURRENCE_TOKEN_PATTERN}))*)\\s+(${WEEKDAY_PATTERN})(?!\\p{L})`,
   "giu",
 );
-const OCCURRENCE_PATTERN = new RegExp(OCCURRENCE_TOKEN_PATTERN, "giu");
+const OCCURRENCE_PATTERN = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${OCCURRENCE_TOKEN_PATTERN})(?![\\p{L}\\p{N}])`,
+  "giu",
+);
 const WEEKDAY_TIME_PATTERN = new RegExp(
   `(${WEEKDAY_PATTERN})(?:\\s+im\\s+Monat)?\\s+(\\d{2}:\\d{2})\\s*[-–]\\s*(\\d{2}:\\d{2})`,
   "giu",
@@ -94,13 +97,17 @@ function hasKnownHeader(lines: readonly string[]): boolean {
   return HEADER_TAIL.every((label, index) => lines[index + 1] === label);
 }
 
+function isMaskCandidate(line: string): boolean {
+  return /^[01]+$/.test(line) || line.length === SLOT_COUNT;
+}
+
 /**
  * Validates a structural block before conversion. This helper also makes an
  * empty first cell testable because blank-line normalization necessarily loses
  * the distinction between an empty table cell and a visual separator.
  */
 export function validateMaintenanceWindowBlock(
-  cells: readonly string[],
+  cells: readonly unknown[],
   block = 1,
 ): MaintenanceImportIssue[] {
   const issues: MaintenanceImportIssue[] = [];
@@ -115,7 +122,21 @@ export function validateMaintenanceWindowBlock(
     return issues;
   }
 
-  if (!cells[0].trim()) {
+  for (let cell = 0; cell < CELLS_PER_BLOCK; cell += 1) {
+    if (typeof cells[cell] !== "string") {
+      issues.push(issue(
+        "error",
+        "incomplete-block",
+        block,
+        `Block ${block} enthält an Position ${cell + 1} kein gültiges Textfeld.`,
+      ));
+      return issues;
+    }
+  }
+
+  const stringCells = cells as readonly string[];
+
+  if (!stringCells[0].trim()) {
     issues.push(issue(
       "error",
       "empty-abbreviation",
@@ -126,7 +147,7 @@ export function validateMaintenanceWindowBlock(
   }
 
   for (let day = 0; day < DAY_LABELS.length; day += 1) {
-    const mask = cells[day + 2].trim();
+    const mask = stringCells[day + 2].trim();
     const field = DAY_LABELS[day];
     if (mask.length !== SLOT_COUNT) {
       issues.push(issue(
@@ -172,15 +193,26 @@ function weekdayFromLabel(label: string): MaintenanceWeekday | null {
   return weekday < 0 ? null : weekday as MaintenanceWeekday;
 }
 
+function isNegatedContext(description: string, matchIndex: number): boolean {
+  const prefix = description.slice(0, matchIndex);
+  const clause = prefix.slice(Math.max(
+    prefix.lastIndexOf("."),
+    prefix.lastIndexOf("!"),
+    prefix.lastIndexOf("?"),
+    prefix.lastIndexOf(";"),
+  ) + 1);
+  return /\b(?:nicht|kein(?:e|en|er|es|em)?)\b/iu.test(clause);
+}
+
 function inferCalendarRules(description: string): MaintenanceCalendarRule[] {
   const byWeekday = new Map<MaintenanceWeekday, Set<MonthlyOccurrence>>();
 
   for (const match of description.matchAll(MONTHLY_RULE_PATTERN)) {
-    const weekday = weekdayFromLabel(match[match.length - 1]);
+    if (isNegatedContext(description, match.index ?? 0)) continue;
+    const weekday = weekdayFromLabel(match[2]);
     if (weekday === null) continue;
 
-    const occurrenceText = match[0].slice(0, match[0].lastIndexOf(match[match.length - 1]));
-    const occurrences = [...occurrenceText.matchAll(OCCURRENCE_PATTERN)]
+    const occurrences = [...match[1].matchAll(OCCURRENCE_PATTERN)]
       .map((occurrenceMatch) => occurrenceFromToken(occurrenceMatch[0]))
       .filter((value): value is MonthlyOccurrence => value !== null);
     if (occurrences.length === 0) continue;
@@ -204,7 +236,10 @@ function inferHandling(
   weeklySlots: MaintenanceWindowDefinition["weeklySlots"],
 ): MaintenanceWindowDefinition["handling"] {
   if (/nur\s+nach\s+rücksprache/iu.test(description)) return "approval-required";
-  if (/laut\s+INF-VA\b/iu.test(description)) return "external";
+  const externalPattern = /\b(?:laut|gemäß)\s+[\p{L}\p{N}][\p{L}\p{N}._/-]*|\bextern\s+(?:festgelegt|definiert)\b/giu;
+  for (const match of description.matchAll(externalPattern)) {
+    if (!isNegatedContext(description, match.index ?? 0)) return "external";
+  }
   if (
     /00:00\s*[-–]\s*24:00/u.test(description)
     && weeklySlots.every((day) => day.every(Boolean))
@@ -328,6 +363,39 @@ function markDuplicateAbbreviations(entries: ParsedMaintenanceEntry[]): void {
   }
 }
 
+function incompleteBlockIssues(
+  abbreviation: string,
+  description: string,
+  masks: readonly string[],
+  block: number,
+): MaintenanceImportIssue[] {
+  const missingMaskCount = DAY_LABELS.length - masks.length;
+  const paddedCells = [
+    abbreviation,
+    description,
+    ...masks,
+    ...Array(missingMaskCount).fill("1".repeat(SLOT_COUNT)),
+  ];
+  const issues = validateMaintenanceWindowBlock(paddedCells, block);
+  issues.unshift(issue(
+    "error",
+    "incomplete-block",
+    block,
+    `Block ${block} enthält nur ${masks.length} von ${DAY_LABELS.length} Tagesmasken.`,
+  ));
+  for (let day = masks.length; day < DAY_LABELS.length; day += 1) {
+    const field = DAY_LABELS[day];
+    issues.push(issue(
+      "error",
+      "mask-length",
+      block,
+      `${field}: Die Maske fehlt.`,
+      field,
+    ));
+  }
+  return issues;
+}
+
 export function parseMaintenanceWindowText(text: string): MaintenanceImportParseResult {
   const timestamp = new Date().toISOString();
   const normalizedText = text.replace(/\r\n?/g, "\n");
@@ -336,25 +404,40 @@ export function parseMaintenanceWindowText(text: string): MaintenanceImportParse
 
   const entries: ParsedMaintenanceEntry[] = [];
   const standaloneIssues: MaintenanceImportIssue[] = [];
-  const completeCellCount = lines.length - (lines.length % CELLS_PER_BLOCK);
+  let cursor = 0;
+  let block = 1;
 
-  for (let start = 0; start < completeCellCount; start += CELLS_PER_BLOCK) {
-    entries.push(createEntry(
-      lines.slice(start, start + CELLS_PER_BLOCK),
-      start / CELLS_PER_BLOCK + 1,
-      timestamp,
-    ));
-  }
+  while (cursor < lines.length) {
+    const abbreviation = lines[cursor];
+    let description = "";
+    let maskCursor = cursor + 1;
+    if (maskCursor < lines.length && !isMaskCandidate(lines[maskCursor])) {
+      description = lines[maskCursor];
+      maskCursor += 1;
+    }
 
-  if (completeCellCount < lines.length) {
-    const block = completeCellCount / CELLS_PER_BLOCK + 1;
-    const remaining = lines.length - completeCellCount;
-    standaloneIssues.push(issue(
-      "error",
-      "incomplete-block",
-      block,
-      `Block ${block} enthält ${remaining} statt ${CELLS_PER_BLOCK} Felder.`,
-    ));
+    const masks: string[] = [];
+    while (
+      masks.length < DAY_LABELS.length
+      && maskCursor < lines.length
+      && isMaskCandidate(lines[maskCursor])
+    ) {
+      masks.push(lines[maskCursor]);
+      maskCursor += 1;
+    }
+
+    if (masks.length === DAY_LABELS.length) {
+      entries.push(createEntry([abbreviation, description, ...masks], block, timestamp));
+      cursor = maskCursor;
+      block += 1;
+      continue;
+    }
+
+    standaloneIssues.push(...incompleteBlockIssues(abbreviation, description, masks, block));
+    if (maskCursor >= lines.length || masks.length === 0) break;
+
+    cursor = maskCursor;
+    block += 1;
   }
 
   markDuplicateAbbreviations(entries);
@@ -375,7 +458,27 @@ function sameBusinessFields(
     && left.description === right.description
     && left.handling === right.handling
     && JSON.stringify(left.weeklySlots) === JSON.stringify(right.weeklySlots)
-    && JSON.stringify(left.calendarRules) === JSON.stringify(right.calendarRules);
+    && JSON.stringify(canonicalCalendarRules(left.calendarRules))
+      === JSON.stringify(canonicalCalendarRules(right.calendarRules));
+}
+
+function canonicalCalendarRules(
+  rules: readonly MaintenanceCalendarRule[],
+): MaintenanceCalendarRule[] {
+  const byWeekday = new Map<MaintenanceWeekday, Set<MonthlyOccurrence>>();
+  for (const rule of rules) {
+    const occurrences = byWeekday.get(rule.weekday) ?? new Set<MonthlyOccurrence>();
+    rule.occurrences.forEach((occurrence) => occurrences.add(occurrence));
+    byWeekday.set(rule.weekday, occurrences);
+  }
+
+  const occurrenceOrder: readonly MonthlyOccurrence[] = [1, 2, 3, 4, 5, "last"];
+  return [...byWeekday.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([weekday, occurrences]) => ({
+      weekday,
+      occurrences: occurrenceOrder.filter((occurrence) => occurrences.has(occurrence)),
+    }));
 }
 
 export function buildMaintenanceImportPreview(
@@ -383,14 +486,18 @@ export function buildMaintenanceImportPreview(
   existing: readonly MaintenanceWindowDefinition[],
 ): MaintenanceImportPreviewRow[] {
   const timestamp = new Date().toISOString();
-  const existingByAbbreviation = new Map(existing.map((definition) => [
-    normalizeMaintenanceAbbreviation(definition.normalizedAbbreviation),
-    definition,
-  ]));
+  const existingByAbbreviation = new Map<string, MaintenanceWindowDefinition>();
+  for (const definition of existing) {
+    const key = normalizeMaintenanceAbbreviation(definition.abbreviation);
+    if (existingByAbbreviation.has(key)) {
+      throw new Error(`Die Abkürzung „${key}“ ist in den bestehenden Definitionen mehrfach vorhanden.`);
+    }
+    existingByAbbreviation.set(key, definition);
+  }
 
   return entries.map((entry) => {
     const imported = cloneDefinition(entry.definition);
-    const persisted = existingByAbbreviation.get(imported.normalizedAbbreviation);
+    const persisted = existingByAbbreviation.get(normalizeMaintenanceAbbreviation(imported.abbreviation));
     if (!persisted) {
       return {
         status: "new",
