@@ -170,7 +170,7 @@ export default function MaintenanceWindows() {
     }
   };
 
-  const handleDuplicate = (value: MaintenanceWindowDefinition) => {
+  const handleDuplicate = async (value: MaintenanceWindowDefinition) => {
     const timestamp = new Date().toISOString();
     const abbreviation = uniqueCopyAbbreviation(value, definitions);
     const duplicate = cloneDefinition({
@@ -182,9 +182,17 @@ export default function MaintenanceWindows() {
       updatedAt: timestamp,
     });
     setActionError(null);
-    setDirty(false);
-    setSelectedId(null);
-    setDraftDefinition(duplicate);
+    try {
+      await save(duplicate);
+      setDirty(false);
+      setDraftDefinition(null);
+      setSelectedId(duplicate.id);
+      toast.success("Wartungsfenster dupliziert.");
+    } catch (duplicateError) {
+      const message = duplicateError instanceof Error ? duplicateError.message : "Duplizieren fehlgeschlagen.";
+      setActionError(message);
+      toast.error("Wartungsfenster konnte nicht dupliziert werden.");
+    }
   };
 
   const handleImport = async (incoming: MaintenanceWindowDefinition[]) => {
@@ -267,7 +275,7 @@ export default function MaintenanceWindows() {
             isSaving={isMutating}
             onSave={handleSave}
             onDelete={(definition) => { void handleDelete(definition); }}
-            onDuplicate={handleDuplicate}
+            onDuplicate={(definition) => { void handleDuplicate(definition); }}
             onDirtyChange={setDirty}
           /> : <Card className="min-h-[18rem] border-dashed shadow-none"><CardHeader><CardTitle className="text-base">Definition auswählen</CardTitle><CardDescription>Wählen Sie ein Wartungsfenster im Katalog oder legen Sie ein neues an.</CardDescription></CardHeader></Card>}
         </section>

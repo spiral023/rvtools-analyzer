@@ -23,15 +23,17 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 }));
 
 vi.mock("@/components/maintenance-windows/MaintenanceWindowEditor", () => ({
-  MaintenanceWindowEditor: ({ value, onSave, onDirtyChange }: {
+  MaintenanceWindowEditor: ({ value, onSave, onDuplicate, onDirtyChange }: {
     value: MaintenanceWindowDefinition;
     onSave: (value: MaintenanceWindowDefinition) => Promise<void>;
+    onDuplicate: (value: MaintenanceWindowDefinition) => void;
     onDirtyChange?: (dirty: boolean) => void;
   }) => (
     <section aria-label="Fensterdefinition bearbeiten">
       <p>Editor: {value.abbreviation || "neu"}</p>
       <button type="button" onClick={() => onDirtyChange?.(true)}>Änderung markieren</button>
       <button type="button" onClick={() => { void onSave({ ...value, abbreviation: value.abbreviation || "Neu" }).catch(() => {}); }}>Editor speichern</button>
+      <button type="button" onClick={() => onDuplicate(value)}>Duplizieren</button>
     </section>
   ),
 }));
@@ -160,6 +162,48 @@ describe("MaintenanceWindows", () => {
     fireEvent.click(screen.getByRole("button", { name: /Nacht auswählen/i }));
 
     expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.getByText("Editor: STD")).toBeInTheDocument();
+  });
+
+  it("speichert eine Duplikat-Definition sofort und wählt sie nach dem Persistieren aus", async () => {
+    const definitions = [definition()];
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions, isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    const { rerender } = render(<MaintenanceWindows />);
+
+    fireEvent.click(screen.getByRole("button", { name: /STD auswählen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplizieren" }));
+
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
+    const duplicate = mocks.save.mock.calls[0][0] as MaintenanceWindowDefinition;
+    expect(duplicate).toMatchObject({ abbreviation: "STD-Kopie", normalizedAbbreviation: "std-kopie" });
+    expect(duplicate.id).not.toBe(definitions[0].id);
+    expect(duplicate.weeklySlots).not.toBe(definitions[0].weeklySlots);
+
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions: [...definitions, duplicate], isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    rerender(<MaintenanceWindows />);
+
+    expect(screen.getAllByText("STD-Kopie")).not.toHaveLength(0);
+    expect(screen.getByText("Editor: STD-Kopie")).toBeInTheDocument();
+  });
+
+  it("wählt bei einem fehlgeschlagenen Duplikat keine Phantomdefinition aus", async () => {
+    mocks.save.mockRejectedValueOnce(new Error("Kopie fehlgeschlagen"));
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions: [definition()], isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    render(<MaintenanceWindows />);
+
+    fireEvent.click(screen.getByRole("button", { name: /STD auswählen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Duplizieren" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Kopie fehlgeschlagen"));
     expect(screen.getByText("Editor: STD")).toBeInTheDocument();
   });
 
