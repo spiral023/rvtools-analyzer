@@ -7,6 +7,76 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
 });
 
+describe("v19 upgrade migration", () => {
+  it("clears RVTools stores and drops legacy raw-sheet stores while preserving CDP data when upgrading from a v18 database", async () => {
+    const { openDB } = await import("idb");
+
+    // Seed a minimal legacy (pre-v19) schema directly against the shared fake IDBFactory,
+    // mirroring the old rawSheets/rawSheetHeaders stores this migration removes.
+    const legacyDb = await openDB("rvtools-analyzer", 18, {
+      upgrade(db) {
+        db.createObjectStore("snapshots", { keyPath: "snapshotId" });
+        db.createObjectStore("entities_vm", { keyPath: "vmKey" });
+        db.createObjectStore("rawSheets", { keyPath: ["snapshotId", "sheetName", "rowIndex"] });
+        db.createObjectStore("rawSheetHeaders", { keyPath: ["snapshotId", "sheetName"] });
+        db.createObjectStore("cdp_imports", { keyPath: "cdpImportId" });
+      },
+    });
+
+    await legacyDb.put("snapshots", {
+      snapshotId: "snap-legacy",
+      vcenterId: "vc-1",
+      vcenterDisplayName: "Legacy vCenter",
+      exportTs: "2025-01-01T00:00:00.000Z",
+      importedAt: "2025-01-01T00:00:00.000Z",
+      fileName: "legacy.xlsx",
+      fileChecksum: "legacy-chk",
+      sheetStats: {},
+    });
+    await legacyDb.put("entities_vm", {
+      vmKey: "vm-1::vc-1",
+      snapshotId: "snap-legacy",
+      vmName: "vm-1",
+    });
+    await legacyDb.put("rawSheets", {
+      snapshotId: "snap-legacy",
+      sheetName: "vInfo",
+      rowIndex: 0,
+      data: { VM: "vm-1" },
+    });
+    await legacyDb.put("rawSheetHeaders", {
+      snapshotId: "snap-legacy",
+      sheetName: "vInfo",
+      headers: ["VM"],
+    });
+    await legacyDb.put("cdp_imports", {
+      cdpImportId: "cdp-1",
+      importedAt: "2025-01-01T00:00:00.000Z",
+      fileName: "cdp.csv",
+      fileChecksum: "cdp-chk",
+      rowCount: 1,
+      columnCount: 18,
+    });
+    legacyDb.close();
+
+    // Fresh module import (module cache was reset in beforeEach) opens the same
+    // fake-IndexedDB database at DB_VERSION 19, triggering the real upgrade handler.
+    const { getDb } = await import("./index");
+    const db = await getDb();
+
+    expect(db.objectStoreNames.contains("rawSheets")).toBe(false);
+    expect(db.objectStoreNames.contains("rawSheetHeaders")).toBe(false);
+    expect(db.objectStoreNames.contains("rawSheetBlobs")).toBe(true);
+
+    await expect(db.getAll("snapshots")).resolves.toHaveLength(0);
+    await expect(db.getAll("entities_vm")).resolves.toHaveLength(0);
+
+    const cdpImports = await db.getAll("cdp_imports");
+    expect(cdpImports).toHaveLength(1);
+    expect(cdpImports[0].cdpImportId).toBe("cdp-1");
+  });
+});
+
 describe("getStoreDiagnostics", () => {
   it("returns zero counts for all stores on an empty database", async () => {
     const { getStoreDiagnostics } = await import("./index");

@@ -577,7 +577,8 @@ export async function getCdpLatestByHostAdapterKeys(keys: string[]): Promise<Cdp
 /**
  * Byte-Schätzung eines Store-Eintrags. `rawSheetBlobs` enthält ein `ArrayBuffer` in `data`,
  * das `JSON.stringify` nicht sinnvoll erfasst (ergibt `"{}"`) — dafür wird `byteLength` direkt
- * verwendet, was hier sogar einen exakten statt geschätzten Wert liefert.
+ * verwendet, was einen nahezu exakten statt geschätzten Wert liefert (der Aufschlag
+ * `+ JSON.stringify(blob.headers).length + 64` für Header/Metadaten bleibt eine Näherung).
  */
 function estimateEntryBytes(storeName: StoreName, value: unknown): number {
   if (storeName === "rawSheetBlobs") {
