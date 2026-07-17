@@ -121,6 +121,48 @@ describe("MaintenanceWindowImportDialog", () => {
     expect(screen.getByRole("button", { name: "Auswahl importieren" })).toBeDisabled();
   });
 
+  it("behält Text, Vorschau und Auswahl bei harmlosen Parent-Rerenders geöffnet", () => {
+    const { rerender, onOpenChange, onImport } = renderDialog();
+    const importedText = importBlock("NEU", "Neue Regel");
+    checkText(importedText);
+
+    rerender(
+      <MaintenanceWindowImportDialog
+        open
+        onOpenChange={onOpenChange}
+        existing={[]}
+        onImport={onImport}
+      />,
+    );
+
+    expect(screen.getByLabelText("Wartungsfenster-Text")).toHaveValue(importedText);
+    expect(screen.getByText("Neu: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("NEU auswählen")).toBeChecked();
+  });
+
+  it("setzt Text, Vorschau und Auswahl nach erfolgreichem Import zurück, bevor der Parent schließt", async () => {
+    const { onImport, onOpenChange } = renderDialog();
+    checkText(importBlock("NEU", "Neue Regel"));
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl importieren" }));
+
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText("Wartungsfenster-Text")).toHaveValue("");
+    expect(screen.queryByText("Neu: 1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("NEU auswählen")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Auswahl importieren" })).toBeDisabled();
+  });
+
+  it("zeigt den überprüften Zeitplan kompakt mit erlaubtem Slot ohne interaktive Rasterzellen", () => {
+    renderDialog();
+    const mondayWithFirstSlotAllowed = `0${"1".repeat(47)}`;
+    checkText(importBlock("ZEITPLAN", "Mit Freigabe", [mondayWithFirstSlotAllowed, ...Array(6).fill(BLOCKED_MASK)]));
+
+    const compactSchedule = screen.getByRole("img", { name: /Wochenübersicht: Montag: 00:00–00:30/i });
+    expect(compactSchedule.querySelector('[data-day="0"][data-slot="0"]')).toHaveAttribute("data-allowed", "true");
+    expect(screen.queryAllByRole("gridcell")).toHaveLength(0);
+  });
+
   it("sperrt Bedienelemente während eines Imports und schließt nach erfolgreichem Abschluss", async () => {
     const pending = deferred<void>();
     const { onImport, onOpenChange } = renderDialog({ onImport: vi.fn(() => pending.promise) });
