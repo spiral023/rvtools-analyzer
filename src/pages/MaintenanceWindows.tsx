@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CalendarRange, ChevronDown, FileText, Plus, Search, Server, TriangleAlert } from "lucide-react";
+import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { MaintenanceWeekGrid } from "@/components/maintenance-windows/MaintenanceWeekGrid";
@@ -94,13 +96,20 @@ function AssignmentSystems({ systems, label }: { systems: readonly TechInfoLates
 
 export default function MaintenanceWindows() {
   const { definitions, isLoading: definitionsLoading, error, isMutating, save, remove, upsert } = useMaintenanceWindows();
-  const { data: techInfoRows = [], isLoading: techInfoLoading } = useAllTechInfoLatest();
+  const { data: techInfoRows = [], isLoading: techInfoLoading, error: techInfoError } = useAllTechInfoLatest();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftDefinition, setDraftDefinition] = useState<MaintenanceWindowDefinition | null>(null);
   const [dirty, setDirty] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const blocker = useBlocker(dirty && !isMutating);
+
+  useBeforeUnload(useCallback((event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  }, [dirty]));
 
   const assignments = useMemo(
     () => assignMaintenanceWindows(definitions, techInfoRows),
@@ -200,7 +209,7 @@ export default function MaintenanceWindows() {
     try {
       await upsert(incoming);
       const next = incoming[0];
-      if (next) {
+      if (!dirty && next) {
         setSelectedId(next.id);
         setDraftDefinition(null);
       }
@@ -239,6 +248,7 @@ export default function MaintenanceWindows() {
       </div>
 
       {(actionError || error) && <Alert variant="destructive"><AlertTitle>Aktion fehlgeschlagen</AlertTitle><AlertDescription>{actionError ?? error?.message}</AlertDescription></Alert>}
+      {techInfoError && <Alert variant="destructive"><AlertTitle>Tech-Info-Zuordnungen konnten nicht geladen werden</AlertTitle><AlertDescription>{techInfoError instanceof Error ? techInfoError.message : "Tech-Info konnte nicht geladen werden. Die Zuordnungen sind möglicherweise unvollständig."}</AlertDescription></Alert>}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(32rem,1.45fr)] xl:items-start">
         <section className="space-y-3" aria-labelledby="maintenance-catalog-title">
@@ -296,6 +306,18 @@ export default function MaintenanceWindows() {
       </section>
 
       <MaintenanceWindowImportDialog open={importOpen} onOpenChange={setImportOpen} existing={definitions} onImport={handleImport} isImporting={isMutating} />
+      <Dialog open={blocker.state === "blocked"} onOpenChange={(open) => { if (!open) blocker.reset?.(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ungespeicherte Änderungen</DialogTitle>
+            <DialogDescription>Ihre Änderungen am Wartungsfenster wurden noch nicht gespeichert. Möchten Sie die Navigation wirklich fortsetzen?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => blocker.reset?.()}>Bleiben</Button>
+            <Button type="button" variant="destructive" onClick={() => { setDirty(false); setDraftDefinition(null); blocker.proceed?.(); }}>Verwerfen &amp; navigieren</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

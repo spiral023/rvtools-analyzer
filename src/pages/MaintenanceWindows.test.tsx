@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
   upsert: vi.fn(),
   useMaintenanceWindows: vi.fn(),
   useAllTechInfoLatest: vi.fn(),
+  useBlocker: vi.fn(),
+  importedDefinitions: [] as MaintenanceWindowDefinition[],
+}));
+
+vi.mock("react-router-dom", async (importOriginal) => ({
+  ...await importOriginal<typeof import("react-router-dom")>(),
+  useBlocker: mocks.useBlocker,
 }));
 
 vi.mock("@/hooks/useMaintenanceWindows", () => ({
@@ -39,7 +46,9 @@ vi.mock("@/components/maintenance-windows/MaintenanceWindowEditor", () => ({
 }));
 
 vi.mock("@/components/maintenance-windows/MaintenanceWindowImportDialog", () => ({
-  MaintenanceWindowImportDialog: ({ open }: { open: boolean }) => open ? <div role="dialog">Wartungsfenster importieren</div> : null,
+  MaintenanceWindowImportDialog: ({ open, onImport }: { open: boolean; onImport: (definitions: MaintenanceWindowDefinition[]) => Promise<void> }) => open ? (
+    <div role="dialog">Wartungsfenster importieren<button type="button" onClick={() => { void onImport(mocks.importedDefinitions).catch(() => {}); }}>Testimport ausführen</button></div>
+  ) : null,
 }));
 
 const now = "2026-07-17T10:00:00.000Z";
@@ -86,6 +95,8 @@ describe("MaintenanceWindows", () => {
       save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
     });
     mocks.useAllTechInfoLatest.mockReturnValue({ data: [], isLoading: false });
+    mocks.useBlocker.mockReturnValue({ state: "unblocked", proceed: undefined, reset: undefined });
+    mocks.importedDefinitions = [definition({ id: "imported", abbreviation: "IMP", normalizedAbbreviation: "imp" })];
     vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
@@ -145,6 +156,65 @@ describe("MaintenanceWindows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editor speichern" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Speicherfehler"));
+  });
+
+  it("behält einen schmutzigen Editor beim erfolgreichen Textimport", async () => {
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions: [definition()], isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    render(<MaintenanceWindows />);
+
+    fireEvent.click(screen.getByRole("button", { name: /STD auswählen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Änderung markieren" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /aus Text importieren/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Testimport ausführen" }));
+
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(mocks.importedDefinitions));
+    expect(screen.getByText("Editor: STD")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Tech-Info-Ladefehler statt leere Zuordnungen als verlässlich darzustellen", () => {
+    mocks.useAllTechInfoLatest.mockReturnValue({ data: [], isLoading: false, error: new Error("Tech-Info nicht verfügbar") });
+    render(<MaintenanceWindows />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Tech-Info nicht verfügbar");
+    expect(screen.getByRole("alert")).toHaveTextContent(/Zuordnungen.*nicht geladen/i);
+  });
+
+  it("zeigt beim blockierten Routenwechsel einen Dialog und verwirft nach Bestätigung", () => {
+    const proceed = vi.fn();
+    const reset = vi.fn();
+    mocks.useBlocker.mockImplementation((shouldBlock: boolean) => shouldBlock
+      ? { state: "blocked", proceed, reset }
+      : { state: "unblocked", proceed: undefined, reset: undefined });
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions: [definition()], isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    render(<MaintenanceWindows />);
+
+    fireEvent.click(screen.getByRole("button", { name: /STD auswählen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Änderung markieren" }));
+
+    expect(screen.getByRole("dialog", { name: /ungespeicherte Änderungen/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /verwerfen.*navigieren/i }));
+    expect(proceed).toHaveBeenCalledOnce();
+  });
+
+  it("warnt beim beforeunload nur mit ungespeicherten Änderungen", () => {
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions: [definition()], isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    render(<MaintenanceWindows />);
+    const cleanEvent = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(cleanEvent)).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /STD auswählen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Änderung markieren" }));
+    const dirtyEvent = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(dirtyEvent)).toBe(false);
   });
 
   it("fragt vor dem Wechsel einer schmutzigen Auswahl nach", () => {
