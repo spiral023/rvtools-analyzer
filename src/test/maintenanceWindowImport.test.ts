@@ -187,6 +187,66 @@ describe("parseMaintenanceWindowText", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("keeps an exactly 48-character description in the explicit normal form", () => {
+    const description = "Beschreibung mit exakt 48 Zeichen".padEnd(48, "!");
+    expect(description).toHaveLength(48);
+    const result = parseMaintenanceWindowText([
+      ...block("TEXT-48", description),
+      ...block("NEXT", "Folgeblock"),
+    ].join("\n"));
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["TEXT-48", "NEXT"]);
+    expect(result.entries[0].definition.description).toBe(description);
+    expect(result.entries[0].definition.weeklySlots.map(slotsToExternalMask)).toEqual(
+      Array(7).fill(BLOCKED_MASK),
+    );
+  });
+
+  it("keeps a binary-only description in the explicit normal form", () => {
+    const description = "01".repeat(24);
+    const result = parseMaintenanceWindowText(block("BINARY-TEXT", description).join("\n"));
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].definition.description).toBe(description);
+    expect(result.entries[0].definition.weeklySlots.map(slotsToExternalMask)).toEqual(
+      Array(7).fill(BLOCKED_MASK),
+    );
+  });
+
+  it("recovers at a later valid block after a mask with invalid length and characters", () => {
+    const result = parseMaintenanceWindowText([
+      ...block("BROKEN-BOTH", "Fehlerhafte Maske", ["10x", ...Array(6).fill(BLOCKED_MASK)]),
+      ...block("PRESERVED", "Valider Folgeblock"),
+    ].join("\n"));
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["PRESERVED"]);
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "mask-length",
+      block: 1,
+      field: "Montag",
+    }));
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "mask-characters",
+      block: 1,
+      field: "Montag",
+    }));
+  });
+
+  it("preserves tab cell boundaries and reports an explicitly empty abbreviation", () => {
+    const result = parseMaintenanceWindowText([
+      "\tBeschreibung\t",
+      Array(7).fill(BLOCKED_MASK).join("\t"),
+    ].join(""));
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].definition.abbreviation).toBe("");
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "empty-abbreviation",
+      block: 1,
+      field: "abbreviation",
+    }));
+  });
+
   it("marks every entry whose normalized abbreviation is duplicated", () => {
     const result = parseMaintenanceWindowText([
       ...block("OCP MO1", "Erste Definition"),
@@ -301,6 +361,53 @@ describe("parseMaintenanceWindowText", () => {
     const result = parseMaintenanceWindowText(block("REGULAR", description).join("\n"));
 
     expect(result.entries[0].definition.handling).toBe("regular");
+  });
+
+  it("scopes monthly negation to the immediate contrastive clause", () => {
+    const description = "nicht am 1. Sonntag, sondern am 3. Sonntag im Monat";
+    const result = parseMaintenanceWindowText(block("CLAUSE-RULE", description).join("\n"));
+
+    expect(result.entries[0].definition.description).toBe(description);
+    expect(result.entries[0].definition.calendarRules).toEqual([
+      { weekday: 6, occurrences: [3] },
+    ]);
+  });
+
+  it("keeps commas inside a supported monthly occurrence list", () => {
+    const result = parseMaintenanceWindowText(block(
+      "COMMA-RULE",
+      "1., 3. Sonntag im Monat",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([
+      { weekday: 6, occurrences: [1, 3] },
+    ]);
+  });
+
+  it("infers an external reference in a positive clause after a negated clause", () => {
+    const description = "nicht automatisch, sondern gemäß INF-VA";
+    const result = parseMaintenanceWindowText(block("CLAUSE-EXTERNAL", description).join("\n"));
+
+    expect(result.entries[0].definition.description).toBe(description);
+    expect(result.entries[0].definition.handling).toBe("external");
+  });
+
+  it("keeps generic laut wording regular when it has no document or identifier signal", () => {
+    const result = parseMaintenanceWindowText(block(
+      "GENERIC-LAUT",
+      "Wartung laut eigener Aussage möglich",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.handling).toBe("regular");
+  });
+
+  it("uses only the positive recognizable reference across mixed clauses", () => {
+    const result = parseMaintenanceWindowText(block(
+      "MIXED-REFERENCE",
+      "nicht gemäß INF-VA; jedoch laut Change-4711",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.handling).toBe("external");
   });
 
   it("warns when a supported weekday and time description conflicts with the mask", () => {

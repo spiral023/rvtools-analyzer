@@ -76,6 +76,10 @@ const OCCURRENCE_PATTERN = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${OCCURRENCE_TOKEN_PATTERN})(?![\\p{L}\\p{N}])`,
   "giu",
 );
+const INFERENCE_CLAUSE_SEPARATOR = new RegExp(
+  `\\s*(?:,(?!\\s*(?:${OCCURRENCE_TOKEN_PATTERN})(?:\\s|$))|[;!?]|\\b(?:sondern|aber|jedoch)\\b)\\s*`,
+  "iu",
+);
 const WEEKDAY_TIME_PATTERN = new RegExp(
   `(${WEEKDAY_PATTERN})(?:\\s+im\\s+Monat)?\\s+(\\d{2}:\\d{2})\\s*[-–]\\s*(\\d{2}:\\d{2})`,
   "giu",
@@ -99,6 +103,46 @@ function hasKnownHeader(lines: readonly string[]): boolean {
 
 function isMaskCandidate(line: string): boolean {
   return /^[01]+$/.test(line) || line.length === SLOT_COUNT;
+}
+
+function isValidMask(value: string | undefined): boolean {
+  return value !== undefined && value.length === SLOT_COUNT && /^[01]+$/.test(value);
+}
+
+function hasSevenValidMasks(tokens: readonly string[], maskStart: number): boolean {
+  for (let day = 0; day < DAY_LABELS.length; day += 1) {
+    if (!isValidMask(tokens[maskStart + day])) return false;
+  }
+  return true;
+}
+
+function isCompleteNormalBlock(tokens: readonly string[], start: number): boolean {
+  return start + CELLS_PER_BLOCK <= tokens.length && hasSevenValidMasks(tokens, start + 2);
+}
+
+function isCompleteEmptyDescriptionBlock(tokens: readonly string[], start: number): boolean {
+  return start + 8 <= tokens.length && hasSevenValidMasks(tokens, start + 1);
+}
+
+function findNextCompleteNormalBlock(tokens: readonly string[], start: number): number | null {
+  for (let candidate = start; candidate + CELLS_PER_BLOCK <= tokens.length; candidate += 1) {
+    if (isCompleteNormalBlock(tokens, candidate)) return candidate;
+  }
+  return null;
+}
+
+function tokenizeMaintenanceText(text: string): string[] {
+  const normalizedText = text.replace(/\r\n?/g, "\n");
+  const tokens: string[] = [];
+  for (const line of normalizedText.split("\n")) {
+    if (line.includes("\t")) {
+      tokens.push(...line.split("\t").map((cell) => cell.trim()));
+      continue;
+    }
+    const token = line.trim();
+    if (token) tokens.push(token);
+  }
+  return tokens;
 }
 
 /**
@@ -193,33 +237,35 @@ function weekdayFromLabel(label: string): MaintenanceWeekday | null {
   return weekday < 0 ? null : weekday as MaintenanceWeekday;
 }
 
-function isNegatedContext(description: string, matchIndex: number): boolean {
-  const prefix = description.slice(0, matchIndex);
-  const clause = prefix.slice(Math.max(
-    prefix.lastIndexOf("."),
-    prefix.lastIndexOf("!"),
-    prefix.lastIndexOf("?"),
-    prefix.lastIndexOf(";"),
-  ) + 1);
-  return /\b(?:nicht|kein(?:e|en|er|es|em)?)\b/iu.test(clause);
+function splitInferenceClauses(description: string): string[] {
+  return description
+    .split(INFERENCE_CLAUSE_SEPARATOR)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+}
+
+function isNegatedContext(clause: string, matchIndex: number): boolean {
+  return /\b(?:nicht|kein(?:e|en|er|es|em)?)\b/iu.test(clause.slice(0, matchIndex));
 }
 
 function inferCalendarRules(description: string): MaintenanceCalendarRule[] {
   const byWeekday = new Map<MaintenanceWeekday, Set<MonthlyOccurrence>>();
 
-  for (const match of description.matchAll(MONTHLY_RULE_PATTERN)) {
-    if (isNegatedContext(description, match.index ?? 0)) continue;
-    const weekday = weekdayFromLabel(match[2]);
-    if (weekday === null) continue;
+  for (const clause of splitInferenceClauses(description)) {
+    for (const match of clause.matchAll(MONTHLY_RULE_PATTERN)) {
+      if (isNegatedContext(clause, match.index ?? 0)) continue;
+      const weekday = weekdayFromLabel(match[2]);
+      if (weekday === null) continue;
 
-    const occurrences = [...match[1].matchAll(OCCURRENCE_PATTERN)]
-      .map((occurrenceMatch) => occurrenceFromToken(occurrenceMatch[0]))
-      .filter((value): value is MonthlyOccurrence => value !== null);
-    if (occurrences.length === 0) continue;
+      const occurrences = [...match[1].matchAll(OCCURRENCE_PATTERN)]
+        .map((occurrenceMatch) => occurrenceFromToken(occurrenceMatch[0]))
+        .filter((value): value is MonthlyOccurrence => value !== null);
+      if (occurrences.length === 0) continue;
 
-    const known = byWeekday.get(weekday) ?? new Set<MonthlyOccurrence>();
-    occurrences.forEach((occurrence) => known.add(occurrence));
-    byWeekday.set(weekday, known);
+      const known = byWeekday.get(weekday) ?? new Set<MonthlyOccurrence>();
+      occurrences.forEach((occurrence) => known.add(occurrence));
+      byWeekday.set(weekday, known);
+    }
   }
 
   const occurrenceOrder: readonly MonthlyOccurrence[] = [1, 2, 3, 4, 5, "last"];
@@ -236,9 +282,21 @@ function inferHandling(
   weeklySlots: MaintenanceWindowDefinition["weeklySlots"],
 ): MaintenanceWindowDefinition["handling"] {
   if (/nur\s+nach\s+rücksprache/iu.test(description)) return "approval-required";
-  const externalPattern = /\b(?:laut|gemäß)\s+[\p{L}\p{N}][\p{L}\p{N}._/-]*|\bextern\s+(?:festgelegt|definiert)\b/giu;
-  for (const match of description.matchAll(externalPattern)) {
-    if (!isNegatedContext(description, match.index ?? 0)) return "external";
+  const referencePattern = /\b(?:laut|gemäß)\s+(?:(?:der|dem|den|die|das|einer?|einem)\s+)?([\p{L}\p{N}._/-]+)/giu;
+  const explicitExternalPattern = /\bextern\s+(?:festgelegt|definiert)\b/giu;
+  for (const clause of splitInferenceClauses(description)) {
+    for (const match of clause.matchAll(explicitExternalPattern)) {
+      if (!isNegatedContext(clause, match.index ?? 0)) return "external";
+    }
+    for (const match of clause.matchAll(referencePattern)) {
+      if (isNegatedContext(clause, match.index ?? 0)) continue;
+      const reference = match[1];
+      const hasDocumentNoun = /(?:richtlinie|vorgabe|vereinbarung|dokument(?:ation)?|change)/iu
+        .test(reference);
+      const hasIdentifierSignal = /^[A-ZÄÖÜ0-9][A-ZÄÖÜ0-9._/-]*$/u.test(reference)
+        && (/[A-ZÄÖÜ]{2}/u.test(reference) || /[0-9_/-]/u.test(reference));
+      if (hasDocumentNoun || hasIdentifierSignal) return "external";
+    }
   }
   if (
     /00:00\s*[-–]\s*24:00/u.test(description)
@@ -363,12 +421,13 @@ function markDuplicateAbbreviations(entries: ParsedMaintenanceEntry[]): void {
   }
 }
 
-function incompleteBlockIssues(
-  abbreviation: string,
-  description: string,
-  masks: readonly string[],
+function malformedBlockIssues(
+  span: readonly string[],
   block: number,
 ): MaintenanceImportIssue[] {
+  const abbreviation = span[0] ?? "";
+  const description = span[1] ?? "";
+  const masks = span.slice(2, CELLS_PER_BLOCK);
   const missingMaskCount = DAY_LABELS.length - masks.length;
   const paddedCells = [
     abbreviation,
@@ -381,7 +440,7 @@ function incompleteBlockIssues(
     "error",
     "incomplete-block",
     block,
-    `Block ${block} enthält nur ${masks.length} von ${DAY_LABELS.length} Tagesmasken.`,
+    `Block ${block} konnte nicht eindeutig als vollständiger 9-Felder-Block gelesen werden.`,
   ));
   for (let day = masks.length; day < DAY_LABELS.length; day += 1) {
     const field = DAY_LABELS[day];
@@ -398,45 +457,50 @@ function incompleteBlockIssues(
 
 export function parseMaintenanceWindowText(text: string): MaintenanceImportParseResult {
   const timestamp = new Date().toISOString();
-  const normalizedText = text.replace(/\r\n?/g, "\n");
-  let lines = normalizedText.split("\n").map((line) => line.trim()).filter(Boolean);
-  if (hasKnownHeader(lines)) lines = lines.slice(CELLS_PER_BLOCK);
+  let tokens = tokenizeMaintenanceText(text);
+  if (hasKnownHeader(tokens)) tokens = tokens.slice(CELLS_PER_BLOCK);
 
   const entries: ParsedMaintenanceEntry[] = [];
   const standaloneIssues: MaintenanceImportIssue[] = [];
   let cursor = 0;
   let block = 1;
 
-  while (cursor < lines.length) {
-    const abbreviation = lines[cursor];
-    let description = "";
-    let maskCursor = cursor + 1;
-    if (maskCursor < lines.length && !isMaskCandidate(lines[maskCursor])) {
-      description = lines[maskCursor];
-      maskCursor += 1;
-    }
-
-    const masks: string[] = [];
-    while (
-      masks.length < DAY_LABELS.length
-      && maskCursor < lines.length
-      && isMaskCandidate(lines[maskCursor])
-    ) {
-      masks.push(lines[maskCursor]);
-      maskCursor += 1;
-    }
-
-    if (masks.length === DAY_LABELS.length) {
-      entries.push(createEntry([abbreviation, description, ...masks], block, timestamp));
-      cursor = maskCursor;
+  while (cursor < tokens.length) {
+    if (isCompleteNormalBlock(tokens, cursor)) {
+      entries.push(createEntry(tokens.slice(cursor, cursor + CELLS_PER_BLOCK), block, timestamp));
+      cursor += CELLS_PER_BLOCK;
       block += 1;
       continue;
     }
 
-    standaloneIssues.push(...incompleteBlockIssues(abbreviation, description, masks, block));
-    if (maskCursor >= lines.length || masks.length === 0) break;
+    if (isCompleteEmptyDescriptionBlock(tokens, cursor)) {
+      entries.push(createEntry([
+        tokens[cursor],
+        "",
+        ...tokens.slice(cursor + 1, cursor + 8),
+      ], block, timestamp));
+      cursor += 8;
+      block += 1;
+      continue;
+    }
 
-    cursor = maskCursor;
+    const expectedMasks = tokens.slice(cursor + 2, cursor + CELLS_PER_BLOCK);
+    if (
+      expectedMasks.length === DAY_LABELS.length
+      && expectedMasks.every(isMaskCandidate)
+    ) {
+      entries.push(createEntry(tokens.slice(cursor, cursor + CELLS_PER_BLOCK), block, timestamp));
+      cursor += CELLS_PER_BLOCK;
+      block += 1;
+      continue;
+    }
+
+    const nextBlock = findNextCompleteNormalBlock(tokens, cursor + 1);
+    const spanEnd = nextBlock ?? tokens.length;
+    standaloneIssues.push(...malformedBlockIssues(tokens.slice(cursor, spanEnd), block));
+    if (nextBlock === null) break;
+
+    cursor = nextBlock;
     block += 1;
   }
 
