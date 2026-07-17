@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { MaintenanceWindowDefinition } from "@/domain/models/types";
+import { summarizeWeeklySlots } from "@/lib/maintenanceWindows";
 
 type WeeklySlots = MaintenanceWindowDefinition["weeklySlots"];
 type PaintMode = "allow" | "block";
@@ -41,6 +42,7 @@ export function MaintenanceWeekGrid({
   compact = false,
 }: MaintenanceWeekGridProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const instructionsId = useId();
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const latestValue = useRef(value);
   const isPainting = useRef(false);
@@ -88,13 +90,17 @@ export function MaintenanceWeekGrid({
     cellRefs.current[nextIndex]?.focus();
   };
 
+  const activatePointerCell = (index: number, cell: HTMLButtonElement) => {
+    setActiveIndex(index);
+    cell.focus();
+  };
+
   if (compact) {
-    const allowedSlots = value.flat().filter(Boolean).length;
     return (
       <div
         className="maintenance-grid maintenance-grid--compact"
         role="img"
-        aria-label={`Wochenübersicht: ${allowedSlots} von ${TOTAL_SLOTS} Zeitfenstern erlaubt`}
+        aria-label={`Wochenübersicht: ${summarizeWeeklySlots(value)}`}
       >
         {value.map((daySlots, day) => (
           <div className="maintenance-grid__compact-row" key={DAYS[day]} aria-hidden="true">
@@ -119,11 +125,11 @@ export function MaintenanceWeekGrid({
         <span><i className="maintenance-grid__legend-symbol maintenance-grid__legend-symbol--allowed" aria-hidden="true" /> Erlaubt</span>
         <span><i className="maintenance-grid__legend-symbol maintenance-grid__legend-symbol--blocked" aria-hidden="true" /> Gesperrt</span>
       </div>
-      <p className="sr-only" id="maintenance-grid-instructions">
+      <p className="sr-only" id={instructionsId}>
         Jede Zelle steht für 30 Minuten. Mit den Pfeiltasten bewegen Sie sich durch die Woche; am Rand wird zur gegenüberliegenden Seite umgebrochen. Leertaste oder Enter übernimmt den aktuellen Malmodus.
       </p>
       <div className="maintenance-grid__scroll">
-        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby="maintenance-grid-instructions">
+        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby={instructionsId}>
           <div className="maintenance-grid__time-row" aria-hidden="true">
             <span className="maintenance-grid__corner">Tag / Zeit</span>
             {Array.from({ length: SLOTS_PER_DAY }, (_, slot) => (
@@ -162,13 +168,21 @@ export function MaintenanceWeekGrid({
                     }}
                     onPointerDown={(event) => {
                       if (disabled || !event.isPrimary || event.button !== 0) return;
+                      if (isPainting.current && activePointerId.current !== event.pointerId) return;
                       isPainting.current = true;
                       activePointerId.current = event.pointerId;
+                      activatePointerCell(index, event.currentTarget);
                       event.preventDefault();
                       applyPaint(day, slot);
                     }}
                     onPointerEnter={(event) => {
-                      if (isPainting.current && event.isPrimary && event.pointerId === activePointerId.current) {
+                      if (
+                        isPainting.current
+                        && event.isPrimary
+                        && event.pointerId === activePointerId.current
+                        && (event.buttons & 1) === 1
+                      ) {
+                        activatePointerCell(index, event.currentTarget);
                         applyPaint(day, slot);
                       }
                     }}

@@ -125,7 +125,22 @@ describe("MaintenanceWeekGrid", () => {
 
     expect(screen.queryByRole("gridcell")).not.toBeInTheDocument();
     expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(screen.getByRole("img", { name: /Samstag: 10:00–10:30/ })).toBeInTheDocument();
     expect(container.querySelector('[data-day="5"][data-slot="20"]')).toHaveAttribute("data-allowed", "true");
+  });
+
+  it("vergibt pro Grid eine eigene Beschreibung", () => {
+    render(
+      <>
+        <MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" />
+        <MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" />
+      </>,
+    );
+
+    const grids = screen.getAllByRole("grid", { name: "Wöchentlicher Zeitplan" });
+    const descriptionIds = grids.map((grid) => grid.getAttribute("aria-describedby"));
+    expect(new Set(descriptionIds).size).toBe(2);
+    descriptionIds.forEach((id) => expect(document.getElementById(id ?? "")).toBeInTheDocument());
   });
 
   it("bemalt natürliche Pointer-Enter-Zellen und beendet den Drag am Dokument", () => {
@@ -198,6 +213,66 @@ describe("MaintenanceWeekGrid", () => {
     expect(onChange).toHaveBeenCalledTimes(2);
     expect(changed[0][1]).toBe(false);
     expect(changed[0][2]).toBe(true);
+  });
+
+  it("ignoriert stale Pointer-Enter ohne gedrückte Primärtaste", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+
+    firePointerEvent(first, "pointerdown", { pointerId: 1, isPrimary: true, buttons: 1 });
+    firePointerEvent(second, "pointerover", { pointerId: 1, isPrimary: true, buttons: 0 });
+
+    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+    expect(changed[0][0]).toBe(true);
+    expect(changed[0][1]).toBe(false);
+  });
+
+  it("lässt einen zweiten Pointer die aktive Drag-Session nicht übernehmen", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+    const third = screen.getByRole("gridcell", { name: "Montag 01:00–01:30, gesperrt" });
+
+    firePointerEvent(first, "pointerdown", { pointerId: 1, isPrimary: true });
+    firePointerEvent(second, "pointerdown", { pointerId: 2, isPrimary: true });
+    firePointerEvent(third, "pointerover", { pointerId: 1, isPrimary: true, buttons: 1 });
+
+    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+    expect(changed[0][0]).toBe(true);
+    expect(changed[0][1]).toBe(false);
+    expect(changed[0][2]).toBe(true);
+  });
+
+  it("akzeptiert denselben Pointer nach beendetem Drag erneut", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+
+    firePointerEvent(first, "pointerdown", { pointerId: 1, isPrimary: true });
+    firePointerEvent(document, "pointerup", { pointerId: 1, isPrimary: true });
+    firePointerEvent(second, "pointerdown", { pointerId: 1, isPrimary: true });
+
+    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+    expect(changed[0][0]).toBe(true);
+    expect(changed[0][1]).toBe(true);
+  });
+
+  it("setzt Pointer-Zellen als aktuellen roving Tabstopp", () => {
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" />);
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+    const third = screen.getByRole("gridcell", { name: "Montag 01:00–01:30, gesperrt" });
+
+    firePointerEvent(second, "pointerdown", { pointerId: 1, isPrimary: true });
+    expect(second).toHaveFocus();
+    expect(second).toHaveAttribute("tabindex", "0");
+
+    firePointerEvent(third, "pointerover", { pointerId: 1, isPrimary: true, buttons: 1 });
+    expect(third).toHaveFocus();
+    expect(third).toHaveAttribute("tabindex", "0");
   });
 
 });
