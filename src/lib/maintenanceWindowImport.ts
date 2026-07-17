@@ -76,10 +76,13 @@ const OCCURRENCE_PATTERN = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${OCCURRENCE_TOKEN_PATTERN})(?![\\p{L}\\p{N}])`,
   "giu",
 );
-const INFERENCE_CLAUSE_SEPARATOR = new RegExp(
-  `\\s*(?:,(?!\\s*(?:${OCCURRENCE_TOKEN_PATTERN})(?:\\s|$))|[;!?]|\\b(?:sondern|aber|jedoch)\\b)\\s*`,
-  "iu",
+const OCCURRENCE_LIST_COMMA = new RegExp(
+  `(?<![\\p{L}\\p{N}])(${OCCURRENCE_TOKEN_PATTERN})(?![\\p{L}\\p{N}])\\s*,\\s*(?=(?:${OCCURRENCE_TOKEN_PATTERN})(?![\\p{L}\\p{N}]))`,
+  "giu",
 );
+const NUMERIC_ORDINAL_DOT = /(?<![\p{L}\p{N}])([1-5])\.(?![\p{L}\p{N}])/gu;
+const PROTECTED_LIST_COMMA = "\uE000";
+const PROTECTED_ORDINAL_DOT = "\uE001";
 const WEEKDAY_TIME_PATTERN = new RegExp(
   `(${WEEKDAY_PATTERN})(?:\\s+im\\s+Monat)?\\s+(\\d{2}:\\d{2})\\s*[-–]\\s*(\\d{2}:\\d{2})`,
   "giu",
@@ -124,9 +127,15 @@ function isCompleteEmptyDescriptionBlock(tokens: readonly string[], start: numbe
   return start + 8 <= tokens.length && hasSevenValidMasks(tokens, start + 1);
 }
 
-function findNextCompleteNormalBlock(tokens: readonly string[], start: number): number | null {
-  for (let candidate = start; candidate + CELLS_PER_BLOCK <= tokens.length; candidate += 1) {
+function isPlausibleRecoveredAbbreviation(value: string | undefined): boolean {
+  return value !== undefined && value.length > 0 && !isMaskCandidate(value);
+}
+
+function findNextCompleteBlock(tokens: readonly string[], start: number): number | null {
+  for (let candidate = start; candidate < tokens.length; candidate += 1) {
+    if (!isPlausibleRecoveredAbbreviation(tokens[candidate])) continue;
     if (isCompleteNormalBlock(tokens, candidate)) return candidate;
+    if (isCompleteEmptyDescriptionBlock(tokens, candidate)) return candidate;
   }
   return null;
 }
@@ -238,8 +247,14 @@ function weekdayFromLabel(label: string): MaintenanceWeekday | null {
 }
 
 function splitInferenceClauses(description: string): string[] {
-  return description
-    .split(INFERENCE_CLAUSE_SEPARATOR)
+  const protectedDescription = description
+    .replace(OCCURRENCE_LIST_COMMA, `$1${PROTECTED_LIST_COMMA}`)
+    .replace(NUMERIC_ORDINAL_DOT, `$1${PROTECTED_ORDINAL_DOT}`);
+  return protectedDescription
+    .split(/\s*(?:[,.;!?]|\b(?:sondern|aber|jedoch)\b)\s*/iu)
+    .map((clause) => clause
+      .replaceAll(PROTECTED_LIST_COMMA, ", ")
+      .replaceAll(PROTECTED_ORDINAL_DOT, "."))
     .map((clause) => clause.trim())
     .filter(Boolean);
 }
@@ -495,7 +510,7 @@ export function parseMaintenanceWindowText(text: string): MaintenanceImportParse
       continue;
     }
 
-    const nextBlock = findNextCompleteNormalBlock(tokens, cursor + 1);
+    const nextBlock = findNextCompleteBlock(tokens, cursor + 1);
     const spanEnd = nextBlock ?? tokens.length;
     standaloneIssues.push(...malformedBlockIssues(tokens.slice(cursor, spanEnd), block));
     if (nextBlock === null) break;

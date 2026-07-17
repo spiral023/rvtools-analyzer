@@ -232,6 +232,23 @@ describe("parseMaintenanceWindowText", () => {
     }));
   });
 
+  it("recovers to a later complete empty-description block without using a mask as abbreviation", () => {
+    const laterMasks = [ALLOWED_MASK, ...Array(6).fill(BLOCKED_MASK)];
+    const result = parseMaintenanceWindowText([
+      ...block("BROKEN", "Ungültig", ["10x", ...Array(6).fill(BLOCKED_MASK)]),
+      "EMPTY-LATER",
+      ...laterMasks,
+    ].join("\n"));
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["EMPTY-LATER"]);
+    expect(result.entries[0].definition.description).toBe("");
+    expect(result.entries[0].definition.weeklySlots.map(slotsToExternalMask)).toEqual(laterMasks);
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: "incomplete-block",
+      block: 1,
+    }));
+  });
+
   it("preserves tab cell boundaries and reports an explicitly empty abbreviation", () => {
     const result = parseMaintenanceWindowText([
       "\tBeschreibung\t",
@@ -382,6 +399,48 @@ describe("parseMaintenanceWindowText", () => {
     expect(result.entries[0].definition.calendarRules).toEqual([
       { weekday: 6, occurrences: [1, 3] },
     ]);
+  });
+
+  it("keeps commas inside a supported word-based occurrence list", () => {
+    const result = parseMaintenanceWindowText(block(
+      "WORD-COMMA-RULE",
+      "ersten, dritten Sonntag im Monat",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([
+      { weekday: 6, occurrences: [1, 3] },
+    ]);
+  });
+
+  it("splits sentence periods without treating ordinal dots as sentence boundaries", () => {
+    const result = parseMaintenanceWindowText(block(
+      "SENTENCE-RULE",
+      "nicht am 1. Sonntag. Am 3. Sonntag im Monat",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([
+      { weekday: 6, occurrences: [3] },
+    ]);
+  });
+
+  it("splits an ordinary comma when only its right side begins with an occurrence", () => {
+    const result = parseMaintenanceWindowText(block(
+      "ORDINARY-COMMA",
+      "nicht am Montag, erster Sonntag im Monat",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.calendarRules).toEqual([
+      { weekday: 6, occurrences: [1] },
+    ]);
+  });
+
+  it("infers an external reference after a sentence-ending period", () => {
+    const result = parseMaintenanceWindowText(block(
+      "SENTENCE-EXTERNAL",
+      "nicht extern festgelegt. Gemäß INF-VA",
+    ).join("\n"));
+
+    expect(result.entries[0].definition.handling).toBe("external");
   });
 
   it("infers an external reference in a positive clause after a negated clause", () => {
