@@ -7,6 +7,7 @@ import {
   putMaintenanceSettings,
   putScenario,
   upsertMaintenanceWindows,
+  validateMaintenanceWindowUpsertInput,
 } from "@/data/db";
 import { buildUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
 
@@ -39,10 +40,12 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
  * überschrieben, alle übrigen Einträge bleiben erhalten).
  */
 export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserDataImportResult> {
+  const maintenanceWindows = validateMaintenanceWindowUpsertInput(backup.maintenanceWindows);
+
   await Promise.all([
     backup.maintenanceSettings ? putMaintenanceSettings(backup.maintenanceSettings) : Promise.resolve(),
-    backup.maintenanceWindows.length > 0
-      ? upsertMaintenanceWindows(backup.maintenanceWindows)
+    maintenanceWindows.length > 0
+      ? upsertMaintenanceWindows(maintenanceWindows)
       : Promise.resolve(),
     ...backup.maintenanceClusterAssignments.map((assignment) => putMaintenanceAssignment(assignment)),
     ...backup.scenarios.map((scenario) => putScenario(scenario)),
@@ -51,7 +54,7 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
   return {
     settingsImported: Boolean(backup.maintenanceSettings),
     assignmentsImported: backup.maintenanceClusterAssignments.length,
-    maintenanceWindowsImported: backup.maintenanceWindows.length,
+    maintenanceWindowsImported: maintenanceWindows.length,
     scenariosImported: backup.scenarios.length,
   };
 }

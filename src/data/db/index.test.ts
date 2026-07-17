@@ -207,6 +207,17 @@ describe("maintenance window definitions", () => {
     expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["Bestand"]);
   });
 
+  it("rejects duplicate primary IDs before any input record is written", async () => {
+    const { getMaintenanceWindows, upsertMaintenanceWindows } = await import("./index");
+
+    await expect(upsertMaintenanceWindows([
+      makeMaintenanceWindow("MW A", { id: "same-id" }),
+      makeMaintenanceWindow("MW B", { id: "same-id" }),
+    ])).rejects.toThrow("ID ist mehrfach enthalten");
+
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
+  });
+
   it("is included in diagnostics and deleteAllData", async () => {
     const { deleteAllData, getMaintenanceWindows, getStoreDiagnostics, putMaintenanceWindow } = await import("./index");
     await putMaintenanceWindow(makeMaintenanceWindow("MW"));

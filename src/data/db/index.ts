@@ -480,8 +480,18 @@ export async function deleteMaintenanceWindow(id: string): Promise<void> {
   await db.delete("maintenance_windows", id);
 }
 
-export async function upsertMaintenanceWindows(values: MaintenanceWindowDefinition[]): Promise<void> {
+/** Validiert und klont eine Importmenge ohne IndexedDB-Mutation. */
+export function validateMaintenanceWindowUpsertInput(
+  values: MaintenanceWindowDefinition[],
+): MaintenanceWindowDefinition[] {
   const definitions = values.map(cloneValidatedMaintenanceWindow);
+  const ids = new Set<string>();
+  for (const definition of definitions) {
+    if (ids.has(definition.id)) {
+      throw new Error(`ID ist mehrfach enthalten: ${definition.id}.`);
+    }
+    ids.add(definition.id);
+  }
   const normalizedAbbreviations = new Set<string>();
   for (const definition of definitions) {
     if (normalizedAbbreviations.has(definition.normalizedAbbreviation)) {
@@ -489,6 +499,11 @@ export async function upsertMaintenanceWindows(values: MaintenanceWindowDefiniti
     }
     normalizedAbbreviations.add(definition.normalizedAbbreviation);
   }
+  return definitions;
+}
+
+export async function upsertMaintenanceWindows(values: MaintenanceWindowDefinition[]): Promise<void> {
+  const definitions = validateMaintenanceWindowUpsertInput(values);
 
   const db = await getDb();
   const transaction = db.transaction("maintenance_windows", "readwrite");

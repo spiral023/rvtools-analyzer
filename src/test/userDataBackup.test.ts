@@ -252,6 +252,31 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
     expect(emptyResult.maintenanceWindowsImported).toBe(0);
     expect(await getMaintenanceWindows()).toHaveLength(2);
   });
+
+  it("validates invalid maintenance-window batches before writing other backup data", async () => {
+    const {
+      getMaintenanceAssignments,
+      getMaintenanceSettings,
+      getMaintenanceWindows,
+      getScenarios,
+    } = await import("@/data/db");
+    const { applyUserDataBackup } = await import("@/domain/services/backupService");
+
+    await expect(applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: settings,
+      maintenanceClusterAssignments: [assignment],
+      maintenanceWindows: [
+        makeMaintenanceWindow("MW A", { id: "same-id" }),
+        makeMaintenanceWindow("MW B", { id: "same-id" }),
+      ],
+      scenarios: [scenario],
+    }))).rejects.toThrow("ID ist mehrfach enthalten");
+
+    await expect(getMaintenanceSettings()).resolves.toBeUndefined();
+    await expect(getMaintenanceAssignments()).resolves.toEqual([]);
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
+    await expect(getScenarios()).resolves.toEqual([]);
+  });
 });
 
 describe("buildBackupFileName", () => {
