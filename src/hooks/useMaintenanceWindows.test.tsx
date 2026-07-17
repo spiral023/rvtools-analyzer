@@ -47,9 +47,26 @@ function createClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("useMaintenanceWindows", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockedGetMaintenanceWindows.mockReset();
+    mockedPutMaintenanceWindow.mockReset();
+    mockedDeleteMaintenanceWindow.mockReset();
+    mockedUpsertMaintenanceWindows.mockReset();
+    mockedGetMaintenanceWindows.mockResolvedValue([]);
+    mockedPutMaintenanceWindow.mockResolvedValue();
+    mockedDeleteMaintenanceWindow.mockResolvedValue();
+    mockedUpsertMaintenanceWindows.mockResolvedValue();
   });
 
   it("lädt die Fensterdefinitionen und stellt währenddessen einen leeren Standardwert bereit", async () => {
@@ -145,5 +162,58 @@ describe("useMaintenanceWindows", () => {
     });
     await waitFor(() => expect(result.current.error).toBe(failure));
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("bleibt während überlappender Speicherungen aktiv, bis beide abgeschlossen sind", async () => {
+    const firstSave = deferred<void>();
+    const secondSave = deferred<void>();
+    mockedPutMaintenanceWindow
+      .mockReturnValueOnce(firstSave.promise)
+      .mockReturnValueOnce(secondSave.promise);
+    const client = createClient();
+    const { result } = renderHook(() => useMaintenanceWindows(), { wrapper: createWrapper(client) });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    let firstPromise!: Promise<void>;
+    let secondPromise!: Promise<void>;
+    act(() => {
+      firstPromise = result.current.save(definition("MW 1"));
+    });
+    await waitFor(() => expect(mockedPutMaintenanceWindow).toHaveBeenCalledTimes(1));
+    expect(result.current.isMutating).toBe(true);
+    act(() => {
+      secondPromise = result.current.save(definition("MW 2"));
+    });
+    await waitFor(() => expect(mockedPutMaintenanceWindow).toHaveBeenCalledTimes(2));
+    expect(result.current.isMutating).toBe(true);
+
+    await act(async () => {
+      secondSave.resolve();
+      await secondPromise;
+    });
+
+    expect(result.current.isMutating).toBe(true);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstPromise;
+    });
+    await waitFor(() => expect(result.current.isMutating).toBe(false));
+  });
+
+  it("priorisiert einen neuen Mutationsfehler vor einem vorhandenen Query-Fehler", async () => {
+    const queryFailure = new Error("Lesen fehlgeschlagen");
+    const mutationFailure = new Error("Speichern fehlgeschlagen");
+    mockedGetMaintenanceWindows.mockRejectedValue(queryFailure);
+    mockedPutMaintenanceWindow.mockRejectedValue(mutationFailure);
+    const client = createClient();
+    const { result } = renderHook(() => useMaintenanceWindows(), { wrapper: createWrapper(client) });
+
+    await waitFor(() => expect(result.current.error).toBe(queryFailure));
+    await act(async () => {
+      await expect(result.current.save(definition("MW 1"))).rejects.toBe(mutationFailure);
+    });
+
+    await waitFor(() => expect(result.current.error).toBe(mutationFailure));
   });
 });
