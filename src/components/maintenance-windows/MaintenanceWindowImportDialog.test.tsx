@@ -202,7 +202,9 @@ describe("MaintenanceWindowImportDialog", () => {
 
   it("stellt Titel, Beschreibung und beschriftete Eingabe zugänglich bereit", () => {
     renderDialog();
-    expect(screen.getByRole("dialog", { name: "Wartungsfenster importieren" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Wartungsfenster importieren" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveClass("overscroll-contain");
     expect(screen.getByText(/Text aus der RVTools-Wartungsfensterübersicht einfügen/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Wartungsfenster-Text")).toBeInTheDocument();
   });

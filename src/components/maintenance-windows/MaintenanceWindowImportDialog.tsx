@@ -174,7 +174,7 @@ export function MaintenanceWindowImportDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!isBusy) onOpenChange(nextOpen); }}>
       <DialogContent
-        className="max-h-[90dvh] max-w-4xl overflow-y-auto"
+        className="max-h-[90dvh] max-w-4xl overflow-y-auto overscroll-contain"
         onEscapeKeyDown={(event) => { if (isBusy) event.preventDefault(); }}
         onPointerDownOutside={(event) => { if (isBusy) event.preventDefault(); }}
       >
