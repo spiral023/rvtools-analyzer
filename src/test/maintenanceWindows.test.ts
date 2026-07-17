@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  MaintenanceCalendarRule,
+  MaintenanceWeekday,
   MaintenanceWindowDefinition,
   TechInfoLatest,
 } from "@/domain/models/types";
@@ -103,6 +105,31 @@ describe("time ranges", () => {
     result[0][0] = true;
     expect(original[0][0]).toBe(false);
   });
+
+  it.each([
+    ["weniger als sieben Tage", createEmptyWeeklySlots().slice(0, 6)],
+    ["weniger als 48 Einträge", [Array(47).fill(false), ...createEmptyWeeklySlots().slice(1)]],
+    ["nicht-boolesche Einträge", [["false", ...Array(47).fill(false)], ...createEmptyWeeklySlots().slice(1)]],
+    ["leere Array-Plätze", [Array(48), ...createEmptyWeeklySlots().slice(1)]],
+  ])("rejects malformed weekly slots with %s", (_label, malformedSlots) => {
+    expect(() => applyTimeRange(
+      malformedSlots as MaintenanceWindowDefinition["weeklySlots"],
+      [0],
+      "08:00",
+      "09:00",
+      true,
+    )).toThrow(/Wochenplan/);
+  });
+
+  it("rejects selected weekdays outside the Monday-to-Sunday index", () => {
+    expect(() => applyTimeRange(
+      createEmptyWeeklySlots(),
+      [7 as MaintenanceWeekday],
+      "08:00",
+      "09:00",
+      true,
+    )).toThrow(/Wochentag/);
+  });
 });
 
 describe("weekly summaries", () => {
@@ -122,6 +149,15 @@ describe("weekly summaries", () => {
       "Montag–Freitag: 08:00–17:00; Samstag–Sonntag: gesperrt",
     );
   });
+
+  it("rejects malformed weekly slots instead of interpreting an empty day as all-day", () => {
+    const malformed = [
+      [],
+      ...createEmptyWeeklySlots().slice(1),
+    ] as MaintenanceWindowDefinition["weeklySlots"];
+
+    expect(() => summarizeWeeklySlots(malformed)).toThrow(/Wochenplan/);
+  });
 });
 
 describe("monthly calendar rules", () => {
@@ -137,6 +173,45 @@ describe("monthly calendar rules", () => {
     expect(isDateAllowedByCalendarRules(new Date(2026, 6, 31), rules)).toBe(true);
     expect(isDateAllowedByCalendarRules(new Date(2026, 6, 13), rules)).toBe(false);
     expect(isDateAllowedByCalendarRules(new Date(2026, 6, 24), rules)).toBe(false);
+  });
+
+  it("returns false for an invalid date even when no calendar rules exist", () => {
+    expect(isDateAllowedByCalendarRules(new Date("invalid"), [])).toBe(false);
+  });
+
+  it.each([
+    [[{ weekday: 0, occurrences: [1] }, { weekday: 7, occurrences: [1] }]],
+    [[{ weekday: 0, occurrences: [1, 0] }]],
+    [[{ weekday: 0, occurrences: [1, "first"] }]],
+    [[{ weekday: 0, occurrences: Object.assign(Array(2), { 0: 1 }) }]],
+  ])("does not grant access when persisted calendar rules are malformed", (malformedRules) => {
+    expect(isDateAllowedByCalendarRules(
+      new Date(2026, 6, 6),
+      malformedRules as unknown as MaintenanceCalendarRule[],
+    )).toBe(false);
+  });
+
+  it("detects the last occurrence across a year boundary", () => {
+    const lastThursday = [{ weekday: 3 as const, occurrences: ["last"] as const }];
+
+    expect(isDateAllowedByCalendarRules(new Date(2026, 11, 24), lastThursday)).toBe(false);
+    expect(isDateAllowedByCalendarRules(new Date(2026, 11, 31), lastThursday)).toBe(true);
+  });
+
+  it("detects the last weekday in February of a leap year", () => {
+    const lastThursday = [{ weekday: 3 as const, occurrences: ["last"] as const }];
+
+    expect(isDateAllowedByCalendarRules(new Date(2024, 1, 22), lastThursday)).toBe(false);
+    expect(isDateAllowedByCalendarRules(new Date(2024, 1, 29), lastThursday)).toBe(true);
+  });
+
+  it("allows a fifth occurrence that is also the last occurrence", () => {
+    const fifthMonday = [{ weekday: 0 as const, occurrences: [5] as const }];
+    const lastMonday = [{ weekday: 0 as const, occurrences: ["last"] as const }];
+    const date = new Date(2025, 2, 31);
+
+    expect(isDateAllowedByCalendarRules(date, fifthMonday)).toBe(true);
+    expect(isDateAllowedByCalendarRules(date, lastMonday)).toBe(true);
   });
 });
 

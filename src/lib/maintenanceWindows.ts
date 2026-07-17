@@ -51,6 +51,25 @@ export function createEmptyWeeklySlots(): WeeklySlots {
   ];
 }
 
+export function assertWeeklySlots(
+  weeklySlots: unknown,
+): asserts weeklySlots is MaintenanceWindowDefinition["weeklySlots"] {
+  if (!Array.isArray(weeklySlots) || weeklySlots.length !== 7) {
+    throw new Error("Ungültiger Wochenplan: Es werden genau 7 Tage erwartet.");
+  }
+
+  for (const daySlots of weeklySlots) {
+    if (!Array.isArray(daySlots) || daySlots.length !== SLOT_COUNT) {
+      throw new Error(`Ungültiger Wochenplan: Jeder Tag muss genau ${SLOT_COUNT} Einträge enthalten.`);
+    }
+    for (let slot = 0; slot < SLOT_COUNT; slot += 1) {
+      if (typeof daySlots[slot] !== "boolean") {
+        throw new Error("Ungültiger Wochenplan: Alle Einträge müssen boolesche Werte sein.");
+      }
+    }
+  }
+}
+
 export function normalizeMaintenanceAbbreviation(value: string): string {
   return value.trim().toLocaleLowerCase("de-DE");
 }
@@ -107,6 +126,14 @@ export function applyTimeRange(
   end: string,
   allowed: boolean,
 ): WeeklySlots {
+  assertWeeklySlots(weeklySlots);
+  if (
+    !Array.isArray(selectedWeekdays)
+    || selectedWeekdays.some((weekday) => !Number.isInteger(weekday) || weekday < 0 || weekday > 6)
+  ) {
+    throw new Error("Ungültiger Wochentag: Erwartet wird eine ganze Zahl zwischen 0 und 6.");
+  }
+
   const result = weeklySlots.map((day) => [...day]) as WeeklySlots;
   const startSlot = timeToSlot(start);
   const endSlot = timeToSlot(end, true);
@@ -157,6 +184,7 @@ function summarizeDay(slots: readonly boolean[]): string {
 }
 
 export function summarizeWeeklySlots(weeklySlots: WeeklySlots): string {
+  assertWeeklySlots(weeklySlots);
   const summaries = weeklySlots.map(summarizeDay);
   if (summaries.every((summary) => summary === "ganztägig")) return "Durchgehend erlaubt";
   if (summaries.every((summary) => summary === "gesperrt")) return "Durchgehend gesperrt";
@@ -176,6 +204,7 @@ export function summarizeWeeklySlots(weeklySlots: WeeklySlots): string {
   return groups.join("; ");
 }
 
+/** Ungültige Datumswerte oder Laufzeit-Regeldaten werden sicherheitshalber nicht erlaubt. */
 export function isDateAllowedByCalendarRules(
   date: Date,
   rules: readonly {
@@ -183,6 +212,8 @@ export function isDateAllowedByCalendarRules(
     occurrences: readonly MonthlyOccurrence[];
   }[],
 ): boolean {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return false;
+  if (!Array.isArray(rules) || !rules.every(isValidCalendarRule)) return false;
   if (rules.length === 0) return true;
 
   const weekday = ((date.getDay() + 6) % 7) as MaintenanceWeekday;
@@ -194,6 +225,32 @@ export function isDateAllowedByCalendarRules(
     rule.weekday === weekday
     && (rule.occurrences.includes(occurrence) || (isLastOccurrence && rule.occurrences.includes("last"))),
   );
+}
+
+function isValidCalendarRule(rule: unknown): rule is MaintenanceWindowDefinition["calendarRules"][number] {
+  if (typeof rule !== "object" || rule === null) return false;
+
+  const candidate = rule as { weekday?: unknown; occurrences?: unknown };
+  if (
+    !Number.isInteger(candidate.weekday)
+    || (candidate.weekday as number) < 0
+    || (candidate.weekday as number) > 6
+    || !Array.isArray(candidate.occurrences)
+  ) {
+    return false;
+  }
+
+  for (let index = 0; index < candidate.occurrences.length; index += 1) {
+    const occurrence = candidate.occurrences[index];
+    if (
+      occurrence !== "last"
+      && (!Number.isInteger(occurrence) || (occurrence as number) < 1 || (occurrence as number) > 5)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function sortSystems(systems: TechInfoLatest[]): void {
