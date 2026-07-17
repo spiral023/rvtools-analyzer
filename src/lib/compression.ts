@@ -18,6 +18,7 @@ export async function gzipJson(value: unknown): Promise<ArrayBuffer> {
   return new Response(stream).arrayBuffer();
 }
 
+/** Gegenstück zu {@link gzipJson}: entpackt einen gzip-Puffer und parst das enthaltene JSON. */
 export async function gunzipJson<T>(buffer: ArrayBuffer): Promise<T> {
   const stream = bytesToStream(new Uint8Array(buffer)).pipeThrough(new DecompressionStream("gzip"));
   const json = await new Response(stream).text();

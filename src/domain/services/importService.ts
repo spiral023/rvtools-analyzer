@@ -102,7 +102,7 @@ function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
  * Sheets (kanonische Namen), deren Rohdaten im Frontend tatsächlich gelesen werden.
  * Quelle: alle `useRawSheet("...")`-Aufrufe in `src/pages/*`.
  *
- * Nur diese Sheets werden roh in `rawSheets` persistiert. Alle anderen Sheets
+ * Nur diese Sheets werden roh in `rawSheetBlobs` persistiert. Alle anderen Sheets
  * (unbekannte Extra-Sheets, `vFileInfo`, `vMetaData` sowie die roh nicht gelesenen,
  * aber normalisierten `vCluster`/`vHealth`) werden NICHT roh gespeichert – das
  * reduziert Schreibvolumen und Heap beim Import erheblich.
@@ -110,7 +110,7 @@ function workerParse(buffer: ArrayBuffer): Promise<WorkerParseResult> {
  * WICHTIG: Wird in einer Seite ein neues `useRawSheet("xyz")` ergänzt, muss der
  * kanonische Sheet-Name hier eingetragen werden, sonst kommt die Abfrage leer zurück.
  * Die Normalisierung (entities_*) ist davon unabhängig – sie liest direkt aus den
- * geparsten Sheets, nicht aus `rawSheets`.
+ * geparsten Sheets, nicht aus `rawSheetBlobs`.
  */
 const RAW_SHEET_ALLOWLIST: ReadonlySet<string> = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
