@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import * as XLSX from "@e965/xlsx";
-import { persistAllowedRawSheetRows, normalizeSnapshots } from "@/domain/services/importService";
+import { persistRawSheetBlobs, normalizeSnapshots } from "@/domain/services/importService";
+import { gunzipJson } from "@/lib/compression";
 import { parseWorkbookBuffer } from "@/workers/parser.worker";
-import type { ParsedSheetData } from "@/domain/models/types";
+import type { ParsedSheetData, RawSheetBlob } from "@/domain/models/types";
 
 beforeEach(async () => {
   vi.restoreAllMocks();
@@ -111,16 +112,15 @@ describe("normalizeSnapshots", () => {
   });
 });
 
-describe("persistAllowedRawSheetRows", () => {
-  it("persists raw sheet rows in bounded batches", async () => {
+describe("persistRawSheetBlobs", () => {
+  it("persists only allow-listed sheets as one compressed blob per sheet, dropping denylisted columns", async () => {
     const sheets: ParsedSheetData[] = [
       {
         sheetName: "vInfo",
-        headers: ["VM"],
+        headers: ["VM", "VI SDK UUID"],
         rows: [
-          { VM: "APP01" },
-          { VM: "APP02" },
-          { VM: "APP03" },
+          { VM: "APP01", "VI SDK UUID": "uuid-a" },
+          { VM: "APP02", "VI SDK UUID": "uuid-b" },
         ],
       },
       {
@@ -129,23 +129,29 @@ describe("persistAllowedRawSheetRows", () => {
         rows: [{ Ignored: "x" }],
       },
     ];
-    const batches: number[] = [];
+    const putBlobs: RawSheetBlob[] = [];
 
-    const persisted = await persistAllowedRawSheetRows({
+    const persisted = await persistRawSheetBlobs({
       sheets,
       snapshotId: "snap-1",
-      batchSize: 2,
-      putBatch: async (rows) => {
-        batches.push(rows.length);
+      putBlob: async (blob) => {
+        putBlobs.push(blob);
       },
     });
 
-    expect(persisted).toBe(3);
-    expect(batches).toEqual([2, 1]);
+    expect(persisted).toBe(2);
+    expect(putBlobs).toHaveLength(1);
+    expect(putBlobs[0].sheetName).toBe("vInfo");
+    expect(putBlobs[0].headers).toEqual(["VM"]);
+    expect(putBlobs[0].rowCount).toBe(2);
+    expect(putBlobs[0].codec).toBe("gzip-json-v1");
+
+    const values = await gunzipJson<unknown[][]>(putBlobs[0].data);
+    expect(values).toEqual([["APP01"], ["APP02"]]);
   });
 
-  it("stores rows compactly and rehydrates every column, including ones only present in later rows", async () => {
-    const { persistAllowedRawSheetRows } = await import("@/domain/services/importService");
+  it("stores each sheet as a single compressed blob and rehydrates every column, including ones only present in later rows", async () => {
+    const { persistRawSheetBlobs } = await import("@/domain/services/importService");
     const { getRawSheetRows, getRawSheetFieldNames, getDb } = await import("@/data/db");
     const sheets: ParsedSheetData[] = [
       {
@@ -159,17 +165,13 @@ describe("persistAllowedRawSheetRows", () => {
       },
     ];
 
-    await persistAllowedRawSheetRows({ sheets, snapshotId: "snap-compact" });
+    await persistRawSheetBlobs({ sheets, snapshotId: "snap-compact" });
 
-    // Kompaktes Persistenzformat: eine Header-Zeile + Zeilen als Wert-Arrays ohne Spaltennamen.
     const db = await getDb();
-    const header = await db.get("rawSheetHeaders", ["snap-compact", "vInfo"]);
-    expect(header?.headers).toEqual(["VM", "CPUs", "Notes"]);
-    const storedRow = await db.get("rawSheets", ["snap-compact", "vInfo", 1]);
-    expect(storedRow).toMatchObject({ values: ["APP02", 2, "extra"] });
-    expect(storedRow).not.toHaveProperty("data");
+    const blob = await db.get("rawSheetBlobs", ["snap-compact", "vInfo"]);
+    expect(blob?.headers).toEqual(["VM", "CPUs", "Notes"]);
+    expect(blob?.rowCount).toBe(2);
 
-    // Leseseite liefert weiterhin die hydratisierte Record-Form; fehlende Zellen werden null.
     const rows = await getRawSheetRows(["snap-compact"], "vInfo");
     expect(rows).toHaveLength(2);
     expect(rows[0].data).toEqual({ VM: "APP01", CPUs: 4, Notes: null });
@@ -351,18 +353,22 @@ describe("importRvtoolsXlsx", () => {
     }));
     expect(progress).toContainEqual(expect.objectContaining({
       step: "Rohdaten speichern",
-      detail: expect.stringContaining("Zeilen"),
+      detail: expect.stringContaining("Sheets"),
     }));
   });
 
-  it("removes partial raw data when entity persistence fails", async () => {
+  it("removes the persisted raw sheet blob when entity persistence fails", async () => {
     installParserWorkerStub();
     const db = await import("@/data/db");
     const originalBatchPut = db.batchPut;
     let batchPutCalls = 0;
+    // Rohdaten-Persistenz läuft nicht mehr über batchPut (siehe persistRawSheetBlobs),
+    // daher ist der erste batchPut-Aufruf bereits die erste Entitäten-Batch (entities_vm).
+    // Das Blob wurde zu diesem Zeitpunkt schon erfolgreich geschrieben — der Test prüft,
+    // dass der Rollback es trotzdem wieder entfernt.
     vi.spyOn(db, "batchPut").mockImplementation(async (...args) => {
       batchPutCalls += 1;
-      if (batchPutCalls === 2) throw new Error("IndexedDB quota exceeded");
+      if (batchPutCalls === 1) throw new Error("IndexedDB quota exceeded");
       await originalBatchPut(...args);
     });
     const { importRvtoolsXlsx } = await import("@/domain/services/importService");
@@ -377,6 +383,6 @@ describe("importRvtoolsXlsx", () => {
     expect(result.errors).toContainEqual(expect.stringContaining("Import für vcsa01.lab.local fehlgeschlagen"));
     expect(result.errors).toContainEqual(expect.stringContaining("IndexedDB quota exceeded"));
     expect(await db.getSnapshots()).toEqual([]);
-    expect(await (await db.getDb()).getAll("rawSheets")).toEqual([]);
+    expect(await (await db.getDb()).getAll("rawSheetBlobs")).toEqual([]);
   });
 });

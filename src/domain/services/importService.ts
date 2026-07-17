@@ -3,7 +3,7 @@ import {
   getSnapshotsByVcenterId,
   putSnapshot,
   batchPut,
-  batchPutRawSheetHeaders,
+  putRawSheetBlob,
   deleteSnapshot,
   getTechInfoImportByChecksum,
   putTechInfoImport,
@@ -38,6 +38,7 @@ import {
   mapCdpDisplayFields,
   buildHostAdapterKey,
 } from "@/lib/xlsx/parseHelpers";
+import { gzipJson } from "@/lib/compression";
 import { shortId } from "@/lib/shortId";
 import type {
   ImportResult,
@@ -48,8 +49,7 @@ import type {
   NormalizedDatastore,
   NormalizedSnapshot,
   NormalizedHealth,
-  StoredSheetRow,
-  RawSheetHeader,
+  RawSheetBlob,
   SheetStats,
   ParsedSheetData,
   WorkerParseResult,
@@ -119,13 +119,22 @@ const RAW_SHEET_ALLOWLIST: ReadonlySet<string> = new Set([
   "dvPort", "vSC_VMK", "vDatastore", "vLicense", "vMultiPath",
 ]);
 
-interface PersistRawSheetRowsOptions {
+/**
+ * Spalten, die pro vCenter konstant und in jeder Zeile jedes Sheets vorhanden, aber ohne
+ * Analysewert sind — reiner Speicher-Overhead. `VI SDK Server` bleibt (wird für die
+ * vCenter-Anzeige gebraucht, z. B. `src/pages/ComplianceLifecycle.tsx`).
+ */
+const RAW_SHEET_COLUMN_DENYLIST: ReadonlySet<string> = new Set([
+  "VI SDK UUID",
+  "VI SDK Server type",
+  "VI SDK API Version",
+]);
+
+interface PersistRawSheetBlobsOptions {
   sheets: ParsedSheetData[];
   snapshotId: string;
-  batchSize?: number;
-  putBatch?: (rows: StoredSheetRow[]) => Promise<void>;
-  putHeaders?: (headers: RawSheetHeader[]) => Promise<void>;
-  onBatchPersisted?: (persistedRows: number) => void;
+  putBlob?: (blob: RawSheetBlob) => Promise<void>;
+  onSheetPersisted?: (sheetName: string, sheetIndex: number, totalSheets: number) => void;
 }
 
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
@@ -206,7 +215,7 @@ function buildRawHeaderUnion(sheet: ParsedSheetData): string[] {
   const seen = new Set<string>();
   const headers: string[] = [];
   const add = (key: string) => {
-    if (seen.has(key)) return;
+    if (seen.has(key) || RAW_SHEET_COLUMN_DENYLIST.has(key)) return;
     seen.add(key);
     headers.push(key);
   };
@@ -227,50 +236,31 @@ async function runSequential<T>(
   await runSequential(items, task, index + 1);
 }
 
-export async function persistAllowedRawSheetRows({
+export async function persistRawSheetBlobs({
   sheets,
   snapshotId,
-  batchSize = 5000,
-  putBatch = (rows) => batchPut("rawSheets", rows, batchSize),
-  putHeaders = (headers) => batchPutRawSheetHeaders(headers),
-  onBatchPersisted,
-}: PersistRawSheetRowsOptions): Promise<number> {
-  const headerRecords: RawSheetHeader[] = [];
-  let batch: StoredSheetRow[] = [];
-  const batches: StoredSheetRow[][] = [];
+  putBlob = (blob) => putRawSheetBlob(blob),
+  onSheetPersisted,
+}: PersistRawSheetBlobsOptions): Promise<number> {
+  const allowedSheets = sheets.filter((sheet) => RAW_SHEET_ALLOWLIST.has(sheet.sheetName));
   let persistedRows = 0;
 
-  const queueBatch = () => {
-    if (batch.length === 0) return;
-    const currentBatch = batch;
-    batch = [];
-    batches.push(currentBatch);
-  };
-
-  for (const sheet of sheets) {
-    if (!RAW_SHEET_ALLOWLIST.has(sheet.sheetName)) continue;
+  await runSequential(allowedSheets, async (sheet, index) => {
     const headers = buildRawHeaderUnion(sheet);
-    headerRecords.push({ snapshotId, sheetName: sheet.sheetName, headers });
-    for (let i = 0; i < sheet.rows.length; i++) {
-      const row = sheet.rows[i];
-      batch.push({
-        snapshotId,
-        sheetName: sheet.sheetName,
-        rowIndex: i,
-        values: headers.map((header) => toRawCellValue(row[header])),
-      });
-      if (batch.length >= batchSize) queueBatch();
-    }
-  }
-
-  queueBatch();
-  // Header zuerst persistieren: ohne sie lassen sich die kompakten Wert-Arrays nicht lesen.
-  if (headerRecords.length > 0) await putHeaders(headerRecords);
-  await runSequential(batches, async (currentBatch) => {
-    await putBatch(currentBatch);
-    persistedRows += currentBatch.length;
-    onBatchPersisted?.(persistedRows);
+    const values = sheet.rows.map((row) => headers.map((header) => toRawCellValue(row[header])));
+    const data = await gzipJson(values);
+    await putBlob({
+      snapshotId,
+      sheetName: sheet.sheetName,
+      headers,
+      rowCount: sheet.rows.length,
+      codec: "gzip-json-v1",
+      data,
+    });
+    persistedRows += sheet.rows.length;
+    onSheetPersisted?.(sheet.sheetName, index + 1, allowedSheets.length);
   });
+
   return persistedRows;
 }
 
@@ -533,21 +523,18 @@ async function importRvtoolsParsed(
     });
   }
 
-  const rawRowsTotal = parsed.sheets.reduce(
-    (sum, sheet) => sum + (RAW_SHEET_ALLOWLIST.has(sheet.sheetName) ? sheet.rows.length : 0),
-    0,
-  );
+  const rawSheetsTotal = parsed.sheets.filter((sheet) => RAW_SHEET_ALLOWLIST.has(sheet.sheetName)).length;
   try {
-    report("Rohdaten speichern", 45, `${vcenterDisplayName}: ${rawRowsTotal.toLocaleString("de-DE")} von ${totalRows.toLocaleString("de-DE")} Zeilen...`);
-    await persistAllowedRawSheetRows({
+    report("Rohdaten speichern", 45, `${vcenterDisplayName}: ${rawSheetsTotal} Sheets...`);
+    await persistRawSheetBlobs({
       sheets: parsed.sheets,
       snapshotId,
-      onBatchPersisted: (persistedRows) => {
-        const pct = 45 + Math.round((persistedRows / Math.max(rawRowsTotal, 1)) * 25);
+      onSheetPersisted: (sheetName, sheetIndex, totalSheets) => {
+        const pct = 45 + Math.round((sheetIndex / Math.max(totalSheets, 1)) * 25);
         report(
           "Rohdaten speichern",
           Math.min(pct, 69),
-          `${vcenterDisplayName}: ${persistedRows.toLocaleString("de-DE")} / ${rawRowsTotal.toLocaleString("de-DE")} Zeilen`,
+          `${vcenterDisplayName}: ${sheetName} (${sheetIndex}/${totalSheets})`,
         );
       },
     });
