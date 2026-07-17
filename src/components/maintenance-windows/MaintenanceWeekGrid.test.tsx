@@ -109,18 +109,25 @@ describe("MaintenanceWeekGrid", () => {
     expect(container.querySelector('[data-day="5"][data-slot="20"]')).toHaveAttribute("data-allowed", "true");
   });
 
-  it("bemalt beim Ziehen mindestens zwei aufeinanderfolgende Zeitfenster", () => {
+  it("bemalt natürliche Pointer-Enter-Zellen und beendet den Drag am Dokument", () => {
     const onChange = vi.fn();
     render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
     const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
     const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+    const third = screen.getByRole("gridcell", { name: "Montag 01:00–01:30, gesperrt" });
+    const setPointerCapture = vi.fn();
+    Object.defineProperty(first, "setPointerCapture", { value: setPointerCapture });
 
     fireEvent.pointerDown(first, { button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerEnter(second, { buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(second, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(document, { button: 0, pointerId: 1 });
+    fireEvent.pointerEnter(third, { buttons: 1, pointerId: 1 });
 
     const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
     expect(changed[0][0]).toBe(true);
     expect(changed[0][1]).toBe(true);
+    expect(changed[0][2]).toBe(false);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(setPointerCapture).not.toHaveBeenCalled();
   });
 });

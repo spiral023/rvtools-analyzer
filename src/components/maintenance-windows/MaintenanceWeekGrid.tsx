@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MaintenanceWindowDefinition } from "@/domain/models/types";
 
 type WeeklySlots = MaintenanceWindowDefinition["weeklySlots"];
@@ -44,8 +44,25 @@ export function MaintenanceWeekGrid({
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const latestValue = useRef(value);
   const isPainting = useRef(false);
+  const activePointerId = useRef<number | undefined>(undefined);
   const ignoreNextClick = useRef(false);
   latestValue.current = value;
+
+  useEffect(() => {
+    const finishPainting = (event: PointerEvent) => {
+      if (!isPainting.current || event.pointerId !== activePointerId.current) return;
+      ignoreNextClick.current = true;
+      isPainting.current = false;
+      activePointerId.current = undefined;
+    };
+
+    document.addEventListener("pointerup", finishPainting);
+    document.addEventListener("pointercancel", finishPainting);
+    return () => {
+      document.removeEventListener("pointerup", finishPainting);
+      document.removeEventListener("pointercancel", finishPainting);
+    };
+  }, []);
 
   const applyPaint = (day: number, slot: number) => {
     if (disabled) return;
@@ -152,22 +169,15 @@ export function MaintenanceWeekGrid({
                       }
                     }}
                     onPointerDown={(event) => {
-                      if (disabled || (event.button !== 0 && event.button !== undefined)) return;
+                      if (disabled || event.isPrimary === false || (event.button !== 0 && event.button !== undefined)) return;
                       isPainting.current = true;
+                      activePointerId.current = event.pointerId;
                       ignoreNextClick.current = false;
-                      event.currentTarget.setPointerCapture?.(event.pointerId);
                       event.preventDefault();
                       applyPaint(day, slot);
                     }}
                     onPointerEnter={() => {
                       if (isPainting.current) applyPaint(day, slot);
-                    }}
-                    onPointerUp={() => {
-                      if (isPainting.current) ignoreNextClick.current = true;
-                      isPainting.current = false;
-                    }}
-                    onPointerCancel={() => {
-                      isPainting.current = false;
                     }}
                     ref={(element) => { cellRefs.current[index] = element; }}
                     role="gridcell"
