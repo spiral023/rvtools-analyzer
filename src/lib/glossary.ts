@@ -96,6 +96,12 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     description:
       "Wartungsfenster vorbereiten und betroffene VMs/Systeme ableiten – als Grundlage für Ankündigungstexte an Stakeholder.",
   },
+  "/wartungsfenster": {
+    term: "Wartungsfenster",
+    description:
+      "Lokaler Katalog wiederkehrender Wartungszeiten. Ordnet Werte aus Tech-Info bekannten Zeitplänen zu und macht unbekannte Angaben sichtbar.",
+    source: "Tech-Info · „Wartungsfenster“",
+  },
   "/planning": {
     term: "Planung",
     description:

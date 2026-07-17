@@ -27,6 +27,7 @@ const Licensing = lazy(() => import("@/pages/Licensing"));
 const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
 const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
+const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -79,6 +80,7 @@ const App = () => (
                         <Route path="/licensing" element={<Licensing />} />
                         <Route path="/tech-info" element={<TechInfo />} />
                         <Route path="/vmware-versions" element={<ComplianceLifecycle initialTab="versions" />} />
+                        <Route path="/wartungsfenster" element={<MaintenanceWindows />} />
                         <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
                         <Route path="/planning" element={<Planning />} />
                         <Route path="/settings" element={<Settings />} />
