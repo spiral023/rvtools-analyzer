@@ -253,8 +253,8 @@ function splitInferenceClauses(description: string): string[] {
   return protectedDescription
     .split(/\s*(?:[,.;!?]|\b(?:sondern|aber|jedoch)\b)\s*/iu)
     .map((clause) => clause
-      .replaceAll(PROTECTED_LIST_COMMA, ", ")
-      .replaceAll(PROTECTED_ORDINAL_DOT, "."))
+      .split(PROTECTED_LIST_COMMA).join(", ")
+      .split(PROTECTED_ORDINAL_DOT).join("."))
     .map((clause) => clause.trim())
     .filter(Boolean);
 }
