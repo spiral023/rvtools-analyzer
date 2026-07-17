@@ -64,8 +64,8 @@ describe("v19 upgrade migration", () => {
     const { getDb } = await import("./index");
     const db = await getDb();
 
-    expect(db.objectStoreNames.contains("rawSheets")).toBe(false);
-    expect(db.objectStoreNames.contains("rawSheetHeaders")).toBe(false);
+    expect(Array.from(db.objectStoreNames).includes("rawSheets" as any)).toBe(false);
+    expect(Array.from(db.objectStoreNames).includes("rawSheetHeaders" as any)).toBe(false);
     expect(db.objectStoreNames.contains("rawSheetBlobs")).toBe(true);
 
     await expect(db.getAll("snapshots")).resolves.toHaveLength(0);
