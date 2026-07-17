@@ -1,11 +1,13 @@
 import type {
   MaintenanceClusterAssignment,
   MaintenanceSettings,
+  MaintenanceWindowDefinition,
   Scenario,
 } from "@/domain/models/types";
+import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
-export const USER_DATA_BACKUP_VERSION = 1;
+export const USER_DATA_BACKUP_VERSION = 2;
 
 export interface UserDataBackup {
   kind: typeof USER_DATA_BACKUP_KIND;
@@ -13,12 +15,14 @@ export interface UserDataBackup {
   exportedAt: string;
   maintenanceSettings: MaintenanceSettings | null;
   maintenanceClusterAssignments: MaintenanceClusterAssignment[];
+  maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
 }
 
 export function buildUserDataBackup(input: {
   maintenanceSettings: MaintenanceSettings | null;
   maintenanceClusterAssignments: MaintenanceClusterAssignment[];
+  maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
   exportedAt?: Date;
 }): UserDataBackup {
@@ -28,6 +32,7 @@ export function buildUserDataBackup(input: {
     exportedAt: (input.exportedAt ?? new Date()).toISOString(),
     maintenanceSettings: input.maintenanceSettings,
     maintenanceClusterAssignments: input.maintenanceClusterAssignments,
+    maintenanceWindows: input.maintenanceWindows,
     scenarios: input.scenarios,
   };
 }
@@ -108,6 +113,65 @@ function normalizeScenario(value: unknown): Scenario | null {
   };
 }
 
+function normalizeTimestamp(value: unknown, fallback: string): string {
+  const candidate = toTrimmedString(value);
+  return candidate && Number.isFinite(Date.parse(candidate)) ? candidate : fallback;
+}
+
+const VALID_MAINTENANCE_WINDOW_HANDLINGS = new Set<MaintenanceWindowDefinition["handling"]>([
+  "regular",
+  "always",
+  "approval-required",
+  "external",
+]);
+
+function normalizeMaintenanceWindow(value: unknown): MaintenanceWindowDefinition | null {
+  if (!isRecord(value)) return null;
+  const id = toTrimmedString(value.id);
+  const abbreviation = toTrimmedString(value.abbreviation);
+  if (!id || !abbreviation || !VALID_MAINTENANCE_WINDOW_HANDLINGS.has(
+    value.handling as MaintenanceWindowDefinition["handling"],
+  )) return null;
+
+  try {
+    assertWeeklySlots(value.weeklySlots);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(value.calendarRules)) return null;
+  const calendarRules: MaintenanceWindowDefinition["calendarRules"] = [];
+  for (const candidate of value.calendarRules) {
+    if (!isRecord(candidate)
+      || !Number.isInteger(candidate.weekday)
+      || Number(candidate.weekday) < 0
+      || Number(candidate.weekday) > 6
+      || !Array.isArray(candidate.occurrences)
+      || candidate.occurrences.some((occurrence) =>
+        occurrence !== "last"
+        && (!Number.isInteger(occurrence) || Number(occurrence) < 1 || Number(occurrence) > 5))) {
+      return null;
+    }
+    calendarRules.push({
+      weekday: Number(candidate.weekday) as MaintenanceWindowDefinition["calendarRules"][number]["weekday"],
+      occurrences: [...candidate.occurrences] as MaintenanceWindowDefinition["calendarRules"][number]["occurrences"],
+    });
+  }
+
+  const fallbackTimestamp = new Date().toISOString();
+  return {
+    id,
+    abbreviation,
+    normalizedAbbreviation: normalizeMaintenanceAbbreviation(abbreviation),
+    description: typeof value.description === "string" ? value.description : "",
+    handling: value.handling as MaintenanceWindowDefinition["handling"],
+    weeklySlots: value.weeklySlots.map((day) => [...day]) as MaintenanceWindowDefinition["weeklySlots"],
+    calendarRules,
+    createdAt: normalizeTimestamp(value.createdAt, fallbackTimestamp),
+    updatedAt: normalizeTimestamp(value.updatedAt, fallbackTimestamp),
+  };
+}
+
 /**
  * Parst und validiert eine Backup-Datei. Wirft bei strukturell ungültigen Dateien;
  * einzelne unbrauchbare Einträge werden stillschweigend übersprungen.
@@ -123,7 +187,7 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   if (!isRecord(parsed) || parsed.kind !== USER_DATA_BACKUP_KIND) {
     throw new Error("Die Datei ist kein RVTools-Analyzer-Backup.");
   }
-  if (parsed.version !== USER_DATA_BACKUP_VERSION) {
+  if (parsed.version !== 1 && parsed.version !== USER_DATA_BACKUP_VERSION) {
     throw new Error(`Backup-Version ${String(parsed.version)} wird nicht unterstützt.`);
   }
 
@@ -137,6 +201,11 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
         .map(normalizeScenario)
         .filter((entry): entry is Scenario => entry !== null)
     : [];
+  const maintenanceWindows = parsed.version === USER_DATA_BACKUP_VERSION && Array.isArray(parsed.maintenanceWindows)
+    ? parsed.maintenanceWindows
+        .map(normalizeMaintenanceWindow)
+        .filter((entry): entry is MaintenanceWindowDefinition => entry !== null)
+    : [];
 
   return {
     kind: USER_DATA_BACKUP_KIND,
@@ -144,6 +213,7 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     exportedAt: toTrimmedString(parsed.exportedAt),
     maintenanceSettings: normalizeSettings(parsed.maintenanceSettings),
     maintenanceClusterAssignments: assignments,
+    maintenanceWindows,
     scenarios,
   };
 }

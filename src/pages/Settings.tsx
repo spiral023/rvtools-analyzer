@@ -75,11 +75,13 @@ export default function Settings() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["maintenanceSettings"] }),
         queryClient.invalidateQueries({ queryKey: ["maintenanceAssignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["maintenanceWindows"] }),
         queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
       ]);
       toast.success(
         `Backup importiert: ${result.settingsImported ? "Kontaktvorgaben, " : ""}` +
-          `${result.assignmentsImported} Cluster-Zuweisungen, ${result.scenariosImported} Szenarien.`,
+          `${result.assignmentsImported} Cluster-Zuweisungen, ` +
+          `${result.maintenanceWindowsImported} Wartungsfenster, ${result.scenariosImported} Szenarien.`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Import fehlgeschlagen.");
