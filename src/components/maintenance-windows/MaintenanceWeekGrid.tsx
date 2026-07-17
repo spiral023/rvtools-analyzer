@@ -41,6 +41,7 @@ export function MaintenanceWeekGrid({
   compact = false,
 }: MaintenanceWeekGridProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const gridRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const latestValue = useRef(value);
   const isPainting = useRef(false);
@@ -51,7 +52,10 @@ export function MaintenanceWeekGrid({
   useEffect(() => {
     const finishPainting = (event: PointerEvent) => {
       if (!isPainting.current || event.pointerId !== activePointerId.current) return;
-      ignoreNextClick.current = true;
+      const endsInsideGrid = event.type === "pointerup"
+        && event.target instanceof Node
+        && gridRef.current?.contains(event.target);
+      ignoreNextClick.current = Boolean(endsInsideGrid);
       isPainting.current = false;
       activePointerId.current = undefined;
     };
@@ -125,7 +129,7 @@ export function MaintenanceWeekGrid({
         Jede Zelle steht für 30 Minuten. Mit den Pfeiltasten bewegen Sie sich durch die Woche; am Rand wird zur gegenüberliegenden Seite umgebrochen. Leertaste oder Enter übernimmt den aktuellen Malmodus.
       </p>
       <div className="maintenance-grid__scroll">
-        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby="maintenance-grid-instructions">
+        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby="maintenance-grid-instructions" ref={gridRef}>
           <div className="maintenance-grid__time-row" aria-hidden="true">
             <span className="maintenance-grid__corner">Tag / Zeit</span>
             {Array.from({ length: SLOTS_PER_DAY }, (_, slot) => (
@@ -169,15 +173,17 @@ export function MaintenanceWeekGrid({
                       }
                     }}
                     onPointerDown={(event) => {
-                      if (disabled || event.isPrimary === false || (event.button !== 0 && event.button !== undefined)) return;
+                      if (disabled || !event.isPrimary || event.button !== 0) return;
                       isPainting.current = true;
                       activePointerId.current = event.pointerId;
                       ignoreNextClick.current = false;
                       event.preventDefault();
                       applyPaint(day, slot);
                     }}
-                    onPointerEnter={() => {
-                      if (isPainting.current) applyPaint(day, slot);
+                    onPointerEnter={(event) => {
+                      if (isPainting.current && event.isPrimary && event.pointerId === activePointerId.current) {
+                        applyPaint(day, slot);
+                      }
                     }}
                     ref={(element) => { cellRefs.current[index] = element; }}
                     role="gridcell"

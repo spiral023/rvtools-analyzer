@@ -10,6 +10,25 @@ function emptySlots(): WeeklySlots {
   return Array.from({ length: 7 }, () => Array<boolean>(48).fill(false)) as WeeklySlots;
 }
 
+function firePointerEvent(
+  target: Element | Document,
+  type: string,
+  { pointerId = 1, isPrimary = true, button = 0, buttons = 1 }: {
+    pointerId?: number;
+    isPrimary?: boolean;
+    button?: number;
+    buttons?: number;
+  } = {},
+) {
+  const event = Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+    pointerId,
+    isPrimary,
+    button,
+    buttons,
+  });
+  fireEvent(target, event);
+}
+
 function ControlledGrid({ initial = emptySlots(), paintMode = "allow" }: {
   initial?: WeeklySlots;
   paintMode?: "allow" | "block";
@@ -118,10 +137,10 @@ describe("MaintenanceWeekGrid", () => {
     const setPointerCapture = vi.fn();
     Object.defineProperty(first, "setPointerCapture", { value: setPointerCapture });
 
-    fireEvent.pointerDown(first, { button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerEnter(second, { buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(document, { button: 0, pointerId: 1 });
-    fireEvent.pointerEnter(third, { buttons: 1, pointerId: 1 });
+    firePointerEvent(first, "pointerdown");
+    firePointerEvent(second, "pointerover");
+    firePointerEvent(document, "pointerup");
+    firePointerEvent(third, "pointerover");
 
     const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
     expect(changed[0][0]).toBe(true);
@@ -129,5 +148,52 @@ describe("MaintenanceWeekGrid", () => {
     expect(changed[0][2]).toBe(false);
     expect(onChange).toHaveBeenCalledTimes(2);
     expect(setPointerCapture).not.toHaveBeenCalled();
+  });
+
+  it("unterdrückt nach einem Dokument-Ende keinen folgenden normalen Klick", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+
+    firePointerEvent(first, "pointerdown");
+    firePointerEvent(document, "pointerup");
+    fireEvent.click(second);
+
+    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(changed[0][1]).toBe(true);
+  });
+
+  it("ignoriert nicht primäre oder fremde Pointer während eines aktiven Drags", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+    const third = screen.getByRole("gridcell", { name: "Montag 01:00–01:30, gesperrt" });
+
+    firePointerEvent(first, "pointerdown", { pointerId: 1, isPrimary: true });
+    firePointerEvent(second, "pointerover", { pointerId: 2, isPrimary: false });
+    firePointerEvent(third, "pointerover", { pointerId: 1, isPrimary: true });
+    firePointerEvent(document, "pointerup", { pointerId: 1, isPrimary: true });
+
+    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(changed[0][1]).toBe(false);
+    expect(changed[0][2]).toBe(true);
+  });
+
+  it("unterdrückt den Klick nach Pointer-Up innerhalb des Grids genau einmal", () => {
+    const onChange = vi.fn();
+    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+
+    firePointerEvent(first, "pointerdown");
+    firePointerEvent(first, "pointerup");
+    fireEvent.click(first);
+    fireEvent.click(second);
+
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 });
