@@ -17,6 +17,35 @@ export interface MaintenanceWeekGridProps {
   compact?: boolean;
 }
 
+export function MaintenanceWeekGrid(props: MaintenanceWeekGridProps) {
+  if (props.compact) return <MaintenanceWeekGridCompact value={props.value} />;
+  return <MaintenanceWeekGridInteractive {...props} />;
+}
+
+function MaintenanceWeekGridCompact({ value }: Pick<MaintenanceWeekGridProps, "value">) {
+  return (
+    <div
+      className="maintenance-grid maintenance-grid--compact"
+      role="img"
+      aria-label={`Wochenübersicht: ${summarizeWeeklySlots(value)}`}
+    >
+      {value.map((daySlots, day) => (
+        <div className="maintenance-grid__compact-row" key={DAYS[day]} aria-hidden="true">
+          {daySlots.map((allowed, slot) => (
+            <span
+              className={classNames("maintenance-grid__compact-cell", allowed && "is-allowed", slot % 2 === 0 && "is-hour-start")}
+              data-allowed={allowed}
+              data-day={day}
+              data-slot={slot}
+              key={`${day}-${slot}`}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function slotTime(slot: number) {
   const startMinutes = slot * 30;
   const endMinutes = (startMinutes + 30) % (24 * 60);
@@ -34,12 +63,11 @@ function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-export function MaintenanceWeekGrid({
+function MaintenanceWeekGridInteractive({
   value,
   onChange,
   paintMode,
   disabled = false,
-  compact = false,
 }: MaintenanceWeekGridProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const instructionsId = useId();
@@ -94,30 +122,6 @@ export function MaintenanceWeekGrid({
     setActiveIndex(index);
     cell.focus();
   };
-
-  if (compact) {
-    return (
-      <div
-        className="maintenance-grid maintenance-grid--compact"
-        role="img"
-        aria-label={`Wochenübersicht: ${summarizeWeeklySlots(value)}`}
-      >
-        {value.map((daySlots, day) => (
-          <div className="maintenance-grid__compact-row" key={DAYS[day]} aria-hidden="true">
-            {daySlots.map((allowed, slot) => (
-              <span
-                className={classNames("maintenance-grid__compact-cell", allowed && "is-allowed", slot % 2 === 0 && "is-hour-start")}
-                data-allowed={allowed}
-                data-day={day}
-                data-slot={slot}
-                key={`${day}-${slot}`}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <section className="maintenance-grid-shell" aria-label="Wöchentliche Zeitplanung">

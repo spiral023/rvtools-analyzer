@@ -129,6 +129,23 @@ describe("MaintenanceWeekGrid", () => {
     expect(container.querySelector('[data-day="5"][data-slot="20"]')).toHaveAttribute("data-allowed", "true");
   });
 
+  it("registriert für kompakte Vorschauen keine Dokument-Pointer-Listener", () => {
+    const addEventListener = vi.spyOn(document, "addEventListener");
+    render(
+      <>
+        <MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" compact />
+        <MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" compact />
+        <MaintenanceWeekGrid value={emptySlots()} onChange={vi.fn()} paintMode="allow" compact />
+      </>,
+    );
+
+    const documentPointerEvents = addEventListener.mock.calls
+      .map(([type]) => type)
+      .filter((type) => type === "pointerup" || type === "pointercancel");
+    expect(documentPointerEvents).toEqual([]);
+    expect(screen.queryByRole("gridcell")).not.toBeInTheDocument();
+  });
+
   it("vergibt pro Grid eine eigene Beschreibung", () => {
     render(
       <>
