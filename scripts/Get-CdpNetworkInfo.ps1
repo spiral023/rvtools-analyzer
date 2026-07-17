@@ -12,7 +12,7 @@
     - ruft die Network-Hints für alle physischen Adapter ab
     - exportiert die Ergebnisse als CSV
     - verwendet Semikolon als Trennzeichen
-    - verwendet Windows-1252 als Zeichenkodierung
+    - verwendet UTF-8 als Zeichenkodierung
 
 .VORAUSSETZUNGEN
     VMware PowerCLI:
@@ -29,6 +29,7 @@ $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $defaultOutputDirectory = [Environment]::GetFolderPath("Desktop")
 
 $viConnection = $null
+$scriptExitCode = 0
 $results = [System.Collections.Generic.List[object]]::new()
 
 
@@ -63,10 +64,10 @@ function ConvertTo-CleanText {
 }
 
 
-function Export-Windows1252Csv {
+function Export-Utf8Csv {
     <#
     .SYNOPSIS
-        Exportiert Objekte als CSV mit Windows-1252-Kodierung.
+        Exportiert Objekte als semikolongetrennte UTF-8-CSV.
     #>
 
     param (
@@ -77,30 +78,12 @@ function Export-Windows1252Csv {
         [string]$Path
     )
 
-    # Für PowerShell Core die Codepage-Unterstützung registrieren.
-    if ($PSVersionTable.PSEdition -eq "Core") {
-        try {
-            [System.Text.Encoding]::RegisterProvider(
-                [System.Text.CodePagesEncodingProvider]::Instance
-            )
-        }
-        catch {
-            Write-Verbose "Windows-1252-Codepage-Provider war bereits registriert."
-        }
-    }
-
-    $encoding = [System.Text.Encoding]::GetEncoding(1252)
-
-    $csvContent = $InputObject |
-        ConvertTo-Csv `
+    $InputObject |
+        Export-Csv `
+            -LiteralPath $Path `
             -Delimiter ";" `
-            -NoTypeInformation
-
-    [System.IO.File]::WriteAllLines(
-        $Path,
-        $csvContent,
-        $encoding
-    )
+            -NoTypeInformation `
+            -Encoding utf8
 }
 
 
@@ -112,7 +95,7 @@ try {
     Import-Module VMware.PowerCLI -ErrorAction Stop
 }
 catch {
-    Write-Error @"
+    Write-Error -ErrorAction Continue @"
 VMware PowerCLI konnte nicht geladen werden.
 
 Installation:
@@ -133,7 +116,7 @@ $($_.Exception.Message)
 $vCenter = Read-Host "vCenter-Server eingeben"
 
 if ([string]::IsNullOrWhiteSpace($vCenter)) {
-    Write-Error "Es wurde kein vCenter-Server angegeben."
+    Write-Error "Es wurde kein vCenter-Server angegeben." -ErrorAction Continue
     exit 1
 }
 
@@ -143,13 +126,18 @@ $csvFileName = "${vCenterShortName}_ESXi_CDP_Information_$timestamp.csv"
 $username = Read-Host "Benutzername eingeben, z. B. user@vsphere.local"
 
 if ([string]::IsNullOrWhiteSpace($username)) {
-    Write-Error "Es wurde kein Benutzername angegeben."
+    Write-Error "Es wurde kein Benutzername angegeben." -ErrorAction Continue
     exit 1
 }
 
 $credential = Get-Credential `
     -UserName $username `
     -Message "Passwort für $username am vCenter $vCenter eingeben"
+
+if ($null -eq $credential) {
+    Write-Error "Die Anmeldeabfrage wurde abgebrochen." -ErrorAction Continue
+    exit 1
+}
 
 $outputDirectoryInput = Read-Host `
     "Ausgabeordner eingeben [Enter = $defaultOutputDirectory]"
@@ -174,7 +162,8 @@ try {
     ).Path
 }
 catch {
-    Write-Error "Der Ausgabeordner konnte nicht erstellt oder geöffnet werden: $($_.Exception.Message)"
+    Write-Error "Der Ausgabeordner konnte nicht erstellt oder geöffnet werden: $($_.Exception.Message)" `
+        -ErrorAction Continue
     exit 1
 }
 
@@ -199,7 +188,8 @@ try {
     Write-Information "Verbindung erfolgreich hergestellt." -InformationAction Continue
     Write-Information "" -InformationAction Continue
 
-    $vmHosts = Get-VMHost |
+    $vmHosts = Get-VMHost `
+        -Server $viConnection |
         Sort-Object Name
 
     if (-not $vmHosts) {
@@ -227,6 +217,7 @@ try {
         try {
             $cluster = Get-Cluster `
                 -VMHost $vmHost `
+                -Server $viConnection `
                 -ErrorAction SilentlyContinue |
                 Select-Object -First 1
 
@@ -277,6 +268,12 @@ try {
                 [string[]]@()
             )
 
+            $networkHintsByDevice = @{}
+
+            foreach ($networkHint in $networkHints) {
+                $networkHintsByDevice[$networkHint.Device] = $networkHint
+            }
+
             # Physische Adapter zusätzlich auslesen, um MAC und Linkstatus zu erhalten.
             $physicalAdapters = Get-VMHostNetworkAdapter `
                 -VMHost $vmHost `
@@ -284,11 +281,7 @@ try {
                 -ErrorAction Stop
 
             foreach ($physicalAdapter in $physicalAdapters) {
-                $hint = $networkHints |
-                    Where-Object {
-                        $_.Device -eq $physicalAdapter.Name
-                    } |
-                    Select-Object -First 1
+                $hint = $networkHintsByDevice[$physicalAdapter.Name]
 
                 $cdp = $null
 
@@ -377,7 +370,7 @@ try {
     $sortedResults = $results |
         Sort-Object VMHost, PhysicalAdapter
 
-    Export-Windows1252Csv `
+    Export-Utf8Csv `
         -InputObject $sortedResults `
         -Path $csvPath
 
@@ -402,7 +395,9 @@ try {
         Format-Table -AutoSize
 }
 catch {
-    Write-Error "Das Skript wurde mit einem Fehler beendet: $($_.Exception.Message)"
+    Write-Error "Das Skript wurde mit einem Fehler beendet: $($_.Exception.Message)" `
+        -ErrorAction Continue
+    $scriptExitCode = 1
 }
 finally {
     if ($viConnection) {
@@ -417,3 +412,5 @@ finally {
         Write-Information "vCenter-Verbindung wurde getrennt." -InformationAction Continue
     }
 }
+
+exit $scriptExitCode
