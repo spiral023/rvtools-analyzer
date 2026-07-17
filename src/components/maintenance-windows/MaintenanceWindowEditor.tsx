@@ -38,6 +38,8 @@ const HANDLING_OPTIONS = [
   ["external", "Extern verwaltet"],
 ] as const;
 
+const EMPTY_ABBREVIATIONS: string[] = [];
+
 const OCCURRENCE_OPTIONS: Array<{ value: MonthlyOccurrence; label: string; summary: string }> = [
   { value: 1, label: "Erster", summary: "erster" },
   { value: 2, label: "Zweiter", summary: "zweiter" },
@@ -53,6 +55,13 @@ function cloneDefinition(value: MaintenanceWindowDefinition): MaintenanceWindowD
     weeklySlots: value.weeklySlots.map((day) => [...day]) as WeeklySlots,
     calendarRules: value.calendarRules.map((rule) => ({ ...rule, occurrences: [...rule.occurrences] })),
   };
+}
+
+function normalizeEditorDraft(value: MaintenanceWindowDefinition): MaintenanceWindowDefinition {
+  const draft = cloneDefinition(value);
+  return draft.handling === "always"
+    ? { ...draft, weeklySlots: allSlots(true), calendarRules: [] }
+    : draft;
 }
 
 function areDefinitionsEqual(left: MaintenanceWindowDefinition, right: MaintenanceWindowDefinition): boolean {
@@ -86,11 +95,6 @@ function ruleSummary(rule: MaintenanceCalendarRule): string {
   return `${DAY_LABELS[rule.weekday]}: ${occurrences.join(", ")}`;
 }
 
-function sameRule(left: MaintenanceCalendarRule, right: MaintenanceCalendarRule): boolean {
-  return left.weekday === right.weekday
-    && JSON.stringify(orderedOccurrences(left.occurrences)) === JSON.stringify(orderedOccurrences(right.occurrences));
-}
-
 export interface MaintenanceWindowEditorProps {
   value: MaintenanceWindowDefinition;
   existingAbbreviations?: string[];
@@ -103,14 +107,14 @@ export interface MaintenanceWindowEditorProps {
 
 export function MaintenanceWindowEditor({
   value,
-  existingAbbreviations = [],
+  existingAbbreviations = EMPTY_ABBREVIATIONS,
   isSaving = false,
   onSave,
   onDelete,
   onDuplicate,
   onDirtyChange,
 }: MaintenanceWindowEditorProps) {
-  const [draft, setDraft] = useState(() => cloneDefinition(value));
+  const [draft, setDraft] = useState(() => normalizeEditorDraft(value));
   const [selectedDays, setSelectedDays] = useState<MaintenanceWeekday[]>([]);
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("13:00");
@@ -118,7 +122,10 @@ export function MaintenanceWindowEditor({
   const [paintMode, setPaintMode] = useState<PaintMode>("allow");
   const [calendarWeekday, setCalendarWeekday] = useState<MaintenanceWeekday>(0);
   const [calendarOccurrences, setCalendarOccurrences] = useState<MonthlyOccurrence[]>([]);
-  const baselineRef = useRef(cloneDefinition(value));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const baselineRef = useRef<MaintenanceWindowDefinition | null>(null);
+  if (baselineRef.current === null) baselineRef.current = cloneDefinition(draft);
   const dirtyRef = useRef(false);
   const onDirtyChangeRef = useRef(onDirtyChange);
   const valueIdentity = `${value.id}\u0000${value.updatedAt}`;
@@ -126,19 +133,18 @@ export function MaintenanceWindowEditor({
 
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange;
+    onDirtyChange?.(dirtyRef.current);
   }, [onDirtyChange]);
 
   useEffect(() => () => {
-    if (dirtyRef.current) {
-      dirtyRef.current = false;
-      onDirtyChangeRef.current?.(false);
-    }
+    dirtyRef.current = false;
+    onDirtyChangeRef.current?.(false);
   }, []);
 
   useEffect(() => {
     if (previousIdentityRef.current === valueIdentity) return;
     previousIdentityRef.current = valueIdentity;
-    const next = cloneDefinition(value);
+    const next = normalizeEditorDraft(value);
     baselineRef.current = next;
     setDraft(next);
     setSelectedDays([]);
@@ -162,7 +168,9 @@ export function MaintenanceWindowEditor({
 
   const dirty = !areDefinitionsEqual(draft, baselineRef.current);
   const timeToolsDisabled = draft.handling === "approval-required" || draft.handling === "external";
-  const canSave = dirty && !abbreviationError && !isSaving;
+  const isBusy = isSaving || isSubmitting;
+  const scheduleEditingDisabled = timeToolsDisabled || isBusy;
+  const canSave = dirty && !abbreviationError && !isBusy;
 
   useEffect(() => {
     if (dirtyRef.current === dirty) return;
@@ -207,14 +215,21 @@ export function MaintenanceWindowEditor({
   };
 
   const addCalendarRule = () => {
+    if (scheduleEditingDisabled) return;
     const occurrences = orderedOccurrences(calendarOccurrences);
     if (occurrences.length === 0) return;
-    const rule: MaintenanceCalendarRule = { weekday: calendarWeekday, occurrences };
-    updateDraft((current) => (
-      current.calendarRules.some((candidate) => sameRule(candidate, rule))
-        ? current
-        : { ...current, calendarRules: [...current.calendarRules, rule] }
-    ));
+    updateDraft((current) => {
+      const matchingRules = current.calendarRules.filter((rule) => rule.weekday === calendarWeekday);
+      const mergedOccurrences = orderedOccurrences([
+        ...matchingRules.flatMap((rule) => rule.occurrences),
+        ...occurrences,
+      ]);
+      const calendarRules = [
+        ...current.calendarRules.filter((rule) => rule.weekday !== calendarWeekday),
+        { weekday: calendarWeekday, occurrences: mergedOccurrences } satisfies MaintenanceCalendarRule,
+      ].sort((left, right) => left.weekday - right.weekday);
+      return { ...current, calendarRules };
+    });
   };
 
   const save = async () => {
@@ -226,7 +241,15 @@ export function MaintenanceWindowEditor({
       normalizedAbbreviation,
       updatedAt: new Date().toISOString(),
     });
-    await onSave(result);
+    setSaveError(null);
+    setIsSubmitting(true);
+    try {
+      await onSave(result);
+    } catch (error) {
+      setSaveError(error instanceof Error ? `Speichern fehlgeschlagen: ${error.message}` : "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -247,6 +270,7 @@ export function MaintenanceWindowEditor({
             <Input
               aria-describedby={abbreviationError ? "maintenance-window-abbreviation-error" : undefined}
               aria-invalid={Boolean(abbreviationError)}
+              disabled={isBusy}
               id="maintenance-window-abbreviation"
               onChange={(event) => updateDraft((current) => ({ ...current, abbreviation: event.target.value }))}
               value={draft.abbreviation}
@@ -257,6 +281,7 @@ export function MaintenanceWindowEditor({
             <Label htmlFor="maintenance-window-description">Beschreibung</Label>
             <Input
               id="maintenance-window-description"
+              disabled={isBusy}
               onChange={(event) => updateDraft((current) => ({ ...current, description: event.target.value }))}
               value={draft.description}
             />
@@ -264,10 +289,11 @@ export function MaintenanceWindowEditor({
           <div className="space-y-2">
             <Label htmlFor="maintenance-window-handling">Behandlung</Label>
             <Select
+              disabled={isBusy}
               onValueChange={(handling) => updateDraft((current) => {
                 const nextHandling = handling as MaintenanceWindowDefinition["handling"];
                 return nextHandling === "always"
-                  ? { ...current, handling: nextHandling, weeklySlots: allSlots(true) }
+                  ? { ...current, handling: nextHandling, weeklySlots: allSlots(true), calendarRules: [] }
                   : { ...current, handling: nextHandling };
               })}
               value={draft.handling}
@@ -286,17 +312,17 @@ export function MaintenanceWindowEditor({
           <Card className="border-border/80 shadow-none">
             <CardHeader className="px-5 py-4"><CardTitle className="text-base">Schnellaktionen</CardTitle></CardHeader>
             <CardContent className="flex flex-wrap gap-2 px-5 pb-5">
-              <Button type="button" variant="secondary" disabled={timeToolsDisabled} onClick={() => updateDraft((current) => ({ ...current, handling: "always", weeklySlots: allSlots(true) }))}>jederzeit</Button>
-              <Button type="button" variant="secondary" disabled={timeToolsDisabled} onClick={() => updateDraftSlots(allSlots(false))}>alles sperren</Button>
-              <Button type="button" variant="outline" disabled={timeToolsDisabled} onClick={() => setSelectedDays([0, 1, 2, 3, 4])}>Werktage auswählen</Button>
-              <Button type="button" variant="outline" disabled={timeToolsDisabled} onClick={() => setSelectedDays([5, 6])}>Wochenende auswählen</Button>
+              <Button type="button" variant="secondary" disabled={scheduleEditingDisabled} onClick={() => updateDraft((current) => ({ ...current, handling: "always", weeklySlots: allSlots(true), calendarRules: [] }))}>jederzeit</Button>
+              <Button type="button" variant="secondary" disabled={scheduleEditingDisabled} onClick={() => updateDraftSlots(allSlots(false))}>alles sperren</Button>
+              <Button type="button" variant="outline" disabled={scheduleEditingDisabled} onClick={() => setSelectedDays([0, 1, 2, 3, 4])}>Werktage auswählen</Button>
+              <Button type="button" variant="outline" disabled={scheduleEditingDisabled} onClick={() => setSelectedDays([5, 6])}>Wochenende auswählen</Button>
             </CardContent>
           </Card>
 
           <Card className="border-border/80 shadow-none">
             <CardHeader className="px-5 py-4"><CardTitle className="text-base">Zeitregel</CardTitle></CardHeader>
             <CardContent className="space-y-4 px-5 pb-5">
-              <fieldset disabled={timeToolsDisabled}>
+              <fieldset disabled={scheduleEditingDisabled}>
                 <legend className="mb-2 text-sm font-medium">Wochentage</legend>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
                   {DAY_LABELS.map((day, index) => {
@@ -309,11 +335,11 @@ export function MaintenanceWindowEditor({
                 </div>
               </fieldset>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><Label htmlFor="maintenance-start-time">Startzeit</Label><Input disabled={timeToolsDisabled} id="maintenance-start-time" onChange={(event) => setStartTime(event.target.value)} step={1800} type="time" value={startTime} /></div>
-                <div className="space-y-2"><Label htmlFor="maintenance-end-time">Endzeit</Label><Input disabled={timeToolsDisabled} id="maintenance-end-time" onChange={(event) => setEndTime(event.target.value)} step={1800} type="time" value={endTime} /></div>
+                <div className="space-y-2"><Label htmlFor="maintenance-start-time">Startzeit</Label><Input disabled={scheduleEditingDisabled} id="maintenance-start-time" onChange={(event) => setStartTime(event.target.value)} step={1800} type="time" value={startTime} /></div>
+                <div className="space-y-2"><Label htmlFor="maintenance-end-time">Endzeit</Label><Input disabled={scheduleEditingDisabled} id="maintenance-end-time" onChange={(event) => setEndTime(event.target.value)} step={1800} type="time" value={endTime} /></div>
               </div>
               {timeRuleError && <Alert variant="destructive"><AlertDescription>{timeRuleError}</AlertDescription></Alert>}
-              <Button disabled={timeToolsDisabled} onClick={applyRule} type="button">Zeitregel anwenden</Button>
+              <Button disabled={scheduleEditingDisabled} onClick={applyRule} type="button">Zeitregel anwenden</Button>
               {timeToolsDisabled && <p className="text-sm text-muted-foreground">Zeitplan und Regeln werden für diese Behandlung nur angezeigt.</p>}
             </CardContent>
           </Card>
@@ -323,12 +349,12 @@ export function MaintenanceWindowEditor({
             <CardContent className="space-y-4 px-5 pb-5">
               <div className="space-y-2">
                 <Label htmlFor="maintenance-month-weekday">Wochentag im Monat</Label>
-                <Select onValueChange={(weekday) => setCalendarWeekday(Number(weekday) as MaintenanceWeekday)} value={String(calendarWeekday)}>
+                <Select disabled={scheduleEditingDisabled} onValueChange={(weekday) => setCalendarWeekday(Number(weekday) as MaintenanceWeekday)} value={String(calendarWeekday)}>
                   <SelectTrigger id="maintenance-month-weekday" aria-label="Wochentag im Monat"><SelectValue /></SelectTrigger>
                   <SelectContent>{DAY_LABELS.map((day, index) => <SelectItem key={day} value={String(index)}>{day}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <fieldset>
+              <fieldset disabled={scheduleEditingDisabled}>
                 <legend className="mb-2 text-sm font-medium">Vorkommen</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {OCCURRENCE_OPTIONS.map(({ value: occurrence, label }) => {
@@ -340,13 +366,13 @@ export function MaintenanceWindowEditor({
                   })}
                 </div>
               </fieldset>
-              <Button disabled={calendarOccurrences.length === 0} onClick={addCalendarRule} type="button">Monatsregel hinzufügen</Button>
+              <Button disabled={scheduleEditingDisabled || calendarOccurrences.length === 0} onClick={addCalendarRule} type="button">Monatsregel hinzufügen</Button>
               {draft.calendarRules.length > 0 && <ul className="space-y-2 border-t pt-3" aria-label="Monatsregeln">
                 {draft.calendarRules.map((rule, index) => {
                   const summary = ruleSummary(rule);
                   return <li className="flex items-center justify-between gap-3 text-sm" key={`${rule.weekday}-${rule.occurrences.join("-")}`}>
                     <span>{summary}</span>
-                    <Button aria-label={`Monatsregel ${summary} entfernen`} onClick={() => updateDraft((current) => ({ ...current, calendarRules: current.calendarRules.filter((_, ruleIndex) => ruleIndex !== index) }))} size="sm" type="button" variant="ghost">Entfernen</Button>
+                    <Button aria-label={`Monatsregel ${summary} entfernen`} disabled={scheduleEditingDisabled} onClick={() => updateDraft((current) => ({ ...current, calendarRules: current.calendarRules.filter((_, ruleIndex) => ruleIndex !== index) }))} size="sm" type="button" variant="ghost">Entfernen</Button>
                   </li>;
                 })}
               </ul>}
@@ -359,13 +385,13 @@ export function MaintenanceWindowEditor({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><CardTitle className="text-base">Wöchentlicher Zeitplan</CardTitle><p className="mt-1 text-sm text-muted-foreground">{summarizeWeeklySlots(draft.weeklySlots)}</p></div>
               <div className="flex gap-2" aria-label="Malmodus">
-                <Button aria-pressed={paintMode === "allow"} onClick={() => setPaintMode("allow")} size="sm" type="button" variant={paintMode === "allow" ? "default" : "outline"}>Erlaubt einzeichnen</Button>
-                <Button aria-pressed={paintMode === "block"} onClick={() => setPaintMode("block")} size="sm" type="button" variant={paintMode === "block" ? "default" : "outline"}>Sperren</Button>
+                <Button aria-pressed={paintMode === "allow"} disabled={scheduleEditingDisabled} onClick={() => setPaintMode("allow")} size="sm" type="button" variant={paintMode === "allow" ? "default" : "outline"}>Erlaubt einzeichnen</Button>
+                <Button aria-pressed={paintMode === "block"} disabled={scheduleEditingDisabled} onClick={() => setPaintMode("block")} size="sm" type="button" variant={paintMode === "block" ? "default" : "outline"}>Sperren</Button>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-5">
-            <MaintenanceWeekGrid disabled={timeToolsDisabled} onChange={updateDraftSlots} paintMode={paintMode} value={draft.weeklySlots} />
+            <MaintenanceWeekGrid disabled={scheduleEditingDisabled} onChange={updateDraftSlots} paintMode={paintMode} value={draft.weeklySlots} />
             <details className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
               <summary className="cursor-pointer font-medium text-foreground">Rohmasken anzeigen</summary>
               <div className="mt-3 space-y-1 font-mono">
@@ -376,10 +402,11 @@ export function MaintenanceWindowEditor({
         </Card>
       </section>
 
+      {saveError && <Alert variant="destructive"><AlertDescription>{saveError}</AlertDescription></Alert>}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-5">
-        <Button onClick={() => onDuplicate(cloneDefinition(draft))} type="button" variant="outline">Duplizieren</Button>
-        <Button onClick={() => onDelete(cloneDefinition(draft))} type="button" variant="destructive">Löschen</Button>
-        <Button aria-busy={isSaving} disabled={!canSave} onClick={() => { void save(); }} type="button">Speichern</Button>
+        <Button disabled={isBusy} onClick={() => onDuplicate(cloneDefinition(draft))} type="button" variant="outline">Duplizieren</Button>
+        <Button disabled={isBusy} onClick={() => onDelete(cloneDefinition(draft))} type="button" variant="destructive">Löschen</Button>
+        <Button aria-busy={isBusy} disabled={!canSave} onClick={() => { void save(); }} type="button">Speichern</Button>
       </div>
     </div>
   );

@@ -42,6 +42,16 @@ function selectOption(label: string, option: string) {
   fireEvent.click(screen.getByRole("option", { name: option }));
 }
 
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void;
+  let reject: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve: resolve!, reject: reject! };
+}
+
 describe("MaintenanceWindowEditor", () => {
   it("validiert eine erforderliche und eindeutige Abkürzung", () => {
     renderEditor({ existingAbbreviations: ["OTHER"] });
@@ -150,6 +160,43 @@ describe("MaintenanceWindowEditor", () => {
     expect(container.querySelectorAll('[data-allowed="true"]')).toHaveLength(336);
   });
 
+  it("normalisiert eingehende Always-Fenster für Anzeige und Speichern", async () => {
+    const inconsistent = definition({
+      handling: "always",
+      calendarRules: [{ weekday: 0, occurrences: [1, "last"] }],
+    });
+    const onSave = vi.fn();
+    const { container } = renderEditor({ value: inconsistent, onSave });
+
+    expect(container.querySelectorAll('[data-allowed="true"]')).toHaveLength(336);
+    expect(screen.queryByText("Montag: erster, letzter")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Bereinigt" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0]).toMatchObject({ handling: "always", calendarRules: [] });
+    expect((onSave.mock.calls[0][0] as MaintenanceWindowDefinition).weeklySlots.flat()).toEqual(Array<boolean>(336).fill(true));
+  });
+
+  it("löscht Monatsregeln beim Auswählen von Always und jederzeit", () => {
+    const withRule = definition({ calendarRules: [{ weekday: 0, occurrences: [1] }] });
+    const { rerender } = renderEditor({ value: withRule });
+
+    selectOption("Behandlung", "Immer verfügbar");
+    expect(screen.queryByText("Montag: erster")).not.toBeInTheDocument();
+
+    rerender(
+      <MaintenanceWindowEditor
+        value={{ ...withRule, id: "window-2", updatedAt: "2026-01-04T00:00:00.000Z" }}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+        onDuplicate={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "jederzeit" }));
+    expect(screen.queryByText("Montag: erster")).not.toBeInTheDocument();
+  });
+
   it("setzt Immer verfügbar beim vollständigen Sperren auf regulär zurück", () => {
     renderEditor();
     selectOption("Behandlung", "Immer verfügbar");
@@ -194,6 +241,37 @@ describe("MaintenanceWindowEditor", () => {
     expect(screen.queryByText("Montag: erster, letzter")).not.toBeInTheDocument();
   });
 
+  it("führt Monatsregel-Vorkommen pro Wochentag kanonisch zusammen", async () => {
+    const { onSave } = renderEditor();
+    fireEvent.click(screen.getByLabelText("Erster"));
+    fireEvent.click(screen.getByRole("button", { name: "Monatsregel hinzufügen" }));
+    fireEvent.click(screen.getByLabelText("Letzter"));
+    fireEvent.click(screen.getByRole("button", { name: "Monatsregel hinzufügen" }));
+
+    expect(screen.getAllByText("Montag: erster, letzter")).toHaveLength(1);
+    expect(screen.queryByText("Montag: erster", { exact: true })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect((onSave.mock.calls[0][0] as MaintenanceWindowDefinition).calendarRules).toEqual([
+      { weekday: 0, occurrences: [1, "last"] },
+    ]);
+  });
+
+  it.each(["Extern verwaltet", "Freigabe erforderlich"])("deaktiviert alle Zeitplan- und Kalenderwerkzeuge bei %s", (handling) => {
+    renderEditor({ value: definition({ calendarRules: [{ weekday: 0, occurrences: [1] }] }) });
+    selectOption("Behandlung", handling);
+
+    ["jederzeit", "alles sperren", "Werktage auswählen", "Wochenende auswählen", "Zeitregel anwenden", "Erlaubt einzeichnen", "Sperren", "Monatsregel hinzufügen"].forEach((name) => {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    });
+    ["Montag", "Startzeit", "Endzeit", "Wochentag im Monat", "Erster"].forEach((name) => {
+      expect(screen.getByLabelText(name)).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: "Monatsregel Montag: erster entfernen" })).toBeDisabled();
+    expect(screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" })).toBeDisabled();
+    expect(screen.getByText("Montag: erster")).toBeInTheDocument();
+  });
+
   it("zeigt inverse externe Rohmasken für jeden Wochentag", () => {
     const slots = Array.from({ length: 7 }, () => Array<boolean>(48).fill(false)) as MaintenanceWindowDefinition["weeklySlots"];
     slots[0][0] = true;
@@ -218,13 +296,60 @@ describe("MaintenanceWindowEditor", () => {
     expect(saved.weeklySlots).not.toBe(value.weeklySlots);
   });
 
-  it("reicht Duplizieren und Löschen weiter und sperrt Speichern beim laufenden Vorgang", () => {
+  it("sperrt Aktionen beim laufenden Speichern", () => {
     const { value, onDuplicate, onDelete } = renderEditor({ isSaving: true });
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Duplizieren" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Duplizieren" }));
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
-    expect(onDuplicate).toHaveBeenCalledWith(value);
-    expect(onDelete).toHaveBeenCalledWith(value);
+    expect(onDuplicate).not.toHaveBeenCalledWith(value);
+    expect(onDelete).not.toHaveBeenCalledWith(value);
+  });
+
+  it("sperrt alle Bearbeitungs- und Aktionsfelder während eines ausstehenden Speicherns", async () => {
+    const saving = deferred<void>();
+    const onSave = vi.fn(() => saving.promise);
+    renderEditor({ onSave });
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Wird gespeichert" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    ["Speichern", "Duplizieren", "Löschen", "jederzeit", "Erlaubt einzeichnen"].forEach((name) => {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    });
+    expect(screen.getByLabelText("Abkürzung")).toBeDisabled();
+    expect(screen.getByLabelText("Behandlung")).toBeDisabled();
+
+    saving.resolve();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Duplizieren" })).not.toBeDisabled());
+  });
+
+  it("fängt asynchrone Speicherfehler mit einer zugänglichen Meldung ab", async () => {
+    const onSave = vi.fn(() => Promise.reject(new Error("Netzwerk nicht erreichbar")));
+    renderEditor({ onSave });
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Speicherfehler" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Netzwerk nicht erreichbar");
+    expect(screen.getByRole("button", { name: "Speichern" })).not.toBeDisabled();
+  });
+
+  it("meldet den aktuellen Dirty-Status direkt an einen ersetzten Callback", () => {
+    const initialCallback = vi.fn();
+    const replacementCallback = vi.fn();
+    const value = definition();
+    const { rerender, unmount } = render(
+      <MaintenanceWindowEditor value={value} onSave={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} onDirtyChange={initialCallback} />,
+    );
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Lokal" } });
+
+    rerender(
+      <MaintenanceWindowEditor value={value} onSave={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} onDirtyChange={replacementCallback} />,
+    );
+    expect(replacementCallback).toHaveBeenCalledWith(true);
+    unmount();
+    expect(replacementCallback).toHaveBeenLastCalledWith(false);
   });
 
   it("verknüpft die zentralen Bedienelemente über zugängliche Namen", () => {
