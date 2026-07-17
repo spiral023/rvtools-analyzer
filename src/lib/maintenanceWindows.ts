@@ -127,10 +127,7 @@ export function applyTimeRange(
   allowed: boolean,
 ): WeeklySlots {
   assertWeeklySlots(weeklySlots);
-  if (
-    !Array.isArray(selectedWeekdays)
-    || selectedWeekdays.some((weekday) => !Number.isInteger(weekday) || weekday < 0 || weekday > 6)
-  ) {
+  if (!hasValidWeekdays(selectedWeekdays)) {
     throw new Error("Ungültiger Wochentag: Erwartet wird eine ganze Zahl zwischen 0 und 6.");
   }
 
@@ -157,6 +154,17 @@ export function applyTimeRange(
   }
 
   return result;
+}
+
+function hasValidWeekdays(value: unknown): value is MaintenanceWeekday[] {
+  if (!Array.isArray(value)) return false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const weekday = value[index];
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return false;
+  }
+
+  return true;
 }
 
 function formatSlot(slot: number): string {
@@ -213,7 +221,7 @@ export function isDateAllowedByCalendarRules(
   }[],
 ): boolean {
   if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return false;
-  if (!Array.isArray(rules) || !rules.every(isValidCalendarRule)) return false;
+  if (!hasValidCalendarRules(rules)) return false;
   if (rules.length === 0) return true;
 
   const weekday = ((date.getDay() + 6) % 7) as MaintenanceWeekday;
@@ -225,6 +233,16 @@ export function isDateAllowedByCalendarRules(
     rule.weekday === weekday
     && (rule.occurrences.includes(occurrence) || (isLastOccurrence && rule.occurrences.includes("last"))),
   );
+}
+
+function hasValidCalendarRules(value: unknown): value is MaintenanceWindowDefinition["calendarRules"] {
+  if (!Array.isArray(value)) return false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    if (!isValidCalendarRule(value[index])) return false;
+  }
+
+  return true;
 }
 
 function isValidCalendarRule(rule: unknown): rule is MaintenanceWindowDefinition["calendarRules"][number] {

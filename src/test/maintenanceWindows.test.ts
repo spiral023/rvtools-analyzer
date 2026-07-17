@@ -130,6 +130,18 @@ describe("time ranges", () => {
       true,
     )).toThrow(/Wochentag/);
   });
+
+  it("rejects a sparse selected-weekdays array with a controlled validation error", () => {
+    const sparseWeekdays = Array(1) as MaintenanceWeekday[];
+
+    expect(() => applyTimeRange(
+      createEmptyWeeklySlots(),
+      sparseWeekdays,
+      "08:00",
+      "09:00",
+      true,
+    )).toThrow(/Ungültiger Wochentag/);
+  });
 });
 
 describe("weekly summaries", () => {
@@ -189,6 +201,13 @@ describe("monthly calendar rules", () => {
       new Date(2026, 6, 6),
       malformedRules as unknown as MaintenanceCalendarRule[],
     )).toBe(false);
+  });
+
+  it("does not grant access when the calendar-rules array itself is sparse", () => {
+    const sparseRules = Array(2) as MaintenanceCalendarRule[];
+    sparseRules[1] = { weekday: 0, occurrences: [1] };
+
+    expect(isDateAllowedByCalendarRules(new Date(2026, 6, 6), sparseRules)).toBe(false);
   });
 
   it("detects the last occurrence across a year boundary", () => {
