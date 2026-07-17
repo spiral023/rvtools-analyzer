@@ -142,6 +142,44 @@ describe("MaintenanceWindowEditor", () => {
     expect(container.querySelectorAll('[data-allowed="true"]')).toHaveLength(336);
   });
 
+  it("macht beim Auswahlwert Immer verfügbar alle Slots erlaubt", () => {
+    const { container } = renderEditor();
+
+    selectOption("Behandlung", "Immer verfügbar");
+
+    expect(container.querySelectorAll('[data-allowed="true"]')).toHaveLength(336);
+  });
+
+  it("setzt Immer verfügbar beim vollständigen Sperren auf regulär zurück", () => {
+    renderEditor();
+    selectOption("Behandlung", "Immer verfügbar");
+    fireEvent.click(screen.getByRole("button", { name: "alles sperren" }));
+
+    expect(screen.getByLabelText("Behandlung")).toHaveTextContent("Regulär");
+  });
+
+  it("setzt Immer verfügbar bei einer Raster-Sperre auf regulär zurück", () => {
+    renderEditor();
+    selectOption("Behandlung", "Immer verfügbar");
+    fireEvent.click(screen.getByRole("button", { name: "Sperren" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Montag 00:00–00:30, erlaubt" }));
+
+    expect(screen.getByLabelText("Behandlung")).toHaveTextContent("Regulär");
+  });
+
+  it("setzt Immer verfügbar bei einer sperrenden Zeitregel auf regulär zurück", () => {
+    renderEditor();
+    selectOption("Behandlung", "Immer verfügbar");
+    fireEvent.click(screen.getByRole("button", { name: "Sperren" }));
+    fireEvent.click(screen.getByLabelText("Montag"));
+    fireEvent.change(screen.getByLabelText("Startzeit"), { target: { value: "08:00" } });
+    fireEvent.change(screen.getByLabelText("Endzeit"), { target: { value: "09:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Zeitregel anwenden" }));
+
+    expect(screen.getByRole("gridcell", { name: "Montag 08:00–08:30, gesperrt" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Behandlung")).toHaveTextContent("Regulär");
+  });
+
   it("verwaltet Monatsregeln ohne äquivalente Duplikate", () => {
     renderEditor();
     selectOption("Wochentag im Monat", "Montag");

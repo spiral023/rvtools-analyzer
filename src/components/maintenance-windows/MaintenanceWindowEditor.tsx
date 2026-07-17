@@ -67,6 +67,10 @@ function allSlots(allowed: boolean): WeeklySlots {
   return Array.from({ length: 7 }, () => Array<boolean>(48).fill(allowed)) as WeeklySlots;
 }
 
+function hasBlockedSlots(weeklySlots: WeeklySlots): boolean {
+  return weeklySlots.some((day) => day.some((allowed) => !allowed));
+}
+
 function orderedOccurrences(occurrences: readonly MonthlyOccurrence[]): MonthlyOccurrence[] {
   return [...new Set(occurrences)].sort((left, right) => {
     if (left === "last") return 1;
@@ -170,6 +174,14 @@ export function MaintenanceWindowEditor({
     setDraft((current) => update(current));
   };
 
+  const updateDraftSlots = (weeklySlots: WeeklySlots) => {
+    updateDraft((current) => ({
+      ...current,
+      handling: current.handling === "always" && hasBlockedSlots(weeklySlots) ? "regular" : current.handling,
+      weeklySlots,
+    }));
+  };
+
   const toggleDay = (weekday: MaintenanceWeekday) => {
     setSelectedDays((current) => current.includes(weekday)
       ? current.filter((entry) => entry !== weekday)
@@ -186,8 +198,8 @@ export function MaintenanceWindowEditor({
       return;
     }
     try {
-      const weeklySlots = applyTimeRange(draft.weeklySlots, selectedDays, startTime, endTime, true);
-      updateDraft((current) => ({ ...current, weeklySlots }));
+      const weeklySlots = applyTimeRange(draft.weeklySlots, selectedDays, startTime, endTime, paintMode === "allow");
+      updateDraftSlots(weeklySlots);
       setTimeRuleError(null);
     } catch (error) {
       setTimeRuleError(error instanceof Error ? error.message : "Die Zeitregel konnte nicht angewendet werden.");
@@ -252,7 +264,12 @@ export function MaintenanceWindowEditor({
           <div className="space-y-2">
             <Label htmlFor="maintenance-window-handling">Behandlung</Label>
             <Select
-              onValueChange={(handling) => updateDraft((current) => ({ ...current, handling: handling as MaintenanceWindowDefinition["handling"] }))}
+              onValueChange={(handling) => updateDraft((current) => {
+                const nextHandling = handling as MaintenanceWindowDefinition["handling"];
+                return nextHandling === "always"
+                  ? { ...current, handling: nextHandling, weeklySlots: allSlots(true) }
+                  : { ...current, handling: nextHandling };
+              })}
               value={draft.handling}
             >
               <SelectTrigger id="maintenance-window-handling" aria-label="Behandlung"><SelectValue /></SelectTrigger>
@@ -270,7 +287,7 @@ export function MaintenanceWindowEditor({
             <CardHeader className="px-5 py-4"><CardTitle className="text-base">Schnellaktionen</CardTitle></CardHeader>
             <CardContent className="flex flex-wrap gap-2 px-5 pb-5">
               <Button type="button" variant="secondary" disabled={timeToolsDisabled} onClick={() => updateDraft((current) => ({ ...current, handling: "always", weeklySlots: allSlots(true) }))}>jederzeit</Button>
-              <Button type="button" variant="secondary" disabled={timeToolsDisabled} onClick={() => updateDraft((current) => ({ ...current, weeklySlots: allSlots(false) }))}>alles sperren</Button>
+              <Button type="button" variant="secondary" disabled={timeToolsDisabled} onClick={() => updateDraftSlots(allSlots(false))}>alles sperren</Button>
               <Button type="button" variant="outline" disabled={timeToolsDisabled} onClick={() => setSelectedDays([0, 1, 2, 3, 4])}>Werktage auswählen</Button>
               <Button type="button" variant="outline" disabled={timeToolsDisabled} onClick={() => setSelectedDays([5, 6])}>Wochenende auswählen</Button>
             </CardContent>
@@ -348,7 +365,7 @@ export function MaintenanceWindowEditor({
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-5">
-            <MaintenanceWeekGrid disabled={timeToolsDisabled} onChange={(weeklySlots) => updateDraft((current) => ({ ...current, weeklySlots }))} paintMode={paintMode} value={draft.weeklySlots} />
+            <MaintenanceWeekGrid disabled={timeToolsDisabled} onChange={updateDraftSlots} paintMode={paintMode} value={draft.weeklySlots} />
             <details className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
               <summary className="cursor-pointer font-medium text-foreground">Rohmasken anzeigen</summary>
               <div className="mt-3 space-y-1 font-mono">
