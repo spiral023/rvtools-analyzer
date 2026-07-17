@@ -150,20 +150,37 @@ describe("MaintenanceWeekGrid", () => {
     expect(setPointerCapture).not.toHaveBeenCalled();
   });
 
-  it("unterdrückt nach einem Dokument-Ende keinen folgenden normalen Klick", () => {
-    const onChange = vi.fn();
-    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
-    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
-    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+  it.each(["Startzelle", "andere Zelle", "Zeitlabel", "Taglabel", "Grid-Container", "Dokument"])(
+    "lässt nach Pointer-Up auf %s einen normalen Klick zu",
+    (releaseTarget) => {
+      const onChange = vi.fn();
+      const { container } = render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
+      const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
+      const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
+      const third = screen.getByRole("gridcell", { name: "Montag 01:00–01:30, gesperrt" });
+      const timeLabel = container.querySelector<HTMLElement>(".maintenance-grid__time-label");
+      const dayLabel = container.querySelector<HTMLElement>(".maintenance-grid__day-label");
+      const grid = screen.getByRole("grid");
+      if (!timeLabel || !dayLabel) throw new Error("Zeit- und Taglabel müssen vorhanden sein");
 
-    firePointerEvent(first, "pointerdown");
-    firePointerEvent(document, "pointerup");
-    fireEvent.click(second);
+      const releaseTargets: Record<string, Element | Document> = {
+        Startzelle: first,
+        "andere Zelle": third,
+        Zeitlabel: timeLabel,
+        Taglabel: dayLabel,
+        "Grid-Container": grid,
+        Dokument: document,
+      };
 
-    const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
-    expect(onChange).toHaveBeenCalledTimes(2);
-    expect(changed[0][1]).toBe(true);
-  });
+      firePointerEvent(first, "pointerdown");
+      firePointerEvent(releaseTargets[releaseTarget], "pointerup");
+      fireEvent.click(second);
+
+      const changed = onChange.mock.calls.at(-1)?.[0] as WeeklySlots;
+      expect(changed[0][0]).toBe(true);
+      expect(changed[0][1]).toBe(true);
+    },
+  );
 
   it("ignoriert nicht primäre oder fremde Pointer während eines aktiven Drags", () => {
     const onChange = vi.fn();
@@ -183,17 +200,4 @@ describe("MaintenanceWeekGrid", () => {
     expect(changed[0][2]).toBe(true);
   });
 
-  it("unterdrückt den Klick nach Pointer-Up innerhalb des Grids genau einmal", () => {
-    const onChange = vi.fn();
-    render(<MaintenanceWeekGrid value={emptySlots()} onChange={onChange} paintMode="allow" />);
-    const first = screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" });
-    const second = screen.getByRole("gridcell", { name: "Montag 00:30–01:00, gesperrt" });
-
-    firePointerEvent(first, "pointerdown");
-    firePointerEvent(first, "pointerup");
-    fireEvent.click(first);
-    fireEvent.click(second);
-
-    expect(onChange).toHaveBeenCalledTimes(2);
-  });
 });

@@ -41,21 +41,15 @@ export function MaintenanceWeekGrid({
   compact = false,
 }: MaintenanceWeekGridProps) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const gridRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const latestValue = useRef(value);
   const isPainting = useRef(false);
   const activePointerId = useRef<number | undefined>(undefined);
-  const ignoreNextClick = useRef(false);
   latestValue.current = value;
 
   useEffect(() => {
     const finishPainting = (event: PointerEvent) => {
       if (!isPainting.current || event.pointerId !== activePointerId.current) return;
-      const endsInsideGrid = event.type === "pointerup"
-        && event.target instanceof Node
-        && gridRef.current?.contains(event.target);
-      ignoreNextClick.current = Boolean(endsInsideGrid);
       isPainting.current = false;
       activePointerId.current = undefined;
     };
@@ -129,7 +123,7 @@ export function MaintenanceWeekGrid({
         Jede Zelle steht für 30 Minuten. Mit den Pfeiltasten bewegen Sie sich durch die Woche; am Rand wird zur gegenüberliegenden Seite umgebrochen. Leertaste oder Enter übernimmt den aktuellen Malmodus.
       </p>
       <div className="maintenance-grid__scroll">
-        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby="maintenance-grid-instructions" ref={gridRef}>
+        <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby="maintenance-grid-instructions">
           <div className="maintenance-grid__time-row" aria-hidden="true">
             <span className="maintenance-grid__corner">Tag / Zeit</span>
             {Array.from({ length: SLOTS_PER_DAY }, (_, slot) => (
@@ -154,13 +148,7 @@ export function MaintenanceWeekGrid({
                     data-slot={slot}
                     disabled={disabled}
                     key={`${day}-${slot}`}
-                    onClick={() => {
-                      if (ignoreNextClick.current) {
-                        ignoreNextClick.current = false;
-                        return;
-                      }
-                      applyPaint(day, slot);
-                    }}
+                    onClick={() => applyPaint(day, slot)}
                     onKeyDown={(event) => {
                       if (event.key === " " || event.key === "Spacebar" || event.key === "Enter") {
                         event.preventDefault();
@@ -176,7 +164,6 @@ export function MaintenanceWeekGrid({
                       if (disabled || !event.isPrimary || event.button !== 0) return;
                       isPainting.current = true;
                       activePointerId.current = event.pointerId;
-                      ignoreNextClick.current = false;
                       event.preventDefault();
                       applyPaint(day, slot);
                     }}
