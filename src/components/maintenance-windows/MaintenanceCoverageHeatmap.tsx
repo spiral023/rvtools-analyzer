@@ -49,7 +49,7 @@ export function MaintenanceCoverageHeatmap({ slots, currentIndex }: MaintenanceC
                     <span
                       key={entry.slot}
                       className={classNames("maintenance-heatmap__cell", globalIndex === currentIndex && "is-current")}
-                      style={{ backgroundColor: `hsl(var(--primary) / ${intensity})` }}
+                      style={entry.count > 0 ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : undefined}
                       data-count={entry.count}
                       title={label}
                     />
