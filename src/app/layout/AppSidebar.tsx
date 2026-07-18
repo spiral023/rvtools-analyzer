@@ -25,6 +25,7 @@ import {
   Server,
   ClipboardList,
   CalendarClock,
+  CalendarRange,
   Info,
   Map,
 } from "lucide-react";
@@ -51,6 +52,7 @@ const compareNav = [
 ];
 
 const toolsNav = [
+  { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
   { title: "Wartungsankündigung", url: "/wartungsankuendigung", icon: CalendarClock },
   { title: "Planung", url: "/planning", icon: Map },
 ];

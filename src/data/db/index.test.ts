@@ -1,5 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
+import type { MaintenanceWindowDefinition } from "@/domain/models/types";
+
+const makeMaintenanceWindow = (
+  abbreviation: string,
+  overrides: Partial<MaintenanceWindowDefinition> = {},
+): MaintenanceWindowDefinition => ({
+  id: `window-${abbreviation}`,
+  abbreviation,
+  normalizedAbbreviation: abbreviation.trim().toLocaleLowerCase("de-DE"),
+  description: `${abbreviation} Beschreibung`,
+  handling: "regular",
+  weeklySlots: Array.from({ length: 7 }, () => Array<boolean>(48).fill(false)) as MaintenanceWindowDefinition["weeklySlots"],
+  calendarRules: [],
+  createdAt: "2026-07-01T10:00:00.000Z",
+  updatedAt: "2026-07-01T10:00:00.000Z",
+  ...overrides,
+});
 
 beforeEach(() => {
   vi.resetModules();
@@ -8,6 +25,44 @@ beforeEach(() => {
 });
 
 describe("v19 upgrade migration", () => {
+  it("preserves user data and creates an empty maintenance-window store when upgrading v19 to v20", async () => {
+    const { openDB } = await import("idb");
+    const legacyDb = await openDB("rvtools-analyzer", 19, {
+      upgrade(db) {
+        db.createObjectStore("techinfo_latest", { keyPath: "vmNameNorm" });
+        db.createObjectStore("scenarios", { keyPath: "id" });
+      },
+    });
+
+    await legacyDb.put("techinfo_latest", {
+      vmNameNorm: "app01",
+      vmName: "APP01",
+      importedAt: "2026-07-01T10:00:00.000Z",
+      techInfoImportId: "tech-1",
+      rowIndex: 0,
+    });
+    await legacyDb.put("scenarios", {
+      id: "scenario-1",
+      name: "Bestand",
+      type: "cluster-migration",
+      createdAt: "2026-07-01T10:00:00.000Z",
+      updatedAt: "2026-07-01T10:00:00.000Z",
+      vcenterScope: [],
+      groups: [],
+      notes: null,
+    });
+    legacyDb.close();
+
+    const { getDb, getMaintenanceWindows } = await import("./index");
+    const db = await getDb();
+
+    expect(db.version).toBe(20);
+    expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
+    await expect(db.getAll("techinfo_latest")).resolves.toHaveLength(1);
+    await expect(db.getAll("scenarios")).resolves.toHaveLength(1);
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
+  });
+
   it("clears RVTools stores and drops legacy raw-sheet stores while preserving CDP data when upgrading from a v18 database", async () => {
     const { openDB } = await import("idb");
 
@@ -75,6 +130,101 @@ describe("v19 upgrade migration", () => {
     const cdpImports = await db.getAll("cdp_imports");
     expect(cdpImports).toHaveLength(1);
     expect(cdpImports[0].cdpImportId).toBe("cdp-1");
+  });
+});
+
+describe("maintenance window definitions", () => {
+  it("creates, reads in natural German order, updates and deletes definitions", async () => {
+    const { deleteMaintenanceWindow, getMaintenanceWindows, putMaintenanceWindow } = await import("./index");
+    await putMaintenanceWindow(makeMaintenanceWindow("MW 10"));
+    await putMaintenanceWindow(makeMaintenanceWindow("MW 2"));
+
+    expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["MW 2", "MW 10"]);
+
+    await putMaintenanceWindow(makeMaintenanceWindow("MW 2", { description: "Aktualisiert" }));
+    expect((await getMaintenanceWindows())[0].description).toBe("Aktualisiert");
+
+    await deleteMaintenanceWindow("window-MW 2");
+    expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["MW 10"]);
+  });
+
+  it("recomputes the canonical normalized abbreviation and reports unique-index conflicts clearly", async () => {
+    const { getMaintenanceWindows, putMaintenanceWindow } = await import("./index");
+    await putMaintenanceWindow(makeMaintenanceWindow("  ÄÖ 1  ", { normalizedAbbreviation: "stale" }));
+
+    expect((await getMaintenanceWindows())[0].normalizedAbbreviation).toBe("äö 1");
+    await expect(
+      putMaintenanceWindow(makeMaintenanceWindow("äÖ 1", { id: "other", normalizedAbbreviation: "also-stale" })),
+    ).rejects.toThrow("Abkürzung ist bereits vorhanden");
+  });
+
+  it("upserts in one transaction while preserving an existing identity and creation timestamp", async () => {
+    const { getMaintenanceWindows, putMaintenanceWindow, upsertMaintenanceWindows } = await import("./index");
+    await putMaintenanceWindow(makeMaintenanceWindow("MW A", {
+      id: "persisted-id",
+      createdAt: "2025-01-01T00:00:00.000Z",
+    }));
+
+    await upsertMaintenanceWindows([
+      makeMaintenanceWindow(" mw a ", {
+        id: "preview-id",
+        createdAt: "2026-07-01T10:00:00.000Z",
+        updatedAt: "2026-07-02T10:00:00.000Z",
+        description: "Importiert",
+        normalizedAbbreviation: "stale",
+      }),
+      makeMaintenanceWindow("MW B", { id: "new-id" }),
+    ]);
+
+    const [existing, created] = await getMaintenanceWindows();
+    expect(existing).toMatchObject({
+      id: "persisted-id",
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2026-07-02T10:00:00.000Z",
+      normalizedAbbreviation: "mw a",
+      description: "Importiert",
+    });
+    expect(created.id).toBe("new-id");
+  });
+
+  it("rolls back all writes for duplicate input or a later invalid definition", async () => {
+    const { getMaintenanceWindows, putMaintenanceWindow, upsertMaintenanceWindows } = await import("./index");
+    await putMaintenanceWindow(makeMaintenanceWindow("Bestand"));
+
+    await expect(upsertMaintenanceWindows([
+      makeMaintenanceWindow("Neu", { id: "new-1" }),
+      makeMaintenanceWindow(" neu ", { id: "new-2" }),
+    ])).rejects.toThrow("Abkürzung ist mehrfach enthalten");
+    expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["Bestand"]);
+
+    await expect(upsertMaintenanceWindows([
+      makeMaintenanceWindow("Neu", { id: "new-1" }),
+      makeMaintenanceWindow("Defekt", {
+        id: "invalid",
+        weeklySlots: [Array<boolean>(47).fill(false)] as unknown as MaintenanceWindowDefinition["weeklySlots"],
+      }),
+    ])).rejects.toThrow("Wochenplan");
+    expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["Bestand"]);
+  });
+
+  it("rejects duplicate primary IDs before any input record is written", async () => {
+    const { getMaintenanceWindows, upsertMaintenanceWindows } = await import("./index");
+
+    await expect(upsertMaintenanceWindows([
+      makeMaintenanceWindow("MW A", { id: "same-id" }),
+      makeMaintenanceWindow("MW B", { id: "same-id" }),
+    ])).rejects.toThrow("ID ist mehrfach enthalten");
+
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
+  });
+
+  it("is included in diagnostics and deleteAllData", async () => {
+    const { deleteAllData, getMaintenanceWindows, getStoreDiagnostics, putMaintenanceWindow } = await import("./index");
+    await putMaintenanceWindow(makeMaintenanceWindow("MW"));
+
+    expect((await getStoreDiagnostics()).find((entry) => entry.storeName === "maintenance_windows")?.count).toBe(1);
+    await deleteAllData();
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
   });
 });
 

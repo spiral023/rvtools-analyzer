@@ -22,10 +22,12 @@ import type {
   CdpLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
+  MaintenanceWindowDefinition,
   Scenario,
 } from "@/domain/models/types";
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
+import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -103,6 +105,11 @@ interface RVToolsDBSchema extends DBSchema {
     value: MaintenanceClusterAssignment;
     indexes: { vcenterId: string; clusterName: string };
   };
+  maintenance_windows: {
+    key: string;
+    value: MaintenanceWindowDefinition;
+    indexes: { normalizedAbbreviation: string; updatedAt: string };
+  };
   scenarios: {
     key: string;
     value: Scenario;
@@ -117,12 +124,12 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
   | "cdp_imports" | "cdp_rows" | "cdp_latest"
   | "maintenance_settings"
-  | "maintenance_cluster_assignments" | "scenarios";
+  | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios";
 type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 19;
+const DB_VERSION = 20;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -130,7 +137,7 @@ const ALL_STORES: StoreName[] = [
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
   "techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest",
   "cdp_imports", "cdp_rows", "cdp_latest",
-  "maintenance_settings", "maintenance_cluster_assignments", "scenarios",
+  "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios",
 ];
 
 let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
@@ -251,6 +258,11 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const assignments = db.createObjectStore("maintenance_cluster_assignments", { keyPath: ["vcenterId", "clusterName"] });
           assignments.createIndex("vcenterId", "vcenterId");
           assignments.createIndex("clusterName", "clusterName");
+        }
+        if (!db.objectStoreNames.contains("maintenance_windows")) {
+          const windows = db.createObjectStore("maintenance_windows", { keyPath: "id" });
+          windows.createIndex("normalizedAbbreviation", "normalizedAbbreviation", { unique: true });
+          windows.createIndex("updatedAt", "updatedAt");
         }
         if (!db.objectStoreNames.contains("scenarios")) {
           const scenarios = db.createObjectStore("scenarios", { keyPath: "id" });
@@ -373,6 +385,146 @@ export async function putMaintenanceAssignment(assignment: MaintenanceClusterAss
     ...assignment,
     id: assignment.id ?? `${assignment.vcenterId}::${assignment.clusterName}`,
   });
+}
+
+const VALID_MAINTENANCE_WINDOW_HANDLINGS = new Set<MaintenanceWindowDefinition["handling"]>([
+  "regular",
+  "always",
+  "approval-required",
+  "external",
+]);
+
+function isValidCalendarOccurrence(value: unknown): boolean {
+  return value === "last" || (Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5);
+}
+
+function cloneValidatedMaintenanceWindow(value: MaintenanceWindowDefinition): MaintenanceWindowDefinition {
+  if (!value || typeof value !== "object") {
+    throw new Error("Ungültiges Wartungsfenster.");
+  }
+  if (typeof value.id !== "string" || !value.id.trim()) {
+    throw new Error("Die ID des Wartungsfensters darf nicht leer sein.");
+  }
+  if (typeof value.abbreviation !== "string" || !value.abbreviation.trim()) {
+    throw new Error("Die Abkürzung darf nicht leer sein.");
+  }
+  if (typeof value.description !== "string") {
+    throw new Error("Die Beschreibung des Wartungsfensters ist ungültig.");
+  }
+  if (!VALID_MAINTENANCE_WINDOW_HANDLINGS.has(value.handling)) {
+    throw new Error("Die Behandlung des Wartungsfensters ist ungültig.");
+  }
+  assertWeeklySlots(value.weeklySlots);
+  if (!Array.isArray(value.calendarRules) || value.calendarRules.some((rule) =>
+    !rule
+    || !Number.isInteger(rule.weekday)
+    || rule.weekday < 0
+    || rule.weekday > 6
+    || !Array.isArray(rule.occurrences)
+    || rule.occurrences.some((occurrence) => !isValidCalendarOccurrence(occurrence)))) {
+    throw new Error("Die Kalenderregeln des Wartungsfensters sind ungültig.");
+  }
+  if (typeof value.createdAt !== "string" || !value.createdAt.trim()
+    || typeof value.updatedAt !== "string" || !value.updatedAt.trim()) {
+    throw new Error("Die Zeitstempel des Wartungsfensters sind ungültig.");
+  }
+
+  return {
+    id: value.id,
+    abbreviation: value.abbreviation,
+    normalizedAbbreviation: normalizeMaintenanceAbbreviation(value.abbreviation),
+    description: value.description,
+    handling: value.handling,
+    weeklySlots: value.weeklySlots.map((day) => [...day]) as MaintenanceWindowDefinition["weeklySlots"],
+    calendarRules: value.calendarRules.map((rule) => ({
+      weekday: rule.weekday,
+      occurrences: [...rule.occurrences],
+    })),
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+}
+
+function mapMaintenanceWindowConstraintError(error: unknown): never {
+  if (error instanceof DOMException && error.name === "ConstraintError") {
+    throw new Error("Abkürzung ist bereits vorhanden.");
+  }
+  if (typeof error === "object" && error !== null && "name" in error && error.name === "ConstraintError") {
+    throw new Error("Abkürzung ist bereits vorhanden.");
+  }
+  throw error;
+}
+
+export async function getMaintenanceWindows(): Promise<MaintenanceWindowDefinition[]> {
+  const db = await getDb();
+  const values = await db.getAll("maintenance_windows");
+  return values.sort((left, right) => left.abbreviation.localeCompare(
+    right.abbreviation,
+    "de-DE",
+    { numeric: true, sensitivity: "base" },
+  ));
+}
+
+export async function putMaintenanceWindow(value: MaintenanceWindowDefinition): Promise<void> {
+  const definition = cloneValidatedMaintenanceWindow(value);
+  const db = await getDb();
+  try {
+    await db.put("maintenance_windows", definition);
+  } catch (error) {
+    mapMaintenanceWindowConstraintError(error);
+  }
+}
+
+export async function deleteMaintenanceWindow(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("maintenance_windows", id);
+}
+
+/** Validiert und klont eine Importmenge ohne IndexedDB-Mutation. */
+export function validateMaintenanceWindowUpsertInput(
+  values: MaintenanceWindowDefinition[],
+): MaintenanceWindowDefinition[] {
+  const definitions = values.map(cloneValidatedMaintenanceWindow);
+  const ids = new Set<string>();
+  for (const definition of definitions) {
+    if (ids.has(definition.id)) {
+      throw new Error(`ID ist mehrfach enthalten: ${definition.id}.`);
+    }
+    ids.add(definition.id);
+  }
+  const normalizedAbbreviations = new Set<string>();
+  for (const definition of definitions) {
+    if (normalizedAbbreviations.has(definition.normalizedAbbreviation)) {
+      throw new Error(`Abkürzung ist mehrfach enthalten: ${definition.abbreviation}.`);
+    }
+    normalizedAbbreviations.add(definition.normalizedAbbreviation);
+  }
+  return definitions;
+}
+
+export async function upsertMaintenanceWindows(values: MaintenanceWindowDefinition[]): Promise<void> {
+  const definitions = validateMaintenanceWindowUpsertInput(values);
+
+  const db = await getDb();
+  const transaction = db.transaction("maintenance_windows", "readwrite");
+  try {
+    await Promise.all(definitions.map(async (definition) => {
+      const existing = await transaction.store.index("normalizedAbbreviation").get(
+        definition.normalizedAbbreviation,
+      );
+      await transaction.store.put(existing
+        ? { ...definition, id: existing.id, createdAt: existing.createdAt }
+        : definition);
+    }));
+    await transaction.done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // Die fehlgeschlagene IndexedDB-Anfrage kann die Transaktion bereits abgebrochen haben.
+    }
+    mapMaintenanceWindowConstraintError(error);
+  }
 }
 
 export async function getBySnapshotIds<T>(
@@ -766,6 +918,7 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   cdp_latest: "CDP Latest",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
+  maintenance_windows: "Wartungsfenster",
   scenarios: "Szenarien",
 };
 

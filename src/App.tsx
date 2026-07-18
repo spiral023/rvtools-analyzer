@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
@@ -27,6 +27,7 @@ const Licensing = lazy(() => import("@/pages/Licensing"));
 const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
 const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
+const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -50,50 +51,65 @@ const PageFallback = () => (
   </div>
 );
 
+function AppRouteLayout() {
+  return (
+    <>
+      <AppLayout>
+        <Suspense fallback={<PageFallback />}><Outlet /></Suspense>
+      </AppLayout>
+      <OnboardingDialog />
+    </>
+  );
+}
+
+// Der Data Router ermöglicht useBlocker auf Formularseiten und schützt damit
+// auch Browser-Zurück/Vorwärts sowie Sidebar- und URL-Navigation.
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <AppRouteLayout />,
+    children: [
+      { index: true, element: <Navigate to="/overview" replace /> },
+      { path: "overview", element: <Overview /> },
+      { path: "upload", element: <UploadSnapshots /> },
+      { path: "upload/diagnostics", element: <Diagnostics /> },
+      { path: "daily-ops", element: <DailyOps /> },
+      { path: "capacity", element: <Capacity /> },
+      { path: "performance", element: <PerformancePage /> },
+      { path: "storage-backup", element: <StorageBackup /> },
+      { path: "network-security", element: <Networking initialTab="security" /> },
+      { path: "host-network", element: <Networking initialTab="host" /> },
+      { path: "compliance", element: <ComplianceLifecycle /> },
+      { path: "hardware", element: <Hardware /> },
+      { path: "licensing", element: <Licensing /> },
+      { path: "tech-info", element: <TechInfo /> },
+      { path: "vmware-versions", element: <ComplianceLifecycle initialTab="versions" /> },
+      { path: "wartungsfenster", element: <MaintenanceWindows /> },
+      { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
+      { path: "planning", element: <Planning /> },
+      { path: "settings", element: <Settings /> },
+      { path: "fleet-compare", element: <FleetCompare /> },
+      { path: "impressum", element: <Impressum /> },
+      { path: "*", element: <NotFound /> },
+    ],
+  },
+]);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <ImportProvider>
-            <OnboardingProvider>
-              <FilterProvider>
-                <SelectionProvider>
-                  <AppLayout>
-                    <Suspense fallback={<PageFallback />}>
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/overview" replace />} />
-                        <Route path="/overview" element={<Overview />} />
-                        <Route path="/upload" element={<UploadSnapshots />} />
-                        <Route path="/upload/diagnostics" element={<Diagnostics />} />
-                        <Route path="/daily-ops" element={<DailyOps />} />
-                        <Route path="/capacity" element={<Capacity />} />
-                        <Route path="/performance" element={<PerformancePage />} />
-                        <Route path="/storage-backup" element={<StorageBackup />} />
-                        <Route path="/network-security" element={<Networking initialTab="security" />} />
-                        <Route path="/host-network" element={<Networking initialTab="host" />} />
-                        <Route path="/compliance" element={<ComplianceLifecycle />} />
-                        <Route path="/hardware" element={<Hardware />} />
-                        <Route path="/licensing" element={<Licensing />} />
-                        <Route path="/tech-info" element={<TechInfo />} />
-                        <Route path="/vmware-versions" element={<ComplianceLifecycle initialTab="versions" />} />
-                        <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
-                        <Route path="/planning" element={<Planning />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/fleet-compare" element={<FleetCompare />} />
-                        <Route path="/impressum" element={<Impressum />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
-                  </AppLayout>
-                  <OnboardingDialog />
-                </SelectionProvider>
-              </FilterProvider>
-            </OnboardingProvider>
-          </ImportProvider>
-        </BrowserRouter>
+        <ImportProvider>
+          <OnboardingProvider>
+            <FilterProvider>
+              <SelectionProvider>
+                <RouterProvider router={router} fallbackElement={<PageFallback />} />
+              </SelectionProvider>
+            </FilterProvider>
+          </OnboardingProvider>
+        </ImportProvider>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

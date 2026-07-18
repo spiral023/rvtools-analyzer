@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -212,6 +212,15 @@ export function useAllTechInfoClientLatest() {
   return useQuery({
     queryKey: ["techInfoClientLatestAll"],
     queryFn: getAllTechInfoClientLatest,
+    staleTime: STALE_MS,
+  });
+}
+
+/** Alle zuletzt importierten Tech-Info-Zeilen – unabhängig vom aktiven RVTools-Snapshot-Scope. */
+export function useAllTechInfoLatest() {
+  return useQuery({
+    queryKey: ["techInfoLatestAll"],
+    queryFn: getAllTechInfoLatest,
     staleTime: STALE_MS,
   });
 }

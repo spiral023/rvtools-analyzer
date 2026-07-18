@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
 import {
   buildBackupFileName,
   buildUserDataBackup,
@@ -7,7 +8,28 @@ import {
   USER_DATA_BACKUP_KIND,
   USER_DATA_BACKUP_VERSION,
 } from "@/lib/backup/userDataBackup";
-import type { MaintenanceClusterAssignment, MaintenanceSettings, Scenario } from "@/domain/models/types";
+import type {
+  MaintenanceClusterAssignment,
+  MaintenanceSettings,
+  MaintenanceWindowDefinition,
+  Scenario,
+} from "@/domain/models/types";
+
+const makeMaintenanceWindow = (
+  abbreviation = "MW 1",
+  overrides: Partial<MaintenanceWindowDefinition> = {},
+): MaintenanceWindowDefinition => ({
+  id: `window-${abbreviation}`,
+  abbreviation,
+  normalizedAbbreviation: abbreviation.trim().toLocaleLowerCase("de-DE"),
+  description: "Reguläres Wartungsfenster",
+  handling: "regular",
+  weeklySlots: Array.from({ length: 7 }, () => Array<boolean>(48).fill(false)) as MaintenanceWindowDefinition["weeklySlots"],
+  calendarRules: [{ weekday: 0, occurrences: [1, "last"] }],
+  createdAt: "2026-07-01T10:00:00.000Z",
+  updatedAt: "2026-07-02T10:00:00.000Z",
+  ...overrides,
+});
 
 const settings: MaintenanceSettings = {
   id: "default",
@@ -44,6 +66,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     const backup = buildUserDataBackup({
       maintenanceSettings: settings,
       maintenanceClusterAssignments: [assignment],
+      maintenanceWindows: [makeMaintenanceWindow()],
       scenarios: [scenario],
       exportedAt: new Date("2026-07-03T12:00:00.000Z"),
     });
@@ -55,6 +78,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     expect(parsed.exportedAt).toBe("2026-07-03T12:00:00.000Z");
     expect(parsed.maintenanceSettings).toEqual(settings);
     expect(parsed.maintenanceClusterAssignments).toEqual([assignment]);
+    expect(parsed.maintenanceWindows).toEqual([makeMaintenanceWindow()]);
     expect(parsed.scenarios).toEqual([scenario]);
   });
 
@@ -62,6 +86,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     const backup = buildUserDataBackup({
       maintenanceSettings: null,
       maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
       scenarios: [],
     });
 
@@ -69,6 +94,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
 
     expect(parsed.maintenanceSettings).toBeNull();
     expect(parsed.maintenanceClusterAssignments).toEqual([]);
+    expect(parsed.maintenanceWindows).toEqual([]);
     expect(parsed.scenarios).toEqual([]);
   });
 });
@@ -88,6 +114,51 @@ describe("parseUserDataBackup Validierung", () => {
     expect(() =>
       parseUserDataBackup(JSON.stringify({ kind: USER_DATA_BACKUP_KIND, version: 99 })),
     ).toThrow("Version 99");
+  });
+
+  it("liest Backups der Version 1 als aktuelle Version mit leerer Wartungsfensterliste", () => {
+    const parsed = parseUserDataBackup(JSON.stringify({
+      kind: USER_DATA_BACKUP_KIND,
+      version: 1,
+      exportedAt: "2026-07-03T12:00:00.000Z",
+      maintenanceSettings: settings,
+      maintenanceClusterAssignments: [assignment],
+      scenarios: [scenario],
+    }));
+
+    expect(parsed.version).toBe(2);
+    expect(parsed.maintenanceWindows).toEqual([]);
+    expect(parsed.maintenanceClusterAssignments).toEqual([assignment]);
+  });
+
+  it("überspringt ungültige Wartungsfenster und normalisiert gültige defensiv", () => {
+    const valid = makeMaintenanceWindow("  ÄÖ 2  ", {
+      normalizedAbbreviation: "veraltet",
+      createdAt: "kein Datum",
+      updatedAt: "",
+    });
+    const invalid = makeMaintenanceWindow("Defekt", {
+      weeklySlots: Array.from({ length: 6 }, () => Array<boolean>(48).fill(false)) as MaintenanceWindowDefinition["weeklySlots"],
+    });
+
+    const parsed = parseUserDataBackup(JSON.stringify({
+      kind: USER_DATA_BACKUP_KIND,
+      version: 2,
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [invalid, valid, { ...valid, id: "", abbreviation: "Ohne ID" }],
+      scenarios: [],
+    }));
+
+    expect(parsed.maintenanceWindows).toHaveLength(1);
+    expect(parsed.maintenanceWindows[0]).toMatchObject({
+      id: valid.id.trim(),
+      abbreviation: "ÄÖ 2",
+      normalizedAbbreviation: "äö 2",
+      handling: "regular",
+    });
+    expect(Number.isFinite(Date.parse(parsed.maintenanceWindows[0].createdAt))).toBe(true);
+    expect(Number.isFinite(Date.parse(parsed.maintenanceWindows[0].updatedAt))).toBe(true);
   });
 
   it("überspringt unbrauchbare Einträge, statt den Import abzubrechen", () => {
@@ -144,6 +215,67 @@ describe("parseUserDataBackup Validierung", () => {
       groups: [],
       notes: null,
     });
+  });
+});
+
+describe("collectUserDataBackup / applyUserDataBackup", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
+  });
+
+  it("collects and merges maintenance windows, reports their count, and keeps existing data for an empty backup", async () => {
+    const { getMaintenanceWindows, putMaintenanceWindow } = await import("@/data/db");
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    const existing = makeMaintenanceWindow("Bestand", { id: "existing-id" });
+    await putMaintenanceWindow(existing);
+
+    const collected = await collectUserDataBackup();
+    expect(collected.maintenanceWindows).toEqual([existing]);
+
+    const imported = makeMaintenanceWindow("Importiert", { id: "imported-id" });
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [imported],
+      scenarios: [],
+    }));
+    expect(result.maintenanceWindowsImported).toBe(1);
+    expect((await getMaintenanceWindows()).map((entry) => entry.abbreviation)).toEqual(["Bestand", "Importiert"]);
+
+    const emptyResult = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+    }));
+    expect(emptyResult.maintenanceWindowsImported).toBe(0);
+    expect(await getMaintenanceWindows()).toHaveLength(2);
+  });
+
+  it("validates invalid maintenance-window batches before writing other backup data", async () => {
+    const {
+      getMaintenanceAssignments,
+      getMaintenanceSettings,
+      getMaintenanceWindows,
+      getScenarios,
+    } = await import("@/data/db");
+    const { applyUserDataBackup } = await import("@/domain/services/backupService");
+
+    await expect(applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: settings,
+      maintenanceClusterAssignments: [assignment],
+      maintenanceWindows: [
+        makeMaintenanceWindow("MW A", { id: "same-id" }),
+        makeMaintenanceWindow("MW B", { id: "same-id" }),
+      ],
+      scenarios: [scenario],
+    }))).rejects.toThrow("ID ist mehrfach enthalten");
+
+    await expect(getMaintenanceSettings()).resolves.toBeUndefined();
+    await expect(getMaintenanceAssignments()).resolves.toEqual([]);
+    await expect(getMaintenanceWindows()).resolves.toEqual([]);
+    await expect(getScenarios()).resolves.toEqual([]);
   });
 });
 

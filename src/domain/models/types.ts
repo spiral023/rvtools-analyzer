@@ -101,6 +101,30 @@ export interface TechInfoLatest {
   az: string | null;
 }
 
+export type MaintenanceWindowHandling = "regular" | "always" | "approval-required" | "external";
+
+/** Wochentag mit Montag als Index 0 und Sonntag als Index 6. */
+export type MaintenanceWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type MonthlyOccurrence = 1 | 2 | 3 | 4 | 5 | "last";
+
+export interface MaintenanceCalendarRule {
+  weekday: MaintenanceWeekday;
+  occurrences: MonthlyOccurrence[];
+}
+
+export interface MaintenanceWindowDefinition {
+  id: string;
+  abbreviation: string;
+  normalizedAbbreviation: string;
+  description: string;
+  handling: MaintenanceWindowHandling;
+  weeklySlots: [boolean[], boolean[], boolean[], boolean[], boolean[], boolean[], boolean[]];
+  calendarRules: MaintenanceCalendarRule[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TechInfoClientImportMeta {
   techInfoClientImportId: string;
   importedAt: string;
@@ -203,14 +227,14 @@ export interface MaintenanceSettings {
 
 export type MaintenanceClusterType = "Normal" | "Spezial";
 
-export type MaintenanceWeekday = "MO" | "DI" | "MI" | "DO" | "FR" | "SA" | "SO";
+export type LegacyMaintenanceWeekday = "MO" | "DI" | "MI" | "DO" | "FR" | "SA" | "SO";
 
 export interface MaintenanceWindow {
   id: string;
   label: string;
   // Ältere Zuweisungen haben strukturierte Zeiten; neue Fenster sind reiner Freitext im Label.
-  dayFrom?: MaintenanceWeekday;
-  dayTo?: MaintenanceWeekday;
+  dayFrom?: LegacyMaintenanceWeekday;
+  dayTo?: LegacyMaintenanceWeekday;
   startTime?: string;
   endTime?: string;
   presetId?: string;

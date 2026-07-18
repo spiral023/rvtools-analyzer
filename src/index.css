@@ -210,6 +210,180 @@
     border-color: hsl(var(--primary) / 0.35);
     box-shadow: 0 18px 38px -28px hsl(var(--primary) / 0.48);
   }
+
+  /* Operativer Wochenplan: klare halbstündige Taktung statt dekorativer Flächen. */
+  .maintenance-grid-shell {
+    overflow: hidden;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.9rem;
+    background: hsl(var(--card));
+    box-shadow: 0 16px 36px -30px hsl(var(--foreground) / 0.55);
+  }
+
+  .maintenance-grid__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .maintenance-grid__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .maintenance-grid__legend-symbol {
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    border: 1px solid hsl(var(--border));
+  }
+
+  .maintenance-grid__legend-symbol--allowed {
+    background: hsl(var(--primary));
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.18);
+  }
+
+  .maintenance-grid__legend-symbol--blocked {
+    background: hsl(var(--muted));
+  }
+
+  .maintenance-grid__scroll {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .maintenance-grid:not(.maintenance-grid--compact) {
+    display: inline-block;
+    min-width: 73.5rem;
+    user-select: none;
+  }
+
+  .maintenance-grid__time-row,
+  .maintenance-grid__row {
+    display: grid;
+    grid-template-columns: 6.25rem repeat(48, 1.4rem);
+  }
+
+  .maintenance-grid__time-row {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    height: 1.75rem;
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+  }
+
+  .maintenance-grid__corner,
+  .maintenance-grid__day-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    padding-inline: 0.7rem;
+    background: hsl(var(--card));
+    border-right: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .maintenance-grid__corner {
+    z-index: 4;
+  }
+
+  .maintenance-grid__time-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: visible;
+    padding-left: 0.18rem;
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.62rem;
+    line-height: 1;
+  }
+
+  .maintenance-grid__cell {
+    position: relative;
+    height: 2.1rem;
+    appearance: none;
+    border: 0;
+    border-top: 1px solid hsl(var(--border) / 0.72);
+    border-right: 1px solid hsl(var(--border) / 0.42);
+    border-radius: 0;
+    background: hsl(var(--muted) / 0.68);
+    cursor: crosshair;
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .maintenance-grid__cell.is-hour-start,
+  .maintenance-grid__time-label.is-hour-start,
+  .maintenance-grid__compact-cell.is-hour-start {
+    border-left: 1px solid hsl(var(--foreground) / 0.35);
+  }
+
+  .maintenance-grid__cell.is-allowed {
+    background: hsl(var(--primary) / 0.78);
+    box-shadow: inset 0 1px 0 hsl(var(--primary-foreground) / 0.24);
+  }
+
+  .maintenance-grid__cell:hover:not(:disabled) {
+    box-shadow: inset 0 0 0 2px hsl(var(--foreground) / 0.16);
+  }
+
+  .maintenance-grid__cell:focus-visible {
+    z-index: 2;
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: -2px;
+    box-shadow: inset 0 0 0 1px hsl(var(--background));
+  }
+
+  .maintenance-grid__cell:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+  }
+
+  .maintenance-grid--compact {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-width: 10rem;
+    padding: 0.38rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.55rem;
+    background: hsl(var(--card));
+  }
+
+  .maintenance-grid__compact-row {
+    display: grid;
+    grid-template-columns: repeat(48, minmax(0, 1fr));
+    min-height: 0.32rem;
+  }
+
+  .maintenance-grid__compact-cell {
+    min-width: 0;
+    background: hsl(var(--muted));
+    border-right: 1px solid hsl(var(--background) / 0.8);
+  }
+
+  .maintenance-grid__compact-cell.is-allowed {
+    background: hsl(var(--primary));
+  }
 }
 
 @keyframes onboarding-forward {
@@ -245,5 +419,9 @@
 
   .onboarding-feature-card:hover {
     transform: none;
+  }
+
+  .maintenance-grid__cell {
+    transition: none;
   }
 }
