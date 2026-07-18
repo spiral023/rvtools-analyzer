@@ -248,6 +248,14 @@ export function MaintenanceWindowEditor({
     setIsSubmitting(true);
     try {
       await onSave(result);
+      const acknowledged = normalizeEditorDraft(result);
+      appliedValueRef.current = { id: acknowledged.id, updatedAt: acknowledged.updatedAt };
+      baselineRef.current = acknowledged;
+      setDraft(acknowledged);
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        onDirtyChangeRef.current?.(false);
+      }
     } catch (error) {
       setSaveError(error instanceof Error ? `Speichern fehlgeschlagen: ${error.message}` : "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.");
     } finally {

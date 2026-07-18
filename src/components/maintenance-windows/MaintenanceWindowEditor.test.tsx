@@ -362,6 +362,33 @@ describe("MaintenanceWindowEditor", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Duplizieren" })).not.toBeDisabled());
   });
 
+  it("bestätigt den eigenen erfolgreichen Speichervorgang als sauberen Entwurf", async () => {
+    const saving = deferred<void>();
+    const onSave = vi.fn(() => saving.promise);
+    const onDirtyChange = vi.fn();
+    const value = definition();
+    const { rerender } = render(
+      <MaintenanceWindowEditor value={value} onSave={onSave} onDelete={vi.fn()} onDuplicate={vi.fn()} onDirtyChange={onDirtyChange} />,
+    );
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Eigener gespeicherter Stand" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const saved = await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1);
+      return onSave.mock.calls[0][0] as MaintenanceWindowDefinition;
+    });
+
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
+    saving.resolve();
+    await waitFor(() => expect(screen.queryByText("Ungespeicherte Änderungen")).not.toBeInTheDocument());
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    rerender(
+      <MaintenanceWindowEditor value={saved} onSave={onSave} onDelete={vi.fn()} onDuplicate={vi.fn()} onDirtyChange={onDirtyChange} />,
+    );
+    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Eigener gespeicherter Stand");
+    expect(screen.queryByText("Ungespeicherte Änderungen")).not.toBeInTheDocument();
+  });
+
   it("fängt asynchrone Speicherfehler mit einer zugänglichen Meldung ab", async () => {
     const onSave = vi.fn(() => Promise.reject(new Error("Netzwerk nicht erreichbar")));
     renderEditor({ onSave });
