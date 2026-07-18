@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest } from "@/data/db";
+import { buildPortAuditRows } from "@/lib/networkAudit";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -247,6 +248,24 @@ export function useAllSwitchLatest() {
     queryFn: getAllSwitchLatest,
     staleTime: STALE_MS,
   });
+}
+
+export function useNetworkAudit() {
+  const { data: switchRows = [], isLoading: switchLoading } = useAllSwitchLatest();
+  const { data: cdpRows = [], isLoading: cdpLoading } = useAllCdpLatest();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: techInfo = [], isLoading: techInfoLoading } = useAllTechInfoLatest();
+  const { data: ipam = [], isLoading: ipamLoading } = useAllIpamLatest();
+
+  const rows = useMemo(
+    () => buildPortAuditRows({ switchRows, cdpRows, hosts, techInfo, ipam }),
+    [switchRows, cdpRows, hosts, techInfo, ipam],
+  );
+
+  return {
+    rows,
+    isLoading: switchLoading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
+  };
 }
 
 export function useVmsWithTechInfo() {
