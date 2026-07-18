@@ -20,12 +20,15 @@ import type {
   CdpImportMeta,
   CdpRow,
   CdpLatest,
+  IpamImportMeta,
+  IpamRow,
+  IpamLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   MaintenanceWindowDefinition,
   Scenario,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
@@ -96,6 +99,21 @@ interface RVToolsDBSchema extends DBSchema {
     value: CdpLatest;
     indexes: { hostNorm: string };
   };
+  ipam_imports: {
+    key: string;
+    value: IpamImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  ipam_rows: {
+    key: [string, number];
+    value: IpamRow;
+    indexes: { ipamImportId: string; ipAddress: string };
+  };
+  ipam_latest: {
+    key: string;
+    value: IpamLatest;
+    indexes: { ipAddress: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -123,13 +141,14 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "techinfo_rows" | "techinfo_latest"
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
   | "cdp_imports" | "cdp_rows" | "cdp_latest"
+  | "ipam_imports" | "ipam_rows" | "ipam_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios";
 type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 20;
+const DB_VERSION = 21;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -137,6 +156,7 @@ const ALL_STORES: StoreName[] = [
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
   "techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest",
   "cdp_imports", "cdp_rows", "cdp_latest",
+  "ipam_imports", "ipam_rows", "ipam_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios",
 ];
 
@@ -250,6 +270,21 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         if (!db.objectStoreNames.contains("cdp_latest")) {
           const latest = db.createObjectStore("cdp_latest", { keyPath: "hostAdapterKey" });
           latest.createIndex("hostNorm", "hostNorm");
+        }
+        // v21: IPAM-Netzwerkdaten (CSV-Import) — Muster wie CDP.
+        if (!db.objectStoreNames.contains("ipam_imports")) {
+          const imports = db.createObjectStore("ipam_imports", { keyPath: "ipamImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("ipam_rows")) {
+          const rows = db.createObjectStore("ipam_rows", { keyPath: ["ipamImportId", "rowIndex"] });
+          rows.createIndex("ipamImportId", "ipamImportId");
+          rows.createIndex("ipAddress", "ipAddress");
+        }
+        if (!db.objectStoreNames.contains("ipam_latest")) {
+          const latest = db.createObjectStore("ipam_latest", { keyPath: "ipAddress" });
+          latest.createIndex("ipAddress", "ipAddress");
         }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
@@ -724,6 +759,42 @@ export async function getCdpLatestByHostAdapterKeys(keys: string[]): Promise<Cdp
   return values.filter((v): v is CdpLatest => Boolean(v));
 }
 
+export async function getIpamImportByChecksum(checksum: string): Promise<IpamImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("ipam_imports", "fileChecksum", checksum);
+}
+
+export async function getIpamImports(): Promise<IpamImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("ipam_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+export async function putIpamImport(meta: IpamImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("ipam_imports", meta);
+}
+
+export async function batchPutIpamRows(items: IpamRow[], batchSize = 5000): Promise<void> {
+  await batchPut("ipam_rows", items, batchSize);
+}
+
+export async function batchPutIpamLatest(items: IpamLatest[], batchSize = 5000): Promise<void> {
+  await batchPut("ipam_latest", items, batchSize);
+}
+
+export async function getAllIpamLatest(): Promise<IpamLatest[]> {
+  const db = await getDb();
+  return db.getAll("ipam_latest");
+}
+
+export async function getIpamLatestByIpAddresses(ips: string[]): Promise<IpamLatest[]> {
+  if (ips.length === 0) return [];
+  const db = await getDb();
+  const values = await Promise.all([...new Set(ips)].map((ip) => db.get("ipam_latest", ip)));
+  return values.filter((v): v is IpamLatest => Boolean(v));
+}
+
 /* ---------- diagnostics ---------- */
 
 /**
@@ -804,8 +875,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -868,6 +939,17 @@ export async function estimateCdpImportSizesBytes(importIds: string[]): Promise<
   return Object.fromEntries(entries);
 }
 
+/** Geschätzte IndexedDB-Größe je IPAM-Import. */
+export async function estimateIpamImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "ipam_rows", "ipamImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
+}
+
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -916,6 +998,9 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   cdp_imports: "CDP Importe",
   cdp_rows: "CDP Zeilen",
   cdp_latest: "CDP Latest",
+  ipam_imports: "IPAM Importe",
+  ipam_rows: "IPAM Zeilen",
+  ipam_latest: "IPAM Latest",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   maintenance_windows: "Wartungsfenster",
@@ -940,7 +1025,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows",
+  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -1169,4 +1254,43 @@ export async function deleteCdpImport(cdpImportId: string): Promise<void> {
   await db.delete("cdp_imports", cdpImportId);
   await deleteByKeyPrefix("cdp_rows", cdpImportId);
   await Promise.all([...affectedKeys].map((key) => rebuildCdpLatestForKey(key)));
+}
+
+function buildIpamLatestFromRow(row: IpamRow): IpamLatest {
+  return {
+    ipAddress: row.ipAddress,
+    importedAt: row.importedAt,
+    ipamImportId: row.ipamImportId,
+    rowIndex: row.rowIndex,
+    ...mapIpamDisplayFields(row.rawData),
+  };
+}
+
+async function rebuildIpamLatestForIp(ipAddress: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("ipam_rows", "ipAddress", ipAddress);
+  const latestRow = rows.reduce<IpamRow | null>((latest, row) => {
+    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
+    return latest;
+  }, null);
+
+  if (!latestRow) {
+    await db.delete("ipam_latest", ipAddress);
+    return;
+  }
+
+  await db.put("ipam_latest", buildIpamLatestFromRow(latestRow));
+}
+
+export async function deleteIpamImport(ipamImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("ipam_rows", "ipamImportId", ipamImportId);
+  const affectedIps = new Set<string>();
+  for (const row of rows) {
+    if (row.ipAddress) affectedIps.add(row.ipAddress);
+  }
+
+  await db.delete("ipam_imports", ipamImportId);
+  await deleteByKeyPrefix("ipam_rows", ipamImportId);
+  await Promise.all([...affectedIps].map((ip) => rebuildIpamLatestForIp(ip)));
 }

@@ -51,6 +51,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "tech-info") return "Tech-Info Server";
   if (kind === "tech-info-client") return "Tech-Info Client";
   if (kind === "cdp") return "CDP-Netzwerkdaten";
+  if (kind === "ipam") return "IPAM-Netzwerkdaten";
   return "RVTools";
 }
 

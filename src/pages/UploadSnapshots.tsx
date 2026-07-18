@@ -4,8 +4,9 @@ import {
   getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport,
   getTechInfoClientImports, deleteTechInfoClientImport,
   getCdpImports, deleteCdpImport,
+  getIpamImports, deleteIpamImport,
   estimateSnapshotSizesBytes, estimateTechInfoImportSizesBytes, estimateTechInfoClientImportSizesBytes,
-  estimateCdpImportSizesBytes,
+  estimateCdpImportSizesBytes, estimateIpamImportSizesBytes,
 } from "@/data/db";
 import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
 import { fileKindLabel, useImportController } from "@/hooks/useImportController";
@@ -17,13 +18,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta } from "@/domain/models/types";
+import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta } from "@/domain/models/types";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
   | { kind: "tech-info"; id: string; importedAt: string; techInfo: TechInfoImportMeta }
   | { kind: "tech-info-client"; id: string; importedAt: string; techInfoClient: TechInfoClientImportMeta }
-  | { kind: "cdp"; id: string; importedAt: string; cdp: CdpImportMeta };
+  | { kind: "cdp"; id: string; importedAt: string; cdp: CdpImportMeta }
+  | { kind: "ipam"; id: string; importedAt: string; ipam: IpamImportMeta };
 
 type UploadState = {
   dragOver: boolean;
@@ -58,6 +60,7 @@ function buildStoredUploads(
   techInfoImports: TechInfoImportMeta[],
   techInfoClientImports: TechInfoClientImportMeta[],
   cdpImports: CdpImportMeta[],
+  ipamImports: IpamImportMeta[],
 ): StoredUpload[] {
   const uploads: StoredUpload[] = [];
   for (const snapshot of snapshots) {
@@ -71,6 +74,9 @@ function buildStoredUploads(
   }
   for (const cdp of cdpImports) {
     uploads.push({ kind: "cdp", id: cdp.cdpImportId, importedAt: cdp.importedAt, cdp });
+  }
+  for (const ipam of ipamImports) {
+    uploads.push({ kind: "ipam", id: ipam.ipamImportId, importedAt: ipam.importedAt, ipam });
   }
   return uploads.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
@@ -94,13 +100,14 @@ function useUploadSnapshotsView() {
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
     queryFn: async () => {
-      const [snapshots, techInfoImports, techInfoClientImports, cdpImports] = await Promise.all([
+      const [snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports] = await Promise.all([
         getSnapshots(),
         getTechInfoImports(),
         getTechInfoClientImports(),
         getCdpImports(),
+        getIpamImports(),
       ]);
-      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports);
+      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports);
     },
   });
 
@@ -114,15 +121,16 @@ function useUploadSnapshotsView() {
           acc[upload.kind].push(upload.id);
           return acc;
         },
-        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [] },
+        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [], ipam: [] },
       );
-      const [rvtools, techInfo, techInfoClient, cdp] = await Promise.all([
+      const [rvtools, techInfo, techInfoClient, cdp, ipam] = await Promise.all([
         estimateSnapshotSizesBytes(uploadIdsByKind.rvtools),
         estimateTechInfoImportSizesBytes(uploadIdsByKind["tech-info"]),
         estimateTechInfoClientImportSizesBytes(uploadIdsByKind["tech-info-client"]),
         estimateCdpImportSizesBytes(uploadIdsByKind.cdp),
+        estimateIpamImportSizesBytes(uploadIdsByKind.ipam),
       ]);
-      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp } satisfies Record<StoredUpload["kind"], Record<string, number>>;
+      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp, ipam } satisfies Record<StoredUpload["kind"], Record<string, number>>;
     },
   });
   const totalSizeBytes = uploadSizes
@@ -173,6 +181,10 @@ function useUploadSnapshotsView() {
     await runDelete(() => deleteCdpImport(cdpImportId), "CDP-Daten gelöscht.");
   }, [runDelete]);
 
+  const handleDeleteIpamImport = useCallback(async (ipamImportId: string) => {
+    await runDelete(() => deleteIpamImport(ipamImportId), "IPAM-Daten gelöscht.");
+  }, [runDelete]);
+
   const handleDeleteAll = useCallback(async () => {
     dispatch({ type: "set-delete-all-open", value: false });
     await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
@@ -215,9 +227,9 @@ function useUploadSnapshotsView() {
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
       >
-        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info oder CDP-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info, CDP- oder IPAM-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX) oder CDP-CSV hierher ziehen oder klicken"}</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX) oder CDP-/IPAM-CSV hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
       </label>
 
@@ -293,7 +305,7 @@ function useUploadSnapshotsView() {
           )}
         </div>
         {uploads.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine RVTools-, Tech-Info- oder CDP-Dateien importiert.</p>
+          <p className="text-sm text-muted-foreground">Noch keine RVTools-, Tech-Info-, CDP- oder IPAM-Dateien importiert.</p>
         ) : (
           <div className="space-y-2">
             {uploads.map((upload) => {
@@ -301,12 +313,14 @@ function useUploadSnapshotsView() {
               const title = upload.kind === "rvtools" ? upload.snapshot.fileName
                 : upload.kind === "tech-info" ? upload.techInfo.fileName
                 : upload.kind === "tech-info-client" ? upload.techInfoClient.fileName
-                : upload.cdp.fileName;
+                : upload.kind === "cdp" ? upload.cdp.fileName
+                : upload.ipam.fileName;
               const rowCount = upload.kind === "rvtools"
                 ? Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0)
                 : upload.kind === "tech-info" ? upload.techInfo.rowCount
                 : upload.kind === "tech-info-client" ? upload.techInfoClient.rowCount
-                : upload.cdp.rowCount;
+                : upload.kind === "cdp" ? upload.cdp.rowCount
+                : upload.ipam.rowCount;
               const sheetCount = isRvtools ? Object.keys(upload.snapshot.sheetStats).length : 1;
               const sizeBytes = uploadSizes?.[upload.kind]?.[upload.id];
 
@@ -326,7 +340,7 @@ function useUploadSnapshotsView() {
                           <p className="text-xs text-muted-foreground">
                             vCenter: {upload.snapshot.vcenterDisplayName} · Export: {new Date(upload.snapshot.exportTs).toLocaleString("de-DE")} · Import: {new Date(upload.snapshot.importedAt).toLocaleString("de-DE")}
                           </p>
-                        ) : upload.kind === "cdp" ? (
+                        ) : upload.kind === "cdp" || upload.kind === "ipam" ? (
                           <p className="text-xs text-muted-foreground">
                             Import: {new Date(upload.importedAt).toLocaleString("de-DE")}
                           </p>
@@ -350,6 +364,7 @@ function useUploadSnapshotsView() {
                         if (upload.kind === "tech-info") void handleDeleteTechInfoImport(upload.id);
                         else if (upload.kind === "tech-info-client") void handleDeleteTechInfoClientImport(upload.id);
                         else if (upload.kind === "cdp") void handleDeleteCdpImport(upload.id);
+                        else if (upload.kind === "ipam") void handleDeleteIpamImport(upload.id);
                         else void handleDeleteSnapshot(upload.id);
                       }}
                       aria-label={isRvtools ? "Snapshot löschen" : `${fileKindLabel(upload.kind)} löschen`}

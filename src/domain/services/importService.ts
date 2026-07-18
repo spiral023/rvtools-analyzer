@@ -20,6 +20,11 @@ import {
   batchPutCdpRows,
   batchPutCdpLatest,
   getCdpLatestByHostAdapterKeys,
+  getIpamImportByChecksum,
+  putIpamImport,
+  batchPutIpamRows,
+  batchPutIpamLatest,
+  getIpamLatestByIpAddresses,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -37,6 +42,9 @@ import {
   CDP_REQUIRED_HEADERS,
   mapCdpDisplayFields,
   buildHostAdapterKey,
+  IPAM_REQUIRED_HEADERS,
+  mapIpamDisplayFields,
+  isValidIpv4,
 } from "@/lib/xlsx/parseHelpers";
 import { gzipJson } from "@/lib/compression";
 import { shortId } from "@/lib/shortId";
@@ -59,6 +67,8 @@ import type {
   TechInfoClientRow,
   CdpRow,
   CdpLatest,
+  IpamRow,
+  IpamLatest,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -442,13 +452,17 @@ export async function importRvtoolsXlsx(
       return await importCdpCsv(file, checksum, parsed, warnings, errors, report);
     }
 
-    // CSV-Dateien, die keine CDP-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
+    if (parsed.fileKind === "ipam") {
+      return await importIpamCsv(file, checksum, parsed, warnings, errors, report);
+    }
+
+    // CSV-Dateien, die keine CDP-/IPAM-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
     const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
     if (isCsv) {
       return {
         success: false,
         warnings,
-        errors: [...errors, "Keine gültige CDP-CSV erkannt (erwartete Spalten: VMHost, PhysicalAdapter, CDPDeviceID, CDPAvailable)."],
+        errors: [...errors, "Keine gültige CDP- oder IPAM-CSV erkannt (erwartete Spalten: VMHost/PhysicalAdapter/CDPDeviceID/CDPAvailable oder IP Address/Status/Type)."],
       };
     }
 
@@ -920,4 +934,113 @@ export async function importCdpCsv(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} CDP Zeilen`);
   return { success: true, fileKind: "cdp", warnings, errors, sheetStats };
+}
+
+const IPAM_UI_HEADERS = [
+  "Name", "Status", "Type", "Usage", "First Discovered", "Last Discovered",
+  "Comment", "Site", "MAC Address", "OS", "NetBIOS Name", "Device Type(s)",
+  "Open Port(s)", "Fingerprint",
+] as const;
+
+function findIpamSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    IPAM_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+export async function importIpamCsv(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getIpamImportByChecksum(checksum);
+  if (existing) {
+    return {
+      success: false,
+      fileKind: "ipam",
+      warnings: [],
+      errors: ["Diese IPAM-Datei wurde bereits importiert."],
+    };
+  }
+
+  const ipamSheet = findIpamSheet(parsed.sheets);
+  if (!ipamSheet) {
+    return {
+      success: false,
+      fileKind: "ipam",
+      warnings,
+      errors: [...errors, "Keine gültige IPAM-CSV erkannt (erwartete Spalten: IP Address, Status, Type)."],
+    };
+  }
+
+  for (const header of IPAM_UI_HEADERS) {
+    if (!ipamSheet.headers.includes(header)) {
+      warnings.push(`IPAM Spalte "${header}" fehlt. Wert wird als leer übernommen.`);
+    }
+  }
+
+  const importedAt = new Date().toISOString();
+  const ipamImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [ipamSheet.sheetName]: { rowCount: ipamSheet.rows.length, columnCount: ipamSheet.headers.length },
+  };
+
+  report("IPAM Metadaten speichern", 35);
+  await putIpamImport({
+    ipamImportId,
+    importedAt,
+    fileName: file.name,
+    fileChecksum: checksum,
+    rowCount: ipamSheet.rows.length,
+    columnCount: ipamSheet.headers.length,
+  });
+
+  report("IPAM Zeilen speichern", 45, `${ipamSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  const fullRows: IpamRow[] = [];
+  const latestCandidates = new Map<string, IpamLatest>();
+  for (let i = 0; i < ipamSheet.rows.length; i++) {
+    const row = ipamSheet.rows[i];
+    const ipAddress = toStr(row["IP Address"]);
+    if (!ipAddress || !isValidIpv4(ipAddress)) {
+      warnings.push(`IPAM Zeile ${i + 1}: IP-Adresse "${ipAddress ?? ""}" ist ungültig, Zeile wurde übersprungen.`);
+      continue;
+    }
+
+    fullRows.push({
+      ipamImportId,
+      rowIndex: i,
+      ipAddress,
+      importedAt,
+      rawData: toRawRowData(row),
+    });
+
+    latestCandidates.set(ipAddress, {
+      ipAddress,
+      importedAt,
+      ipamImportId,
+      rowIndex: i,
+      ...mapIpamDisplayFields(row),
+    });
+  }
+
+  await batchPutIpamRows(fullRows, 5000);
+
+  report("IPAM Latest aktualisieren", 75);
+  const existingLatest = await getIpamLatestByIpAddresses([...latestCandidates.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.ipAddress, entry]));
+  const latestUpdates: IpamLatest[] = [];
+  for (const [ipAddress, candidate] of latestCandidates.entries()) {
+    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(ipAddress)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutIpamLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} IPAM Zeilen`);
+  return { success: true, fileKind: "ipam", warnings, errors, sheetStats };
 }

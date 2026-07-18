@@ -56,7 +56,7 @@ describe("v19 upgrade migration", () => {
     const { getDb, getMaintenanceWindows } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(20);
+    expect(db.version).toBe(21);
     expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
     await expect(db.getAll("techinfo_latest")).resolves.toHaveLength(1);
     await expect(db.getAll("scenarios")).resolves.toHaveLength(1);

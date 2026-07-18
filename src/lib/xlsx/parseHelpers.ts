@@ -15,7 +15,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -28,6 +28,7 @@ const RVTOOLS_CANONICAL_SHEETS = new Set([
 const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"] as const;
 export const TECH_INFO_CLIENT_REQUIRED_HEADERS = ["Name", "BLZ", "MAC Adresse", "Poolname"] as const;
 export const CDP_REQUIRED_HEADERS = ["VMHost", "PhysicalAdapter", "CDPDeviceID", "CDPAvailable"] as const;
+export const IPAM_REQUIRED_HEADERS = ["IP Address", "Status", "Type"] as const;
 
 export interface SheetShapeForDetection {
   sheetName: string;
@@ -94,6 +95,11 @@ export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFi
     CDP_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
   );
   if (hasCdpHeaders) return "cdp";
+
+  const hasIpamHeaders = sheets.some((sheet) =>
+    IPAM_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasIpamHeaders) return "ipam";
 
   return "rvtools";
 }
@@ -186,6 +192,49 @@ export function mapCdpDisplayFields(row: Record<string, unknown>): CdpDisplayFie
     cdpAvailable: toBool(row["CDPAvailable"]),
     queryStatus: toStr(row["QueryStatus"]),
   };
+}
+
+export interface IpamDisplayFields {
+  name: string | null;
+  status: string | null;
+  type: string | null;
+  usage: string | null;
+  firstDiscovered: string | null;
+  lastDiscovered: string | null;
+  comment: string | null;
+  site: string | null;
+  macAddress: string | null;
+  os: string | null;
+  netBiosName: string | null;
+  deviceTypes: string | null;
+  openPorts: string | null;
+  fingerprint: string | null;
+}
+
+export function mapIpamDisplayFields(row: Record<string, unknown>): IpamDisplayFields {
+  return {
+    name: toStr(row["Name"]),
+    status: toStr(row["Status"]),
+    type: toStr(row["Type"]),
+    usage: toStr(row["Usage"]),
+    firstDiscovered: toStr(row["First Discovered"]),
+    lastDiscovered: toStr(row["Last Discovered"]),
+    comment: toStr(row["Comment"]),
+    site: toStr(row["Site"]),
+    macAddress: toStr(row["MAC Address"]),
+    os: toStr(row["OS"]),
+    netBiosName: toStr(row["NetBIOS Name"]),
+    deviceTypes: toStr(row["Device Type(s)"]),
+    openPorts: toStr(row["Open Port(s)"]),
+    fingerprint: toStr(row["Fingerprint"]),
+  };
+}
+
+const IPV4_OCTET = "(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})";
+const IPV4_PATTERN = new RegExp(`^${IPV4_OCTET}\\.${IPV4_OCTET}\\.${IPV4_OCTET}\\.${IPV4_OCTET}$`);
+
+export function isValidIpv4(ip: string): boolean {
+  return IPV4_PATTERN.test(ip);
 }
 
 export function buildHostAdapterKey(host: string, adapter: string): string {

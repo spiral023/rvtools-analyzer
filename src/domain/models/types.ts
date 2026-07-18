@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -215,6 +215,44 @@ export interface CdpLatest {
   mtu: string | null;
   cdpAvailable: boolean | null;
   queryStatus: string | null;
+}
+
+export interface IpamImportMeta {
+  ipamImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+export interface IpamRow {
+  ipamImportId: string;
+  rowIndex: number;
+  ipAddress: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface IpamLatest {
+  ipAddress: string;
+  importedAt: string;
+  ipamImportId: string;
+  rowIndex: number;
+  name: string | null;
+  status: string | null;
+  type: string | null;
+  usage: string | null;
+  firstDiscovered: string | null;
+  lastDiscovered: string | null;
+  comment: string | null;
+  site: string | null;
+  macAddress: string | null;
+  os: string | null;
+  netBiosName: string | null;
+  deviceTypes: string | null;
+  openPorts: string | null;
+  fingerprint: string | null;
 }
 
 export interface MaintenanceSettings {

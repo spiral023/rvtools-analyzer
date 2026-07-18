@@ -9,8 +9,9 @@ import { NetworkSecurityPanel } from "@/pages/NetworkSecurity";
 import { HostNetworkPanel } from "@/pages/HostNetwork";
 import { VlanUsagePanel } from "@/pages/VlanUsage";
 import { CdpPanel } from "@/pages/CdpSwitchPorts";
+import { IpamPanel } from "@/pages/IpamPanel";
 
-type NetworkTab = "security" | "host" | "vlan" | "cdp";
+type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam";
 
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
   const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
@@ -41,6 +42,7 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
           <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
           <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
+          <TabsTrigger value="ipam">IPAM</TabsTrigger>
         </TabsList>
 
         <TabsContent value="security" className="space-y-4">
@@ -57,6 +59,10 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
 
         <TabsContent value="cdp" className="space-y-4">
           <CdpPanel />
+        </TabsContent>
+
+        <TabsContent value="ipam" className="space-y-4">
+          <IpamPanel />
         </TabsContent>
       </Tabs>
     </div>
