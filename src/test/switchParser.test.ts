@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSwitchTxtContent, parseSwitchTxt } from "@/lib/switchParser";
+import { isSwitchTxtContent, parseSwitchTxt, findLikelyPromptMismatch } from "@/lib/switchParser";
 
 const SAMPLE_TXT = [
   "agrznx93oc18-10# sh int statu | in connected",
@@ -64,7 +64,7 @@ describe("parseSwitchTxt", () => {
     expect(eth1?.description).toBe("esxxsrv2270_Port2");
   });
 
-  it("überspringt Zeilen vor dem ersten Prompt und unbekannte Zeilenformate mit Warning", () => {
+  it("überspringt Zeilen vor dem ersten Prompt und unbekannte Zeilenformate mit Warning (inkl. Zeilennummer und Inhalt)", () => {
     const withJunk = [
       "Some banner text before the first prompt",
       "sw01# sh int statu | in connected",
@@ -75,13 +75,40 @@ describe("parseSwitchTxt", () => {
 
     const result = parseSwitchTxt(withJunk);
     expect(result.totalInterfaceCount).toBe(1);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]).toContain("Zeile 4");
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toContain("Zeile 1");
+    expect(result.warnings[0]).toContain("Some banner text before the first prompt");
+    expect(result.warnings[1]).toContain("Zeile 4");
+    expect(result.warnings[1]).toContain("this line matches no known format");
   });
 
   it("liefert eine leere Map, wenn keine Prompt-Zeile gefunden wird", () => {
     const result = parseSwitchTxt("Kein Prompt hier.\nNoch eine Zeile.");
     expect(result.switches.size).toBe(0);
     expect(result.totalInterfaceCount).toBe(0);
+  });
+});
+
+describe("findLikelyPromptMismatch", () => {
+  it("findet eine Zeile mit abweichendem Prompt-Format und liefert Zeilennummer + Inhalt", () => {
+    const text = [
+      "Banner ohne Bezug",
+      "sw01> show int status | i connected",
+      "Eth1/1 -- connected trunk full 10G --",
+    ].join("\n");
+
+    const result = findLikelyPromptMismatch(text);
+    expect(result).not.toBeNull();
+    expect(result?.lineNumber).toBe(2);
+    expect(result?.content).toContain("show int status");
+  });
+
+  it("liefert null, wenn keine Zeile auch nur entfernt wie ein Prompt aussieht", () => {
+    expect(findLikelyPromptMismatch("Irgendein Text.\nOhne jeden Bezug zu Cisco.")).toBeNull();
+  });
+
+  it("liefert null, wenn die Datei bereits ein gültiges Prompt-Format enthält", () => {
+    const text = "sw01# sh int statu | in connected\nEth1/1 -- connected trunk full 10G --";
+    expect(findLikelyPromptMismatch(text)).toBeNull();
   });
 });

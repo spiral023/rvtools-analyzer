@@ -53,7 +53,7 @@ import {
   mapSwitchDisplayFields,
   buildSwitchInterfaceKey,
 } from "@/lib/xlsx/parseHelpers";
-import { isSwitchTxtContent, parseSwitchTxt } from "@/lib/switchParser";
+import { isSwitchTxtContent, parseSwitchTxt, findLikelyPromptMismatch } from "@/lib/switchParser";
 import { gzipJson } from "@/lib/compression";
 import { shortId } from "@/lib/shortId";
 import type {
@@ -453,10 +453,14 @@ export async function importRvtoolsXlsx(
       if (isSwitchTxtContent(text)) {
         return await importSwitchTxt(file, checksum, text, warnings, errors, report);
       }
+      const mismatch = findLikelyPromptMismatch(text);
+      const hint = mismatch
+        ? ` Zeile ${mismatch.lineNumber} sieht wie eine Prompt-Zeile aus, entspricht aber nicht dem erwarteten Format ("hostname# sh int statu | in connected" bzw. "notconnec"): "${mismatch.content}"`
+        : "";
       return {
         success: false,
         warnings,
-        errors: [...errors, "Unbekannte TXT-Datei. Erwartet: Cisco-Switch-CLI-Ausgabe (show interface status)."],
+        errors: [...errors, `Unbekannte TXT-Datei. Erwartet: Cisco-Switch-CLI-Ausgabe (show interface status).${hint}`],
       };
     }
 
@@ -1091,11 +1095,12 @@ export async function importSwitchTxt(
   const parsed = parseSwitchTxt(text);
   warnings.push(...parsed.warnings);
   if (parsed.switches.size === 0) {
+    const hint = warnings.length > 0 ? " Details zu übersprungenen Zeilen siehe Warnungen unten." : "";
     return {
       success: false,
       fileKind: "switch",
       warnings,
-      errors: [...errors, "Keine Switch-Daten in der Datei gefunden."],
+      errors: [...errors, `Keine Switch-Daten in der Datei gefunden.${hint}`],
     };
   }
 

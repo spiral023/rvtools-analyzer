@@ -23,12 +23,36 @@ export interface ParsedSwitchFile {
 
 const PROMPT_REGEX = /^([A-Za-z0-9][A-Za-z0-9._-]*)#\s+((?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+(?:connected|notconnect|notconnec))\s*$/;
 const PROMPT_DETECT_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*#\s+(?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+(?:connected|notconnect|notconnec)\s*$/m;
+const LOOSE_PROMPT_REGEX = /\b(?:sh|show)\s+int\w*\s+stat\w*/i;
 const INTERFACE_LINE_REGEX = /^(\S+)\s+(.+?)\s+(connected|notconnec|notconnect)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/;
 const FILTER_REGEX = /(connected|notconnect|notconnec)\s*$/;
+const MAX_SNIPPET_LENGTH = 100;
+
+function snippet(line: string): string {
+  return line.length > MAX_SNIPPET_LENGTH ? `${line.slice(0, MAX_SNIPPET_LENGTH)}…` : line;
+}
 
 /** Erkennt, ob ein Textinhalt eine Cisco-Switch-CLI-Ausgabe (`show interface status`) ist. */
 export function isSwitchTxtContent(text: string): boolean {
   return PROMPT_DETECT_REGEX.test(text);
+}
+
+/**
+ * Sucht die erste Zeile, die wie ein "show interface status"-Befehl aussieht (z. B.
+ * andere Abkürzung, anderes Prompt-Zeichen wie `>` statt `#`), aber nicht exakt auf
+ * `PROMPT_REGEX` passt — hilft, Formatabweichungen zu lokalisieren, wenn
+ * `isSwitchTxtContent` insgesamt `false` liefert.
+ */
+export function findLikelyPromptMismatch(text: string): { lineNumber: number; content: string } | null {
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || PROMPT_REGEX.test(line)) continue;
+    if (LOOSE_PROMPT_REGEX.test(line)) {
+      return { lineNumber: i + 1, content: snippet(line) };
+    }
+  }
+  return null;
 }
 
 function extractFilter(command: string): string {
@@ -70,11 +94,14 @@ export function parseSwitchTxt(text: string): ParsedSwitchFile {
       continue;
     }
 
-    if (!currentSection) continue;
+    if (!currentSection) {
+      warnings.push(`Switch-Zeile ${i + 1}: Kein Prompt erkannt (vor dem ersten Abschnitt), Zeile wurde übersprungen: "${snippet(line)}"`);
+      continue;
+    }
 
     const ifaceMatch = line.match(INTERFACE_LINE_REGEX);
     if (!ifaceMatch) {
-      warnings.push(`Switch-Zeile ${i + 1}: Unbekanntes Zeilenformat, Zeile wurde übersprungen.`);
+      warnings.push(`Switch-Zeile ${i + 1}: Unbekanntes Zeilenformat, Zeile wurde übersprungen: "${snippet(line)}"`);
       continue;
     }
 
