@@ -364,7 +364,7 @@ describe("MaintenanceWindowEditor", () => {
 
   it("bestätigt den eigenen erfolgreichen Speichervorgang als sauberen Entwurf", async () => {
     const saving = deferred<void>();
-    const onSave = vi.fn(() => saving.promise);
+    const onSave = vi.fn<(value: MaintenanceWindowDefinition) => Promise<void>>(() => saving.promise);
     const onDirtyChange = vi.fn();
     const value = definition();
     const { rerender } = render(
