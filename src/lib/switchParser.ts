@@ -21,8 +21,8 @@ export interface ParsedSwitchFile {
   warnings: string[];
 }
 
-const PROMPT_REGEX = /^([A-Za-z0-9][A-Za-z0-9._-]*)#\s+((?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+(?:connected|notconnect|notconnec))\s*$/;
-const PROMPT_DETECT_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*#\s+(?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+(?:connected|notconnect|notconnec)\s*$/m;
+const PROMPT_REGEX = /^([A-Za-z0-9][A-Za-z0-9._-]*)#\s+((?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+\S(?:.*\S)?)\s*$/;
+const PROMPT_DETECT_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*#\s+(?:sh int statu|show interface status)\s*\|\s*(?:in|include)\s+\S(?:.*\S)?\s*$/m;
 const LOOSE_PROMPT_REGEX = /\b(?:sh|show)\s+int\w*\s+stat\w*/i;
 const INTERFACE_LINE_REGEX = /^(\S+)\s+(.+?)\s+(connected|notconnec|notconnect)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/;
 const FILTER_REGEX = /(connected|notconnect|notconnec)\s*$/;
@@ -67,11 +67,11 @@ function cleanDescription(raw: string): string {
 }
 
 /**
- * Parst eine Cisco-NX-OS-CLI-Textausgabe (`show interface status`, gefiltert nach
- * `connected`/`notconnec`) in Abschnitte pro Switch+Abfrage. Abschnitte mit gleichem
- * Hostname werden in der Map zusammengeführt; Zeilen vor dem ersten Prompt sowie
- * unbekannte Zeilenformate innerhalb eines Abschnitts werden übersprungen und als
- * Warning ausgewiesen.
+ * Parst eine Cisco-NX-OS-CLI-Textausgabe (`show interface status`, optional
+ * gefiltert) in Abschnitte pro Switch+Abfrage. Abschnitte mit gleichem Hostname
+ * werden in der Map zusammengeführt; Zeilen vor dem ersten Prompt sowie unbekannte
+ * Zeilenformate innerhalb eines Abschnitts werden übersprungen und als Warning
+ * ausgewiesen.
  */
 export function parseSwitchTxt(text: string): ParsedSwitchFile {
   const switches = new Map<string, ParsedSwitchSection[]>();

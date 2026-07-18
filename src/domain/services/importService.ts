@@ -455,12 +455,12 @@ export async function importRvtoolsXlsx(
       }
       const mismatch = findLikelyPromptMismatch(text);
       const hint = mismatch
-        ? ` Zeile ${mismatch.lineNumber} sieht wie eine Prompt-Zeile aus, entspricht aber nicht dem erwarteten Format ("hostname# sh int statu | in connected" bzw. "notconnec"): "${mismatch.content}"`
+        ? ` Zeile ${mismatch.lineNumber} sieht wie eine Prompt-Zeile aus, entspricht aber nicht dem erwarteten Format ("hostname# sh int statu | in <Filter>"): "${mismatch.content}"`
         : "";
       return {
         success: false,
         warnings,
-        errors: [...errors, `Unbekannte TXT-Datei. Erwartet: Cisco-Switch-CLI-Ausgabe (show interface status).${hint}`],
+        errors: [...errors, `Unbekannte TXT-Datei. Erwartet: Cisco-Switch-CLI-Ausgabe (show interface status mit | in bzw. | include).${hint}`],
       };
     }
 

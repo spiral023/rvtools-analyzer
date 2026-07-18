@@ -28,6 +28,19 @@ describe("isSwitchTxtContent", () => {
     expect(isSwitchTxtContent("sw01# show interface status | include connected\n\nEth1/1 -- connected trunk full 10G --")).toBe(true);
   });
 
+  it("erkennt und parst eine Statusausgabe mit Beschreibungsfilter", () => {
+    const text = [
+      "grznx93oc3-27# sh int statu | in vdi",
+      "Eth1/1 VDI-Desktop-01 connected trunk full 10G --",
+      "Eth1/2 VDI-Desktop-02 notconnec trunk auto auto --",
+    ].join("\n");
+
+    expect(isSwitchTxtContent(text)).toBe(true);
+    const result = parseSwitchTxt(text);
+    expect(result.totalInterfaceCount).toBe(2);
+    expect(result.switches.get("grznx93oc3-27")?.[0].interfaces.map((port) => port.status)).toEqual(["connected", "notconnec"]);
+  });
+
   it("lehnt beliebigen Text ohne Prompt-Zeile ab", () => {
     expect(isSwitchTxtContent("Irgendein Text ohne Cisco-Prompt.\nZeile 2.")).toBe(false);
   });
