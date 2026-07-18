@@ -3,11 +3,12 @@ import type {
   MaintenanceSettings,
   MaintenanceWindowDefinition,
   Scenario,
+  VCenterGroup,
 } from "@/domain/models/types";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
-export const USER_DATA_BACKUP_VERSION = 2;
+export const USER_DATA_BACKUP_VERSION = 3;
 
 export interface UserDataBackup {
   kind: typeof USER_DATA_BACKUP_KIND;
@@ -17,6 +18,7 @@ export interface UserDataBackup {
   maintenanceClusterAssignments: MaintenanceClusterAssignment[];
   maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
+  vcenterGroups: VCenterGroup[];
 }
 
 export function buildUserDataBackup(input: {
@@ -24,6 +26,7 @@ export function buildUserDataBackup(input: {
   maintenanceClusterAssignments: MaintenanceClusterAssignment[];
   maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
+  vcenterGroups?: VCenterGroup[];
   exportedAt?: Date;
 }): UserDataBackup {
   return {
@@ -34,6 +37,7 @@ export function buildUserDataBackup(input: {
     maintenanceClusterAssignments: input.maintenanceClusterAssignments,
     maintenanceWindows: input.maintenanceWindows,
     scenarios: input.scenarios,
+    vcenterGroups: input.vcenterGroups ?? [],
   };
 }
 
@@ -113,6 +117,22 @@ function normalizeScenario(value: unknown): Scenario | null {
   };
 }
 
+function normalizeVcenterGroup(value: unknown): VCenterGroup | null {
+  if (!isRecord(value)) return null;
+  const id = toTrimmedString(value.id);
+  const name = toTrimmedString(value.name);
+  const vcenterIds = [...new Set(toStringArray(value.vcenterIds))];
+  if (!id || !name || vcenterIds.length === 0) return null;
+  const fallbackTimestamp = new Date().toISOString();
+  return {
+    id,
+    name,
+    vcenterIds,
+    createdAt: normalizeTimestamp(value.createdAt, fallbackTimestamp),
+    updatedAt: normalizeTimestamp(value.updatedAt, fallbackTimestamp),
+  };
+}
+
 function normalizeTimestamp(value: unknown, fallback: string): string {
   const candidate = toTrimmedString(value);
   return candidate && Number.isFinite(Date.parse(candidate)) ? candidate : fallback;
@@ -187,7 +207,7 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   if (!isRecord(parsed) || parsed.kind !== USER_DATA_BACKUP_KIND) {
     throw new Error("Die Datei ist kein RVTools-Analyzer-Backup.");
   }
-  if (parsed.version !== 1 && parsed.version !== USER_DATA_BACKUP_VERSION) {
+  if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== USER_DATA_BACKUP_VERSION) {
     throw new Error(`Backup-Version ${String(parsed.version)} wird nicht unterstützt.`);
   }
 
@@ -201,10 +221,15 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
         .map(normalizeScenario)
         .filter((entry): entry is Scenario => entry !== null)
     : [];
-  const maintenanceWindows = parsed.version === USER_DATA_BACKUP_VERSION && Array.isArray(parsed.maintenanceWindows)
+  const maintenanceWindows = (parsed.version === 2 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.maintenanceWindows)
     ? parsed.maintenanceWindows
         .map(normalizeMaintenanceWindow)
         .filter((entry): entry is MaintenanceWindowDefinition => entry !== null)
+    : [];
+  const vcenterGroups = parsed.version === USER_DATA_BACKUP_VERSION && Array.isArray(parsed.vcenterGroups)
+    ? parsed.vcenterGroups
+        .map(normalizeVcenterGroup)
+        .filter((entry): entry is VCenterGroup => entry !== null)
     : [];
 
   return {
@@ -215,5 +240,6 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     maintenanceClusterAssignments: assignments,
     maintenanceWindows,
     scenarios,
+    vcenterGroups,
   };
 }

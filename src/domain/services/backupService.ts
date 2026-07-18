@@ -3,9 +3,11 @@ import {
   getMaintenanceSettings,
   getMaintenanceWindows,
   getScenarios,
+  getVcenterGroups,
   putMaintenanceAssignment,
   putMaintenanceSettings,
   putScenario,
+  putVcenterGroup,
   upsertMaintenanceWindows,
   validateMaintenanceWindowUpsertInput,
 } from "@/data/db";
@@ -16,15 +18,17 @@ export interface UserDataImportResult {
   assignmentsImported: number;
   maintenanceWindowsImported: number;
   scenariosImported: number;
+  vcenterGroupsImported: number;
 }
 
 /** Sammelt alle Benutzerdaten (ohne RVTools-/Tech-Info-Daten) für den Export. */
 export async function collectUserDataBackup(): Promise<UserDataBackup> {
-  const [settings, assignments, maintenanceWindows, scenarios] = await Promise.all([
+  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups] = await Promise.all([
     getMaintenanceSettings(),
     getMaintenanceAssignments(),
     getMaintenanceWindows(),
     getScenarios(),
+    getVcenterGroups(),
   ]);
 
   return buildUserDataBackup({
@@ -32,6 +36,7 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     maintenanceClusterAssignments: assignments,
     maintenanceWindows,
     scenarios,
+    vcenterGroups,
   });
 }
 
@@ -49,6 +54,7 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
       : Promise.resolve(),
     ...backup.maintenanceClusterAssignments.map((assignment) => putMaintenanceAssignment(assignment)),
     ...backup.scenarios.map((scenario) => putScenario(scenario)),
+    ...backup.vcenterGroups.map((group) => putVcenterGroup(group)),
   ]);
 
   return {
@@ -56,5 +62,6 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     assignmentsImported: backup.maintenanceClusterAssignments.length,
     maintenanceWindowsImported: maintenanceWindows.length,
     scenariosImported: backup.scenarios.length,
+    vcenterGroupsImported: backup.vcenterGroups.length,
   };
 }

@@ -61,6 +61,14 @@ const scenario: Scenario = {
   notes: null,
 };
 
+const vcenterGroup = {
+  id: "group-prod",
+  name: "vCenter Server Prod",
+  vcenterIds: ["vcenter9910", "vcenter9911"],
+  createdAt: "2026-07-01T10:00:00.000Z",
+  updatedAt: "2026-07-01T10:00:00.000Z",
+};
+
 describe("buildUserDataBackup / serialize / parse roundtrip", () => {
   it("erhält alle Benutzerdaten über einen Export/Import-Zyklus", () => {
     const backup = buildUserDataBackup({
@@ -68,8 +76,9 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       maintenanceClusterAssignments: [assignment],
       maintenanceWindows: [makeMaintenanceWindow()],
       scenarios: [scenario],
+      vcenterGroups: [vcenterGroup],
       exportedAt: new Date("2026-07-03T12:00:00.000Z"),
-    });
+    } as never);
 
     const parsed = parseUserDataBackup(serializeUserDataBackup(backup));
 
@@ -80,6 +89,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     expect(parsed.maintenanceClusterAssignments).toEqual([assignment]);
     expect(parsed.maintenanceWindows).toEqual([makeMaintenanceWindow()]);
     expect(parsed.scenarios).toEqual([scenario]);
+    expect((parsed as unknown as { vcenterGroups?: unknown[] }).vcenterGroups).toEqual([vcenterGroup]);
   });
 
   it("kommt mit leerem Datenbestand zurecht", () => {
@@ -126,8 +136,9 @@ describe("parseUserDataBackup Validierung", () => {
       scenarios: [scenario],
     }));
 
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(USER_DATA_BACKUP_VERSION);
     expect(parsed.maintenanceWindows).toEqual([]);
+    expect(parsed.vcenterGroups).toEqual([]);
     expect(parsed.maintenanceClusterAssignments).toEqual([assignment]);
   });
 
@@ -251,6 +262,27 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
     }));
     expect(emptyResult.maintenanceWindowsImported).toBe(0);
     expect(await getMaintenanceWindows()).toHaveLength(2);
+  });
+
+  it("sichert und stellt benannte vCenter-Gruppen anhand ihrer vCenter-IDs wieder her", async () => {
+    const { getVcenterGroups, putVcenterGroup } = await import("@/data/db");
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    await putVcenterGroup(vcenterGroup);
+
+    const collected = await collectUserDataBackup();
+    expect(collected.vcenterGroups).toEqual([vcenterGroup]);
+
+    const imported = { ...vcenterGroup, name: "Produktiv-vCenter", updatedAt: "2026-07-03T12:00:00.000Z" };
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+      vcenterGroups: [imported],
+    }));
+
+    expect(result.vcenterGroupsImported).toBe(1);
+    await expect(getVcenterGroups()).resolves.toEqual([imported]);
   });
 
   it("validates invalid maintenance-window batches before writing other backup data", async () => {

@@ -77,11 +77,13 @@ export default function Settings() {
         queryClient.invalidateQueries({ queryKey: ["maintenanceAssignments"] }),
         queryClient.invalidateQueries({ queryKey: ["maintenanceWindows"] }),
         queryClient.invalidateQueries({ queryKey: ["scenarios"] }),
+        queryClient.invalidateQueries({ queryKey: ["vcenterGroups"] }),
       ]);
       toast.success(
         `Backup importiert: ${result.settingsImported ? "Kontaktvorgaben, " : ""}` +
           `${result.assignmentsImported} Cluster-Zuweisungen, ` +
-          `${result.maintenanceWindowsImported} Wartungsfenster, ${result.scenariosImported} Szenarien.`,
+          `${result.maintenanceWindowsImported} Wartungsfenster, ${result.scenariosImported} Szenarien, ` +
+          `${result.vcenterGroupsImported} vCenter-Gruppen.`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Import fehlgeschlagen.");
@@ -164,7 +166,7 @@ export default function Settings() {
           <CardTitle>Datensicherung</CardTitle>
           <CardDescription>
             Exportiert Kontaktvorgaben, Cluster-Zuweisungen (Verantwortliche, Wartungsfenster,
-            Mail-Adressen) und Planungs-Szenarien als JSON-Datei. RVTools- und Tech-Info-Daten
+            Mail-Adressen), Planungs-Szenarien und vCenter-Gruppen als JSON-Datei. RVTools- und Tech-Info-Daten
             sind nicht enthalten. Beim Import werden Einträge mit gleichem Schlüssel überschrieben,
             alle übrigen bleiben erhalten.
           </CardDescription>

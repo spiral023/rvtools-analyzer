@@ -542,6 +542,15 @@ export interface FilterPreset {
   createdAt: string;
 }
 
+/** Wiederverwendbare Auswahl mehrerer vCenter, referenziert über deren stabile vcenterId. */
+export interface VCenterGroup {
+  id: string;
+  name: string;
+  vcenterIds: VCenterId[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ImportResult {
   success: boolean;
   fileKind?: ImportFileKind;

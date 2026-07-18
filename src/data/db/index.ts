@@ -30,6 +30,7 @@ import type {
   MaintenanceClusterAssignment,
   MaintenanceWindowDefinition,
   Scenario,
+  VCenterGroup,
 } from "@/domain/models/types";
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapSwitchDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
@@ -151,6 +152,11 @@ interface RVToolsDBSchema extends DBSchema {
     value: Scenario;
     indexes: { updatedAt: string };
   };
+  vcenter_groups: {
+    key: string;
+    value: VCenterGroup;
+    indexes: { updatedAt: string };
+  };
 }
 
 export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entities_host"
@@ -162,12 +168,12 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "ipam_imports" | "ipam_rows" | "ipam_latest"
   | "switch_imports" | "switch_rows" | "switch_latest"
   | "maintenance_settings"
-  | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios";
+  | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios" | "vcenter_groups";
 type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 22;
+const DB_VERSION = 23;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -177,7 +183,7 @@ const ALL_STORES: StoreName[] = [
   "cdp_imports", "cdp_rows", "cdp_latest",
   "ipam_imports", "ipam_rows", "ipam_latest",
   "switch_imports", "switch_rows", "switch_latest",
-  "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios",
+  "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
 ];
 
 let dbPromise: Promise<IDBPDatabase<RVToolsDBSchema>> | null = null;
@@ -338,6 +344,10 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const scenarios = db.createObjectStore("scenarios", { keyPath: "id" });
           scenarios.createIndex("updatedAt", "updatedAt");
         }
+        if (!db.objectStoreNames.contains("vcenter_groups")) {
+          const groups = db.createObjectStore("vcenter_groups", { keyPath: "id" });
+          groups.createIndex("updatedAt", "updatedAt");
+        }
       },
     });
   }
@@ -422,6 +432,22 @@ export async function putScenario(scenario: Scenario): Promise<void> {
 export async function deleteScenario(id: string): Promise<void> {
   const db = await getDb();
   await db.delete("scenarios", id);
+}
+
+export async function getVcenterGroups(): Promise<VCenterGroup[]> {
+  const db = await getDb();
+  const all = await db.getAll("vcenter_groups");
+  return all.sort((a, b) => a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" }));
+}
+
+export async function putVcenterGroup(group: VCenterGroup): Promise<void> {
+  const db = await getDb();
+  await db.put("vcenter_groups", group);
+}
+
+export async function deleteVcenterGroup(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("vcenter_groups", id);
 }
 
 export async function getMaintenanceSettings(): Promise<MaintenanceSettings | undefined> {
@@ -1090,6 +1116,7 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   maintenance_windows: "Wartungsfenster",
   scenarios: "Szenarien",
+  vcenter_groups: "vCenter-Gruppen",
 };
 
 async function runSequential<T>(
