@@ -15,7 +15,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -239,6 +239,30 @@ export function isValidIpv4(ip: string): boolean {
 
 export function buildHostAdapterKey(host: string, adapter: string): string {
   return `${normalizeVmNameForMatch(host)}::${adapter.trim().toLowerCase()}`;
+}
+
+export interface SwitchDisplayFields {
+  description: string | null;
+  status: string | null;
+  mode: string | null;
+  duplex: string | null;
+  speed: string | null;
+  transceiver: string | null;
+}
+
+export function mapSwitchDisplayFields(row: Record<string, unknown>): SwitchDisplayFields {
+  return {
+    description: toStr(row["description"]),
+    status: toStr(row["status"]),
+    mode: toStr(row["mode"]),
+    duplex: toStr(row["duplex"]),
+    speed: toStr(row["speed"]),
+    transceiver: toStr(row["transceiver"]),
+  };
+}
+
+export function buildSwitchInterfaceKey(hostname: string, interfaceName: string): string {
+  return `${normalizeVmNameForMatch(hostname)}::${interfaceName.trim().toLowerCase()}`;
 }
 
 /** vCenter-Anzeigename → vcenterId, identische Konvention wie beim RVTools-Import. */

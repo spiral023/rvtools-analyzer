@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -237,6 +237,14 @@ export function useAllIpamLatest() {
   return useQuery({
     queryKey: ["ipamLatestAll"],
     queryFn: getAllIpamLatest,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useAllSwitchLatest() {
+  return useQuery({
+    queryKey: ["switchLatestAll"],
+    queryFn: getAllSwitchLatest,
     staleTime: STALE_MS,
   });
 }

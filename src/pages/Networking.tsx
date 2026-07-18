@@ -10,8 +10,9 @@ import { HostNetworkPanel } from "@/pages/HostNetwork";
 import { VlanUsagePanel } from "@/pages/VlanUsage";
 import { CdpPanel } from "@/pages/CdpSwitchPorts";
 import { IpamPanel } from "@/pages/IpamPanel";
+import { SwitchPanel } from "@/pages/SwitchPanel";
 
-type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam";
+type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam" | "cisco-switch";
 
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
   const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
@@ -43,6 +44,7 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
           <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
           <TabsTrigger value="ipam">IPAM</TabsTrigger>
+          <TabsTrigger value="cisco-switch">Cisco Switch</TabsTrigger>
         </TabsList>
 
         <TabsContent value="security" className="space-y-4">
@@ -63,6 +65,10 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
 
         <TabsContent value="ipam" className="space-y-4">
           <IpamPanel />
+        </TabsContent>
+
+        <TabsContent value="cisco-switch" className="space-y-4">
+          <SwitchPanel />
         </TabsContent>
       </Tabs>
     </div>

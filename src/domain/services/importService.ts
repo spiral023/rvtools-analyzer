@@ -25,6 +25,11 @@ import {
   batchPutIpamRows,
   batchPutIpamLatest,
   getIpamLatestByIpAddresses,
+  getSwitchImportByChecksum,
+  putSwitchImport,
+  batchPutSwitchRows,
+  batchPutSwitchLatest,
+  getSwitchLatestBySwitchInterfaceKeys,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -45,7 +50,10 @@ import {
   IPAM_REQUIRED_HEADERS,
   mapIpamDisplayFields,
   isValidIpv4,
+  mapSwitchDisplayFields,
+  buildSwitchInterfaceKey,
 } from "@/lib/xlsx/parseHelpers";
+import { isSwitchTxtContent, parseSwitchTxt } from "@/lib/switchParser";
 import { gzipJson } from "@/lib/compression";
 import { shortId } from "@/lib/shortId";
 import type {
@@ -69,6 +77,8 @@ import type {
   CdpLatest,
   IpamRow,
   IpamLatest,
+  SwitchRow,
+  SwitchLatest,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -434,6 +444,21 @@ export async function importRvtoolsXlsx(
 
     report("Prüfsumme berechnen", 10);
     const checksum = await computeChecksum(buffer);
+
+    // TXT-Dateien (Cisco-Switch-CLI-Ausgaben) können nicht über den XLSX-Worker geparst
+    // werden und werden daher vor dem Worker-Einsatz separat behandelt.
+    const isTxt = file.name.toLowerCase().endsWith(".txt");
+    if (isTxt) {
+      const text = new TextDecoder().decode(buffer);
+      if (isSwitchTxtContent(text)) {
+        return await importSwitchTxt(file, checksum, text, warnings, errors, report);
+      }
+      return {
+        success: false,
+        warnings,
+        errors: [...errors, "Unbekannte TXT-Datei. Erwartet: Cisco-Switch-CLI-Ausgabe (show interface status)."],
+      };
+    }
 
     report("XLSX parsen", 15, "Web Worker aktiv...");
     const parsed = await workerParse(buffer);
@@ -1043,4 +1068,117 @@ export async function importIpamCsv(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} IPAM Zeilen`);
   return { success: true, fileKind: "ipam", warnings, errors, sheetStats };
+}
+
+export async function importSwitchTxt(
+  file: File,
+  checksum: string,
+  text: string,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getSwitchImportByChecksum(checksum);
+  if (existing) {
+    return {
+      success: false,
+      fileKind: "switch",
+      warnings: [],
+      errors: ["Diese Switch-Datei wurde bereits importiert."],
+    };
+  }
+
+  const parsed = parseSwitchTxt(text);
+  warnings.push(...parsed.warnings);
+  if (parsed.switches.size === 0) {
+    return {
+      success: false,
+      fileKind: "switch",
+      warnings,
+      errors: [...errors, "Keine Switch-Daten in der Datei gefunden."],
+    };
+  }
+
+  const importedAt = new Date().toISOString();
+  const switchImportId = shortId();
+
+  report("Switch Metadaten speichern", 35);
+  await putSwitchImport({
+    switchImportId,
+    importedAt,
+    fileName: file.name,
+    fileChecksum: checksum,
+    rowCount: parsed.totalInterfaceCount,
+    switchCount: parsed.switches.size,
+  });
+
+  report("Switch Zeilen speichern", 45, `${parsed.totalInterfaceCount.toLocaleString("de-DE")} Interfaces...`);
+  const fullRows: SwitchRow[] = [];
+  const latestCandidates = new Map<string, SwitchLatest>();
+  let rowIndex = 0;
+
+  for (const [hostname, sections] of parsed.switches) {
+    for (const section of sections) {
+      for (const iface of section.interfaces) {
+        const hostnameNorm = normalizeVmNameForMatch(hostname);
+        const switchInterfaceKey = buildSwitchInterfaceKey(hostname, iface.interface);
+        const rawData = {
+          hostname,
+          command: section.command,
+          filter: section.filter,
+          interface: iface.interface,
+          description: iface.description,
+          status: iface.status,
+          mode: iface.mode,
+          duplex: iface.duplex,
+          speed: iface.speed,
+          transceiver: iface.transceiver,
+        };
+
+        fullRows.push({
+          switchImportId,
+          rowIndex,
+          hostname,
+          hostnameNorm,
+          command: section.command,
+          filter: section.filter,
+          interface: iface.interface,
+          switchInterfaceKey,
+          importedAt,
+          rawData: toRawRowData(rawData),
+        });
+
+        latestCandidates.set(switchInterfaceKey, {
+          switchInterfaceKey,
+          hostnameNorm,
+          hostname,
+          interface: iface.interface,
+          importedAt,
+          switchImportId,
+          rowIndex,
+          ...mapSwitchDisplayFields(rawData),
+        });
+
+        rowIndex++;
+      }
+    }
+  }
+
+  await batchPutSwitchRows(fullRows, 5000);
+
+  report("Switch Latest aktualisieren", 75);
+  const existingLatest = await getSwitchLatestBySwitchInterfaceKeys([...latestCandidates.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.switchInterfaceKey, entry]));
+  const latestUpdates: SwitchLatest[] = [];
+  for (const [key, candidate] of latestCandidates.entries()) {
+    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutSwitchLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Switch Interfaces`);
+  return { success: true, fileKind: "switch", warnings, errors, sheetStats: {} };
 }

@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -253,6 +253,45 @@ export interface IpamLatest {
   deviceTypes: string | null;
   openPorts: string | null;
   fingerprint: string | null;
+}
+
+export interface SwitchImportMeta {
+  switchImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  switchCount: number;
+}
+
+export interface SwitchRow {
+  switchImportId: string;
+  rowIndex: number;
+  hostname: string;
+  hostnameNorm: string;
+  command: string;
+  filter: string;
+  interface: string;
+  /** `${hostnameNorm}::${interfaceNorm}` — Primärschlüssel in switch_latest, Index in switch_rows. */
+  switchInterfaceKey: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface SwitchLatest {
+  switchInterfaceKey: string;
+  hostnameNorm: string;
+  hostname: string;
+  interface: string;
+  importedAt: string;
+  switchImportId: string;
+  rowIndex: number;
+  description: string | null;
+  status: string | null;
+  mode: string | null;
+  duplex: string | null;
+  speed: string | null;
+  transceiver: string | null;
 }
 
 export interface MaintenanceSettings {

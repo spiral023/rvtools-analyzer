@@ -26,15 +26,15 @@ function createWrapper() {
 describe("ImportProvider", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("ignoriert Nicht-Excel-Dateien und meldet sie als abgelehnt", async () => {
+  it("ignoriert nicht unterstützte Dateien und meldet sie als abgelehnt", async () => {
     const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
 
     await act(() => result.current.importFiles([
-      new File(["x"], "notes.txt", { type: "text/plain" }),
+      new File(["x"], "notes.pdf", { type: "application/pdf" }),
     ]));
 
     expect(mockedImport).not.toHaveBeenCalled();
-    expect(result.current.rejectedFileNames).toEqual(["notes.txt"]);
+    expect(result.current.rejectedFileNames).toEqual(["notes.pdf"]);
   });
 
   it("importiert Excel-Dateien sequenziell und behält alle Resultate", async () => {
