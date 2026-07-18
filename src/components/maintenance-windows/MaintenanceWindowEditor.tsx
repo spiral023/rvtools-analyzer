@@ -128,8 +128,7 @@ export function MaintenanceWindowEditor({
   if (baselineRef.current === null) baselineRef.current = cloneDefinition(draft);
   const dirtyRef = useRef(false);
   const onDirtyChangeRef = useRef(onDirtyChange);
-  const valueIdentity = `${value.id}\u0000${value.updatedAt}`;
-  const previousIdentityRef = useRef(valueIdentity);
+  const appliedValueRef = useRef({ id: value.id, updatedAt: value.updatedAt });
 
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange;
@@ -140,20 +139,6 @@ export function MaintenanceWindowEditor({
     dirtyRef.current = false;
     onDirtyChangeRef.current?.(false);
   }, []);
-
-  useEffect(() => {
-    if (previousIdentityRef.current === valueIdentity) return;
-    previousIdentityRef.current = valueIdentity;
-    const next = normalizeEditorDraft(value);
-    baselineRef.current = next;
-    setDraft(next);
-    setSelectedDays([]);
-    setTimeRuleError(null);
-    if (dirtyRef.current) {
-      dirtyRef.current = false;
-      onDirtyChangeRef.current?.(false);
-    }
-  }, [value, valueIdentity]);
 
   const abbreviationError = useMemo(() => {
     const normalized = normalizeMaintenanceAbbreviation(draft.abbreviation);
@@ -171,6 +156,24 @@ export function MaintenanceWindowEditor({
   const isBusy = isSaving || isSubmitting;
   const scheduleEditingDisabled = timeToolsDisabled || isBusy;
   const canSave = dirty && !abbreviationError && !isBusy;
+
+  useEffect(() => {
+    const applied = appliedValueRef.current;
+    const idChanged = applied.id !== value.id;
+    const updatedAtChanged = applied.updatedAt !== value.updatedAt;
+    if (!idChanged && (!updatedAtChanged || dirty)) return;
+
+    appliedValueRef.current = { id: value.id, updatedAt: value.updatedAt };
+    const next = normalizeEditorDraft(value);
+    baselineRef.current = next;
+    setDraft(next);
+    setSelectedDays([]);
+    setTimeRuleError(null);
+    if (dirtyRef.current) {
+      dirtyRef.current = false;
+      onDirtyChangeRef.current?.(false);
+    }
+  }, [dirty, value]);
 
   useEffect(() => {
     if (dirtyRef.current === dirty) return;

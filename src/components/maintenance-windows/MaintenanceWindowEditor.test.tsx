@@ -66,10 +66,11 @@ describe("MaintenanceWindowEditor", () => {
     expect(abbreviation).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("klont lokal, meldet Dirty-Übergänge und setzt nur bei neuer gespeicherter Version zurück", () => {
+  it("bewahrt einen schmutzigen lokalen Entwurf bei einem importierten Update desselben Fensters", () => {
     const { value, onDirtyChange, rerender, unmount } = renderEditor();
     const description = screen.getByLabelText("Beschreibung");
     fireEvent.change(description, { target: { value: "Lokal geändert" } });
+    fireEvent.click(screen.getByRole("gridcell", { name: "Montag 00:00–00:30, gesperrt" }));
 
     expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
     expect(onDirtyChange).toHaveBeenCalledWith(true);
@@ -77,7 +78,12 @@ describe("MaintenanceWindowEditor", () => {
 
     rerender(
       <MaintenanceWindowEditor
-        value={{ ...value, description: "Neue Parent-Referenz" }}
+        value={{
+          ...value,
+          updatedAt: "2026-01-03T00:00:00.000Z",
+          description: "Importierter Persistenzstand",
+          weeklySlots: Array.from({ length: 7 }, () => Array<boolean>(48).fill(true)) as MaintenanceWindowDefinition["weeklySlots"],
+        }}
         onSave={vi.fn()}
         onDelete={vi.fn()}
         onDuplicate={vi.fn()}
@@ -85,6 +91,27 @@ describe("MaintenanceWindowEditor", () => {
       />,
     );
     expect(screen.getByLabelText("Beschreibung")).toHaveValue("Lokal geändert");
+    expect(screen.getByRole("gridcell", { name: "Montag 00:00–00:30, erlaubt" })).toBeInTheDocument();
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
+
+    rerender(
+      <MaintenanceWindowEditor
+        value={{ ...value, id: "window-2", updatedAt: "2026-01-04T00:00:00.000Z", description: "Neu ausgewählt" }}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Neu ausgewählt");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    unmount();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("übernimmt einen neueren Persistenzstand desselben Fensters bei sauberem Entwurf", () => {
+    const { value, rerender } = renderEditor();
 
     rerender(
       <MaintenanceWindowEditor
@@ -92,14 +119,24 @@ describe("MaintenanceWindowEditor", () => {
         onSave={vi.fn()}
         onDelete={vi.fn()}
         onDuplicate={vi.fn()}
-        onDirtyChange={onDirtyChange}
       />,
     );
-    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Gespeicherter Stand");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
 
-    unmount();
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Gespeicherter Stand");
+  });
+
+  it("zieht ein während Dirty ignoriertes Update nach, sobald der Entwurf wieder sauber ist", () => {
+    const { value, rerender } = renderEditor();
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: "Lokal geändert" } });
+    const imported = { ...value, updatedAt: "2026-01-03T00:00:00.000Z", description: "Nachgezogener Persistenzstand" };
+
+    rerender(
+      <MaintenanceWindowEditor value={imported} onSave={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Lokal geändert");
+
+    fireEvent.change(screen.getByLabelText("Beschreibung"), { target: { value: value.description } });
+    expect(screen.getByLabelText("Beschreibung")).toHaveValue("Nachgezogener Persistenzstand");
   });
 
   it("wendet die Zeitregel für Werktage an", () => {
