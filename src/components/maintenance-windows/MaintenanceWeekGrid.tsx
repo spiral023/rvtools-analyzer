@@ -75,7 +75,13 @@ function MaintenanceWeekGridInteractive({
   const latestValue = useRef(value);
   const isPainting = useRef(false);
   const activePointerId = useRef<number | undefined>(undefined);
-  latestValue.current = value;
+
+  // Der Commit-Snapshot kommt aus der Prop. Während eines Pointer-Drags schreibt
+  // applyPaint den Ref weiterhin direkt fort, damit mehrere Zellen dieselbe
+  // aktuelle Session sehen können.
+  useEffect(() => {
+    latestValue.current = value;
+  }, [value]);
 
   useEffect(() => {
     const finishPainting = (event: PointerEvent) => {
