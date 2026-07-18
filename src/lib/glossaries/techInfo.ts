@@ -30,6 +30,12 @@ export const TECHINFO_KPI: Record<string, GlossaryEntry> = {
       "VMs ohne passenden Tech-Info-Datensatz. Kandidaten für die Pflege: fehlende Zuordnungen bedeuten Lücken bei Verantwortlichkeit, Wartungsfenster und Backup-Nachweis.",
     source: TECH,
   },
+  sysvDeputyConflict: {
+    term: "SysV = SysVStv",
+    description:
+      "Anzahl der Systeme, bei denen Systemverantwortliche:r und Stellvertretung identisch sind. Das weist auf eine fehlende echte Vertretung hin.",
+    source: TECH,
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -94,7 +100,7 @@ export const TECHINFO_SERVER_COLUMNS: Record<string, GlossaryEntry> = {
   },
   cvBackup: {
     term: "CV-Backup",
-    description: "Kennzeichen, ob die VM per CommVault gesichert wird. „Nein“ ist ein Prüfpunkt für die Backup-Abdeckung.",
+    description: "Kennzeichen, ob die VM per CommVault gesichert wird. „Nein“ wird rot markiert, wenn AZ „PROD“ oder BZ „P“ lautet – produktive Systeme ohne Backup sind ein Risiko.",
     source: TECH,
   },
   bz: {

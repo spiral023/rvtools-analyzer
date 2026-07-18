@@ -12,6 +12,8 @@ import { CdpPanel } from "@/pages/CdpSwitchPorts";
 import { IpamPanel } from "@/pages/IpamPanel";
 import { SwitchPanel } from "@/pages/SwitchPanel";
 import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { NET_NETWORK_TABS } from "@/lib/glossaries/networking";
 
 type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam" | "cisco-switch" | "audit";
 
@@ -44,9 +46,15 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
           <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
           <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
-          <TabsTrigger value="ipam">IPAM</TabsTrigger>
-          <TabsTrigger value="cisco-switch">Cisco Switch</TabsTrigger>
-          <TabsTrigger value="audit">Kontrolle</TabsTrigger>
+          <InfoTooltip entry={NET_NETWORK_TABS.ipam} side="bottom">
+            <TabsTrigger value="ipam">IPAM</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.ciscoSwitch} side="bottom">
+            <TabsTrigger value="cisco-switch">Cisco Switch</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.audit} side="bottom">
+            <TabsTrigger value="audit">Kontrolle</TabsTrigger>
+          </InfoTooltip>
         </TabsList>
 
         <TabsContent value="security" className="space-y-4">

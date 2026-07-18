@@ -12,6 +12,11 @@ vi.mock("@/pages/HostNetwork", () => ({ HostNetworkPanel: () => <div /> }));
 vi.mock("@/pages/VlanUsage", () => ({ VlanUsagePanel: () => <div /> }));
 vi.mock("@/pages/CdpSwitchPorts", () => ({ CdpPanel: () => <div /> }));
 vi.mock("@/components/dashboard/FilterBar", () => ({ FilterBar: () => <div data-testid="filter-bar" /> }));
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (
+    <div data-testid={`tooltip-${entry.term.toLowerCase().replace(/\s+/g, "-")}`} data-tooltip-term={entry.term}>{children}</div>
+  ),
+}));
 
 function snapshot(snapshotId: string, vcenterId: string, exportTs: string): SnapshotMeta {
   return {
@@ -63,6 +68,18 @@ describe("Networking", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Keine Daten")).toBeInTheDocument();
+    });
+  });
+
+  it("erklärt die neuen Tabs IPAM, Cisco Switch und Kontrolle per Tooltip", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+
+    render(<Networking />, { wrapper: Providers });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tooltip-ipam")).toHaveAttribute("data-tooltip-term", "IPAM");
+      expect(screen.getByTestId("tooltip-cisco-switch")).toHaveAttribute("data-tooltip-term", "Cisco Switch");
+      expect(screen.getByTestId("tooltip-kontrolle")).toHaveAttribute("data-tooltip-term", "Kontrolle");
     });
   });
 });

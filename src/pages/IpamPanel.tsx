@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Fingerprint, MapPinned, Network, Radar, Server } from "lucide-react";
-import { useAllIpamLatest } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useAllIpamLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -43,6 +43,7 @@ const columns: ColumnDef<IpamLatest, unknown>[] = [
 
 export function IpamPanel() {
   const { data: rows = [], isLoading } = useAllIpamLatest();
+  const { filters } = useActiveSnapshotIds();
 
   const usedCount = useMemo(() => rows.filter((r) => r.status === "Used").length, [rows]);
   const unusedCount = useMemo(() => rows.filter((r) => r.status === "Unused").length, [rows]);
@@ -78,7 +79,7 @@ export function IpamPanel() {
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">IP-Adressen ({rows.length})</h3>
-        <VirtualTable data={rows} columns={columns} height={500} exportFileName="ipam" />
+        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="ipam" />
       </div>
     </div>
   );

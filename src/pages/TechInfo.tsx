@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useClientDetailDialog } from "@/hooks/useClientDetailDialog";
-import { Monitor, ClipboardList, Link2Off } from "lucide-react";
+import { Monitor, ClipboardList, Link2Off, AlertTriangle } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 import { formatIsoDateTime } from "@/lib/clientDetail";
@@ -38,6 +38,7 @@ interface TechInfoVmRow {
   bz: string | null;
   clusterFromTechInfo: string | null;
   cvBackup: boolean | null;
+  cvBackupRisk: boolean;
   az: string | null;
   hasTechInfo: boolean;
 }
@@ -68,9 +69,10 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
     accessorKey: "cvBackup",
     header: "CV-Backup",
     meta: { info: TECHINFO_SERVER_COLUMNS.cvBackup },
-    cell: ({ getValue }) => {
+    cell: ({ getValue, row }) => {
       const val = getValue() as boolean | null;
       if (val === null) return "—";
+      if (!val && row.original.cvBackupRisk) return <Badge variant="destructive">Nein</Badge>;
       return val ? "Ja" : "Nein";
     },
   },
@@ -165,6 +167,9 @@ export default function TechInfo() {
           bz: techInfo.bz,
           clusterFromTechInfo: techInfo.clusterFromTechInfo,
           cvBackup: techInfo.cvBackup,
+          cvBackupRisk: techInfo.cvBackup === false && (
+            techInfo.az?.trim().toUpperCase() === "PROD" || techInfo.bz?.trim().toUpperCase() === "P"
+          ),
           az: techInfo.az,
           hasTechInfo: true,
         };
@@ -229,6 +234,7 @@ export default function TechInfo() {
   const vmTotal = scopeVms.length;
   const vmWithoutTechInfoTotal = vmsWithoutTechInfo.length;
   const vmWithTechInfo = vmTotal - vmWithoutTechInfoTotal;
+  const identicalSysvDeputyCount = rows.filter((row) => row.sysvDeputyConflict === true).length;
 
   const dataLoading = snapshotsLoading || vmsLoading || techInfoLoading || techInfoClientsLoading;
   if (dataLoading) return <PageLoadingState title="Tech-Info" />;
@@ -252,10 +258,11 @@ export default function TechInfo() {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold">Tech-Info</h1>
       <FilterBar />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
         <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />
         <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfoTotal)} severity={vmWithoutTechInfoTotal > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
+        <KpiCard title="SysV = SysVStv" value={formatNum(identicalSysvDeputyCount)} severity={identicalSysvDeputyCount > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={TECHINFO_KPI.sysvDeputyConflict} />
       </div>
       <div>
         <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">

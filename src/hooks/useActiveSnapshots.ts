@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest } from "@/data/db";
 import { buildPortAuditRows } from "@/lib/networkAudit";
+import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
@@ -261,9 +262,14 @@ export function useNetworkAudit() {
     () => buildPortAuditRows({ switchRows, cdpRows, hosts, techInfo, ipam }),
     [switchRows, cdpRows, hosts, techInfo, ipam],
   );
+  const hostQuality = useMemo(
+    () => buildHostDataQualityRows({ hosts, techInfo, ipam }),
+    [hosts, techInfo, ipam],
+  );
 
   return {
     rows,
+    hostQuality,
     isLoading: switchLoading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
   };
 }

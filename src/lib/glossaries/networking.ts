@@ -9,6 +9,27 @@ import type { GlossaryEntry } from "@/lib/glossary";
 
 const RV = "RVTools";
 
+export const NET_NETWORK_TABS: Record<string, GlossaryEntry> = {
+  ipam: {
+    term: "IPAM",
+    description:
+      "IP-Adressinventar aus dem Infoblox-Export: Belegungsstatus, DNS-Namen, Discovery-Daten und technische Merkmale je Adresse.",
+    source: "IPAM-CSV (Infoblox-Export)",
+  },
+  ciscoSwitch: {
+    term: "Cisco Switch",
+    description:
+      "Interface-Inventar aus Cisco-Switch-Ausgaben: Port-Status, Beschreibung, Geschwindigkeit, Duplex und Transceiver je Switch-Port.",
+    source: "Cisco-Switch-TXT",
+  },
+  audit: {
+    term: "Kontrolle",
+    description:
+      "Gleicht Cisco-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Zeigt bestätigte Zuordnungen sowie fehlende oder widersprüchliche Angaben.",
+    source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info · IPAM",
+  },
+};
+
 /* ================================================================== */
 /*  Tab „Security & Policies“                                          */
 /* ================================================================== */
