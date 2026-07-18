@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rvtools-analyzer.local/schema/switch.schema.json",
+  "title": "Cisco switch interface status report",
+  "description": "Schema für die normalisierte Auswertung einer Cisco-NX-OS-CLI-Ausgabe wie switch.txt. Die Rohdatei enthält die gefilterten Ergebnisse von 'show interface status' für mehrere Switches und Befehle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sourceFile", "switches"],
+  "properties": {
+    "sourceFile": {
+      "const": "switch.txt",
+      "description": "Name der analysierten Cisco-CLI-Rohdatei."
+    },
+    "switches": {
+      "type": "array",
+      "description": "In der Rohdatei enthaltene Switches. Jeder Switch darf nur einmal vorkommen; seine Abfragen und Ports werden darunter zusammengeführt.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/switch" }
+    }
+  },
+  "$defs": {
+    "switch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "queries"],
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "description": "Hostname aus dem Cisco-Prompt vor dem Zeichen #.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "queries": {
+          "type": "array",
+          "description": "Aus der Rohdatei übernommene, gefilterte Interface-Statusabfragen.",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/query" }
+        }
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "filter", "interfaces"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Ausgeführter Cisco-Befehl einschließlich Filter. Das abweichende 'statu' und 'notconnec' wird bewusst akzeptiert, weil es im gelieferten Text vorkommt.",
+          "enum": [
+            "sh int statu | in connected",
+            "sh int statu | in notconnec",
+            "show interface status | include connected",
+            "show interface status | include notconnect"
+          ]
+        },
+        "filter": {
+          "type": "string",
+          "description": "Statusfilter der Abfrage.",
+          "enum": ["connected", "notconnec", "notconnect"]
+        },
+        "interfaces": {
+          "type": "array",
+          "description": "Ports, die durch den Statusfilter ausgegeben wurden.",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/interfaceStatus" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "filter": { "const": "connected" } },
+            "required": ["filter"]
+          },
+          "then": {
+            "properties": {
+              "interfaces": {
+                "items": {
+                  "properties": { "status": { "const": "connected" } },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "filter": { "enum": ["notconnec", "notconnect"] } },
+            "required": ["filter"]
+          },
+          "then": {
+            "properties": {
+              "interfaces": {
+                "items": {
+                  "properties": { "status": { "enum": ["notconnec", "notconnect"] } },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "interfaceStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface", "status", "mode", "duplex", "speed", "transceiver"],
+      "properties": {
+        "interface": {
+          "type": "string",
+          "description": "Cisco-Interface-Bezeichnung.",
+          "pattern": "^(?:mgmt0|Eth[0-9]+/[0-9]+(?:/[0-9]+)?)$"
+        },
+        "description": {
+          "type": "string",
+          "default": "",
+          "description": "Portname beziehungsweise Gegenstelle aus der Spalte Name. Kann durch die CLI-Ausgabe abgeschnitten sein."
+        },
+        "status": {
+          "type": "string",
+          "description": "Physischer Linkstatus aus der Spalte Status. 'notconnec' ist die im gelieferten Text beobachtete, gekürzte Schreibweise.",
+          "enum": ["connected", "notconnec", "notconnect"]
+        },
+        "mode": {
+          "type": "string",
+          "description": "Switchport-Modus aus der Spalte Vlan/Mode.",
+          "enum": ["trunk", "routed"]
+        },
+        "duplex": {
+          "type": "string",
+          "description": "Aushandlungsstatus für Duplex.",
+          "enum": ["full", "half", "auto"]
+        },
+        "speed": {
+          "type": "string",
+          "description": "Aushandlungsstatus für die Portgeschwindigkeit.",
+          "enum": ["1000", "10G", "25G", "40G", "100G", "auto"]
+        },
+        "transceiver": {
+          "type": "string",
+          "description": "Gemeldeter Transceiver- oder Kabeltyp; für mgmt0 kann der Wert '--' sein.",
+          "pattern": "^(?:--|[A-Za-z0-9._/-]+)$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "interface": { "const": "mgmt0" } },
+            "required": ["interface"]
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "routed" },
+              "transceiver": { "const": "--" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "connected" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "duplex": { "enum": ["full", "half"] },
+              "speed": { "not": { "const": "auto" } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "enum": ["notconnec", "notconnect"] } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "duplex": { "const": "auto" },
+              "speed": { "const": "auto" }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "x-sourceFormat": {
+    "file": "switch.txt",
+    "encoding": "UTF-8",
+    "format": "Cisco CLI text table",
+    "commands": [
+      "sh int statu | in connected",
+      "sh int statu | in notconnec"
+    ],
+    "rowColumns": ["Port", "Name", "Status", "Vlan/Mode", "Duplex", "Speed", "Type"]
+  },
+  "x-dataQualityRules": [
+    {
+      "id": "unique-switch-hostname",
+      "severity": "error",
+      "rule": "hostname darf im Array switches nur einmal vorkommen."
+    },
+    {
+      "id": "unique-interface-per-query",
+      "severity": "error",
+      "rule": "Ein Interface darf innerhalb einer Abfrage nur einmal vorkommen."
+    },
+    {
+      "id": "link-negotiation-consistency",
+      "severity": "error",
+      "rule": "Verbundene Ports benötigen eine ausgehandelte Geschwindigkeit und Duplex-Einstellung; nicht verbundene Ports müssen auto/auto melden."
+    },
+    {
+      "id": "duplicate-endpoint-description",
+      "severity": "warning",
+      "rule": "Gleiche nichtleere Beschreibungen auf mehreren Switchports können auf eine doppelte oder veraltete Portbeschriftung hinweisen."
+    },
+    {
+      "id": "disconnected-server-link",
+      "severity": "warning",
+      "rule": "Nicht verbundene Trunk-Ports mit einer Serverbeschreibung auf beabsichtigte Stilllegung, Verkabelungsfehler oder Host-Ausfall prüfen."
+    }
+  ],
+  "x-sourceObservations": {
+    "switchesObserved": ["agrznx93oc18-7", "agrznx93oc18-9", "agrznx93oc18-10"],
+    "observedInterfaceTypes": ["mgmt0", "Eth1/<port>"],
+    "observedStatuses": ["connected", "notconnec"],
+    "observedModes": ["routed", "trunk"],
+    "observedSpeeds": ["1000", "25G", "auto"],
+    "observedTransceivers": ["--", "SFP-H25GB-CU3M"],
+    "note": "Die Rohdatei enthält nur gefilterte Interface-Statusausgaben und keine Modell-, VLAN-, Fehlerzähler- oder Port-Channel-Informationen. Das Schema beschreibt daher die normalisierte Repräsentation der vorhandenen Daten, nicht den unstrukturierten Rohtext."
+  }
+}

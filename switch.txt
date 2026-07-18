@@ -1,0 +1,101 @@
+agrznx93oc18-10# sh int statu | in connected
+
+mgmt0         --                 connected routed    full    1000    --        
+
+Eth1/1        esxxsrv2270_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/2        esxxsrv2272_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/3        esxxsrv2273_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/4        esxxsrv2274_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/6        esxxsrv2276_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/9        esxxsrv2262_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/10       esxxsrv2265_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/11       esxxsrv2261_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/15       esxxsrv2282_Port2(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/25       esxxsrv2270_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/26       esxxsrv2272_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/27       esxxsrv2273_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/28       esxxsrv2274_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/30       esxxsrv2276_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/33       esxxsrv2219_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/34       esxxsrv2265_Port1(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/35       esxxsrv2261_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/39       esxxsrv2282_Port3(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+ 
+
+agrznx93oc18-7# sh int statu | in connected
+
+mgmt0         --                 connected routed    full    1000    --        
+
+Eth1/1        esxxsrv2268_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/2        esxxsrv2269_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/3        esxxsrv2271_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/4        esxxsrv2274_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/5        esxxsrv2275_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+Eth1/6        esxxsrv2277_Port0(T connected trunk     full    25G     SFP-H25GB-CU3M
+
+ 
+
+ 
+
+ 
+
+ 
+
+agrznx93oc18-9# sh int statu | in notconnec
+
+Eth1/5        esxxsrv2275_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/7        esxxvdi2215_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/8        esxxvdi2217_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/12       esxxvdi2225_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/13       esxxvdi2227_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/14       esxxvdi2229_Port0(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/29       esxxsrv2275_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/31       esxxvdi2215_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/32       esxxvdi2217_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/36       esxxvdi2225_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/37       esxxvdi2227_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/38       esxxvdi2229_Port1(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+ 
+
+agrznx93oc18-10# sh int statu | in notconnec
+
+Eth1/5        esxxsrv2275_Port2(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/7        esxxsrv2245_Port2(T notconnec trunk     auto    auto    SFP-H25GB-CU3M
+
+Eth1/8        esxxsrv2247_Port2(T notconnec trunk     auto    auto    SFP-H25GB-CU3M

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rvtools-analyzer.local/schema/ipam.schema.json",
+  "title": "Infoblox IPAM CSV row",
+  "description": "Schema für eine einzelne Zeile des Infoblox-IPAM-Exports ipam.csv. Leere CSV-Zellen werden als leere Zeichenketten importiert, nicht als null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "IP Address",
+    "Name",
+    "MAC Address",
+    "DHCP Client Identifier",
+    "Status",
+    "Type",
+    "Discover Now",
+    "Usage",
+    "Lease State",
+    "User Name",
+    "Task Name",
+    "First Discovered",
+    "Last Discovered",
+    "OS",
+    "NetBIOS Name",
+    "Device Type(s)",
+    "Open Port(s)",
+    "Fingerprint",
+    "Comment",
+    "Site"
+  ],
+  "properties": {
+    "IP Address": {
+      "type": "string",
+      "description": "IPv4-Adresse des IPAM-Objekts. Muss vier Oktette von 0 bis 255 enthalten.",
+      "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})$"
+    },
+    "Name": {
+      "$ref": "#/$defs/optionalText",
+      "description": "DNS-Name oder IPAM-Objektname, z. B. SRV-04.rbgooe.at. Bei Unmanaged-Objekten im vorliegenden Export leer."
+    },
+    "MAC Address": {
+      "$ref": "#/$defs/optionalText",
+      "description": "MAC-Adresse des Endgeräts. Im vorliegenden Export durchgehend leer."
+    },
+    "DHCP Client Identifier": {
+      "$ref": "#/$defs/optionalText",
+      "description": "DHCP Client Identifier. Im vorliegenden Export durchgehend leer."
+    },
+    "Status": {
+      "type": "string",
+      "description": "Belegungsstatus der Adresse.",
+      "enum": ["Used", "Unused"]
+    },
+    "Type": {
+      "type": "string",
+      "description": "IPAM- bzw. DNS-Objekttyp. Die Aufzählung enthält die im Export beobachteten Werte.",
+      "enum": ["", "Host", "Unmanaged", "IPv4 Network", "PTR Record", "A Record, PTR Record", "Broadcast"]
+    },
+    "Discover Now": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Von Infoblox gesetzte Markierung für eine sofortige Erkennung; im vorliegenden Export leer."
+    },
+    "Usage": {
+      "type": "string",
+      "description": "Verwendungsart der Adresse. Die Aufzählung enthält die im Export beobachteten Werte.",
+      "enum": ["", "DNS", "DNS, DHCP"]
+    },
+    "Lease State": {
+      "$ref": "#/$defs/optionalText",
+      "description": "DHCP-Lease-Status; im vorliegenden Export leer."
+    },
+    "User Name": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Infoblox-Benutzerbezug; im vorliegenden Export leer."
+    },
+    "Task Name": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Infoblox-Aufgabenbezug; im vorliegenden Export leer."
+    },
+    "First Discovered": {
+      "$ref": "#/$defs/utcTimestampOrEmpty",
+      "description": "Erster Discovery-Zeitpunkt im Format yyyy-MM-dd HH:mm:ss UTC. Leer, wenn keine Discovery-Daten vorliegen."
+    },
+    "Last Discovered": {
+      "$ref": "#/$defs/utcTimestampOrEmpty",
+      "description": "Letzter Discovery-Zeitpunkt im Format yyyy-MM-dd HH:mm:ss UTC. Leer, wenn keine Discovery-Daten vorliegen."
+    },
+    "OS": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Erkanntes Betriebssystem; im vorliegenden Export leer."
+    },
+    "NetBIOS Name": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Erkannter NetBIOS-Name; im vorliegenden Export leer."
+    },
+    "Device Type(s)": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Erkannte Geräteklasse(n); im vorliegenden Export leer."
+    },
+    "Open Port(s)": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Erkannte offene Ports; im vorliegenden Export leer."
+    },
+    "Fingerprint": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Infoblox-Fingerprint; im vorliegenden Export leer."
+    },
+    "Comment": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Freitextkommentar zur Adresse, etwa Gateway- oder Importhinweise."
+    },
+    "Site": {
+      "$ref": "#/$defs/optionalText",
+      "description": "Standortzuordnung; im vorliegenden Export leer."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "Status": { "const": "Unused" }
+        },
+        "required": ["Status"]
+      },
+      "then": {
+        "properties": {
+          "Name": { "const": "" },
+          "Type": { "const": "" },
+          "Usage": { "const": "" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "optionalText": {
+      "type": "string",
+      "default": ""
+    },
+    "utcTimestampOrEmpty": {
+      "type": "string",
+      "description": "Leere Zeichenkette oder UTC-Zeitstempel aus dem Infoblox-Export.",
+      "oneOf": [
+        { "const": "" },
+        { "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC$" }
+      ]
+    }
+  },
+  "x-csv": {
+    "file": "ipam.csv",
+    "encoding": "UTF-8",
+    "delimiter": ",",
+    "quote": "\"",
+    "header": true,
+    "rowSchema": "Dieses JSON Schema beschreibt eine CSV-Datenzeile nach dem Header."
+  },
+  "x-dataQualityRules": [
+    {
+      "id": "valid-ipv4",
+      "severity": "error",
+      "rule": "IP Address muss eine gültige IPv4-Adresse sein.",
+      "observedViolations": ["10.0.0.256", "10.0.0.257"]
+    },
+    {
+      "id": "unused-is-empty",
+      "severity": "error",
+      "rule": "Bei Status Unused müssen Name, Type und Usage leer sein."
+    },
+    {
+      "id": "discovery-freshness",
+      "severity": "warning",
+      "rule": "Last Discovered sollte für betriebliche Entscheidungen aktuell sein; fehlende oder alte Werte belegen keine aktive Belegung."
+    },
+    {
+      "id": "dns-forward-reverse-consistency",
+      "severity": "warning",
+      "rule": "PTR Record ohne zugehörigen A Record und A Record ohne PTR Record fachlich prüfen."
+    }
+  ],
+  "x-sourceObservations": {
+    "recordCount": 256,
+    "observedStatusValues": ["Used", "Unused"],
+    "observedUsageValues": ["", "DNS", "DNS, DHCP"],
+    "observedLastDiscoveredRange": "2018-03-27 14:27:36 UTC bis 2020-12-09 06:12:42 UTC",
+    "note": "Das Schema trennt strukturelle Validierung von fachlicher Plausibilisierung. Die zwei ungültigen IP-Adressen im gelieferten Export werden bewusst als Fehler ausgewiesen."
+  }
+}
