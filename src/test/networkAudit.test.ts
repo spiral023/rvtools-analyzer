@@ -243,4 +243,25 @@ describe("buildPortAuditRows", () => {
     });
     expect(rows[0].matchStatus).toBe("text-match");
   });
+
+  it("confirmed-cdp: Switch-Hostname als FQDN gespeichert (hostnameNorm nicht domain-gestrippt) matcht trotzdem gegen CDP", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ hostnameNorm: "sw01.domain.at", hostname: "sw01.domain.at" })],
+      cdpRows: [makeCdpRow({ cdpDeviceId: "sw01.domain.at(SERIAL1)" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows[0].matchStatus).toBe("confirmed-cdp");
+  });
+
+  it("finding enthält sowohl labelConflict- als auch statusConflict-Text, wenn beide gleichzeitig zutreffen", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ description: "altgeraet01_Port2", status: "notconnec" })],
+      cdpRows: [makeCdpRow({ host: "esxxsrv2270.rbgooe.at", linkStatus: "Up" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows[0].labelConflict).toBe(true);
+    expect(rows[0].statusConflict).toBe(true);
+    expect(rows[0].finding).toContain('Beschriftung nennt "altgeraet01"');
+    expect(rows[0].finding).toContain('Switch meldet "notconnec"');
+  });
 });

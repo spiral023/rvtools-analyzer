@@ -59,7 +59,7 @@ const columns: ColumnDef<PortAuditRow, unknown>[] = [
     header: "Auffälligkeit",
     cell: ({ getValue }) => {
       const v = getValue() as string | null;
-      if (!v) return "—";
+      if (!v) return textCell(v);
       return <span className="text-warning text-xs">{v}</span>;
     },
   },

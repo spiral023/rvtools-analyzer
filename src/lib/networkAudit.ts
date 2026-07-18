@@ -68,7 +68,7 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
   }
 
   return switchRows.map((port): PortAuditRow => {
-    const key = `${port.hostnameNorm}::${normalizeInterfaceName(port.interface)}`;
+    const key = `${shortHostname(port.hostname)}::${normalizeInterfaceName(port.interface)}`;
     const cdp = cdpByPort.get(key);
     const candidate = port.description && port.description !== "--" ? stripPortSuffix(port.description) : "";
     const candidateShort = candidate ? shortHostname(candidate) : "";
@@ -116,7 +116,9 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
     }
 
     let finding: string | null = null;
-    if (labelConflict) {
+    if (labelConflict && statusConflict) {
+      finding = `Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"; Switch meldet "${port.status}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`;
+    } else if (labelConflict) {
       finding = `Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"`;
     } else if (statusConflict) {
       finding = `Switch meldet "${port.status}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`;
