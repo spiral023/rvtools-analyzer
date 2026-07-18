@@ -13,6 +13,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { MaintenanceWeekGrid } from "@/components/maintenance-windows/MaintenanceWeekGrid";
 import { MaintenanceWindowEditor } from "@/components/maintenance-windows/MaintenanceWindowEditor";
+import { MaintenanceCoverageChart } from "@/components/maintenance-windows/MaintenanceCoverageChart";
 import { MaintenanceWindowImportDialog } from "@/components/maintenance-windows/MaintenanceWindowImportDialog";
 import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
 import { useAllTechInfoLatest } from "@/hooks/useActiveSnapshots";
@@ -246,6 +247,8 @@ export default function MaintenanceWindows() {
         <KpiCard title="Unbekannte Werte" value={assignments.unknown.length} subtitle={valueLabel(assignments.unknown.length)} icon={<TriangleAlert className="h-4 w-4" />} severity={assignments.unknown.length ? "warn" : "ok"} />
         <KpiCard title="Systeme unbekannt" value={unknownSystems} subtitle={systemLabel(unknownSystems)} icon={<TriangleAlert className="h-4 w-4" />} severity={unknownSystems ? "warn" : "ok"} />
       </div>
+
+      <MaintenanceCoverageChart known={assignments.known} />
 
       {(actionError || error) && <Alert variant="destructive"><AlertTitle>Aktion fehlgeschlagen</AlertTitle><AlertDescription>{actionError ?? error?.message}</AlertDescription></Alert>}
       {techInfoError && <Alert variant="destructive"><AlertTitle>Tech-Info-Zuordnungen konnten nicht geladen werden</AlertTitle><AlertDescription>{techInfoError instanceof Error ? techInfoError.message : "Tech-Info konnte nicht geladen werden. Die Zuordnungen sind möglicherweise unvollständig."}</AlertDescription></Alert>}
