@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames, useAllTechInfoClientLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -256,8 +256,8 @@ export default function TechInfo() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Tech-Info</h1>
-      <FilterBar />
+      <PageHeader title="Tech-Info">
+      </PageHeader>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
         <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />

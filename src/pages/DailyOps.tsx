@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useVms, useHealthEvents, useVmSnapshots, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -172,8 +172,8 @@ export default function DailyOps() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Daily Ops</h1>
-      <FilterBar />
+      <PageHeader title="Daily Ops">
+      </PageHeader>
       <GlobalFilterScopeHint text="Snapshots, Tools, CD/USB und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter." />
       <KpiGrid>
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={DAILY_OPS_KPI.healthEvents} />

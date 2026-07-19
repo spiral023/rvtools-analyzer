@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows } from "@/data/db";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -115,8 +115,8 @@ export default function FleetCompare() {
   if (latestSnapshots.length < 2) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold">Fleet Compare</h1>
-        <FilterBar />
+        <PageHeader title="Fleet Compare">
+        </PageHeader>
         <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte von mindestens 2 verschiedenen vCentern hoch, um eine Fleet-Analyse durchzuführen." />
         {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>)}
       </div>
@@ -125,8 +125,8 @@ export default function FleetCompare() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Fleet Compare</h1>
-      <FilterBar />
+      <PageHeader title="Fleet Compare">
+      </PageHeader>
       <KpiGrid>
         <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} info={FLEET_KPI.vcenter} />
         <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} info={FLEET_KPI.vmsTotal} />

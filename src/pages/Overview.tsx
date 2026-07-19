@@ -3,7 +3,7 @@ import { useActiveSnapshotIds, useVmsWithTechInfo, useHosts, useDatastores, useH
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -145,13 +145,15 @@ export default function Overview() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Overview</h1>
-        <span className="text-xs text-muted-foreground" title="Ohne vCenter-Filter werden alle importierten Stände analysiert. Je vCenter existiert ein aktueller Stand.">
-          Analysiert: {activeSnapshotIds.length} von {snapshots.length} Snapshot{snapshots.length !== 1 && "s"}
-        </span>
-      </div>
-      <FilterBar />
+      <PageHeader
+        title="Overview"
+        meta={
+          <span title="Ohne vCenter-Filter werden alle importierten Stände analysiert. Je vCenter existiert ein aktueller Stand.">
+            Analysiert: {activeSnapshotIds.length} von {snapshots.length} Snapshot{snapshots.length !== 1 && "s"}
+          </span>
+        }
+      >
+      </PageHeader>
       <GlobalFilterScopeHint text="VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert." />
       <KpiGrid>
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -220,8 +220,8 @@ export default function StorageBackup() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Storage / Backup</h1>
-      <FilterBar />
+      <PageHeader title="Storage / Backup">
+      </PageHeader>
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
       <KpiGrid>
         <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} info={STORAGE_KPI.partitions} />

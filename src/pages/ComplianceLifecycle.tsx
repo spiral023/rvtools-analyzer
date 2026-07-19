@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useActiveSnapshotIds, useVms, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -587,9 +587,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Compliance / Lifecycle</h1>
-      <FilterBar />
-      <GlobalFilterScopeHint text="Compliance- und VM-Operations-Bereiche folgen dem globalen Filter; Infrastruktur-Tab, Hostdaten und Treiberinventar bleiben unverändert." />
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
@@ -598,20 +595,24 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
         }}
         className="space-y-4"
       >
-        <TabsList className="h-auto w-full justify-start gap-1 p-1">
-          <InfoTooltip entry={COMPLIANCE_TABS.compliance} side="bottom">
-            <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip entry={COMPLIANCE_TABS.operations} side="bottom">
-            <TabsTrigger value="operations">Operations</TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip entry={COMPLIANCE_TABS.infrastructure} side="bottom">
-            <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip entry={COMPLIANCE_TABS.versions} side="bottom">
-            <TabsTrigger value="versions">Versionen</TabsTrigger>
-          </InfoTooltip>
-        </TabsList>
+        <PageHeader title="Compliance / Lifecycle">
+          <TabsList className="h-auto w-full justify-start gap-1 p-1">
+            <InfoTooltip entry={COMPLIANCE_TABS.compliance} side="bottom">
+              <TabsTrigger value="compliance">Compliance</TabsTrigger>
+            </InfoTooltip>
+            <InfoTooltip entry={COMPLIANCE_TABS.operations} side="bottom">
+              <TabsTrigger value="operations">Operations</TabsTrigger>
+            </InfoTooltip>
+            <InfoTooltip entry={COMPLIANCE_TABS.infrastructure} side="bottom">
+              <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
+            </InfoTooltip>
+            <InfoTooltip entry={COMPLIANCE_TABS.versions} side="bottom">
+              <TabsTrigger value="versions">Versionen</TabsTrigger>
+            </InfoTooltip>
+          </TabsList>
+        </PageHeader>
+
+        <GlobalFilterScopeHint text="Compliance- und VM-Operations-Bereiche folgen dem globalen Filter; Infrastruktur-Tab, Hostdaten und Treiberinventar bleiben unverändert." />
 
         <ComplianceTabPanel
           noSecureBoot={noSecureBoot}

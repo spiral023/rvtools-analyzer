@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -829,20 +829,17 @@ export default function Wartungsankuendigung() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Wartungsankündigung</h1>
-          <p className="text-sm text-muted-foreground">
-            Cluster-Zuweisungen pflegen und kopierbare Wartungs-Mails erzeugen.
-          </p>
-        </div>
-        <Button disabled={selectedRows.length === 0} onClick={() => setMailDialogOpen(true)}>
-          <Mail className="mr-2 h-4 w-4" />
-          Wartungsankündigung
-        </Button>
-      </div>
-
-      <FilterBar />
+      <PageHeader
+        title="Wartungsankündigung"
+        subtitle="Cluster-Zuweisungen pflegen und kopierbare Wartungs-Mails erzeugen."
+        meta={
+          <Button disabled={selectedRows.length === 0} onClick={() => setMailDialogOpen(true)}>
+            <Mail className="mr-2 h-4 w-4" />
+            Wartungsankündigung
+          </Button>
+        }
+      >
+      </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-4">
         <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} info={WARTUNG_KPI.cluster} />

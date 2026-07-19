@@ -142,7 +142,7 @@ export function FilterBar() {
   if (snapshots.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-card/60 p-3 animate-fade-in">
+    <div className="flex min-w-0 flex-wrap items-center gap-2 animate-fade-in">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 min-w-[180px] justify-start text-xs" aria-label="vCenter auswählen">

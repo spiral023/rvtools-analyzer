@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useRawSheet, useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -900,13 +900,8 @@ export default function Hardware() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Hardware</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          ESXi-Host-Hardware-Modelle, Komponenten und Konfiguration
-        </p>
-      </div>
-      <FilterBar />
+      <PageHeader title="Hardware" subtitle="ESXi-Host-Hardware-Modelle, Komponenten und Konfiguration">
+      </PageHeader>
 
       <div className="flex flex-col gap-3 rounded-lg bg-muted/35 px-4 py-3 text-sm md:flex-row md:items-start md:justify-between">
         <div className="flex gap-3 text-muted-foreground">

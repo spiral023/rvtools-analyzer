@@ -5,7 +5,7 @@ import { useScenarios } from "@/hooks/useScenarios";
 import { useWhatIf } from "@/hooks/useWhatIf";
 import { getRangeKeys } from "@/lib/selectionRange";
 import { VirtualTable } from "@/components/tables/VirtualTable";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { SelectionBar } from "@/components/planning/SelectionBar";
@@ -171,8 +171,8 @@ export default function Planning() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Planung</h1>
-      <FilterBar />
+      <PageHeader title="Planung">
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-4">

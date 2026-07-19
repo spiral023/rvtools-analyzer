@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useVms, useRawSheet, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -245,8 +245,8 @@ export default function PerformancePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Performance</h1>
-      <FilterBar />
+      <PageHeader title="Performance">
+      </PageHeader>
       <GlobalFilterScopeHint text="Multipath, Datastore-SIOC und Host-NIC-Qualität bleiben unverändert; VM-bezogene Performance-Sichten folgen dem globalen Filter." />
       <KpiGrid>
         <KpiCard title="CPU Ready Hotspots" value={formatNum(hotspots)} severity={hotspots > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} subtitle="> 5% Ready" info={PERFORMANCE_KPI.cpuReadyHotspots} />

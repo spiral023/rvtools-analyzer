@@ -12,11 +12,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      {/* Feste Viewport-Höhe, damit <main> der Scroll-Container ist (sticky Header/Dock kleben sonst nicht). */}
+      <div className="flex h-svh w-full">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-sm">
+          <header className="z-20 flex min-h-14 items-center gap-3 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-sm">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            {/* Slot für die seitenspezifische FilterBar (per Portal aus PageHeader befüllt). */}
+            <div id="app-header-slot" className="flex min-w-0 flex-1 flex-wrap items-center gap-2" />
             <div className="flex items-center gap-2">
               <GlobalFilterControl />
               <Button

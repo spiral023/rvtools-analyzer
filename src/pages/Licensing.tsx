@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useActiveSnapshotIds, useRawSheet, useVms, useClusters, useHosts, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -129,8 +129,8 @@ export default function Licensing() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Licensing & Effizienz</h1>
-      <FilterBar />
+      <PageHeader title="Licensing & Effizienz">
+      </PageHeader>
       <GlobalFilterScopeHint text="Idle-VM-Kandidaten folgen dem globalen Filter; Lizenz-, Cluster- und Datastore-Übersichten bleiben unverändert." />
       <KpiGrid>
         <KpiCard title="Lizenzen" value={formatNum(totalLicenses)} icon={<Key className="h-4 w-4" />} info={LICENSING_KPI.totalLicenses} />

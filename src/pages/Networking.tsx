@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Network } from "lucide-react";
 import { useActiveSnapshotIds } from "@/hooks/useActiveSnapshots";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,14 +34,13 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Netzwerk</h1>
-      <FilterBar />
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as NetworkTab)}
         className="space-y-4"
       >
-        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+        <PageHeader title="Netzwerk">
+          <TabsList className="h-auto w-full justify-start gap-1 p-1">
           <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
             <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
           </InfoTooltip>
@@ -63,7 +62,8 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           <InfoTooltip entry={NET_NETWORK_TABS.audit} side="bottom">
             <TabsTrigger value="audit">Kontrolle</TabsTrigger>
           </InfoTooltip>
-        </TabsList>
+          </TabsList>
+        </PageHeader>
 
         <TabsContent value="security" className="space-y-4">
           <NetworkSecurityPanel />

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useActiveSnapshotIds, useVms, useClusters, useDatastores, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { FilterBar } from "@/components/dashboard/FilterBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -680,8 +680,8 @@ export default function Capacity() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-2xl font-bold">Capacity</h1>
-      <FilterBar />
+      <PageHeader title="Capacity">
+      </PageHeader>
       <GlobalFilterScopeHint text="Thin-Provisioning und VM-basierte Capacity-Kennzahlen folgen dem globalen Filter; Host-, Cluster- und Datastore-Inventar bleibt unverändert." />
       <CapacityOverviewCards
         datastoresCount={datastores.length}
