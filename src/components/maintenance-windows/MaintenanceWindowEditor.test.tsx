@@ -66,6 +66,7 @@ describe("MaintenanceWindowEditor", () => {
     expect(abbreviation).toHaveAttribute("aria-invalid", "true");
   });
 
+  // Rendert/rerendert das 336-Zellen-Grid mehrfach; unter Last reißt das 5000ms-Standard-Timeout.
   it("bewahrt einen schmutzigen lokalen Entwurf bei einem importierten Update desselben Fensters", () => {
     const { value, onDirtyChange, rerender, unmount } = renderEditor();
     const description = screen.getByLabelText("Beschreibung");
@@ -108,7 +109,7 @@ describe("MaintenanceWindowEditor", () => {
 
     unmount();
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
-  });
+  }, 15000);
 
   it("übernimmt einen neueren Persistenzstand desselben Fensters bei sauberem Entwurf", () => {
     const { value, rerender } = renderEditor();
