@@ -18,6 +18,7 @@ import { MaintenanceWindowImportDialog } from "@/components/maintenance-windows/
 import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
 import { useAllTechInfoLatest } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceWindows } from "@/hooks/useMaintenanceWindows";
+import { MAINTENANCE_WINDOWS_KPI } from "@/lib/glossaries/maintenanceWindows";
 import {
   assignMaintenanceWindows,
   createEmptyWeeklySlots,
@@ -242,10 +243,10 @@ export default function MaintenanceWindows() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Definierte Fenster" value={definitions.length} icon={<CalendarRange className="h-4 w-4" />} />
-        <KpiCard title="Systeme zugeordnet" value={assignedSystems} subtitle={systemLabel(assignedSystems)} icon={<Server className="h-4 w-4" />} severity={assignedSystems > 0 ? "ok" : undefined} />
-        <KpiCard title="Unbekannte Werte" value={assignments.unknown.length} subtitle={valueLabel(assignments.unknown.length)} icon={<TriangleAlert className="h-4 w-4" />} severity={assignments.unknown.length ? "warn" : "ok"} />
-        <KpiCard title="Systeme unbekannt" value={unknownSystems} subtitle={systemLabel(unknownSystems)} icon={<TriangleAlert className="h-4 w-4" />} severity={unknownSystems ? "warn" : "ok"} />
+        <KpiCard title="Definierte Fenster" value={definitions.length} icon={<CalendarRange className="h-4 w-4" />} info={MAINTENANCE_WINDOWS_KPI.definitions} />
+        <KpiCard title="Systeme zugeordnet" value={assignedSystems} subtitle={systemLabel(assignedSystems)} icon={<Server className="h-4 w-4" />} severity={assignedSystems > 0 ? "ok" : undefined} info={MAINTENANCE_WINDOWS_KPI.assignedSystems} />
+        <KpiCard title="Unbekannte Werte" value={assignments.unknown.length} subtitle={valueLabel(assignments.unknown.length)} icon={<TriangleAlert className="h-4 w-4" />} severity={assignments.unknown.length ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unknownValues} />
+        <KpiCard title="Systeme unbekannt" value={unknownSystems} subtitle={systemLabel(unknownSystems)} icon={<TriangleAlert className="h-4 w-4" />} severity={unknownSystems ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unassignedSystems} />
       </div>
 
       <MaintenanceCoverageChart known={assignments.known} />

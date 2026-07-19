@@ -63,6 +63,20 @@ vi.mock("@tanstack/react-virtual", () => ({
   }),
 }));
 
+vi.mock("@/components/tables/VirtualTable", () => ({
+  VirtualTable: ({ columns }: { columns: Array<{ meta?: { info?: { term: string } } }> }) => (
+    <div data-testid="switch-table-columns">{columns.map((column) => column.meta?.info?.term ?? "").join("|")}</div>
+  ),
+}));
+
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (
+    entry
+      ? <div data-testid={`tooltip-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}>{children}</div>
+      : <>{children}</>
+  ),
+}));
+
 describe("SwitchPanel", () => {
   it("zeigt für den gewählten Switch eine Frontplatten-Detailansicht", () => {
     render(<SwitchPanel />);
@@ -76,5 +90,20 @@ describe("SwitchPanel", () => {
     expect(screen.getByRole("heading", { name: "Switch-Detail · sw-core-02" })).toBeInTheDocument();
     expect(screen.getByText("Firewall uplink")).toBeInTheDocument();
     expect(screen.getByText("1 Port erfasst")).toBeInTheDocument();
+  });
+
+  it("erklärt alle Switch-Kennzahlen per Tooltip", () => {
+    render(<SwitchPanel />);
+
+    expect(screen.getByTestId("tooltip-switches")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-interfaces-gesamt")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-verbundene-interfaces")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-interfaces-ohne-link")).toBeInTheDocument();
+  });
+
+  it("erklärt alle Spalten der Switch-Tabelle", () => {
+    render(<SwitchPanel />);
+
+    expect(screen.getByTestId("switch-table-columns")).toHaveTextContent("Switch-Hostname|Interface|Port-Beschreibung|Port-Status|Switchport-Modus|Duplex|Link-Geschwindigkeit|Transceiver");
   });
 });

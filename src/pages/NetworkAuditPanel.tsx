@@ -3,6 +3,7 @@ import { ListChecks, CheckCircle2, Archive, HelpCircle, AlertTriangle, Tag, Data
 import { useActiveSnapshotIds, useNetworkAudit } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { NET_AUDIT_COLUMNS, NET_AUDIT_KPI, NET_HOST_QUALITY_RVTOOLS_COLUMNS, NET_HOST_QUALITY_TECHINFO_COLUMNS } from "@/lib/glossaries/networking";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -60,20 +61,22 @@ function listCell(values: string[]) {
 }
 
 const columns: ColumnDef<PortAuditRow, unknown>[] = [
-  { accessorKey: "switchHostname", header: "Switch", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "interface", header: "Interface", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "description", header: "Beschreibung", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "status", header: "Status", cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "switchHostname", header: "Switch", meta: { info: NET_AUDIT_COLUMNS.switchHostname }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "interface", header: "Interface", meta: { info: NET_AUDIT_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "description", header: "Beschreibung", meta: { info: NET_AUDIT_COLUMNS.description }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "status", header: "Status", meta: { info: NET_AUDIT_COLUMNS.status }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   {
     id: "matchStatus",
     header: "Match-Status",
+    meta: { info: NET_AUDIT_COLUMNS.matchStatus },
     accessorFn: (row) => `${MATCH_STATUS_LABELS[row.matchStatus]} ${row.matchStatus}`,
     cell: ({ row }) => matchStatusBadge(row.original.matchStatus),
   },
-  { accessorKey: "matchedHost", header: "Vermuteter Host", cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "matchedHost", header: "Vermuteter Host", meta: { info: NET_AUDIT_COLUMNS.matchedHost }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   {
     accessorKey: "finding",
     header: "Auffälligkeit",
+    meta: { info: NET_AUDIT_COLUMNS.finding },
     cell: ({ getValue }) => {
       const v = getValue() as string | null;
       if (!v) return textCell(v);
@@ -83,30 +86,30 @@ const columns: ColumnDef<PortAuditRow, unknown>[] = [
 ];
 
 const rvtoolsHostColumns: ColumnDef<RvtoolsHostQualityRow, unknown>[] = [
-  { accessorKey: "host", header: "ESXi-Host (RVTools)", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "cluster", header: "Cluster", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "version", header: "ESXi-Version", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { id: "techInfoPresent", header: "Tech-Info", accessorFn: (row) => row.techInfoPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.techInfoPresent) },
-  { accessorKey: "techInfoServerType", header: "Servertyp", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "techInfoDepartment", header: "Abteilung", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { id: "ipamPresent", header: "IPAM", accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
-  { id: "ipamAddresses", header: "IP-Adressen", accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
-  { id: "ipamNetworks", header: "IPAM-Netze", accessorFn: (row) => row.ipamNetworks.join(" "), cell: ({ row }) => listCell(row.original.ipamNetworks) },
-  { accessorKey: "finding", header: "Datenlücke", cell: ({ getValue }) => <span className="text-warning text-xs">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "host", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.host }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "cluster", header: "Cluster", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.cluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "version", header: "ESXi-Version", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.version }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { id: "techInfoPresent", header: "Tech-Info", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.techInfoPresent }, accessorFn: (row) => row.techInfoPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.techInfoPresent) },
+  { accessorKey: "techInfoServerType", header: "Servertyp", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.techInfoServerType }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "techInfoDepartment", header: "Abteilung", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.techInfoDepartment }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { id: "ipamPresent", header: "IPAM", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.ipamPresent }, accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
+  { id: "ipamAddresses", header: "IP-Adressen", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.ipamAddresses }, accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
+  { id: "ipamNetworks", header: "IPAM-Netze", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.ipamNetworks }, accessorFn: (row) => row.ipamNetworks.join(" "), cell: ({ row }) => listCell(row.original.ipamNetworks) },
+  { accessorKey: "finding", header: "Datenlücke", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.finding }, cell: ({ getValue }) => <span className="text-warning text-xs">{textCell(getValue() as string | null)}</span> },
 ];
 
 const techInfoHostColumns: ColumnDef<TechInfoHostQualityRow, unknown>[] = [
-  { accessorKey: "techInfoName", header: "Objekt (Tech-Info)", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "serverType", header: "Servertyp", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "department", header: "Abteilung", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { id: "rvtoolsPresent", header: "RVTools", accessorFn: (row) => row.rvtoolsPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.rvtoolsPresent) },
-  { accessorKey: "rvtoolsHost", header: "ESXi-Host (RVTools)", cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
-  { accessorKey: "rvtoolsCluster", header: "Cluster", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { id: "ipamPresent", header: "IPAM", accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
-  { id: "ipamAddresses", header: "IP-Adressen", accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
-  { id: "ipamNetworks", header: "IPAM-Netze", accessorFn: (row) => row.ipamNetworks.join(" "), cell: ({ row }) => listCell(row.original.ipamNetworks) },
-  { accessorKey: "finding", header: "Datenlücke", cell: ({ getValue }) => <span className="text-warning text-xs">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "techInfoName", header: "Objekt (Tech-Info)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.techInfoName }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "serverType", header: "Servertyp", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.serverType }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "department", header: "Abteilung", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.department }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.maintenanceWindow }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { id: "rvtoolsPresent", header: "RVTools", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsPresent }, accessorFn: (row) => row.rvtoolsPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.rvtoolsPresent) },
+  { accessorKey: "rvtoolsHost", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsHost }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "rvtoolsCluster", header: "Cluster", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsCluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { id: "ipamPresent", header: "IPAM", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamPresent }, accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
+  { id: "ipamAddresses", header: "IP-Adressen", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamAddresses }, accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
+  { id: "ipamNetworks", header: "IPAM-Netze", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamNetworks }, accessorFn: (row) => row.ipamNetworks.join(" "), cell: ({ row }) => listCell(row.original.ipamNetworks) },
+  { accessorKey: "finding", header: "Datenlücke", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.finding }, cell: ({ getValue }) => <span className="text-warning text-xs">{textCell(getValue() as string | null)}</span> },
 ];
 
 export function NetworkAuditPanel() {
@@ -148,12 +151,12 @@ export function NetworkAuditPanel() {
   return (
     <div className="space-y-6">
       <KpiGrid>
-        <KpiCard title="Ports gesamt" value={formatNum(allRows.length)} icon={<ListChecks className="h-4 w-4" />} />
-        <KpiCard title="CDP-bestätigt" value={formatNum(confirmedCount)} severity="ok" icon={<CheckCircle2 className="h-4 w-4" />} />
-        <KpiCard title="Nur dokumentiert" value={formatNum(documentedOnlyCount)} severity={documentedOnlyCount > 0 ? "warn" : "ok"} icon={<Archive className="h-4 w-4" />} />
-        <KpiCard title="Unbekannt" value={formatNum(unknownCount)} severity={unknownCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} />
-        <KpiCard title="Status-Konflikte" value={formatNum(statusConflictCount)} severity={statusConflictCount > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-        <KpiCard title="Beschriftungs-Konflikte" value={formatNum(labelConflictCount)} severity={labelConflictCount > 0 ? "warn" : "ok"} icon={<Tag className="h-4 w-4" />} />
+        <KpiCard title="Ports gesamt" value={formatNum(allRows.length)} icon={<ListChecks className="h-4 w-4" />} info={NET_AUDIT_KPI.totalPorts} />
+        <KpiCard title="CDP-bestätigt" value={formatNum(confirmedCount)} severity="ok" icon={<CheckCircle2 className="h-4 w-4" />} info={NET_AUDIT_KPI.cdpConfirmed} />
+        <KpiCard title="Nur dokumentiert" value={formatNum(documentedOnlyCount)} severity={documentedOnlyCount > 0 ? "warn" : "ok"} icon={<Archive className="h-4 w-4" />} info={NET_AUDIT_KPI.documentedOnly} />
+        <KpiCard title="Unbekannt" value={formatNum(unknownCount)} severity={unknownCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_AUDIT_KPI.unknown} />
+        <KpiCard title="Status-Konflikte" value={formatNum(statusConflictCount)} severity={statusConflictCount > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_AUDIT_KPI.statusConflicts} />
+        <KpiCard title="Beschriftungs-Konflikte" value={formatNum(labelConflictCount)} severity={labelConflictCount > 0 ? "warn" : "ok"} icon={<Tag className="h-4 w-4" />} info={NET_AUDIT_KPI.labelConflicts} />
       </KpiGrid>
 
       <div>

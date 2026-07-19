@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { FilterBar } from "@/components/dashboard/FilterBar";
@@ -19,7 +19,13 @@ vi.mock("@/data/db", () => ({
   ]),
   getUiState: vi.fn().mockResolvedValue(undefined),
   putUiState: vi.fn().mockResolvedValue(undefined),
-  getVcenterGroups: vi.fn().mockResolvedValue([]),
+  getVcenterGroups: vi.fn().mockResolvedValue([{
+    id: "group-prod",
+    name: "vCenter Server Prod",
+    vcenterIds: ["vc-1", "vc-2"],
+    createdAt: "2026-07-09T00:00:00.000Z",
+    updatedAt: "2026-07-09T00:00:00.000Z",
+  }]),
   putVcenterGroup: vi.fn().mockResolvedValue(undefined),
   deleteVcenterGroup: vi.fn().mockResolvedValue(undefined),
 }));
@@ -40,7 +46,7 @@ describe("FilterBar", () => {
     expect(screen.queryByText("Alle Snapshots")).not.toBeInTheDocument();
   });
 
-  it("ermöglicht Mehrfachauswahl von vCentern und zeigt die Auswahlanzahl", async () => {
+  it("zeigt den Namen einer passenden gespeicherten Gruppe statt der Auswahlanzahl", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
@@ -56,6 +62,6 @@ describe("FilterBar", () => {
     fireEvent.click(await screen.findByText("vcsa01.lab.local"));
     fireEvent.click(await screen.findByText("vcsa02.lab.local"));
 
-    expect(await screen.findByText("2 vCenter ausgewählt")).toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveTextContent("vCenter Server Prod"));
   });
 });

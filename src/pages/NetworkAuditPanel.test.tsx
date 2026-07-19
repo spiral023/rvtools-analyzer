@@ -24,16 +24,25 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({ columns, data }: { columns: Array<{ accessorKey?: string; id?: string; cell: (context: { getValue: () => unknown; row: { original: PortAuditRow } }) => React.ReactNode }>; data: PortAuditRow[] }) => (
-    <table>
-      <tbody>
-        {data.map((row) => (
-          <tr key={row.switchInterfaceKey}>
-            {columns.map((column) => <td key={column.id ?? column.accessorKey}>{column.cell({ getValue: () => row[column.accessorKey as keyof PortAuditRow], row: { original: row } })}</td>)}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+  VirtualTable: ({ columns, data }: { columns: Array<{ accessorKey?: string; id?: string; meta?: { info?: { term: string } }; cell: (context: { getValue: () => unknown; row: { original: PortAuditRow } }) => React.ReactNode }>; data: PortAuditRow[] }) => (
+    <>
+      <div data-testid="network-audit-table-columns">{columns.map((column) => column.meta?.info?.term ?? "").join("|")}</div>
+      <table>
+        <tbody>
+          {data.map((row) => (
+            <tr key={row.switchInterfaceKey}>
+              {columns.map((column) => <td key={column.id ?? column.accessorKey}>{column.cell({ getValue: () => row[column.accessorKey as keyof PortAuditRow], row: { original: row } })}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  ),
+}));
+
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (
+    <div data-testid={`tooltip-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}>{children}</div>
   ),
 }));
 
@@ -42,5 +51,22 @@ describe("NetworkAuditPanel", () => {
     render(<NetworkAuditPanel />);
 
     expect(screen.getByText("RVTools-Treffer")).toBeInTheDocument();
+  });
+
+  it("erklärt alle Kennzahlen der Netzwerkkontrolle per Tooltip", () => {
+    render(<NetworkAuditPanel />);
+
+    expect(screen.getByTestId("tooltip-ports-gesamt")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-cdp-best-tigt")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-nur-dokumentiert")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-unbekannt")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-status-konflikte")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-beschriftungs-konflikte")).toBeInTheDocument();
+  });
+
+  it("erklärt alle Spalten der Kontroll-Tabelle", () => {
+    render(<NetworkAuditPanel />);
+
+    expect(screen.getAllByTestId("network-audit-table-columns")[0]).toHaveTextContent("Switch|Interface|Port-Beschreibung|Port-Status|Match-Status|Vermuteter ESXi-Host|Auffälligkeit");
   });
 });

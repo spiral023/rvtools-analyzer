@@ -40,6 +40,10 @@ vi.mock("@/components/tables/VirtualTable", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 describe("Network search", () => {
   it.each([
     ["Cisco Switch", SwitchPanel, "cisco-switch-ports"],

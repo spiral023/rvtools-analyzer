@@ -8,6 +8,7 @@ import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NET_SWITCH_COLUMNS, NET_SWITCH_KPI } from "@/lib/glossaries/networking";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { cn } from "@/lib/utils";
 import type { SwitchLatest } from "@/domain/models/types";
@@ -36,14 +37,14 @@ function formatPortCount(count: number) {
 const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
 const columns: ColumnDef<SwitchLatest, unknown>[] = [
-  { accessorKey: "hostname", header: "Hostname", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "interface", header: "Interface", cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "description", header: "Description", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "status", header: "Status", cell: ({ getValue }) => statusBadge(getValue() as string | null) },
-  { accessorKey: "mode", header: "Mode", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "duplex", header: "Duplex", cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "speed", header: "Speed", cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
-  { accessorKey: "transceiver", header: "Transceiver", cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "hostname", header: "Hostname", meta: { info: NET_SWITCH_COLUMNS.hostname }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "interface", header: "Interface", meta: { info: NET_SWITCH_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "description", header: "Description", meta: { info: NET_SWITCH_COLUMNS.description }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "status", header: "Status", meta: { info: NET_SWITCH_COLUMNS.status }, cell: ({ getValue }) => statusBadge(getValue() as string | null) },
+  { accessorKey: "mode", header: "Mode", meta: { info: NET_SWITCH_COLUMNS.mode }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "duplex", header: "Duplex", meta: { info: NET_SWITCH_COLUMNS.duplex }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "speed", header: "Speed", meta: { info: NET_SWITCH_COLUMNS.speed }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "transceiver", header: "Transceiver", meta: { info: NET_SWITCH_COLUMNS.transceiver }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
 ];
 
 interface SwitchSummary {
@@ -145,10 +146,10 @@ export function SwitchPanel() {
   return (
     <div className="space-y-6">
       <KpiGrid>
-        <KpiCard title="Switches" value={formatNum(switches.length)} icon={<Router className="h-4 w-4" />} />
-        <KpiCard title="Interfaces gesamt" value={formatNum(rows.length)} icon={<Cable className="h-4 w-4" />} />
-        <KpiCard title="Connected" value={formatNum(connectedCount)} severity="ok" icon={<CheckCircle2 className="h-4 w-4" />} />
-        <KpiCard title="Not Connected" value={formatNum(notConnectedCount)} severity={notConnectedCount > 0 ? "warn" : "ok"} icon={<XCircle className="h-4 w-4" />} />
+        <KpiCard title="Switches" value={formatNum(switches.length)} icon={<Router className="h-4 w-4" />} info={NET_SWITCH_KPI.switches} />
+        <KpiCard title="Interfaces gesamt" value={formatNum(rows.length)} icon={<Cable className="h-4 w-4" />} info={NET_SWITCH_KPI.interfaces} />
+        <KpiCard title="Connected" value={formatNum(connectedCount)} severity="ok" icon={<CheckCircle2 className="h-4 w-4" />} info={NET_SWITCH_KPI.connected} />
+        <KpiCard title="Not Connected" value={formatNum(notConnectedCount)} severity={notConnectedCount > 0 ? "warn" : "ok"} icon={<XCircle className="h-4 w-4" />} info={NET_SWITCH_KPI.notConnected} />
       </KpiGrid>
 
       {selectedSwitch && selectedPort && (

@@ -42,10 +42,18 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
         className="space-y-4"
       >
         <TabsList className="h-auto w-full justify-start gap-1 p-1">
-          <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
-          <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
-          <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
-          <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
+          <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
+            <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.host} side="bottom">
+            <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.vlan} side="bottom">
+            <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.cdp} side="bottom">
+            <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
+          </InfoTooltip>
           <InfoTooltip entry={NET_NETWORK_TABS.ipam} side="bottom">
             <TabsTrigger value="ipam">IPAM</TabsTrigger>
           </InfoTooltip>

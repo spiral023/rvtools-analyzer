@@ -51,6 +51,14 @@ vi.mock("@/components/maintenance-windows/MaintenanceWindowImportDialog", () => 
   ) : null,
 }));
 
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (
+    entry
+      ? <div data-testid={`tooltip-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`} data-tooltip-term={entry.term}>{children}</div>
+      : <>{children}</>
+  ),
+}));
+
 const now = "2026-07-17T10:00:00.000Z";
 const definition = (overrides: Partial<MaintenanceWindowDefinition> = {}): MaintenanceWindowDefinition => ({
   id: "mw-standard",
@@ -106,6 +114,15 @@ describe("MaintenanceWindows", () => {
     expect(screen.getByText(/keine Wartungsfenster definiert/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /neues Wartungsfenster/i })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /aus Text importieren/i })).not.toHaveLength(0);
+  });
+
+  it("erklärt alle Kennzahlen des Wartungsfenster-Katalogs per Tooltip", () => {
+    render(<MaintenanceWindows />);
+
+    expect(screen.getByTestId("tooltip-definierte-wartungsfenster")).toHaveAttribute("data-tooltip-term", "Definierte Wartungsfenster");
+    expect(screen.getByTestId("tooltip-zugeordnete-systeme")).toHaveAttribute("data-tooltip-term", "Zugeordnete Systeme");
+    expect(screen.getByTestId("tooltip-unbekannte-fensterwerte")).toHaveAttribute("data-tooltip-term", "Unbekannte Fensterwerte");
+    expect(screen.getByTestId("tooltip-systeme-ohne-fensterzuordnung")).toHaveAttribute("data-tooltip-term", "Systeme ohne Fensterzuordnung");
   });
 
   it("gruppiert Tech-Info unabhängig von RVTools nach bekannten und unbekannten Fenstern", () => {

@@ -10,6 +10,30 @@ import type { GlossaryEntry } from "@/lib/glossary";
 const RV = "RVTools";
 
 export const NET_NETWORK_TABS: Record<string, GlossaryEntry> = {
+  security: {
+    term: "Security & Policies",
+    description:
+      "Prüft Portgruppen, VMkernel-Adapter und Uplinks auf Sicherheitsrichtlinien, Netzwerk-Redundanz und Konfigurations-Drift.",
+    source: "RVTools · vPort · dvPort · vSC_VMK · vNIC",
+  },
+  host: {
+    term: "Host-Netzwerk",
+    description:
+      "Vergleicht die physische Netzwerkanbindung der ESXi-Hosts und zeigt unterschiedliche vmnic-, Uplink- und Switch-Belegungen.",
+    source: "RVTools · vNIC · dvSwitch · vSwitch",
+  },
+  vlan: {
+    term: "VLAN-Nutzung",
+    description:
+      "Zeigt, welche VLANs auf Portgruppen verwendet werden, wie viele VMs daran hängen und wo ungenutzte oder auffällige Segmente bestehen.",
+    source: "RVTools · vPort · dvPort · vInfo",
+  },
+  cdp: {
+    term: "CDP/Switch-Ports",
+    description:
+      "Verknüpft die von ESXi gemeldeten CDP-Nachbarn mit der physischen Switch-Port-Sicht und erleichtert die Nachverfolgung von Uplinks.",
+    source: "RVTools · vHost · CDP-CSV",
+  },
   ipam: {
     term: "IPAM",
     description:
@@ -28,6 +52,156 @@ export const NET_NETWORK_TABS: Record<string, GlossaryEntry> = {
       "Gleicht Cisco-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Zeigt bestätigte Zuordnungen sowie fehlende oder widersprüchliche Angaben.",
     source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info · IPAM",
   },
+};
+
+export const NET_IPAM_KPI: Record<string, GlossaryEntry> = {
+  total: {
+    term: "IP-Adressen gesamt",
+    description: "Alle aus dem aktuellen Infoblox-Export übernommenen IP-Adressen im aktiven Datenbestand.",
+    source: "IPAM-CSV (Infoblox-Export)",
+  },
+  used: {
+    term: "Belegte IP-Adressen",
+    description: "IP-Adressen mit dem Status „Used“. Sie sind im IPAM als belegt geführt.",
+    source: "IPAM-CSV · Status",
+  },
+  unused: {
+    term: "Freie IP-Adressen",
+    description: "IP-Adressen mit dem Status „Unused“. Prüfe vor einer Wiederverwendung den Discovery- und DNS-Stand.",
+    source: "IPAM-CSV · Status",
+  },
+  withDnsName: {
+    term: "IP-Adressen mit DNS-Name",
+    description: "Adressen, für die im IPAM ein Name bzw. DNS-Bezug gepflegt ist. Fehlende Namen erschweren die Betriebszuordnung.",
+    source: "IPAM-CSV · Name",
+  },
+  withDiscovery: {
+    term: "IP-Adressen mit Discovery-Daten",
+    description: "Adressen mit mindestens einem erfassten Discovery-Zeitpunkt. Sie wurden durch die IPAM-Erkennung beobachtet.",
+    source: "IPAM-CSV · First/Last Discovered",
+  },
+};
+
+export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
+  totalPorts: {
+    term: "Ports gesamt",
+    description: "Alle importierten Cisco-Switch-Interfaces, die in den Abgleich einfließen.",
+    source: "Cisco-Switch-TXT",
+  },
+  cdpConfirmed: {
+    term: "CDP-bestätigt",
+    description: "Switch-Ports, deren Gegenstelle über CDP eindeutig einem ESXi-Host zugeordnet wurde.",
+    source: "Cisco-Switch-TXT · CDP-CSV",
+  },
+  documentedOnly: {
+    term: "Nur dokumentiert",
+    description: "Zuordnungen, die sich aus der Port-Beschriftung oder Dokumentation ergeben, aber nicht durch CDP bestätigt sind.",
+    source: "Cisco-Switch-TXT · RVTools · Tech-Info",
+  },
+  unknown: {
+    term: "Unbekannt",
+    description: "Ports ohne belastbare Zuordnung zu einem System. Prüfe Beschreibung, CDP und die physischen Anschlüsse.",
+    source: "Cisco-Switch-TXT · CDP-CSV · RVTools",
+  },
+  statusConflicts: {
+    term: "Status-Konflikte",
+    description: "Ports mit widersprüchlichen Statusinformationen zwischen Switch-Daten und den verknüpften Quellen.",
+    source: "Cisco-Switch-TXT · CDP-CSV · RVTools",
+  },
+  labelConflicts: {
+    term: "Beschriftungs-Konflikte",
+    description: "Ports, deren Beschriftung nicht zur ermittelten Gegenstelle passt. Das ist ein Hinweis auf veraltete oder falsche Dokumentation.",
+    source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info",
+  },
+};
+
+export const NET_SWITCH_KPI: Record<string, GlossaryEntry> = {
+  switches: {
+    term: "Switches",
+    description: "Anzahl unterschiedlicher Switches im importierten Cisco-Interface-Inventar.",
+    source: "Cisco-Switch-TXT",
+  },
+  interfaces: {
+    term: "Interfaces gesamt",
+    description: "Alle erfassten Cisco-Switch-Interfaces über die importierten Switches.",
+    source: "Cisco-Switch-TXT",
+  },
+  connected: {
+    term: "Verbundene Interfaces",
+    description: "Interfaces mit dem Status „connected“. Sie haben aktuell einen aktiven Link.",
+    source: "Cisco-Switch-TXT · Status",
+  },
+  notConnected: {
+    term: "Interfaces ohne Link",
+    description: "Interfaces ohne aktiven Link. Das kann erwartbar sein oder auf einen unterbrochenen Uplink hindeuten.",
+    source: "Cisco-Switch-TXT · Status",
+  },
+};
+
+export const NET_SWITCH_COLUMNS: Record<string, GlossaryEntry> = {
+  hostname: { term: "Switch-Hostname", description: "Name des Cisco-Switches, von dem das Interface stammt.", source: "Cisco-Switch-TXT · Hostname" },
+  interface: { term: "Interface", description: "Physische Schnittstelle am Switch, zum Beispiel Eth1/1.", source: "Cisco-Switch-TXT · Interface" },
+  description: { term: "Port-Beschreibung", description: "Am Switch gepflegte Schnittstellenbeschreibung; häufig der dokumentierte Gegenstellen- oder Zweckhinweis.", source: "Cisco-Switch-TXT · Description" },
+  status: { term: "Port-Status", description: "Vom Switch gemeldeter Link-Status des Interfaces, zum Beispiel connected oder notconnect.", source: "Cisco-Switch-TXT · Status" },
+  mode: { term: "Switchport-Modus", description: "Konfigurationsmodus des Ports, etwa access, trunk oder routed.", source: "Cisco-Switch-TXT · Mode" },
+  duplex: { term: "Duplex", description: "Ausgehandelter Duplex-Modus des Links. Full Duplex ist der erwartete Betriebszustand.", source: "Cisco-Switch-TXT · Duplex" },
+  speed: { term: "Link-Geschwindigkeit", description: "Vom Switch erkannte Übertragungsrate des Interfaces, zum Beispiel 10G oder 25G.", source: "Cisco-Switch-TXT · Speed" },
+  transceiver: { term: "Transceiver", description: "Erkannter Optik- oder Kabeltyp des Interfaces.", source: "Cisco-Switch-TXT · Transceiver" },
+};
+
+export const NET_IPAM_COLUMNS: Record<string, GlossaryEntry> = {
+  ipAddress: { term: "IP-Adresse", description: "Eindeutige Adresse aus dem IPAM-Export.", source: "IPAM-CSV · IP Address" },
+  name: { term: "DNS-Name", description: "Im IPAM gepflegter Host- oder DNS-Name der Adresse.", source: "IPAM-CSV · Name" },
+  status: { term: "IPAM-Status", description: "Belegungsstatus der Adresse, etwa Used oder Unused.", source: "IPAM-CSV · Status" },
+  type: { term: "Adress-Typ", description: "Vom IPAM gelieferte Klassifizierung der Adresse.", source: "IPAM-CSV · Type" },
+  usage: { term: "Nutzung", description: "Im IPAM hinterlegte Nutzungs- oder Zweckangabe der Adresse.", source: "IPAM-CSV · Usage" },
+  firstDiscovered: { term: "Erstmals erkannt", description: "Zeitpunkt, zu dem die Adresse erstmals durch die IPAM-Erkennung beobachtet wurde.", source: "IPAM-CSV · First Discovered" },
+  lastDiscovered: { term: "Zuletzt erkannt", description: "Letzter Erkennungszeitpunkt der Adresse im IPAM.", source: "IPAM-CSV · Last Discovered" },
+  comment: { term: "Kommentar", description: "Freitext-Kommentar aus dem IPAM.", source: "IPAM-CSV · Comment" },
+  site: { term: "Standort", description: "Dem IPAM-Eintrag zugeordneter Standort.", source: "IPAM-CSV · Site" },
+  macAddress: { term: "MAC-Adresse", description: "Zu der IP-Adresse im IPAM bekannte MAC-Adresse.", source: "IPAM-CSV · MAC Address" },
+  os: { term: "Betriebssystem", description: "Vom IPAM erkannte oder gepflegte Betriebssysteminformation.", source: "IPAM-CSV · OS" },
+  netBiosName: { term: "NetBIOS-Name", description: "Im IPAM erkannter NetBIOS-Name.", source: "IPAM-CSV · NetBIOS Name" },
+  deviceTypes: { term: "Gerätetypen", description: "Vom IPAM erkannte Geräte- oder Klassifizierungstypen.", source: "IPAM-CSV · Device Type(s)" },
+  openPorts: { term: "Offene Ports", description: "Im IPAM erfasste offene Netzwerkports der Adresse.", source: "IPAM-CSV · Open Port(s)" },
+  fingerprint: { term: "Fingerprint", description: "Vom IPAM erkannter technischer Fingerprint des Geräts oder Dienstes.", source: "IPAM-CSV · Fingerprint" },
+};
+
+export const NET_AUDIT_COLUMNS: Record<string, GlossaryEntry> = {
+  switchHostname: { term: "Switch", description: "Cisco-Switch, auf dem das abgeglichene Interface liegt.", source: "Cisco-Switch-TXT · Hostname" },
+  interface: { term: "Interface", description: "Switch-Port, der mit CDP, RVTools, Tech-Info und IPAM abgeglichen wird.", source: "Cisco-Switch-TXT · Interface" },
+  description: { term: "Port-Beschreibung", description: "Dokumentierter Freitext am Switch-Port. Er wird für die Zuordnung zur Gegenstelle herangezogen.", source: "Cisco-Switch-TXT · Description" },
+  status: { term: "Port-Status", description: "Vom Switch gemeldeter Link-Status des Interfaces.", source: "Cisco-Switch-TXT · Status" },
+  matchStatus: { term: "Match-Status", description: "Qualität der ermittelten Zuordnung: CDP-bestätigt, RVTools-Treffer, nur dokumentiert oder unbekannt.", source: "Abgleich aus Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info" },
+  matchedHost: { term: "Vermuteter ESXi-Host", description: "Host, der dem Switch-Port durch CDP oder die Dokumentation zugeordnet wurde.", source: "CDP-CSV · RVTools · Tech-Info" },
+  finding: { term: "Auffälligkeit", description: "Erkannte Abweichung oder fehlende Zuordnung, die geprüft werden sollte.", source: "Berechnet aus dem Datenabgleich" },
+};
+
+export const NET_HOST_QUALITY_RVTOOLS_COLUMNS: Record<string, GlossaryEntry> = {
+  host: { term: "ESXi-Host aus RVTools", description: "ESXi-Host aus dem RVTools-Inventar; Ausgangspunkt für den Abgleich.", source: "RVTools · vHost · Host" },
+  cluster: { term: "Cluster", description: "Cluster-Zuordnung des ESXi-Hosts.", source: "RVTools · vHost · Cluster" },
+  version: { term: "ESXi-Version", description: "Von RVTools gemeldete ESXi-Version des Hosts.", source: "RVTools · vHost · ESX Version" },
+  techInfoPresent: { term: "Tech-Info vorhanden", description: "Zeigt, ob für den RVTools-Host ein passender Tech-Info-Eintrag gefunden wurde.", source: "Abgleich RVTools · Tech-Info" },
+  techInfoServerType: { term: "Servertyp", description: "Servertyp aus dem passenden Tech-Info-Eintrag.", source: "Tech-Info · Servertyp" },
+  techInfoDepartment: { term: "Abteilung", description: "Zuständige Abteilung aus Tech-Info.", source: "Tech-Info · Abteilung" },
+  ipamPresent: { term: "IPAM vorhanden", description: "Zeigt, ob für den Host ein passender IPAM-Eintrag gefunden wurde.", source: "Abgleich RVTools · IPAM" },
+  ipamAddresses: { term: "IP-Adressen", description: "Passende IP-Adressen aus dem IPAM.", source: "IPAM-CSV · IP Address" },
+  ipamNetworks: { term: "IPAM-Netze", description: "Aus den gefundenen IP-Adressen abgeleitete IPv4-/24- bzw. IPv6-/64-Netze.", source: "Berechnet aus IPAM-CSV" },
+  finding: { term: "Datenlücke", description: "Fehlende oder widersprüchliche Zuordnung zwischen RVTools, Tech-Info und IPAM.", source: "Berechnet aus dem Datenabgleich" },
+};
+
+export const NET_HOST_QUALITY_TECHINFO_COLUMNS: Record<string, GlossaryEntry> = {
+  techInfoName: { term: "Objekt aus Tech-Info", description: "Name des technischen Objekts aus der lokalen Tech-Info-Dokumentation.", source: "Tech-Info · VM/Servername" },
+  serverType: { term: "Servertyp", description: "In Tech-Info gepflegte Systemklassifizierung.", source: "Tech-Info · Servertyp" },
+  department: { term: "Abteilung", description: "In Tech-Info hinterlegte zuständige Abteilung.", source: "Tech-Info · Abteilung" },
+  maintenanceWindow: { term: "Wartungsfenster", description: "In Tech-Info gepflegter Wartungsfensterwert des Objekts.", source: "Tech-Info · Wartungsfenster" },
+  rvtoolsPresent: { term: "RVTools vorhanden", description: "Zeigt, ob ein passender ESXi-Host im RVTools-Inventar gefunden wurde.", source: "Abgleich Tech-Info · RVTools" },
+  rvtoolsHost: { term: "ESXi-Host aus RVTools", description: "Passender ESXi-Host aus dem RVTools-Inventar.", source: "RVTools · vHost · Host" },
+  rvtoolsCluster: { term: "Cluster", description: "Cluster des passenden RVTools-Hosts.", source: "RVTools · vHost · Cluster" },
+  ipamPresent: { term: "IPAM vorhanden", description: "Zeigt, ob für das Tech-Info-Objekt ein passender IPAM-Eintrag gefunden wurde.", source: "Abgleich Tech-Info · IPAM" },
+  ipamAddresses: { term: "IP-Adressen", description: "Passende IP-Adressen aus dem IPAM.", source: "IPAM-CSV · IP Address" },
+  ipamNetworks: { term: "IPAM-Netze", description: "Aus den gefundenen IP-Adressen abgeleitete IPv4-/24- bzw. IPv6-/64-Netze.", source: "Berechnet aus IPAM-CSV" },
+  finding: { term: "Datenlücke", description: "Fehlende oder widersprüchliche Zuordnung zwischen Tech-Info, RVTools und IPAM.", source: "Berechnet aus dem Datenabgleich" },
 };
 
 /* ================================================================== */

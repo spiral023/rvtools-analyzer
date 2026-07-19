@@ -15,9 +15,13 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({ data }: { data: Array<Record<string, unknown>> }) => (
-    <div>{data.flatMap((row) => Object.values(row).flatMap((value) => Array.isArray(value) ? value : typeof value === "string" ? [value] : []) as string[]).join(" | ")}</div>
+  VirtualTable: ({ columns, data }: { columns: Array<{ meta?: { info?: { term: string } } }>; data: Array<Record<string, unknown>> }) => (
+    <div data-testid="host-quality-table-columns">{columns.map((column) => column.meta?.info?.term ?? "").join("|")} {data.flatMap((row) => Object.values(row).flatMap((value) => Array.isArray(value) ? value : typeof value === "string" ? [value] : []) as string[]).join(" | ")}</div>
   ),
+}));
+
+vi.mock("@/components/ui/info-tooltip", () => ({
+  InfoTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 describe("NetworkAuditPanel host data quality", () => {
@@ -29,5 +33,13 @@ describe("NetworkAuditPanel host data quality", () => {
     expect(screen.getByRole("heading", { name: /Objekte aus Tech-Info/ })).toBeInTheDocument();
     expect(screen.getByText(/esx02\.lab\.local/)).toBeInTheDocument();
     expect(screen.getByText(/10\.10\.20\.0\/24/)).toBeInTheDocument();
+  });
+
+  it("erklärt alle Spalten des Host-Datenabgleichs", () => {
+    render(<NetworkAuditPanel />);
+
+    const tables = screen.getAllByTestId("host-quality-table-columns");
+    expect(tables[1]).toHaveTextContent("ESXi-Host aus RVTools|Cluster|ESXi-Version|Tech-Info vorhanden|Servertyp|Abteilung|IPAM vorhanden|IP-Adressen|IPAM-Netze|Datenlücke");
+    expect(tables[2]).toHaveTextContent("Objekt aus Tech-Info|Servertyp|Abteilung|Wartungsfenster|RVTools vorhanden|ESXi-Host aus RVTools|Cluster|IPAM vorhanden|IP-Adressen|IPAM-Netze|Datenlücke");
   });
 });

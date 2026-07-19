@@ -51,11 +51,17 @@ export function FilterBar() {
   }, [searchLocal, setFilters]);
 
   const selectedVcenterIds = new Set(filters.vcenterIds);
-  const vcenterLabel = filters.vcenterIds.length === 0
-    ? "Alle vCenter"
-    : filters.vcenterIds.length === 1
-      ? (vcenters.find(([id]) => id === filters.vcenterIds[0])?.[1] ?? "1 vCenter ausgewählt")
-      : `${filters.vcenterIds.length} vCenter ausgewählt`;
+  const matchingVcenterGroup = vcenterGroups.find((group) => {
+    const groupVcenterIds = new Set(group.vcenterIds);
+    return groupVcenterIds.size === selectedVcenterIds.size
+      && [...groupVcenterIds].every((vcenterId) => selectedVcenterIds.has(vcenterId));
+  });
+  const vcenterLabel = matchingVcenterGroup?.name
+    ?? (filters.vcenterIds.length === 0
+      ? "Alle vCenter"
+      : filters.vcenterIds.length === 1
+        ? (vcenters.find(([id]) => id === filters.vcenterIds[0])?.[1] ?? "1 vCenter ausgewählt")
+        : `${filters.vcenterIds.length} vCenter ausgewählt`);
 
   const toggleVcenter = useCallback((vcenterId: string, checked: boolean) => {
     setFilters({

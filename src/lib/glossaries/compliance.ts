@@ -8,6 +8,36 @@ import type { GlossaryEntry } from "@/lib/glossary";
 const RV = "RVTools";
 
 /* ------------------------------------------------------------------ */
+/*  Bereichs-Tabs                                                     */
+/* ------------------------------------------------------------------ */
+export const COMPLIANCE_TABS: Record<string, GlossaryEntry> = {
+  compliance: {
+    term: "Compliance",
+    description:
+      "Prüft VM-Grundstandards wie Secure Boot, Firmware, CBT, Betriebssystem-Drift und Dokumentation.",
+    source: `${RV} · vInfo · vSource`,
+  },
+  operations: {
+    term: "Operations",
+    description:
+      "Bündelt operativ relevante Auffälligkeiten: VMware-Tools-Updates, NTP/DNS-Hygiene, Hardware-Upgrades und besondere Latenz-Einstellungen.",
+    source: `${RV} · vTools · vInfo · vHost`,
+  },
+  infrastructure: {
+    term: "Infrastruktur",
+    description:
+      "Zeigt den Host- und Treiberbestand, Wartungsmodus, ESXi-Build-Drift sowie gemischte CPU-Generationen in Clustern.",
+    source: `${RV} · vHost · vHBA · vNIC`,
+  },
+  versions: {
+    term: "Versionen",
+    description:
+      "Vergleicht erkannte vCenter- und ESXi-Builds mit dem lokalen Release-Katalog und macht Patch- bzw. Upgrade-Rückstände sichtbar.",
+    source: `${RV} · vSource · vHost`,
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /*  Compliance-Tab – KPIs                                             */
 /* ------------------------------------------------------------------ */
 export const COMPLIANCE_KPI: Record<string, GlossaryEntry> = {

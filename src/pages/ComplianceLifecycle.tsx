@@ -20,6 +20,7 @@ import { buildHostDetails, type HostDetail } from "@/lib/conversion";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   COMPLIANCE_KPI,
+  COMPLIANCE_TABS,
   COMPLIANCE_COLUMNS,
   COMPLIANCE_SECTIONS,
   OPERATIONS_KPI,
@@ -598,10 +599,18 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
         className="space-y-4"
       >
         <TabsList className="h-auto w-full justify-start gap-1 p-1">
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="operations">Operations</TabsTrigger>
-          <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
-          <TabsTrigger value="versions">Versionen</TabsTrigger>
+          <InfoTooltip entry={COMPLIANCE_TABS.compliance} side="bottom">
+            <TabsTrigger value="compliance">Compliance</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={COMPLIANCE_TABS.operations} side="bottom">
+            <TabsTrigger value="operations">Operations</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={COMPLIANCE_TABS.infrastructure} side="bottom">
+            <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip entry={COMPLIANCE_TABS.versions} side="bottom">
+            <TabsTrigger value="versions">Versionen</TabsTrigger>
+          </InfoTooltip>
         </TabsList>
 
         <ComplianceTabPanel
