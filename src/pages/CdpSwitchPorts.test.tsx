@@ -2,12 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CdpPanel } from "./CdpSwitchPorts";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { CdpLatest } from "@/domain/models/types";
 
 const { openHostDetail } = vi.hoisted(() => ({ openHostDetail: vi.fn() }));
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({
-    filters: { vcenterIds: [], clusters: [], hosts: [], search: "" },
+    filters: { vcenterIds: [] as string[], clusters: [] as string[], hosts: [] as string[], search: "" },
   }),
   useAllCdpLatest: () => ({
     data: [
@@ -35,7 +36,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
         cdpAvailable: true,
         queryStatus: "CDP-Daten gefunden",
       },
-    ],
+    ] as CdpLatest[],
   }),
 }));
 

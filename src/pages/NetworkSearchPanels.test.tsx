@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { NetworkAuditPanel } from "./NetworkAuditPanel";
 import { IpamPanel } from "./IpamPanel";
 import { SwitchPanel } from "./SwitchPanel";
+import type { SwitchLatest, IpamLatest } from "@/domain/models/types";
+import type { PortAuditRow } from "@/lib/networkAudit";
 
 const search = "core-01";
 
@@ -13,7 +15,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
       switchInterfaceKey: "core-01::eth1/1", hostnameNorm: "core-01", hostname: "core-01", interface: "Eth1/1",
       importedAt: "2026-07-15T00:00:00.000Z", switchImportId: "switch-1", rowIndex: 0,
       description: "Uplink", status: "connected", mode: "trunk", duplex: "full", speed: "10G", transceiver: null,
-    }],
+    }] as SwitchLatest[],
     isLoading: false,
   }),
   useAllIpamLatest: () => ({
@@ -21,7 +23,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
       ipAddress: "10.0.0.10", name: "core-01", status: "Used", type: null, usage: null,
       firstDiscovered: null, lastDiscovered: null, comment: null, site: null, macAddress: null,
       os: null, netBiosName: null, deviceTypes: null, openPorts: null, fingerprint: null,
-    }],
+    }] as IpamLatest[],
     isLoading: false,
   }),
   useNetworkAudit: () => ({
@@ -29,7 +31,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
       switchInterfaceKey: "core-01::eth1/1", switchHostname: "core-01", interface: "Eth1/1", description: "Uplink",
       status: "connected", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp",
       labelConflict: false, labelConflictHost: null, statusConflict: false, finding: null,
-    }],
+    }] as PortAuditRow[],
     isLoading: false,
   }),
 }));

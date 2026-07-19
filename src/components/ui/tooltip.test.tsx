@@ -13,7 +13,7 @@ describe("TooltipContent", () => {
     );
 
     const description = await screen.findByRole("tooltip");
-    const popper = description.closest("[data-radix-popper-content-wrapper]");
+    const popper = description.closest("[data-radix-popper-content-wrapper]") as HTMLElement | null;
 
     expect(popper).not.toBeNull();
     expect(container).not.toContainElement(popper);

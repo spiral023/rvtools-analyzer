@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ComplianceLifecycle from "@/pages/ComplianceLifecycle";
+import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { search: "" }, snapshotsLoading: false }),
-  useVms: () => ({ vms: [], allVms: [], isLoading: false }),
-  useHosts: () => ({ data: [], isLoading: false }),
-  useRawSheet: () => ({ data: [], isLoading: false }),
+  useVms: () => ({ vms: [] as NormalizedVm[], allVms: [] as NormalizedVm[], isLoading: false }),
+  useHosts: () => ({ data: [] as NormalizedHost[], isLoading: false }),
+  useRawSheet: () => ({ data: [] as SheetRow[], isLoading: false }),
 }));
 
 vi.mock("@/hooks/useGlobalVmFilter", () => ({
@@ -14,16 +15,16 @@ vi.mock("@/hooks/useGlobalVmFilter", () => ({
 }));
 
 vi.mock("@/hooks/useVmDetailDialog", () => ({
-  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null }),
+  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null as React.ReactNode }),
 }));
 
 vi.mock("@/components/dashboard/FilterBar", () => ({ FilterBar: () => <div /> }));
 vi.mock("@/components/tables/VirtualTable", () => ({ VirtualTable: () => <div /> }));
-vi.mock("@/pages/Hardware", () => ({ HostDetailDialog: () => null }));
+vi.mock("@/pages/Hardware", () => ({ HostDetailDialog: (): null => null }));
 vi.mock("@/pages/VmwareVersions", () => ({ VmwareVersionsPanel: () => <div /> }));
 vi.mock("@/components/charts/recharts", () => {
   const Container = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
-  return { BarChart: Container, Bar: () => null, XAxis: () => null, YAxis: () => null, Tooltip: () => null, ResponsiveContainer: Container, PieChart: Container, Pie: () => null, Cell: () => null, Legend: () => null };
+  return { BarChart: Container, Bar: (): null => null, XAxis: (): null => null, YAxis: (): null => null, Tooltip: (): null => null, ResponsiveContainer: Container, PieChart: Container, Pie: (): null => null, Cell: (): null => null, Legend: (): null => null };
 });
 vi.mock("@/components/ui/info-tooltip", () => ({
   InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (

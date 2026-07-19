@@ -1,17 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TechInfo from "@/pages/TechInfo";
+import type { NormalizedVm, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
 
 const filters = {
-  clusters: [],
-  hosts: [],
+  clusters: [] as string[],
+  hosts: [] as string[],
   vmNameList: "",
   vmPowerScope: "all",
   excludeVclsVms: false,
   search: "",
 };
 
-const vms = [
+const vms: NormalizedVm[] = [
   {
     snapshotId: "snap-1", vcenterId: "vc-1", vmKey: "vm-1", vmUuid: "uuid-1", vmName: "app-01",
     cluster: null, host: null, powerState: "poweredOn", cpuCount: null, memoryMiB: null,
@@ -30,10 +31,10 @@ const vms = [
   },
 ];
 
-const techInfoRows = [
+const techInfoRows: TechInfoLatest[] = [
   { vmNameNorm: "app-01", vmName: "app-01", sysv: "Max Muster", sysvDeputy: "max muster", cvBackup: false, az: "PROD" },
   { vmNameNorm: "app-02", vmName: "app-02", sysv: "Erika Muster", sysvDeputy: "Franz Beispiel", cvBackup: false, bz: "P" },
-].map((row, rowIndex) => ({
+].map((row, rowIndex): TechInfoLatest => ({
   importedAt: "2026-07-18T00:00:00.000Z", techInfoImportId: "tech-1", rowIndex,
   serverType: null, maintenanceWindow: null, operatingSystem: null, comment: null,
   sysvDepartment: null, sysvDeputyDepartment: null, bz: null, clusterFromTechInfo: null,
@@ -44,13 +45,13 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters, snapshotsLoading: false }),
   useVms: () => ({ allVms: vms, isLoading: false }),
   useTechInfoLatestByVmNames: () => ({ data: techInfoRows, isLoading: false }),
-  useAllTechInfoClientLatest: () => ({ data: [], isLoading: false }),
+  useAllTechInfoClientLatest: () => ({ data: [] as TechInfoClientLatest[], isLoading: false }),
 }));
 
-vi.mock("@/hooks/useGlobalVmFilter", () => ({ useGlobalVmFilterEngine: () => ({ hasActiveFilter: false, matchingVmKeys: null }) }));
-vi.mock("@/hooks/useVmDetailDialog", () => ({ useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null }) }));
-vi.mock("@/hooks/useClientDetailDialog", () => ({ useClientDetailDialog: () => ({ openClientDetail: vi.fn(), clientDetailDialog: null }) }));
-vi.mock("@/components/dashboard/FilterBar", () => ({ FilterBar: () => null }));
+vi.mock("@/hooks/useGlobalVmFilter", () => ({ useGlobalVmFilterEngine: () => ({ hasActiveFilter: false, matchingVmKeys: null as Set<string> | null }) }));
+vi.mock("@/hooks/useVmDetailDialog", () => ({ useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null as React.ReactNode }) }));
+vi.mock("@/hooks/useClientDetailDialog", () => ({ useClientDetailDialog: () => ({ openClientDetail: vi.fn(), clientDetailDialog: null as React.ReactNode }) }));
+vi.mock("@/components/dashboard/FilterBar", () => ({ FilterBar: (): null => null }));
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: ({ columns, data }: {
     columns: Array<{ accessorKey?: string; cell?: (context: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => React.ReactNode }>;
