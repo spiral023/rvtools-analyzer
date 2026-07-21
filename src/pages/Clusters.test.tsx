@@ -213,6 +213,22 @@ describe("Clusters", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("vcsa-a · DC1");
   });
 
+  it("opens details for a previously imported cluster with a legacy key", async () => {
+    const originalKey = clusters[0]!.clusterKey;
+    clusters[0]!.clusterKey = "Production::vc-a";
+
+    try {
+      renderClusters();
+
+      await screen.findByRole("heading", { name: "Cluster" });
+      fireEvent.click(screen.getAllByRole("button", { name: "Cluster Production öffnen" })[0]);
+
+      expect(await screen.findByRole("dialog")).toHaveTextContent("vcsa-a · DC1");
+    } finally {
+      clusters[0]!.clusterKey = originalKey;
+    }
+  });
+
   it("shows the cluster capacity analysis in the Kapazität tab", async () => {
     renderClusters();
 

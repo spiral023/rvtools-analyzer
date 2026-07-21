@@ -11,7 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
-import { isSameCluster, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { clusterScopeKey, isSameCluster, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import type {
@@ -93,7 +93,10 @@ function useClusterDetailDialogView({
   rawVHostRows,
 }: ClusterDetailDialogProps) {
   const selectedCluster = useMemo(
-    () => clusters.find((cluster) => cluster.clusterKey === clusterKey) ?? null,
+    () => clusters.find((cluster) => (
+      cluster.clusterKey === clusterKey
+      || clusterScopeKey(cluster.vcenterId, cluster.datacenter, cluster.name) === clusterKey
+    )) ?? null,
     [clusterKey, clusters],
   );
   const clusterIdentity = useMemo<ClusterIdentity | null>(() => (
