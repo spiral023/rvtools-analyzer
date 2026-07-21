@@ -15,12 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Map, Save, GitCompare, Trash2 } from "lucide-react";
+import { Map, Save, GitCompare, Trash2, AlertTriangle } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, Scenario, ScenarioGroup } from "@/domain/models/types";
 import { toast } from "sonner";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PLANNING_COLUMNS, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
+import { getScenarioTargetDisplay } from "@/lib/scenarioTargets";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { id: "__selection", header: "", enableSorting: false, size: 40 },
@@ -241,22 +242,31 @@ export default function Planning() {
                   <InfoTooltip entry={PLANNING_SECTIONS.groups} side="bottom">
                     <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Gruppen</h3>
                   </InfoTooltip>
-                  {activeScenario.groups.map((g) => (
-                    <Card key={g.id} className="flex items-center justify-between gap-3 p-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{clusterNamesByKey.get(g.targetClusterKey) ?? g.targetClusterKey}</p>
-                        <p className="text-xs text-muted-foreground">{g.vmKeys.length} VM(s)</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button size="sm" variant="ghost" onClick={() => handleLoadScenarioVms(g.id)}>
-                          Laden
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteGroup(g.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
+                  {activeScenario.groups.map((g) => {
+                    const target = getScenarioTargetDisplay(g.targetClusterKey, clusterNamesByKey);
+                    return (
+                      <Card key={g.id} className="flex items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{target.label}</p>
+                          <p className="text-xs text-muted-foreground">{g.vmKeys.length} VM(s)</p>
+                          {target.warning ? (
+                            <p className="flex items-center gap-1 text-xs text-warning">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              {target.warning}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => handleLoadScenarioVms(g.id)}>
+                            Laden
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteGroup(g.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
 
