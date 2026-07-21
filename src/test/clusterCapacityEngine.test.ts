@@ -8,10 +8,12 @@ import {
   metricsFromAggregate,
 } from "@/domain/services/clusterCapacityEngine";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 
 function hostRow(overrides: Record<string, unknown>): SheetRow {
+  const { snapshotId = "snap-1", ...dataOverrides } = overrides;
   return {
-    snapshotId: "snap-1",
+    snapshotId: String(snapshotId),
     sheetName: "vHost",
     rowIndex: 0,
     data: {
@@ -30,7 +32,7 @@ function hostRow(overrides: Record<string, unknown>): SheetRow {
       "VM Memory Ballooned": 0,
       "HT Available": true,
       "HT Active": true,
-      ...overrides,
+      ...dataOverrides,
     },
   };
 }
@@ -87,6 +89,28 @@ describe("clusterCapacityEngine – aggregate & metrics (Vorher)", () => {
 });
 
 describe("groupVHostRowsByCluster", () => {
+  it("trennt gleichnamige Cluster nach vCenter und Datacenter", () => {
+    const rows: SheetRow[] = [
+      hostRow({ snapshotId: "snap-1", Cluster: "A", Datacenter: "DC1", Host: "esx-vc-1" }),
+      hostRow({ snapshotId: "snap-2", Cluster: "A", Datacenter: "DC1", Host: "esx-vc-2" }),
+    ];
+    const vcenterBySnapshot = new Map([
+      ["snap-1", "vc-1"],
+      ["snap-2", "vc-2"],
+    ]);
+    const vc1Identity = { vcenterId: "vc-1", datacenter: "DC1", clusterName: "A" };
+
+    const grouped = groupVHostRowsByCluster(rows, vcenterBySnapshot);
+    const vc1Key = clusterScopeKey("vc-1", "DC1", "A");
+
+    expect([...grouped.keys()].sort()).toEqual([
+      vc1Key,
+      clusterScopeKey("vc-2", "DC1", "A"),
+    ]);
+    expect(aggregateCluster(vc1Identity, rows, vcenterBySnapshot).hosts).toBe(1);
+    expect(grouped.get(vc1Key)?.map((row) => row.data["Host"])).toEqual(["esx-vc-1"]);
+  });
+
   it("gruppiert Host-Zeilen nach getrimmtem Cluster-Namen", () => {
     const rows: SheetRow[] = [
       hostRow({ Cluster: "A", Host: "esx-1" }),

@@ -1,5 +1,6 @@
 import type { NormalizedCluster, NormalizedVm, SheetRow, VmLoadEstimate } from "@/domain/models/types";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
+import { clusterScopeKey, isSameCluster, type ClusterIdentity } from "@/lib/clusterIdentity";
 
 /** Schwellenwerte für Ampeln und Risk-Score — 1:1 aus der Capacity-Seite. */
 export const CAPACITY_THRESHOLDS = {
@@ -61,31 +62,53 @@ export function emptyAggregate(): ClusterAggregate {
 }
 
 /**
- * Gruppiert vHost-Rohzeilen einmalig nach Cluster-Namen. Vermeidet, dass
+ * Gruppiert vHost-Rohzeilen einmalig nach vCenter, Datacenter und Cluster. Vermeidet, dass
  * {@link aggregateCluster} bei mehreren Clustern jeweils alle Zeilen erneut
  * durchsucht (O(Cluster × Zeilen) → O(Zeilen + Cluster)).
+ *
+ * Ohne `vcenterBySnapshot` bleibt die bisherige Gruppierung nach Clustername
+ * für noch nicht migrierte Aufrufer erhalten.
  */
-export function groupVHostRowsByCluster(rawVHostRows: SheetRow[]): Map<string, SheetRow[]> {
+export function groupVHostRowsByCluster(
+  rawVHostRows: SheetRow[],
+  vcenterBySnapshot?: ReadonlyMap<string, string>,
+): Map<string, SheetRow[]> {
   const grouped = new Map<string, SheetRow[]>();
   for (const row of rawVHostRows) {
     const name = String(row.data["Cluster"] ?? "").trim();
     if (!name) continue;
-    const bucket = grouped.get(name);
+    const datacenter = String(row.data["Datacenter"] ?? "").trim();
+    const key = vcenterBySnapshot
+      ? clusterScopeKey(vcenterBySnapshot.get(row.snapshotId) ?? "", datacenter, name)
+      : name;
+    const bucket = grouped.get(key);
     if (bucket) bucket.push(row);
-    else grouped.set(name, [row]);
+    else grouped.set(key, [row]);
   }
   return grouped;
 }
 
 /** Baut das gemessene Ist-Aggregat eines Clusters aus den vHost-Rohzeilen. */
-export function aggregateCluster(clusterName: string, rawVHostRows: SheetRow[]): ClusterAggregate {
+export function aggregateCluster(
+  cluster: ClusterIdentity | string,
+  rawVHostRows: SheetRow[],
+  vcenterBySnapshot?: ReadonlyMap<string, string>,
+): ClusterAggregate {
   const agg = emptyAggregate();
-  const target = clusterName.trim();
+  const targetName = typeof cluster === "string" ? cluster.trim() : null;
   for (const r of rawVHostRows) {
     const d = r.data;
     const rowCluster = String(d["Cluster"] ?? "").trim();
     const hostName = String(d["Host"] ?? "").trim();
-    if (!rowCluster || !hostName || rowCluster !== target) continue;
+    const datacenter = String(d["Datacenter"] ?? "").trim();
+    const matches = typeof cluster === "string"
+      ? rowCluster === targetName
+      : isSameCluster(cluster, {
+        vcenterId: vcenterBySnapshot?.get(r.snapshotId) ?? "",
+        datacenter,
+        clusterName: rowCluster,
+      });
+    if (!rowCluster || !hostName || !matches) continue;
 
     const cpuCores = toNumLoose(d["# Cores"]);
     const memMiB = toNumLoose(d["# Memory"]);

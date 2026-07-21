@@ -55,6 +55,7 @@ import {
 } from "@/lib/xlsx/parseHelpers";
 import { isSwitchTxtContent, parseSwitchTxt, findLikelyPromptMismatch } from "@/lib/switchParser";
 import { gzipJson } from "@/lib/compression";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { shortId } from "@/lib/shortId";
 import type {
   ImportResult,
@@ -358,12 +359,13 @@ function normalizeClusters(sheet: ParsedSheetData | undefined, snapshotId: strin
   if (!sheet) return [];
   return sheet.rows.map((row) => {
     const name = String(row["Name"] || row["Cluster"] || "unknown");
+    const datacenter = toStr(row["Datacenter"]);
     return {
       snapshotId,
       vcenterId,
-      clusterKey: `${name}::${vcenterId}`,
+      clusterKey: clusterScopeKey(vcenterId, datacenter, name),
       name,
-      datacenter: toStr(row["Datacenter"]),
+      datacenter,
       haEnabled: toBool(row["HA enabled"]),
       drsEnabled: toBool(row["DRS enabled"]),
       numHosts: toNumber(row["NumHosts"] || row["# Hosts"]),
