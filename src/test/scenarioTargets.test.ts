@@ -8,4 +8,11 @@ describe("getScenarioTargetDisplay", () => {
       warning: "Zielcluster „Production“ in vCenter „vc-1“ konnte nicht eindeutig zugeordnet werden.",
     });
   });
+
+  it("kennzeichnet einen nicht auflösbaren alten reinen Cluster-Namen als verwaist", () => {
+    expect(getScenarioTargetDisplay("Production", new Map())).toEqual({
+      label: "Verwaistes Ziel",
+      warning: "Zielcluster „Production“ konnte nicht eindeutig zugeordnet werden.",
+    });
+  });
 });

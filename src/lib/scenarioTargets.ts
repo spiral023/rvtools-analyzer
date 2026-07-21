@@ -20,5 +20,12 @@ export function getScenarioTargetDisplay(
     };
   }
 
+  if (!targetClusterKey.includes("\u0000")) {
+    return {
+      label: "Verwaistes Ziel",
+      warning: `Zielcluster „${targetClusterKey}“ konnte nicht eindeutig zugeordnet werden.`,
+    };
+  }
+
   return { label: targetClusterKey, warning: null };
 }

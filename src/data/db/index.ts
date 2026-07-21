@@ -423,17 +423,22 @@ export async function getScenarios(): Promise<Scenario[]> {
   const all = await db.getAll("scenarios");
   const clusters = await db.getAll("entities_cluster");
   const clusterKeysByLegacyTarget = new Map<string, Set<string>>();
+  const clusterKeysByName = new Map<string, Set<string>>();
   for (const cluster of clusters) {
     const legacyTarget = `${cluster.name}::${cluster.vcenterId}`;
-    const candidates = clusterKeysByLegacyTarget.get(legacyTarget) ?? new Set<string>();
-    candidates.add(cluster.clusterKey);
-    clusterKeysByLegacyTarget.set(legacyTarget, candidates);
+    const legacyCandidates = clusterKeysByLegacyTarget.get(legacyTarget) ?? new Set<string>();
+    legacyCandidates.add(cluster.clusterKey);
+    clusterKeysByLegacyTarget.set(legacyTarget, legacyCandidates);
+    const nameCandidates = clusterKeysByName.get(cluster.name) ?? new Set<string>();
+    nameCandidates.add(cluster.clusterKey);
+    clusterKeysByName.set(cluster.name, nameCandidates);
   }
 
   const migrated = all.map((scenario) => {
     let changed = false;
     const groups = scenario.groups.map((group) => {
-      const candidates = clusterKeysByLegacyTarget.get(group.targetClusterKey);
+      const candidates = clusterKeysByLegacyTarget.get(group.targetClusterKey)
+        ?? clusterKeysByName.get(group.targetClusterKey);
       if (!candidates || candidates.size !== 1) return group;
       changed = true;
       return { ...group, targetClusterKey: [...candidates][0] };
