@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
+import { ClusterInfrastructurePanel } from "@/components/cluster/ClusterInfrastructurePanel";
 import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
 import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
@@ -14,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
 
 type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
@@ -24,16 +26,18 @@ function isClusterTab(value: string | null): value is ClusterTab {
 
 export default function Clusters() {
   const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<ClusterTab>(() => {
+    const queryTab = searchParams.get("tab");
+    return isClusterTab(queryTab) ? queryTab : "overview";
+  });
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { vms = [], isLoading: vmsLoading } = useVms();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
-  const [tab, setTab] = useState<ClusterTab>(() => {
-    const queryTab = searchParams.get("tab");
-    return isClusterTab(queryTab) ? queryTab : "overview";
-  });
+  const { data: rawHbaRows = [], isLoading: rawHbaLoading } = useRawSheet("vHBA", tab === "infrastructure");
+  const { data: rawNicRows = [], isLoading: rawNicLoading } = useRawSheet("vNIC", tab === "infrastructure");
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
 
   const activeSnapshotSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
@@ -67,7 +71,7 @@ export default function Clusters() {
   );
   const selectedRow = filteredRows.find((row) => row.clusterKey === selectedClusterKey) ?? null;
 
-  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading;
+  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading || rawHbaLoading || rawNicLoading;
   if (dataLoading) return <PageLoadingState title="Cluster" />;
   if (snapshots.length === 0) {
     return <EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten vorhanden" description="Laden Sie einen RVTools XLSX-Export hoch, um Ihre Cluster zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />;
@@ -103,6 +107,15 @@ export default function Clusters() {
         </TabsContent>
         <TabsContent value="planning" className="mt-6">
           <ClusterPlanningPanel />
+        </TabsContent>
+        <TabsContent value="infrastructure" className="mt-6">
+          <ClusterInfrastructurePanel
+            clusters={clusters.filter((cluster) => activeSnapshotSet.has(cluster.snapshotId) && scopedClusterKeys.has(cluster.clusterKey))}
+            hosts={hosts.filter((host) => activeSnapshotSet.has(host.snapshotId) && scopedClusterKeys.has(clusterScopeKey(host.vcenterId, host.datacenter, host.cluster)))}
+            rawHbaRows={rawHbaRows}
+            rawNicRows={rawNicRows}
+            search={filters.search}
+          />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog

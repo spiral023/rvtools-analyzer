@@ -41,4 +41,13 @@ describe("ComplianceLifecycle", () => {
     expect(screen.getByTestId("tooltip-infrastruktur")).toHaveAttribute("data-tooltip-term", "Infrastruktur");
     expect(screen.getByTestId("tooltip-versionen")).toHaveAttribute("data-tooltip-term", "Versionen");
   });
+
+  it("keeps the ESXi version view but no longer renders cluster infrastructure inventories", () => {
+    render(<ComplianceLifecycle initialTab="infrastructure" />);
+
+    expect(screen.getByText("ESXi Version/Build")).toBeInTheDocument();
+    expect(screen.queryByText(/CPU-Generationen Mix je Cluster/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Host Inventar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/HBA\/NIC Treiberinventar/)).not.toBeInTheDocument();
+  });
 });

@@ -10,13 +10,11 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HostDetailDialog } from "@/pages/Hardware";
 import { VmwareVersionsPanel } from "@/pages/VmwareVersions";
-import { Shield, Cpu, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Wifi, Globe } from "lucide-react";
+import { Shield, Wrench, MonitorCheck, Fingerprint, Tag, Clock, Server, Globe } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "@/components/charts/recharts";
 import { formatNum, parseEsxVersionBuild } from "@/lib/xlsx/parseHelpers";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, SEVERITY_COLORS } from "@/lib/chartStyles";
-import { buildHostDetails, type HostDetail } from "@/lib/conversion";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   COMPLIANCE_KPI,
@@ -27,15 +25,11 @@ import {
   NTP_COLUMNS,
   HW_UPGRADE_COLUMNS,
   TOOLS_WAVE_COLUMNS,
-  INFRASTRUCTURE_KPI,
-  HOST_COLUMNS,
-  DRIVER_COLUMNS,
 } from "@/lib/glossaries/compliance";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
+import type { NormalizedHost } from "@/domain/models/types";
 
 interface ComplianceVm { snapshotId: string; vmName: string; hwVersion: string | null; firmware: string | null; secureBoot: boolean | null; cbt: boolean | null; osConfig: string | null; osTools: string | null; osDrift: boolean; toolsStatus: string | null; cluster: string | null; uuidMissing: boolean; annotationEmpty: boolean; latencySensitivity: string; ftState: string; haRestart: string }
-interface DriverRow { host: string; cluster: string; device: string; type: string; driver: string; model: string }
 interface NtpRow { host: string; ntpServers: string; ntpdRunning: boolean; dnsServers: string; dhcp: boolean; issues: string }
 interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: number; pct: number }
 interface HwUpgradeRow { snapshotId: string; vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
@@ -134,7 +128,6 @@ function renderOperationsTabPanel({
   complianceVms,
   globalFilter,
   onOpenVmDetail,
-  onOpenHostDetail,
 }: {
   toolsUpgradeable: number;
   ntpDnsData: NtpRow[];
@@ -144,7 +137,6 @@ function renderOperationsTabPanel({
   complianceVms: ComplianceVm[];
   globalFilter: string;
   onOpenVmDetail: (row: unknown) => void;
-  onOpenHostDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="operations" className="space-y-4">
@@ -155,7 +147,7 @@ function renderOperationsTabPanel({
         <KpiCard title="Latency Sonderfälle" value={formatNum(latencyNonNormal)} severity={latencyNonNormal > 0 ? "warn" : "ok"} info={OPERATIONS_KPI.latencyNonNormal} />
       </KpiGrid>
 
-      {ntpDnsData.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3></InfoTooltip><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenHostDetail} /></div>)}
+      {ntpDnsData.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3></InfoTooltip><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} /></div>)}
 
       {hwUpgradeBacklog.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.hwUpgradeBacklog} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3></InfoTooltip><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} /></div>)}
 
@@ -173,44 +165,9 @@ function renderOperationsTabPanel({
   );
 }
 
-function renderInfrastructureTabPanel({
-  maintenanceHosts,
-  hostsWithEsxVersion,
-  driverInventory,
-  cpuMix,
-  buildChart,
-  hostColumns,
-  globalFilter,
-  selectedHost,
-  rawHBA,
-  rawNIC,
-  allVms,
-  onCloseHostDetail,
-  onOpenHostDetail,
-}: {
-  maintenanceHosts: number;
-  hostsWithEsxVersion: NormalizedHost[];
-  driverInventory: DriverRow[];
-  cpuMix: Array<{ cluster: string; models: number; list: string }>;
-  buildChart: Array<{ name: string; value: number }>;
-  hostColumns: ColumnDef<NormalizedHost, unknown>[];
-  globalFilter: string;
-  selectedHost: HostDetail | null;
-  rawHBA: SheetRow[];
-  rawNIC: SheetRow[];
-  allVms: NormalizedVm[];
-  onCloseHostDetail: () => void;
-  onOpenHostDetail: (row: unknown) => void;
-}) {
+function renderInfrastructureVersionPanel(buildChart: Array<{ name: string; value: number }>) {
   return (
     <TabsContent value="infrastructure" className="space-y-4">
-      <KpiGrid>
-        <KpiCard title="Maintenance" value={formatNum(maintenanceHosts)} severity={maintenanceHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.maintenanceHosts} />
-        <KpiCard title="Hosts" value={formatNum(hostsWithEsxVersion.length)} severity="ok" icon={<Server className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.hosts} />
-        <KpiCard title="Treiber-Einträge" value={formatNum(driverInventory.length)} severity={driverInventory.length > 0 ? "ok" : "warn"} icon={<Wifi className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.driverEntries} />
-        <KpiCard title="CPU Mix Cluster" value={formatNum(cpuMix.length)} severity={cpuMix.length > 0 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={INFRASTRUCTURE_KPI.cpuMix} />
-      </KpiGrid>
-
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiBuild} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">ESXi Version/Build</h3>
@@ -219,28 +176,6 @@ function renderInfrastructureTabPanel({
           <PieChart><Pie data={buildChart} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={85} strokeWidth={0}>{buildChart.map((entry, index) => <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />)}</Pie><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "11px" }} /></PieChart>
         </ResponsiveContainer>
       </div>
-
-      <div><InfoTooltip entry={COMPLIANCE_SECTIONS.hostInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Inventar ({hostsWithEsxVersion.length})</h3></InfoTooltip><VirtualTable data={hostsWithEsxVersion} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>
-
-      {driverInventory.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.driverInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverInventory.length})</h3></InfoTooltip><VirtualTable data={driverInventory} columns={driverColumns} globalFilter={globalFilter} height={350} onRowClick={onOpenHostDetail} /></div>)}
-
-      {cpuMix.length > 0 && (
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={COMPLIANCE_SECTIONS.cpuMix} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Cpu className="h-4 w-4" /> CPU-Generationen Mix je Cluster</h3>
-          </InfoTooltip>
-          <div className="space-y-2">{cpuMix.map((c) => (<div key={c.cluster} className="flex items-start gap-2 text-sm"><span className="font-medium text-warning">{c.cluster}</span><span className="text-muted-foreground">— {c.models} Modelle: {c.list}</span></div>))}</div>
-        </div>
-      )}
-
-      <HostDetailDialog
-        host={selectedHost}
-        hbaRows={rawHBA}
-        nicRows={rawNIC}
-        vmRows={allVms}
-        open={!!selectedHost}
-        onClose={onCloseHostDetail}
-      />
     </TabsContent>
   );
 }
@@ -283,44 +218,6 @@ const compColumns: ColumnDef<ComplianceVm, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster", meta: { info: COMPLIANCE_COLUMNS.cluster } },
 ];
 
-function makeHostColumns(onSelectHost: (hostName: string) => void): ColumnDef<NormalizedHost, unknown>[] {
-  return [
-    {
-      accessorKey: "host",
-      header: "Host",
-      meta: { info: HOST_COLUMNS.host },
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelectHost(row.original.host);
-          }}
-        >
-          {row.original.host}
-        </button>
-      ),
-    },
-    { accessorKey: "cluster", header: "Cluster", meta: { info: HOST_COLUMNS.cluster } },
-    { accessorKey: "version", header: "ESXi Version", meta: { info: HOST_COLUMNS.version } },
-    { accessorKey: "build", header: "Build", meta: { info: HOST_COLUMNS.build } },
-    { accessorKey: "cpuModel", header: "CPU Model", meta: { info: HOST_COLUMNS.cpuModel } },
-    { accessorKey: "vendor", header: "Vendor", meta: { info: HOST_COLUMNS.vendor } },
-    { accessorKey: "model", header: "Model", meta: { info: HOST_COLUMNS.model } },
-    { accessorKey: "maintenanceMode", header: "Maintenance", meta: { info: HOST_COLUMNS.maintenanceMode }, cell: ({ getValue }) => { const v = getValue() as string; return v === "True" ? <span className="text-warning">Ja</span> : "Nein"; }},
-  ];
-}
-
-const driverColumns: ColumnDef<DriverRow, unknown>[] = [
-  { accessorKey: "host", header: "Host", meta: { info: DRIVER_COLUMNS.host } },
-  { accessorKey: "cluster", header: "Cluster", meta: { info: DRIVER_COLUMNS.cluster } },
-  { accessorKey: "device", header: "Device", meta: { info: DRIVER_COLUMNS.device } },
-  { accessorKey: "type", header: "Typ", meta: { info: DRIVER_COLUMNS.type } },
-  { accessorKey: "driver", header: "Treiber", meta: { info: DRIVER_COLUMNS.driver } },
-  { accessorKey: "model", header: "Modell", meta: { info: DRIVER_COLUMNS.model } },
-];
-
 const ntpColumns: ColumnDef<NtpRow, unknown>[] = [
   { accessorKey: "host", header: "Host", meta: { info: NTP_COLUMNS.host } },
   { accessorKey: "ntpServers", header: "NTP Server", meta: { info: NTP_COLUMNS.ntpServers } },
@@ -353,23 +250,18 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const [activeTab, setActiveTab] = useState<ComplianceTab>(initialTab);
-  const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
 
   const loadVInfo = activeTab === "compliance" || activeTab === "operations";
   const loadVTools = activeTab === "operations";
   const loadVSource = activeTab === "compliance";
   const loadVHost = activeTab === "operations" || activeTab === "infrastructure";
-  const loadHba = activeTab === "infrastructure";
-  const loadNic = activeTab === "infrastructure";
 
   const { data: rawVTools = [], isLoading: rawVToolsLoading } = useRawSheet("vTools", loadVTools);
   const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo", loadVInfo);
   const { data: rawVSource = [], isLoading: rawVSourceLoading } = useRawSheet("vSource", loadVSource);
-  const { data: rawHBA = [], isLoading: rawHBALoading } = useRawSheet("vHBA", loadHba);
-  const { data: rawNIC = [], isLoading: rawNICLoading } = useRawSheet("vNIC", loadNic);
   const { data: rawVHost = [], isLoading: rawVHostLoading } = useRawSheet("vHost", loadVHost);
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || rawVToolsLoading
-    || rawVInfoLoading || rawVSourceLoading || rawHBALoading || rawNICLoading || rawVHostLoading;
+    || rawVInfoLoading || rawVSourceLoading || rawVHostLoading;
   const filteredRawVTools = useMemo(() => filterVmRows(rawVTools), [filterVmRows, rawVTools]);
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
 
@@ -434,38 +326,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
     });
   }, [hosts, rawVHost]);
 
-  const hostDetailsByName = useMemo(() => {
-    const map = new Map<string, HostDetail>();
-    for (const hostDetail of buildHostDetails(rawVHost)) {
-      const key = hostDetail.host.trim().toLowerCase();
-      if (key && !map.has(key)) map.set(key, hostDetail);
-    }
-    return map;
-  }, [rawVHost]);
-
-  const hostColumns = useMemo(
-    () =>
-      makeHostColumns((hostName: string) => {
-        const hostDetail = hostDetailsByName.get(hostName.trim().toLowerCase());
-        if (hostDetail) setSelectedHost(hostDetail);
-      }),
-    [hostDetailsByName],
-  );
-
-  const openHostDetail = (row: unknown) => {
-    const hostName =
-      typeof row === "string"
-        ? row.trim()
-        : row && typeof row === "object" && typeof (row as { host?: unknown }).host === "string"
-          ? (row as { host: string }).host.trim()
-          : "";
-    if (!hostName) return;
-    const hostDetail = hostDetailsByName.get(hostName.toLowerCase());
-    if (hostDetail) setSelectedHost(hostDetail);
-  };
-
-  const maintenanceHosts = hostsWithEsxVersion.filter((h) => h.maintenanceMode === "True").length;
-
   // HW version distribution
   const hwVersionChart = useMemo(() => {
     const map = new Map<string, number>();
@@ -509,17 +369,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
     return rows.sort((a, b) => b.upgradeableCount - a.upgradeableCount);
   }, [filteredRawVTools]);
 
-  // CPU generation mix
-  const cpuMix = useMemo(() => {
-    const clusterCpus = new Map<string, Set<string>>();
-    for (const h of hosts) { if (h.cluster && h.cpuModel) { if (!clusterCpus.has(h.cluster)) clusterCpus.set(h.cluster, new Set()); clusterCpus.get(h.cluster)!.add(h.cpuModel); } }
-    const rows: Array<{ cluster: string; models: number; list: string }> = [];
-    for (const [cluster, models] of clusterCpus) {
-      if (models.size > 1) rows.push({ cluster, models: models.size, list: [...models].join(", ") });
-    }
-    return rows;
-  }, [hosts]);
-
   // vCenter Version
   const vcenterVersions = useMemo(
     () =>
@@ -539,13 +388,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
       .sort((a, b) => a.name.localeCompare(b.name, "de-DE", { numeric: true, sensitivity: "base" })),
     [rawVSource],
   );
-
-  // HBA/NIC Driver inventory
-  const driverInventory = useMemo<DriverRow[]>(() => {
-    const hba = rawHBA.map((r) => ({ host: String(r.data["Host"] || ""), cluster: String(r.data["Cluster"] || ""), device: String(r.data["Device"] || ""), type: String(r.data["Type"] || ""), driver: String(r.data["Driver"] || ""), model: String(r.data["Model"] || "") }));
-    const nic = rawNIC.map((r) => ({ host: String(r.data["Host"] || ""), cluster: String(r.data["Cluster"] || ""), device: String(r.data["Network Device"] || ""), type: "NIC", driver: String(r.data["Driver"] || ""), model: "" }));
-    return [...hba, ...nic];
-  }, [rawHBA, rawNIC]);
 
   // NTP/DNS Hygiene
   const ntpDnsData = useMemo<NtpRow[]>(() => {
@@ -591,7 +433,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
         value={activeTab}
         onValueChange={(value) => {
           setActiveTab(value as ComplianceTab);
-          setSelectedHost(null);
         }}
         className="space-y-4"
       >
@@ -612,7 +453,7 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
           </TabsList>
         </PageHeader>
 
-        <GlobalFilterScopeHint text="Compliance- und VM-Operations-Bereiche folgen dem globalen Filter; Infrastruktur-Tab, Hostdaten und Treiberinventar bleiben unverändert." />
+        <GlobalFilterScopeHint text="Compliance- und VM-Operations-Bereiche folgen dem globalen Filter; die detaillierten Cluster-Inventare sind im Cluster-Arbeitsbereich verfügbar." />
 
         <ComplianceTabPanel
           noSecureBoot={noSecureBoot}
@@ -637,24 +478,9 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
           complianceVms,
           globalFilter: filters.search,
           onOpenVmDetail: openVmDetail,
-          onOpenHostDetail: openHostDetail,
         })}
 
-        {renderInfrastructureTabPanel({
-          maintenanceHosts,
-          hostsWithEsxVersion,
-          driverInventory,
-          cpuMix,
-          buildChart,
-          hostColumns,
-          globalFilter: filters.search,
-          selectedHost,
-          rawHBA,
-          rawNIC,
-          allVms,
-          onCloseHostDetail: () => setSelectedHost(null),
-          onOpenHostDetail: openHostDetail,
-        })}
+        {renderInfrastructureVersionPanel(buildChart)}
 
         <TabsContent value="versions" className="space-y-4">
           <VmwareVersionsPanel />

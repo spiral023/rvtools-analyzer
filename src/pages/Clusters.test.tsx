@@ -29,27 +29,27 @@ const clusters: NormalizedCluster[] = snapshots.map((snapshot): NormalizedCluste
   numEffectiveHosts: 1,
 }));
 
-const hosts: NormalizedHost[] = snapshots.map((snapshot, index): NormalizedHost => ({
+const hosts: NormalizedHost[] = snapshots.flatMap((snapshot, snapshotIndex) => ["Intel Xeon Gold 6130", "Intel Xeon Gold 6240"].map((cpuModel, hostIndex): NormalizedHost => ({
   snapshotId: snapshot.snapshotId,
   vcenterId: snapshot.vcenterId,
-  hostKey: `host-${index}`,
-  host: `esx-0${index + 1}`,
+  hostKey: `host-${snapshotIndex}-${hostIndex}`,
+  host: `esx-${snapshotIndex + 1}${hostIndex + 1}`,
   cluster: "Production",
   datacenter: "DC1",
-  cpuModel: null,
+  cpuModel,
   cpuTotalMHz: null,
   cpuCores: 8,
   cpuThreads: 16,
   memoryTotalMiB: 64_000,
-  version: null,
-  build: null,
+  version: "8.0.2",
+  build: "22380479",
   vendor: null,
   model: null,
   connectionState: null,
   powerState: null,
   maintenanceMode: null,
   vmCount: null,
-}));
+})));
 
 const vms: NormalizedVm[] = snapshots.map((snapshot, index): NormalizedVm => ({
   snapshotId: snapshot.snapshotId,
@@ -89,6 +89,20 @@ const rawVHostRows: SheetRow[] = hosts.map((host) => ({
   data: { Cluster: "Production", Datacenter: "DC1", Host: host.host, "# Cores": 8, "# Memory": 64_000, "# VMs": 1, "# vCPUs": 2 },
 }));
 
+const rawHBARows: SheetRow[] = hosts.map((host, index) => ({
+  snapshotId: host.snapshotId,
+  sheetName: "vHBA",
+  rowIndex: index,
+  data: { Host: host.host, Cluster: "Production", Device: `vmhba${index}`, Type: "FC", Driver: `lpfc-${index}`, Model: "Emulex" },
+}));
+
+const rawNICRows: SheetRow[] = hosts.map((host, index) => ({
+  snapshotId: host.snapshotId,
+  sheetName: "vNIC",
+  rowIndex: index,
+  data: { Host: host.host, Cluster: "Production", "Network Device": `vmnic${index}`, Driver: `nmlx5-${index}` },
+}));
+
 const planningScenarios: Scenario[] = [{
   id: "scenario-1",
   name: "Migration Production",
@@ -106,7 +120,10 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useHosts: () => ({ data: hosts, isLoading: false }),
   useVms: () => ({ vms, isLoading: false }),
   useDatastores: () => ({ data: [] as never[], isLoading: false }),
-  useRawSheet: () => ({ data: rawVHostRows, isLoading: false }),
+  useRawSheet: (sheetName: string) => ({
+    data: sheetName === "vHost" ? rawVHostRows : sheetName === "vHBA" ? rawHBARows : sheetName === "vNIC" ? rawNICRows : [],
+    isLoading: false,
+  }),
   useTechInfoLatestByVmNames: () => ({ data: [] as never[], isLoading: false }),
 }));
 
@@ -216,6 +233,22 @@ describe("Clusters", () => {
     expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Migration Production"));
     expect(screen.getByRole("button", { name: "What-If" })).toBeInTheDocument();
+  });
+
+  it("shows vCenter-safe infrastructure inventory in the Infrastruktur tab", async () => {
+    renderClusters();
+
+    const infrastructureTab = await screen.findByRole("tab", { name: "Infrastruktur" });
+    fireEvent.mouseDown(infrastructureTab);
+    fireEvent.click(infrastructureTab);
+
+    expect(screen.getByText("CPU-Generationen Mix je Cluster")).toBeInTheDocument();
+    expect(screen.getByText(/Host Inventar/)).toBeInTheDocument();
+    expect(screen.getByText(/HBA\/NIC Treiberinventar/)).toBeInTheDocument();
+    expect(screen.getAllByText("vc-a").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("vc-b").length).toBeGreaterThan(0);
+    expect(screen.getByText("lpfc-0")).toBeInTheDocument();
+    expect(screen.getByText("lpfc-2")).toBeInTheDocument();
   });
 
   it("redirects the legacy maintenance URL to the maintenance tab", async () => {
