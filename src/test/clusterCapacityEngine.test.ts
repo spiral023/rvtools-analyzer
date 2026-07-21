@@ -126,6 +126,18 @@ describe("groupVHostRowsByCluster", () => {
     expect(grouped.get(clusterScopeKey("vc-1", "DC1", "A"))?.map((row) => row.data["Host"])).toEqual(["esx-known"]);
   });
 
+  it("aggregiert nicht zugeordnete Zeilen auch nicht für eine leere vCenter-Identity", () => {
+    const rows = [hostRow({ snapshotId: "snap-unknown", Cluster: "A", Datacenter: "DC1", Host: "esx-unknown" })];
+
+    const aggregate = aggregateCluster(
+      { vcenterId: "", datacenter: "DC1", clusterName: "A" },
+      rows,
+      new Map(),
+    );
+
+    expect(aggregate.hosts).toBe(0);
+  });
+
   it("verlangt einen vCenter-Index für Identity-Aggregationen", () => {
     expect(() => aggregateCluster(
       { vcenterId: "vc-1", datacenter: "DC1", clusterName: "A" },

@@ -112,10 +112,12 @@ export function aggregateCluster(
     const rowCluster = String(d["Cluster"] ?? "").trim();
     const hostName = String(d["Host"] ?? "").trim();
     const datacenter = String(d["Datacenter"] ?? "").trim();
+    const rowVcenterId = typeof cluster === "string" ? undefined : vcenterBySnapshot?.get(r.snapshotId);
+    if (typeof cluster !== "string" && rowVcenterId === undefined) continue;
     const matches = typeof cluster === "string"
       ? rowCluster === targetName
       : isSameCluster(cluster, {
-        vcenterId: vcenterBySnapshot?.get(r.snapshotId) ?? "",
+        vcenterId: rowVcenterId,
         datacenter,
         clusterName: rowCluster,
       });
