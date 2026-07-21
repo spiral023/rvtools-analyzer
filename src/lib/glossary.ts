@@ -31,6 +31,11 @@ const RV = "RVTools";
 /*  Sidebar – Sinn jedes Navigationsbereichs                          */
 /* ------------------------------------------------------------------ */
 export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
+  "/clusters": {
+    term: "Cluster",
+    description:
+      "Cluster-Arbeitsbereich für Übersicht, Kapazität, Wartung, Planung und Infrastruktur. vCenter-, Cluster- und Suchfilter gelten für alle Tabs.",
+  },
   "/overview": {
     term: "Overview",
     description:

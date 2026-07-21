@@ -166,15 +166,16 @@ function LocationProbe() {
   return <output>{`${location.pathname}${location.search}`}</output>;
 }
 
-function renderClusters() {
+function renderClusters(initialEntry = "/clusters", includeLocation = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <FilterProvider>
           <SelectionProvider>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[initialEntry]}>
               <Clusters />
+              {includeLocation && <LocationProbe />}
             </MemoryRouter>
           </SelectionProvider>
         </FilterProvider>
@@ -188,6 +189,18 @@ beforeEach(() => {
 });
 
 describe("Clusters", () => {
+  it("opens capacity from the query tab", async () => {
+    renderClusters("/clusters?tab=capacity", true);
+
+    const capacityTab = await screen.findByRole("tab", { name: "Kapazität" });
+    expect(capacityTab).toHaveAttribute("data-state", "active");
+
+    const planningTab = screen.getByRole("tab", { name: "Planung" });
+    fireEvent.mouseDown(planningTab);
+    fireEvent.click(planningTab);
+    expect(screen.getByText("/clusters?tab=planning")).toBeInTheDocument();
+  });
+
   it("renders the filtered cluster overview with separate vCenter cells", async () => {
     renderClusters();
 

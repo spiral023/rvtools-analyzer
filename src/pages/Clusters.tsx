@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
@@ -17,6 +18,7 @@ import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
+import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
 type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
 
@@ -25,11 +27,9 @@ function isClusterTab(value: string | null): value is ClusterTab {
 }
 
 export default function Clusters() {
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<ClusterTab>(() => {
-    const queryTab = searchParams.get("tab");
-    return isClusterTab(queryTab) ? queryTab : "overview";
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const tab: ClusterTab = isClusterTab(queryTab) ? queryTab : "overview";
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
@@ -71,6 +71,15 @@ export default function Clusters() {
   );
   const selectedRow = filteredRows.find((row) => row.clusterKey === selectedClusterKey) ?? null;
 
+  const selectTab = (value: string) => {
+    if (!isClusterTab(value)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("tab", value);
+      return next;
+    });
+  };
+
   const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading || rawHbaLoading || rawNicLoading;
   if (dataLoading) return <PageLoadingState title="Cluster" />;
   if (snapshots.length === 0) {
@@ -80,14 +89,14 @@ export default function Clusters() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Cluster" meta={`${activeSnapshotIds.length} aktive Snapshot${activeSnapshotIds.length === 1 ? "" : "s"}`} />
-      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für die gesamte Clusteransicht; vCenter-, Cluster- und Suchfilter werden vCenter-sicher ausgewertet." />
-      <Tabs value={tab} onValueChange={(value) => setTab(value as ClusterTab)}>
+      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für die gesamte Seite: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf alle Cluster-Tabs angewendet." />
+      <Tabs value={tab} onValueChange={selectTab}>
         <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="overview">Übersicht</TabsTrigger>
-          <TabsTrigger value="capacity">Kapazität</TabsTrigger>
-          <TabsTrigger value="maintenance">Wartung</TabsTrigger>
-          <TabsTrigger value="planning">Planung</TabsTrigger>
-          <TabsTrigger value="infrastructure">Infrastruktur</TabsTrigger>
+          <InfoTooltip entry={CLUSTER_TABS.overview}><TabsTrigger value="overview">Übersicht</TabsTrigger></InfoTooltip>
+          <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
+          <InfoTooltip entry={CLUSTER_TABS.maintenance}><TabsTrigger value="maintenance">Wartung</TabsTrigger></InfoTooltip>
+          <InfoTooltip entry={CLUSTER_TABS.planning}><TabsTrigger value="planning">Planung</TabsTrigger></InfoTooltip>
+          <InfoTooltip entry={CLUSTER_TABS.infrastructure}><TabsTrigger value="infrastructure">Infrastruktur</TabsTrigger></InfoTooltip>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <ClusterOverviewPanel rows={filteredRows} osRows={osRows} search={filters.search} onOpenCluster={setSelectedClusterKey} />
