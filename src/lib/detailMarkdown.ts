@@ -57,6 +57,12 @@ interface ClusterMarkdownData {
   datastores: NormalizedDatastore[];
 }
 
+interface ClusterMarkdownScope {
+  vcenterDisplayName: string;
+  maxVmsPerHost: number | null;
+  maxVmsHost: string | null;
+}
+
 function text(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   return String(value).trim() || "—";
@@ -334,7 +340,11 @@ export function buildHardwareVariantMarkdown(group: HardwareModelGroup): string 
   ].join("\n");
 }
 
-export function buildClusterDetailMarkdown(clusterName: string, data: ClusterMarkdownData): string {
+export function buildClusterDetailMarkdown(
+  clusterName: string,
+  data: ClusterMarkdownData,
+  scope: ClusterMarkdownScope,
+): string {
   const totalHostsByCluster = data.clusters.reduce((sum, cluster) => sum + (cluster.numHosts || 0), 0);
   const hostCount = data.hosts.length > 0 ? data.hosts.length : totalHostsByCluster;
   const totalCoresByHosts = data.hosts.reduce((sum, host) => sum + (host.cpuCores || 0), 0);
@@ -356,9 +366,15 @@ export function buildClusterDetailMarkdown(clusterName: string, data: ClusterMar
     `# Cluster ${clusterName}`,
     "",
     section("Übersicht", [
+      ["vCenter", scope.vcenterDisplayName],
       ["Datacenter", collectClusterDatacenters(data.clusters).join(", ")],
       ["Hosts", hostCount],
       ["Laufende VMs", data.runningVms.length],
+      ["Max. VMs/Host", scope.maxVmsPerHost === null
+        ? "—"
+        : scope.maxVmsHost
+          ? `${formatNum(scope.maxVmsPerHost)} (${scope.maxVmsHost})`
+          : formatNum(scope.maxVmsPerHost)],
       ["CPU Cores", totalCores],
       ["CPU Threads", totalThreads],
       ["Total RAM", formatBytes(totalMemoryMiB)],

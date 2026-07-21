@@ -222,6 +222,10 @@ describe("detail markdown builders", () => {
       hosts: [normalizedHost],
       runningVms: [vm],
       datastores: [datastore],
+    }, {
+      vcenterDisplayName: "vcsa-a",
+      maxVmsPerHost: 20,
+      maxVmsHost: "esx01.local",
     });
 
     expect(markdown).toContain("# Cluster Cluster-A");
@@ -229,5 +233,22 @@ describe("detail markdown builders", () => {
     expect(markdown).toContain("| Total RAM | 512.0 GiB |");
     expect(markdown).toContain("## Datastores");
     expect(markdown).toContain("| DS01 | VMFS | 1000.0 GiB | 500.0 GiB | 50.0% |");
+  });
+
+  it("includes the scoped vCenter and maximum VM density in a cluster detail summary", () => {
+    const markdown = buildClusterDetailMarkdown("Cluster-A", {
+      clusters: [cluster],
+      hosts: [normalizedHost],
+      runningVms: [vm],
+      datastores: [datastore],
+    }, {
+      vcenterDisplayName: "vcsa-a",
+      maxVmsPerHost: 23,
+      maxVmsHost: "esx01.local",
+    });
+
+    expect(markdown).toContain("| vCenter | vcsa-a |");
+    expect(markdown).toContain("| Max. VMs/Host | 23 (esx01.local) |");
+    expect(markdown).not.toContain("vcsa-b");
   });
 });

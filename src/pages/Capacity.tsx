@@ -410,11 +410,12 @@ function useCapacityPageData() {
   const dataLoading = snapshotsLoading || vmsLoading || clustersLoading || datastoresLoading
     || hostsLoading || rawVHostLoading || rawRPLoading || rawDisksLoading;
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
-  const [selectedClusterName, setSelectedClusterName] = useState<string | null>(null);
+  const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
 
   const openClusterDetail = (clusterName: string | null | undefined) => {
     const normalized = (clusterName || "").trim();
-    if (normalized) setSelectedClusterName(normalized);
+    const matches = clusters.filter((cluster) => cluster.name === normalized);
+    if (matches.length === 1) setSelectedClusterKey(matches[0].clusterKey);
   };
 
   const { avgFreePct, critDs, warnDs } = useMemo(() => {
@@ -611,8 +612,8 @@ function useCapacityPageData() {
     hosts,
     rawVHost,
     vms,
-    selectedClusterName,
-    setSelectedClusterName,
+    selectedClusterKey,
+    setSelectedClusterKey,
     openClusterDetail,
     avgFreePct,
     critDs,
@@ -647,8 +648,8 @@ export default function Capacity() {
     hosts,
     rawVHost,
     vms,
-    selectedClusterName,
-    setSelectedClusterName,
+    selectedClusterKey,
+    setSelectedClusterKey,
     openClusterDetail,
     avgFreePct,
     critDs,
@@ -722,9 +723,9 @@ export default function Capacity() {
       />
 
       <ClusterDetailDialog
-        clusterName={selectedClusterName}
-        open={!!selectedClusterName}
-        onClose={() => setSelectedClusterName(null)}
+        clusterKey={selectedClusterKey}
+        open={!!selectedClusterKey}
+        onClose={() => setSelectedClusterKey(null)}
         clusters={clusters}
         hosts={hosts}
         vms={vms}

@@ -11,6 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
+import { isSameCluster, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import type {
@@ -22,7 +23,8 @@ import type {
 } from "@/domain/models/types";
 
 interface ClusterDetailDialogProps {
-  clusterName: string | null;
+  clusterKey: string | null;
+  vcenterDisplayName?: string;
   open: boolean;
   onClose: () => void;
   clusters: NormalizedCluster[];
@@ -36,7 +38,7 @@ interface HostLoadRow {
   host: string;
   cpuUsagePct: number;
   memoryUsagePct: number;
-  vmCount: number;
+  vmCount: number | null;
   vcpuCount: number;
   vmUsedMiB: number;
   memoryTotalMiB: number;
@@ -52,6 +54,12 @@ function isPoweredOn(powerState: string | null | undefined): boolean {
 function toOptionalBool(value: unknown): boolean | null {
   if (value === null || value === undefined || value === "") return null;
   return toBoolLoose(value);
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const number = toNumLoose(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function aggregateBoolean(values: Array<boolean | null | undefined>): { label: string; className: string } {
@@ -74,7 +82,8 @@ function metricSeverity(value: number | null, warn: number, crit: number): strin
 }
 
 function useClusterDetailDialogView({
-  clusterName,
+  clusterKey,
+  vcenterDisplayName,
   open,
   onClose,
   clusters,
@@ -83,21 +92,54 @@ function useClusterDetailDialogView({
   datastores,
   rawVHostRows,
 }: ClusterDetailDialogProps) {
-  const normalizedClusterName = (clusterName || "").trim();
+  const selectedCluster = useMemo(
+    () => clusters.find((cluster) => cluster.clusterKey === clusterKey) ?? null,
+    [clusterKey, clusters],
+  );
+  const clusterIdentity = useMemo<ClusterIdentity | null>(() => (
+    selectedCluster
+      ? {
+        vcenterId: selectedCluster.vcenterId,
+        datacenter: selectedCluster.datacenter,
+        clusterName: selectedCluster.name,
+      }
+      : null
+  ), [selectedCluster]);
+  const normalizedClusterName = selectedCluster?.name ?? "";
+  const resolvedVcenterDisplayName = vcenterDisplayName?.trim() || selectedCluster?.vcenterId || "vCenter unbekannt";
+  const datacenterDisplayName = selectedCluster?.datacenter?.trim() || "Datacenter unbekannt";
 
   const scopedClusters = useMemo(
-    () => clusters.filter((cluster) => cluster.name === normalizedClusterName),
-    [clusters, normalizedClusterName],
+    () => clusterIdentity
+      ? clusters.filter((cluster) => isSameCluster({
+        vcenterId: cluster.vcenterId,
+        datacenter: cluster.datacenter,
+        clusterName: cluster.name,
+      }, clusterIdentity))
+      : [],
+    [clusterIdentity, clusters],
   );
 
   const scopedHosts = useMemo(
-    () => hosts.filter((host) => host.cluster === normalizedClusterName),
-    [hosts, normalizedClusterName],
+    () => clusterIdentity
+      ? hosts.filter((host) => isSameCluster({
+        vcenterId: host.vcenterId,
+        datacenter: host.datacenter,
+        clusterName: host.cluster,
+      }, clusterIdentity))
+      : [],
+    [clusterIdentity, hosts],
   );
 
   const scopedVms = useMemo(
-    () => vms.filter((vm) => vm.cluster === normalizedClusterName),
-    [vms, normalizedClusterName],
+    () => clusterIdentity
+      ? vms.filter((vm) => isSameCluster({
+        vcenterId: vm.vcenterId,
+        datacenter: vm.datacenter,
+        clusterName: vm.cluster,
+      }, clusterIdentity))
+      : [],
+    [clusterIdentity, vms],
   );
 
   const runningVms = useMemo(
@@ -112,22 +154,41 @@ function useClusterDetailDialogView({
     [scopedVms],
   );
 
-  const scopedDatastores = useMemo(
-    () => datastores.filter((ds) => ds.clusterName === normalizedClusterName),
-    [datastores, normalizedClusterName],
+  const scopedSnapshotIds = useMemo(
+    () => new Set(scopedClusters.map((cluster) => cluster.snapshotId)),
+    [scopedClusters],
   );
+
+  const scopedDatastores = useMemo(
+    () => clusterIdentity
+      ? datastores.filter((ds) => (
+        scopedSnapshotIds.has(ds.snapshotId)
+        && ds.vcenterId === clusterIdentity.vcenterId
+        && (ds.clusterName || "").trim() === (clusterIdentity.clusterName || "").trim()
+      ))
+      : [],
+    [clusterIdentity, datastores, scopedSnapshotIds],
+  );
+
+  const scopedRawVHostRows = useMemo(() => {
+    if (!clusterIdentity) return [];
+    return rawVHostRows.filter((row) => (
+      scopedSnapshotIds.has(row.snapshotId)
+      && String(row.data["Cluster"] ?? "").trim() === (clusterIdentity.clusterName || "").trim()
+      && String(row.data["Datacenter"] ?? "").trim() === (clusterIdentity.datacenter || "").trim()
+    ));
+  }, [clusterIdentity, rawVHostRows, scopedSnapshotIds]);
 
   const hostLoadRows = useMemo<HostLoadRow[]>(() => {
     const rows: HostLoadRow[] = [];
-    for (const row of rawVHostRows) {
-      if (String(row.data["Cluster"] || "").trim() !== normalizedClusterName) continue;
+    for (const row of scopedRawVHostRows) {
       const host = String(row.data["Host"] || "").trim();
       if (!host) continue;
       rows.push({
         host,
         cpuUsagePct: toNumLoose(row.data["CPU usage %"]),
         memoryUsagePct: toNumLoose(row.data["Memory usage %"]),
-        vmCount: toNumLoose(row.data["# VMs"]),
+        vmCount: toOptionalNumber(row.data["# VMs"]),
         vcpuCount: toNumLoose(row.data["# vCPUs"]),
         vmUsedMiB: toNumLoose(row.data["VM Used memory"]),
         memoryTotalMiB: toNumLoose(row.data["# Memory"]),
@@ -136,7 +197,7 @@ function useClusterDetailDialogView({
       });
     }
     return rows.sort((a, b) => Math.max(b.cpuUsagePct, b.memoryUsagePct) - Math.max(a.cpuUsagePct, a.memoryUsagePct));
-  }, [rawVHostRows, normalizedClusterName]);
+  }, [scopedRawVHostRows]);
 
   const totalHostsByCluster = useMemo(
     () => scopedClusters.reduce((sum, cluster) => sum + (cluster.numHosts || 0), 0),
@@ -197,33 +258,25 @@ function useClusterDetailDialogView({
     ? hostLoadRows.reduce((sum, row) => sum + row.memoryUsagePct, 0) / hostLoadRows.length
     : null;
   const hotHosts = hostLoadRows.filter((row) => row.cpuUsagePct > 60 || row.memoryUsagePct > 75).length;
+  const maxVmHostLoad = useMemo(() => {
+    let maximum: HostLoadRow | null = null;
+    for (const row of hostLoadRows) {
+      if (row.vmCount === null || (maximum !== null && row.vmCount <= (maximum.vmCount ?? Number.NEGATIVE_INFINITY))) continue;
+      maximum = row;
+    }
+    return maximum;
+  }, [hostLoadRows]);
   const totalSwapBalloonMiB = useMemo(
     () =>
-      rawVHostRows
-        .filter((row) => String(row.data["Cluster"] || "").trim() === normalizedClusterName)
+      scopedRawVHostRows
         .reduce(
           (sum, row) =>
             sum + toNumLoose(row.data["VM Memory Swapped"]) + toNumLoose(row.data["VM Memory Ballooned"]),
           0,
         ),
-    [rawVHostRows, normalizedClusterName],
+    [scopedRawVHostRows],
   );
   const swapBalloonPct = totalMemoryMiB > 0 ? (totalSwapBalloonMiB / totalMemoryMiB) * 100 : null;
-
-  const datacenters = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          [
-            ...scopedClusters.map((cluster) => cluster.datacenter),
-            ...scopedHosts.map((host) => host.datacenter),
-          ]
-            .filter((value): value is string => Boolean(value && value.trim()))
-            .map((value) => value.trim()),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" })),
-    [scopedClusters, scopedHosts],
-  );
 
   const avgDsFreePct = useMemo(() => {
     const withFreePct = scopedDatastores.filter((ds) => ds.freePct !== null);
@@ -236,9 +289,8 @@ function useClusterDetailDialogView({
   const haState = aggregateBoolean(scopedClusters.map((cluster) => cluster.haEnabled));
   const drsState = aggregateBoolean(scopedClusters.map((cluster) => cluster.drsEnabled));
   const uniqueSnapshots = new Set(scopedClusters.map((cluster) => cluster.snapshotId)).size;
-  const uniqueVcenters = new Set(scopedClusters.map((cluster) => cluster.vcenterId)).size;
 
-  if (!normalizedClusterName) return null;
+  if (!selectedCluster) return null;
 
   const copyMarkdown = async () => {
     try {
@@ -248,6 +300,10 @@ function useClusterDetailDialogView({
           hosts: scopedHosts,
           runningVms,
           datastores: scopedDatastores,
+        }, {
+          vcenterDisplayName: resolvedVcenterDisplayName,
+          maxVmsPerHost: maxVmHostLoad?.vmCount ?? null,
+          maxVmsHost: maxVmHostLoad?.host ?? null,
         }),
       );
       toast.success("Cluster-Details als Markdown kopiert.");
@@ -280,7 +336,7 @@ function useClusterDetailDialogView({
                 {normalizedClusterName}
               </DialogTitle>
               <p className="text-xs text-muted-foreground truncate">
-                {datacenters.length > 0 ? datacenters.join(" · ") : "Datacenter unbekannt"}
+                {resolvedVcenterDisplayName} · {datacenterDisplayName}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className={`text-[10px] ${drsState.className}`}>
@@ -293,7 +349,7 @@ function useClusterDetailDialogView({
                   Snapshots: {formatNum(uniqueSnapshots)}
                 </Badge>
                 <Badge variant="secondary" className="text-[10px]">
-                  vCenter: {formatNum(uniqueVcenters)}
+                  vCenter: {resolvedVcenterDisplayName}
                 </Badge>
               </div>
             </div>
@@ -372,6 +428,12 @@ function useClusterDetailDialogView({
                 <div className="rounded-lg bg-muted/40 px-3 py-2">
                   <p className="text-[10px] uppercase text-muted-foreground">VMs/Host</p>
                   <p className="text-sm font-bold font-mono-data">{formatRatio(vmsPerHost)}</p>
+                </div>
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-[10px] uppercase text-muted-foreground">Max. VMs/Host</p>
+                  <p className="text-sm font-bold font-mono-data">
+                    {maxVmHostLoad ? `${formatNum(maxVmHostLoad.vmCount)} (${maxVmHostLoad.host})` : "—"}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-muted/40 px-3 py-2">
                   <p className="text-[10px] uppercase text-muted-foreground">Hot Hosts</p>
