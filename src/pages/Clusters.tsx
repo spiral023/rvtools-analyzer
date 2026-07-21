@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
+import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
@@ -9,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
+import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
 
 type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
@@ -42,6 +44,16 @@ export default function Clusters() {
     () => buildClusterOsDistributionRows(vms, "tools").filter((row) => scopedClusterKeys.has(row.clusterKey)),
     [scopedClusterKeys, vms],
   );
+  const capacityData = useMemo(
+    () => buildClusterCapacityWorkspace({
+      clusters: clusters.filter((cluster) => activeSnapshotSet.has(cluster.snapshotId)),
+      hosts: hosts.filter((host) => activeSnapshotSet.has(host.snapshotId)),
+      vms,
+      rawVHostRows,
+      snapshots: scopedSnapshots,
+    }),
+    [activeSnapshotSet, clusters, hosts, rawVHostRows, scopedSnapshots, vms],
+  );
   const selectedRow = filteredRows.find((row) => row.clusterKey === selectedClusterKey) ?? null;
 
   const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading;
@@ -64,6 +76,16 @@ export default function Clusters() {
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <ClusterOverviewPanel rows={filteredRows} osRows={osRows} search={filters.search} onOpenCluster={setSelectedClusterKey} />
+        </TabsContent>
+        <TabsContent value="capacity" className="mt-6">
+          <ClusterCapacityPanel
+            capacityRows={capacityData.capacityRows.filter((row) => scopedClusterKeys.has(row.clusterKey))}
+            overcommitRows={capacityData.overcommitRows.filter((row) => scopedClusterKeys.has(row.clusterKey))}
+            hostDensity={capacityData.hostDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
+            clusterDensity={capacityData.clusterDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
+            search={filters.search}
+            onOpenCluster={setSelectedClusterKey}
+          />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog

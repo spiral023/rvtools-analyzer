@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useRawSheet, useVms, useClusters, useHosts, useDatastores } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useRawSheet, useVms, useDatastores } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -8,7 +8,7 @@ import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Key, AlertTriangle, CheckCircle2, Power, Database, Server, Gauge } from "lucide-react";
+import { Key, AlertTriangle, CheckCircle2, Power, Database, Gauge } from "lucide-react";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { formatRvtoolsDate } from "@/lib/vmDetail";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -16,7 +16,6 @@ import {
   LICENSING_KPI,
   LICENSING_COLUMNS,
   IDLE_COLUMNS,
-  CLUSTER_DENSITY_COLUMNS,
   DS_EFFICIENCY_COLUMNS,
   LICENSING_SECTIONS,
 } from "@/lib/glossaries/licensing";
@@ -24,7 +23,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 interface LicenseRow { name: string; key: string; costUnit: string; total: number; used: number; usedPct: number; expiration: string; features: string }
 interface IdleRow { snapshotId: string; vm: string; powerState: string; cpuCount: number; memoryMiB: number; cluster: string; reason: string }
-interface ClusterDensityRow { cluster: string; hosts: number; vmsPerHost: number; vcpuPerCore: number; ramUtilPct: number }
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 
 const licColumns: ColumnDef<LicenseRow, unknown>[] = [
@@ -47,14 +45,6 @@ const idleColumns: ColumnDef<IdleRow, unknown>[] = [
   { accessorKey: "reason", header: "Grund", meta: { info: IDLE_COLUMNS.reason }, cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
 ];
 
-const clusterDensityColumns: ColumnDef<ClusterDensityRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_DENSITY_COLUMNS.cluster } },
-  { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_DENSITY_COLUMNS.hosts } },
-  { accessorKey: "vmsPerHost", header: "VMs/Host", meta: { info: CLUSTER_DENSITY_COLUMNS.vmsPerHost }, cell: ({ getValue }) => (getValue() as number).toFixed(1) },
-  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CLUSTER_DENSITY_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => (getValue() as number).toFixed(2) },
-  { accessorKey: "ramUtilPct", header: "RAM Util %", meta: { info: CLUSTER_DENSITY_COLUMNS.ramUtilPct }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 85 ? "text-warning" : ""}>{v.toFixed(0)}%</span>; }},
-];
-
 const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
   { accessorKey: "datastore", header: "Datastore", meta: { info: DS_EFFICIENCY_COLUMNS.datastore } },
   { accessorKey: "provisionedMiB", header: "Provisioned", meta: { info: DS_EFFICIENCY_COLUMNS.provisionedMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
@@ -68,11 +58,8 @@ export default function Licensing() {
   const { data: rawLicense = [], isLoading: rawLicenseLoading } = useRawSheet("vLicense");
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
-  const { data: clusters = [], isLoading: clustersLoading } = useClusters();
-  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
-  const dataLoading = snapshotsLoading || rawLicenseLoading || vmsLoading || clustersLoading
-    || hostsLoading || datastoresLoading;
+  const dataLoading = snapshotsLoading || rawLicenseLoading || vmsLoading || datastoresLoading;
 
   const licenses = useMemo<LicenseRow[]>(() =>
     rawLicense.map((r) => { const total = Number(r.data["Total"] || 0); const used = Number(r.data["Used"] || 0); return { name: String(r.data["Name"] || ""), key: String(r.data["Key"] || ""), costUnit: String(r.data["Cost Unit"] || ""), total, used, usedPct: total > 0 ? (used / total) * 100 : 0, expiration: formatRvtoolsDate(r.data["Expiration Date"]), features: String(r.data["Features"] || "") }; }), [rawLicense]);
@@ -101,17 +88,6 @@ export default function Licensing() {
   const idleCpus = idleCandidates.reduce((s, v) => s + v.cpuCount, 0);
   const idleRamGiB = idleCandidates.reduce((s, v) => s + v.memoryMiB, 0) / 1024;
 
-  // Cluster Density
-  const clusterDensity = useMemo<ClusterDensityRow[]>(() => {
-    return clusters.map((c) => {
-      const clusterHosts = hosts.filter((h) => h.cluster === c.name);
-      const clusterVms = vms.filter((v) => v.cluster === c.name && v.powerState === "poweredOn");
-      const totalVcpu = clusterVms.reduce((s, v) => s + (v.cpuCount || 0), 0);
-      const totalRam = clusterVms.reduce((s, v) => s + (v.memoryMiB || 0), 0);
-      return { cluster: c.name, hosts: clusterHosts.length, vmsPerHost: clusterHosts.length > 0 ? clusterVms.length / clusterHosts.length : 0, vcpuPerCore: c.numCpuThreads ? totalVcpu / c.numCpuThreads : 0, ramUtilPct: c.totalMemoryMiB ? (totalRam / c.totalMemoryMiB) * 100 : 0 };
-    }).sort((a, b) => b.vmsPerHost - a.vmsPerHost);
-  }, [clusters, hosts, vms]);
-
   // Datastore Efficiency
   const dsEfficiency = useMemo<DsEffRow[]>(() => {
     return datastores.map((ds) => {
@@ -138,7 +114,6 @@ export default function Licensing() {
         <KpiCard title="Kritisch (>95%)" value={formatNum(critUtil)} severity={critUtil > 0 ? "crit" : "ok"} info={LICENSING_KPI.critUtil} />
         <KpiCard title="Mit Ablaufdatum" value={formatNum(expiring)} severity={expiring > 0 ? "warn" : "ok"} icon={<CheckCircle2 className="h-4 w-4" />} info={LICENSING_KPI.expiring} />
         <KpiCard title="Idle VMs" value={formatNum(idleCandidates.length)} subtitle={`${idleCpus} vCPU · ${idleRamGiB.toFixed(0)} GiB`} icon={<Power className="h-4 w-4" />} info={LICENSING_KPI.idleVms} />
-        <KpiCard title="Clusters" value={formatNum(clusterDensity.length)} icon={<Server className="h-4 w-4" />} info={LICENSING_KPI.clusters} />
         <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} info={LICENSING_KPI.datastores} />
       </KpiGrid>
 
@@ -172,7 +147,6 @@ export default function Licensing() {
 
       {idleCandidates.length > 0 && (<div><InfoTooltip entry={LICENSING_SECTIONS.idleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Idle / Stilllegungskandidaten ({idleCandidates.length})</h3></InfoTooltip><VirtualTable data={idleCandidates} columns={idleColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
 
-      <div><InfoTooltip entry={LICENSING_SECTIONS.clusterDensity} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Dichte & Effizienz</h3></InfoTooltip><VirtualTable data={clusterDensity} columns={clusterDensityColumns} globalFilter={filters.search} height={300} /></div>
       <div><InfoTooltip entry={LICENSING_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
       {vmDetailDialog}
     </div>

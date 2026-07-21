@@ -140,4 +140,16 @@ describe("Clusters", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Cluster Production öffnen" })[0]);
     expect(await screen.findByRole("dialog")).toHaveTextContent("vcsa-a · DC1");
   });
+
+  it("shows the cluster capacity analysis in the Kapazität tab", async () => {
+    renderClusters();
+
+    const capacityTab = await screen.findByRole("tab", { name: "Kapazität" });
+    fireEvent.mouseDown(capacityTab);
+    fireEvent.click(capacityTab);
+
+    expect(screen.getByText(/Cluster Capacity Health/)).toBeInTheDocument();
+    expect(screen.getByText(/Cluster Overcommit/)).toBeInTheDocument();
+    expect(screen.getByText(/Host Dichte/)).toBeInTheDocument();
+  });
 });
