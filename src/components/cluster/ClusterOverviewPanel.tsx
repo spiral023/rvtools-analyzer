@@ -86,7 +86,7 @@ export function ClusterOverviewPanel({ rows, osRows, onOpenCluster, search }: Cl
         <KpiCard title="Hosts" value={formatNum(kpis.hosts)} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Laufende VMs" value={formatNum(kpis.runningVms)} icon={<Users className="h-4 w-4" />} />
         <KpiCard title="Cluster mit hohem Risiko" value={formatNum(kpis.highRiskClusters)} severity={kpis.highRiskClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-        <KpiCard title="Max. VMs/Host" value={formatNum(kpis.maxVmsPerHost)} subtitle={kpis.maxVmsCluster ? `${kpis.maxVcenterDisplayName} · ${kpis.maxVmsCluster}${kpis.maxVmsHost ? ` · ${kpis.maxVmsHost}` : ""}` : undefined} icon={<Waypoints className="h-4 w-4" />} />
+        <KpiCard title="Max. VMs/Host" value={formatNum(kpis.maxVmsPerHost)} subtitle={kpis.maxVmsCluster ? `${kpis.maxVmsVcenterDisplayName} · ${kpis.maxVmsCluster}${kpis.maxVmsHost ? ` · ${kpis.maxVmsHost}` : ""}` : undefined} icon={<Waypoints className="h-4 w-4" />} />
         <KpiCard title="HA-/DRS-Auffälligkeiten" value={formatNum(kpis.haDrsIssues)} severity={kpis.haDrsIssues > 0 ? "warn" : "ok"} icon={<ShieldCheck className="h-4 w-4" />} />
       </KpiGrid>
 

@@ -8,7 +8,7 @@ import {
   metricsFromAggregate,
 } from "@/domain/services/clusterCapacityEngine";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
-import { clusterScopeKey } from "@/lib/clusterIdentity";
+import { clusterScopeKey, type ClusterIdentity } from "@/lib/clusterIdentity";
 
 function hostRow(overrides: Record<string, unknown>): SheetRow {
   const { snapshotId = "snap-1", ...dataOverrides } = overrides;
@@ -139,7 +139,13 @@ describe("groupVHostRowsByCluster", () => {
   });
 
   it("verlangt einen vCenter-Index für Identity-Aggregationen", () => {
-    expect(() => aggregateCluster(
+    const aggregateWithoutVcenterIndex = aggregateCluster as unknown as (
+      cluster: ClusterIdentity,
+      rawVHostRows: SheetRow[],
+      vcenterBySnapshot?: ReadonlyMap<string, string>,
+    ) => ReturnType<typeof aggregateCluster>;
+
+    expect(() => aggregateWithoutVcenterIndex(
       { vcenterId: "vc-1", datacenter: "DC1", clusterName: "A" },
       [hostRow({ Cluster: "A", Datacenter: "DC1", Host: "esx-1" })],
     )).toThrow("vCenter-Index");
