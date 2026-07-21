@@ -3,6 +3,7 @@ import { IDBFactory } from "fake-indexeddb";
 import * as XLSX from "@e965/xlsx";
 import { persistRawSheetBlobs, normalizeSnapshots } from "@/domain/services/importService";
 import { gunzipJson } from "@/lib/compression";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { parseWorkbookBuffer } from "@/workers/parser.worker";
 import type { ParsedSheetData, RawSheetBlob } from "@/domain/models/types";
 
@@ -255,6 +256,13 @@ describe("importRvtoolsXlsx", () => {
       host: "esx01.lab.local",
       version: "8.0.3",
       build: "24784735",
+    });
+
+    const [cluster] = await getBySnapshotIds("entities_cluster", snapshotIds);
+    expect(cluster).toMatchObject({
+      name: "CL-Prod",
+      datacenter: "DC01",
+      clusterKey: clusterScopeKey("vcsa01.lab.local", "DC01", "CL-Prod"),
     });
 
     const [datastore] = await getBySnapshotIds("entities_datastore", snapshotIds);

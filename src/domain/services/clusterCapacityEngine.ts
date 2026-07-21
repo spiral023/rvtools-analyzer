@@ -78,8 +78,10 @@ export function groupVHostRowsByCluster(
     const name = String(row.data["Cluster"] ?? "").trim();
     if (!name) continue;
     const datacenter = String(row.data["Datacenter"] ?? "").trim();
+    const vcenterId = vcenterBySnapshot?.get(row.snapshotId);
+    if (vcenterBySnapshot && !vcenterId) continue;
     const key = vcenterBySnapshot
-      ? clusterScopeKey(vcenterBySnapshot.get(row.snapshotId) ?? "", datacenter, name)
+      ? clusterScopeKey(vcenterId, datacenter, name)
       : name;
     const bucket = grouped.get(key);
     if (bucket) bucket.push(row);
@@ -89,11 +91,20 @@ export function groupVHostRowsByCluster(
 }
 
 /** Baut das gemessene Ist-Aggregat eines Clusters aus den vHost-Rohzeilen. */
+export function aggregateCluster(clusterName: string, rawVHostRows: SheetRow[]): ClusterAggregate;
+export function aggregateCluster(
+  cluster: ClusterIdentity,
+  rawVHostRows: SheetRow[],
+  vcenterBySnapshot: ReadonlyMap<string, string>,
+): ClusterAggregate;
 export function aggregateCluster(
   cluster: ClusterIdentity | string,
   rawVHostRows: SheetRow[],
   vcenterBySnapshot?: ReadonlyMap<string, string>,
 ): ClusterAggregate {
+  if (typeof cluster !== "string" && !vcenterBySnapshot) {
+    throw new Error("vCenter-Index ist für Identity-Aggregationen erforderlich.");
+  }
   const agg = emptyAggregate();
   const targetName = typeof cluster === "string" ? cluster.trim() : null;
   for (const r of rawVHostRows) {

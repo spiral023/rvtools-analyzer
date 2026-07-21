@@ -93,10 +93,12 @@ describe("groupVHostRowsByCluster", () => {
     const rows: SheetRow[] = [
       hostRow({ snapshotId: "snap-1", Cluster: "A", Datacenter: "DC1", Host: "esx-vc-1" }),
       hostRow({ snapshotId: "snap-2", Cluster: "A", Datacenter: "DC1", Host: "esx-vc-2" }),
+      hostRow({ snapshotId: "snap-3", Cluster: "A", Datacenter: "DC2", Host: "esx-vc-1-dc-2" }),
     ];
     const vcenterBySnapshot = new Map([
       ["snap-1", "vc-1"],
       ["snap-2", "vc-2"],
+      ["snap-3", "vc-1"],
     ]);
     const vc1Identity = { vcenterId: "vc-1", datacenter: "DC1", clusterName: "A" };
 
@@ -105,10 +107,30 @@ describe("groupVHostRowsByCluster", () => {
 
     expect([...grouped.keys()].sort()).toEqual([
       vc1Key,
+      clusterScopeKey("vc-1", "DC2", "A"),
       clusterScopeKey("vc-2", "DC1", "A"),
     ]);
     expect(aggregateCluster(vc1Identity, rows, vcenterBySnapshot).hosts).toBe(1);
     expect(grouped.get(vc1Key)?.map((row) => row.data["Host"])).toEqual(["esx-vc-1"]);
+  });
+
+  it("überspringt im sicheren Pfad Zeilen ohne vCenter-Zuordnung", () => {
+    const rows: SheetRow[] = [
+      hostRow({ snapshotId: "snap-known", Cluster: "A", Datacenter: "DC1", Host: "esx-known" }),
+      hostRow({ snapshotId: "snap-unknown", Cluster: "A", Datacenter: "DC1", Host: "esx-unknown" }),
+    ];
+
+    const grouped = groupVHostRowsByCluster(rows, new Map([["snap-known", "vc-1"]]));
+
+    expect([...grouped.keys()]).toEqual([clusterScopeKey("vc-1", "DC1", "A")]);
+    expect(grouped.get(clusterScopeKey("vc-1", "DC1", "A"))?.map((row) => row.data["Host"])).toEqual(["esx-known"]);
+  });
+
+  it("verlangt einen vCenter-Index für Identity-Aggregationen", () => {
+    expect(() => aggregateCluster(
+      { vcenterId: "vc-1", datacenter: "DC1", clusterName: "A" },
+      [hostRow({ Cluster: "A", Datacenter: "DC1", Host: "esx-1" })],
+    )).toThrow("vCenter-Index");
   });
 
   it("gruppiert Host-Zeilen nach getrimmtem Cluster-Namen", () => {
