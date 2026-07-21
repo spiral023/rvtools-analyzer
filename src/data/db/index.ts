@@ -421,7 +421,28 @@ export async function putUiState(state: UiState): Promise<void> {
 export async function getScenarios(): Promise<Scenario[]> {
   const db = await getDb();
   const all = await db.getAll("scenarios");
-  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const clusters = await db.getAll("entities_cluster");
+  const clusterKeysByLegacyTarget = new Map<string, Set<string>>();
+  for (const cluster of clusters) {
+    const legacyTarget = `${cluster.name}::${cluster.vcenterId}`;
+    const candidates = clusterKeysByLegacyTarget.get(legacyTarget) ?? new Set<string>();
+    candidates.add(cluster.clusterKey);
+    clusterKeysByLegacyTarget.set(legacyTarget, candidates);
+  }
+
+  const migrated = all.map((scenario) => {
+    let changed = false;
+    const groups = scenario.groups.map((group) => {
+      const candidates = clusterKeysByLegacyTarget.get(group.targetClusterKey);
+      if (!candidates || candidates.size !== 1) return group;
+      changed = true;
+      return { ...group, targetClusterKey: [...candidates][0] };
+    });
+    return changed ? { ...scenario, groups } : scenario;
+  });
+  await Promise.all(migrated.filter((scenario, index) => scenario !== all[index]).map((scenario) => db.put("scenarios", scenario)));
+
+  return migrated.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function putScenario(scenario: Scenario): Promise<void> {

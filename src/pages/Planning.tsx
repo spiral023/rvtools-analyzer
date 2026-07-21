@@ -56,6 +56,10 @@ export default function Planning() {
     () => scenarios.find((s) => s.id === activeScenarioId) ?? null,
     [scenarios, activeScenarioId],
   );
+  const clusterNamesByKey = useMemo(
+    () => new Map(clusters.map((cluster) => [cluster.clusterKey, cluster.name])),
+    [clusters],
+  );
 
   const whatIfResult = useWhatIf(activeScenario);
 
@@ -136,8 +140,9 @@ export default function Planning() {
       groups,
       updatedAt: new Date().toISOString(),
     };
+    const targetClusterName = clusterNamesByKey.get(targetCluster) ?? targetCluster;
     void saveScenario(updated).then(() => {
-      toast.success(`${vmKeys.length} VM(s) zu ${targetCluster} zugewiesen.`);
+      toast.success(`${vmKeys.length} VM(s) zu ${targetClusterName} zugewiesen.`);
       clear();
     });
   };
@@ -220,7 +225,7 @@ export default function Planning() {
                     </SelectTrigger>
                     <SelectContent>
                       {clusters.map((c) => (
-                        <SelectItem key={c.clusterKey} value={c.name}>
+                        <SelectItem key={c.clusterKey} value={c.clusterKey}>
                           {c.name}
                         </SelectItem>
                       ))}
@@ -239,7 +244,7 @@ export default function Planning() {
                   {activeScenario.groups.map((g) => (
                     <Card key={g.id} className="flex items-center justify-between gap-3 p-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{g.targetClusterKey}</p>
+                        <p className="text-sm font-medium truncate">{clusterNamesByKey.get(g.targetClusterKey) ?? g.targetClusterKey}</p>
                         <p className="text-xs text-muted-foreground">{g.vmKeys.length} VM(s)</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -262,7 +267,7 @@ export default function Planning() {
                   </InfoTooltip>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     {whatIfResult.clusters.slice(0, 4).map((c) => (
-                      <Card key={c.clusterName} className="p-3 space-y-1">
+                      <Card key={c.clusterKey} className="p-3 space-y-1">
                         <p className="text-xs font-medium truncate">{c.clusterName}</p>
                         <p className="text-xs text-muted-foreground" title="Gemessene CPU-Auslastung der ESX-Hosts (% der physischen Cores)">CPU-Auslastung: {c.before.cpuUsagePct}% → {c.after.cpuUsagePct}%</p>
                         <p className="text-xs text-muted-foreground" title="Konfigurierte vCPUs aller VMs im Cluster">vCPUs: {c.before.totalVcpus} → <span className={c.after.totalVcpus > c.before.totalVcpus ? "text-destructive" : "text-success"}>{c.after.totalVcpus}</span></p>

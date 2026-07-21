@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedVm } from "@/domain/models/types";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
 
 function makeVm(overrides: Partial<NormalizedVm>): NormalizedVm {
@@ -49,9 +50,9 @@ describe("VM OS distribution", () => {
     );
 
     expect(rows).toEqual([
-      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019 Standard", vmCount: 2, clusterSharePct: 66.66666666666666 },
-      { cluster: "CL-Prod", operatingSystem: "Red Hat Enterprise Linux 8", vmCount: 1, clusterSharePct: 33.33333333333333 },
-      { cluster: "CL-Test", operatingSystem: "Windows Server 2019 Standard", vmCount: 1, clusterSharePct: 100 },
+      { vcenterId: "vc-1", datacenter: null, clusterKey: clusterScopeKey("vc-1", null, "CL-Prod"), cluster: "CL-Prod", operatingSystem: "Windows Server 2019 Standard", vmCount: 2, clusterSharePct: 66.66666666666666 },
+      { vcenterId: "vc-1", datacenter: null, clusterKey: clusterScopeKey("vc-1", null, "CL-Prod"), cluster: "CL-Prod", operatingSystem: "Red Hat Enterprise Linux 8", vmCount: 1, clusterSharePct: 33.33333333333333 },
+      { vcenterId: "vc-1", datacenter: null, clusterKey: clusterScopeKey("vc-1", null, "CL-Test"), cluster: "CL-Test", operatingSystem: "Windows Server 2019 Standard", vmCount: 1, clusterSharePct: 100 },
     ]);
   });
 
@@ -66,8 +67,39 @@ describe("VM OS distribution", () => {
     );
 
     expect(rows).toEqual([
-      { cluster: "CL-Prod", operatingSystem: "Windows Server 2019", vmCount: 2, clusterSharePct: 100 },
-      { cluster: "Ohne Cluster", operatingSystem: "Unbekannt", vmCount: 1, clusterSharePct: 100 },
+      { vcenterId: "vc-1", datacenter: null, clusterKey: clusterScopeKey("vc-1", null, "CL-Prod"), cluster: "CL-Prod", operatingSystem: "Windows Server 2019", vmCount: 2, clusterSharePct: 100 },
+      { vcenterId: "vc-1", datacenter: null, clusterKey: clusterScopeKey("vc-1", null, null), cluster: "Ohne Cluster", operatingSystem: "Unbekannt", vmCount: 1, clusterSharePct: 100 },
+    ]);
+  });
+
+  it("trennt gleichnamige Cluster verschiedener vCenter", () => {
+    const rows = buildClusterOsDistributionRows(
+      [
+        makeVm({ vmName: "APP-A", vcenterId: "vc-a", datacenter: "DC1", cluster: "Production", osTools: "Windows Server" }),
+        makeVm({ vmName: "APP-B", vcenterId: "vc-b", datacenter: "DC1", cluster: "Production", osTools: "Windows Server" }),
+      ],
+      "tools",
+    );
+
+    expect(rows).toEqual([
+      {
+        vcenterId: "vc-a",
+        datacenter: "DC1",
+        clusterKey: clusterScopeKey("vc-a", "DC1", "Production"),
+        cluster: "Production",
+        operatingSystem: "Windows Server",
+        vmCount: 1,
+        clusterSharePct: 100,
+      },
+      {
+        vcenterId: "vc-b",
+        datacenter: "DC1",
+        clusterKey: clusterScopeKey("vc-b", "DC1", "Production"),
+        cluster: "Production",
+        operatingSystem: "Windows Server",
+        vmCount: 1,
+        clusterSharePct: 100,
+      },
     ]);
   });
 });

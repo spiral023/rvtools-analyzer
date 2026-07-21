@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
-import type { Scenario } from "@/domain/models/types";
+import type { NormalizedCluster, Scenario } from "@/domain/models/types";
+import { clusterScopeKey } from "@/lib/clusterIdentity";
 
 beforeEach(() => {
   vi.resetModules();
@@ -16,7 +17,7 @@ function makeScenario(): Scenario {
     updatedAt: "2026-07-01T10:00:00.000Z",
     vcenterScope: ["vc-1"],
     groups: [
-      { id: "grp-1", label: null, targetClusterKey: "cl-new-04", vmKeys: ["vm-1", "vm-2"] },
+      { id: "grp-1", label: null, targetClusterKey: clusterScopeKey("vc-1", "DC1", "cl-new-04"), vmKeys: ["vm-1", "vm-2"] },
     ],
     notes: null,
   };
@@ -35,5 +36,36 @@ describe("scenario persistence", () => {
     await deleteScenario("scn-1");
     const afterDelete = await getScenarios();
     expect(afterDelete).toHaveLength(0);
+  });
+
+  it("migriert einen eindeutig auflösbaren Legacy-Zielcluster beim Laden einmalig", async () => {
+    const { getDb, getScenarios } = await import("@/data/db");
+    const db = await getDb();
+    const target: NormalizedCluster = {
+      snapshotId: "snap-1",
+      vcenterId: "vc-1",
+      clusterKey: clusterScopeKey("vc-1", "DC1", "cl-new-04"),
+      name: "cl-new-04",
+      datacenter: "DC1",
+      haEnabled: null,
+      drsEnabled: null,
+      numHosts: null,
+      numCpuCores: null,
+      numCpuThreads: null,
+      totalMemoryMiB: null,
+      totalCpuMHz: null,
+      numEffectiveHosts: null,
+    };
+    const legacyScenario: Scenario = {
+      ...makeScenario(),
+      groups: [{ id: "grp-1", label: null, targetClusterKey: "cl-new-04::vc-1", vmKeys: ["vm-1"] }],
+    };
+    await db.put("entities_cluster", target);
+    await db.put("scenarios", legacyScenario);
+
+    const [loaded] = await getScenarios();
+
+    expect(loaded.groups[0].targetClusterKey).toBe(target.clusterKey);
+    expect((await db.get("scenarios", legacyScenario.id))?.groups[0].targetClusterKey).toBe(target.clusterKey);
   });
 });
