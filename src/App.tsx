@@ -18,6 +18,7 @@ const Overview = lazy(() => import("@/pages/Overview"));
 const UploadSnapshots = lazy(() => import("@/pages/UploadSnapshots"));
 const Diagnostics = lazy(() => import("@/pages/Diagnostics"));
 const DailyOps = lazy(() => import("@/pages/DailyOps"));
+const Clusters = lazy(() => import("@/pages/Clusters"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
 const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
@@ -74,6 +75,7 @@ const router = createBrowserRouter([
       { path: "upload", element: <UploadSnapshots /> },
       { path: "upload/diagnostics", element: <Diagnostics /> },
       { path: "daily-ops", element: <DailyOps /> },
+      { path: "clusters", element: <Clusters /> },
       { path: "capacity", element: <Capacity /> },
       { path: "performance", element: <PerformancePage /> },
       { path: "storage-backup", element: <StorageBackup /> },

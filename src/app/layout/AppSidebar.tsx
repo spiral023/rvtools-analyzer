@@ -37,6 +37,7 @@ const mainNav = [
 
 const analysisNav = [
   { title: "Daily Ops", url: "/daily-ops", icon: Activity },
+  { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Capacity", url: "/capacity", icon: HardDrive },
   { title: "Performance", url: "/performance", icon: Gauge },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
