@@ -3,8 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FilterProvider } from "@/hooks/useFilterState";
+import { SelectionProvider } from "@/hooks/useSelection";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NormalizedCluster, NormalizedHost, NormalizedVm, SheetRow, SnapshotMeta } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedHost, NormalizedVm, Scenario, SheetRow, SnapshotMeta } from "@/domain/models/types";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 
 const snapshots: SnapshotMeta[] = [
@@ -12,7 +13,7 @@ const snapshots: SnapshotMeta[] = [
   { snapshotId: "snap-b", vcenterId: "vc-b", vcenterDisplayName: "vcsa-b", exportTs: "2026-07-22T00:00:00.000Z", importedAt: "2026-07-22T00:00:00.000Z", fileName: "b.xlsx", fileChecksum: "b", sheetStats: {} },
 ];
 
-const clusters: NormalizedCluster[] = snapshots.map((snapshot) => ({
+const clusters: NormalizedCluster[] = snapshots.map((snapshot): NormalizedCluster => ({
   snapshotId: snapshot.snapshotId,
   vcenterId: snapshot.vcenterId,
   clusterKey: clusterScopeKey(snapshot.vcenterId, "DC1", "Production"),
@@ -28,7 +29,7 @@ const clusters: NormalizedCluster[] = snapshots.map((snapshot) => ({
   numEffectiveHosts: 1,
 }));
 
-const hosts: NormalizedHost[] = snapshots.map((snapshot, index) => ({
+const hosts: NormalizedHost[] = snapshots.map((snapshot, index): NormalizedHost => ({
   snapshotId: snapshot.snapshotId,
   vcenterId: snapshot.vcenterId,
   hostKey: `host-${index}`,
@@ -50,7 +51,7 @@ const hosts: NormalizedHost[] = snapshots.map((snapshot, index) => ({
   vmCount: null,
 }));
 
-const vms: NormalizedVm[] = snapshots.map((snapshot, index) => ({
+const vms: NormalizedVm[] = snapshots.map((snapshot, index): NormalizedVm => ({
   snapshotId: snapshot.snapshotId,
   vcenterId: snapshot.vcenterId,
   vmKey: `vm-${index}`,
@@ -88,19 +89,42 @@ const rawVHostRows: SheetRow[] = hosts.map((host) => ({
   data: { Cluster: "Production", Datacenter: "DC1", Host: host.host, "# Cores": 8, "# Memory": 64_000, "# VMs": 1, "# vCPUs": 2 },
 }));
 
+const planningScenarios: Scenario[] = [{
+  id: "scenario-1",
+  name: "Migration Production",
+  type: "cluster-migration",
+  createdAt: "2026-07-22T00:00:00.000Z",
+  updatedAt: "2026-07-22T00:00:00.000Z",
+  vcenterScope: [],
+  groups: [],
+  notes: null,
+}];
+
 vi.mock("@/hooks/useActiveSnapshots", () => ({
-  useActiveSnapshotIds: () => ({ snapshots, activeSnapshotIds: snapshots.map((snapshot) => snapshot.snapshotId), filters: { clusters: [], search: "" }, snapshotsLoading: false }),
+  useActiveSnapshotIds: () => ({ snapshots, activeSnapshotIds: snapshots.map((snapshot) => snapshot.snapshotId), filters: { clusters: [] as string[], search: "" }, snapshotsLoading: false }),
   useClusters: () => ({ data: clusters, isLoading: false }),
   useHosts: () => ({ data: hosts, isLoading: false }),
   useVms: () => ({ vms, isLoading: false }),
-  useDatastores: () => ({ data: [], isLoading: false }),
+  useDatastores: () => ({ data: [] as never[], isLoading: false }),
   useRawSheet: () => ({ data: rawVHostRows, isLoading: false }),
-  useTechInfoLatestByVmNames: () => ({ data: [], isLoading: false }),
+  useTechInfoLatestByVmNames: () => ({ data: [] as never[], isLoading: false }),
 }));
 
 vi.mock("@/hooks/useMaintenance", () => ({
-  useMaintenanceAssignments: () => ({ assignments: [], saveAssignment: vi.fn(), isSaving: false }),
+  useMaintenanceAssignments: () => ({ assignments: [] as never[], saveAssignment: vi.fn(), isSaving: false }),
   useMaintenanceSettings: () => ({ settings: { firstName: "", lastName: "", companyName: "Test GmbH" } }),
+}));
+
+vi.mock("@/hooks/useScenarios", () => ({
+  useScenarios: () => ({
+    scenarios: planningScenarios,
+    saveScenario: vi.fn().mockResolvedValue(undefined),
+    deleteScenario: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+vi.mock("@/hooks/useWhatIf", () => ({
+  useWhatIf: (): null => null,
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
@@ -118,6 +142,7 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 
 const { default: Clusters } = await import("@/pages/Clusters");
 const { default: Wartungsankuendigung } = await import("@/pages/Wartungsankuendigung");
+const { default: Planning } = await import("@/pages/Planning");
 
 function LocationProbe() {
   const location = useLocation();
@@ -130,9 +155,11 @@ function renderClusters() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <FilterProvider>
-          <MemoryRouter>
-            <Clusters />
-          </MemoryRouter>
+          <SelectionProvider>
+            <MemoryRouter>
+              <Clusters />
+            </MemoryRouter>
+          </SelectionProvider>
         </FilterProvider>
       </TooltipProvider>
     </QueryClientProvider>,
@@ -179,6 +206,18 @@ describe("Clusters", () => {
     expect(screen.getByRole("button", { name: "Mail erstellen" })).toBeInTheDocument();
   });
 
+  it("shows scenario management and What-If in the Planung tab", async () => {
+    renderClusters();
+
+    const planningTab = await screen.findByRole("tab", { name: "Planung" });
+    fireEvent.mouseDown(planningTab);
+    fireEvent.click(planningTab);
+
+    expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Migration Production"));
+    expect(screen.getByRole("button", { name: "What-If" })).toBeInTheDocument();
+  });
+
   it("redirects the legacy maintenance URL to the maintenance tab", async () => {
     render(
       <MemoryRouter initialEntries={["/wartungsankuendigung"]}>
@@ -190,5 +229,18 @@ describe("Clusters", () => {
     );
 
     expect(await screen.findByText("/clusters?tab=maintenance")).toBeInTheDocument();
+  });
+
+  it("redirects the legacy planning URL to the planning tab", async () => {
+    render(
+      <MemoryRouter initialEntries={["/planning"]}>
+        <Routes>
+          <Route path="/planning" element={<Planning />} />
+          <Route path="/clusters" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("/clusters?tab=planning")).toBeInTheDocument();
   });
 });

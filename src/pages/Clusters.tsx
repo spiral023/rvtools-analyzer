@@ -4,6 +4,7 @@ import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
 import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
+import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
 import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
@@ -99,6 +100,9 @@ export default function Clusters() {
         </TabsContent>
         <TabsContent value="maintenance" className="mt-6">
           <ClusterMaintenancePanel />
+        </TabsContent>
+        <TabsContent value="planning" className="mt-6">
+          <ClusterPlanningPanel />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog
