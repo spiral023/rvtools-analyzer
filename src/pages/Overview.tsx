@@ -9,20 +9,15 @@ import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "@/components/charts/recharts";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm } from "@/domain/models/types";
 import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
-import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
-import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
-import { buildHostClusterDistribution } from "@/lib/hostClusterDistribution";
 import { buildAverageVm } from "@/lib/averageVm";
 import { buildVmJoinKey, filterRowsByMatchingVmJoinKeys } from "@/lib/globalFilter";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_OS_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
+import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
 
 interface OverviewVmRow extends NormalizedVm {
   sysv: string | null;
@@ -46,18 +41,6 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
   { accessorKey: "osConfig", header: "OS", meta: { info: OVERVIEW_VM_COLUMNS.osConfig } },
 ];
 
-const osDistributionColumns: ColumnDef<ClusterOsDistributionRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster", meta: { info: OVERVIEW_OS_COLUMNS.cluster } },
-  { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—", meta: { info: OVERVIEW_OS_COLUMNS.operatingSystem } },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: OVERVIEW_OS_COLUMNS.vmCount } },
-  {
-    accessorKey: "clusterSharePct",
-    header: "Anteil im Cluster",
-    meta: { info: OVERVIEW_OS_COLUMNS.clusterSharePct },
-    cell: ({ getValue }) => `${(getValue() as number).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`,
-  },
-];
-
 export default function Overview() {
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms, isLoading: vmsLoading } = useVmsWithTechInfo();
@@ -77,7 +60,6 @@ export default function Overview() {
     || rawNetworkLoading || rawSnapshotLoading || rawToolsLoading;
 
   const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
-  const [osSource, setOsSource] = useState<VmOsSource>("tools");
   const filteredRawCpuRows = useMemo(() => filterVmRows(rawCpuRows), [filterVmRows, rawCpuRows]);
   const filteredRawMemoryRows = useMemo(() => filterVmRows(rawMemoryRows), [filterVmRows, rawMemoryRows]);
   const filteredRawDiskRows = useMemo(() => filterVmRows(rawDiskRows), [filterVmRows, rawDiskRows]);
@@ -110,12 +92,6 @@ export default function Overview() {
     [filteredVms, rawMemoryRows, rawDiskRows, rawPartitionRows, rawNetworkRows, scopedVmJoinKeys],
   );
 
-  const hostClusterDistribution = useMemo(() => buildHostClusterDistribution(hosts), [hosts]);
-  const clusterCount = hostClusterDistribution.reduce((sum, bucket) => sum + bucket.clusterCount, 0);
-  const hostCountRange = hostClusterDistribution.length > 0
-    ? `${hostClusterDistribution[0].hostCount}–${hostClusterDistribution.at(-1)?.hostCount} Hosts`
-    : "Keine Cluster";
-
   const vmsForTable = useMemo<OverviewVmRow[]>(
     () =>
       [...filteredVms].sort((a, b) =>
@@ -125,11 +101,6 @@ export default function Overview() {
         sysv: vm.techInfo?.sysv ?? null,
       })),
     [filteredVms],
-  );
-
-  const osDistributionRows = useMemo(
-    () => buildClusterOsDistributionRows(filteredVms, osSource),
-    [filteredVms, osSource],
   );
 
   if (dataLoading) return <PageLoadingState title="Overview" />;
@@ -164,68 +135,6 @@ export default function Overview() {
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
       <AverageVmPanel avg={averageVm} />
-      <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-        <InfoTooltip entry={OVERVIEW_SECTIONS.hostsPerCluster} side="bottom">
-          <div className="mb-3 w-fit cursor-help">
-            <h3 className="text-sm font-semibold text-muted-foreground">Host-Verteilung je Cluster</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatNum(clusterCount)} Cluster · {hostCountRange}
-            </p>
-          </div>
-        </InfoTooltip>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={hostClusterDistribution} margin={{ top: 12, right: 12, left: -18, bottom: 4 }}>
-            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-            <XAxis dataKey="hostCount" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "Hosts je Cluster", position: "insideBottom", offset: -1, ...CHART_AXIS_STYLE }} />
-            <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} label={{ value: "Cluster", angle: -90, position: "insideLeft", offset: 10, ...CHART_AXIS_STYLE }} />
-            <Tooltip
-              contentStyle={CHART_TOOLTIP_STYLE}
-              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-              labelFormatter={(value) => `${formatNum(Number(value))} Hosts je Cluster`}
-              formatter={(value: number) => [formatNum(value), "Cluster"]}
-            />
-            <Bar dataKey="clusterCount" name="Cluster" fill={SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <InfoTooltip entry={OVERVIEW_SECTIONS.osPerCluster} side="bottom">
-              <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Betriebssysteme je Cluster ({osDistributionRows.length})</h3>
-            </InfoTooltip>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Gruppierte VM-Anzahl nach Cluster und Betriebssystem
-            </p>
-          </div>
-          <ToggleGroup
-            type="single"
-            value={osSource}
-            onValueChange={(value) => {
-              if (value === "tools" || value === "config") setOsSource(value);
-            }}
-            size="sm"
-            variant="outline"
-            className="justify-start"
-          >
-            <ToggleGroupItem value="tools" aria-label="OS according to the VMware Tools">
-              VMware Tools
-            </ToggleGroupItem>
-            <ToggleGroupItem value="config" aria-label="OS according to the configuration file">
-              Configuration file
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-        <VirtualTable
-          data={osDistributionRows}
-          columns={osDistributionColumns}
-          globalFilter={filters.search}
-          height={360}
-          initialSorting={[{ id: "cluster", desc: false }]}
-          exportFileName={`rvtools-os-je-cluster-${osSource}`}
-        />
-      </div>
       <div>
         <InfoTooltip entry={OVERVIEW_SECTIONS.vmTable} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>

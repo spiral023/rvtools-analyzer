@@ -51,7 +51,7 @@ beforeEach(async () => {
 });
 
 describe("Overview", () => {
-  it("zeigt einen Ladezustand, solange VM-Daten noch laden, statt eine leere KPI-Ansicht", async () => {
+  it("zeigt VM-KPIs und -Tabelle, aber keine übernommenen Clusterbereiche", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -84,5 +84,9 @@ describe("Overview", () => {
     await waitFor(() => {
       expect(screen.getByText("VMs Total")).toBeInTheDocument();
     });
+
+    expect(screen.getByText(/Virtuelle Maschinen \(0\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Betriebssysteme je Cluster/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Host-Verteilung je Cluster" })).not.toBeInTheDocument();
   });
 });
