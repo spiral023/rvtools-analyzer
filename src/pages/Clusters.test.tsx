@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -94,6 +95,12 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useVms: () => ({ vms, isLoading: false }),
   useDatastores: () => ({ data: [], isLoading: false }),
   useRawSheet: () => ({ data: rawVHostRows, isLoading: false }),
+  useTechInfoLatestByVmNames: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock("@/hooks/useMaintenance", () => ({
+  useMaintenanceAssignments: () => ({ assignments: [], saveAssignment: vi.fn(), isSaving: false }),
+  useMaintenanceSettings: () => ({ settings: { firstName: "", lastName: "", companyName: "Test GmbH" } }),
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
@@ -110,6 +117,12 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 }));
 
 const { default: Clusters } = await import("@/pages/Clusters");
+const { default: Wartungsankuendigung } = await import("@/pages/Wartungsankuendigung");
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output>{`${location.pathname}${location.search}`}</output>;
+}
 
 function renderClusters() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -117,7 +130,9 @@ function renderClusters() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <FilterProvider>
-          <Clusters />
+          <MemoryRouter>
+            <Clusters />
+          </MemoryRouter>
         </FilterProvider>
       </TooltipProvider>
     </QueryClientProvider>,
@@ -151,5 +166,29 @@ describe("Clusters", () => {
     expect(screen.getByText(/Cluster Capacity Health/)).toBeInTheDocument();
     expect(screen.getByText(/Cluster Overcommit/)).toBeInTheDocument();
     expect(screen.getByText(/Host Dichte/)).toBeInTheDocument();
+  });
+
+  it("shows maintenance assignments in the Wartung tab", async () => {
+    renderClusters();
+
+    const maintenanceTab = await screen.findByRole("tab", { name: "Wartung" });
+    fireEvent.mouseDown(maintenanceTab);
+    fireEvent.click(maintenanceTab);
+
+    expect(screen.getByText("Cluster-Zuweisungen")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mail erstellen" })).toBeInTheDocument();
+  });
+
+  it("redirects the legacy maintenance URL to the maintenance tab", async () => {
+    render(
+      <MemoryRouter initialEntries={["/wartungsankuendigung"]}>
+        <Routes>
+          <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
+          <Route path="/clusters" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("/clusters?tab=maintenance")).toBeInTheDocument();
   });
 });

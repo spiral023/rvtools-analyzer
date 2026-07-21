@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
+import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
+import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
@@ -15,14 +17,22 @@ import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
 
 type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
 
+function isClusterTab(value: string | null): value is ClusterTab {
+  return value === "overview" || value === "capacity" || value === "maintenance" || value === "planning" || value === "infrastructure";
+}
+
 export default function Clusters() {
+  const [searchParams] = useSearchParams();
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { vms = [], isLoading: vmsLoading } = useVms();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
-  const [tab, setTab] = useState<ClusterTab>("overview");
+  const [tab, setTab] = useState<ClusterTab>(() => {
+    const queryTab = searchParams.get("tab");
+    return isClusterTab(queryTab) ? queryTab : "overview";
+  });
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
 
   const activeSnapshotSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
@@ -86,6 +96,9 @@ export default function Clusters() {
             search={filters.search}
             onOpenCluster={setSelectedClusterKey}
           />
+        </TabsContent>
+        <TabsContent value="maintenance" className="mt-6">
+          <ClusterMaintenancePanel />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog
