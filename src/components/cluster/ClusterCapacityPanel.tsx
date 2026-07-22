@@ -120,7 +120,15 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
               <XAxis dataKey="vms" name="VMs" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "VMs/Host", position: "insideBottom", offset: -5, style: CHART_AXIS_LABEL_STYLE }} />
               <YAxis dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", style: CHART_AXIS_LABEL_STYLE }} />
               <ZAxis dataKey="ramGiB" range={[40, 400]} name="RAM GiB" />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                labelFormatter={(_, payload) => {
+                  const point = payload[0]?.payload as HostDensityPoint | undefined;
+                  return point ? `Host: ${point.name} · ${point.cluster} · ${point.vcenterDisplayName}` : "";
+                }}
+              />
               <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
               <Scatter data={visibleHostDensity}>{visibleHostDensity.map((row) => <Cell key={row.hostKey} fill={hostDensityColor(row.vcpuPerCore)} />)}</Scatter>
             </ScatterChart>

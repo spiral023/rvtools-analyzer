@@ -8,6 +8,7 @@ import type {
 } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
 import { buildVariantSummary, type HardwareModelGroup } from "@/lib/hardwareVariants";
+import type { ClusterOsDetailRow } from "@/lib/vmOsDistribution";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 
@@ -61,6 +62,14 @@ interface ClusterMarkdownScope {
   vcenterDisplayName: string;
   maxVmsPerHost: number | null;
   maxVmsHost: string | null;
+}
+
+interface ClusterOsMarkdownData {
+  cluster: string;
+  vcenterDisplayName: string;
+  datacenter: string | null;
+  sourceLabel: string;
+  rows: ClusterOsDetailRow[];
 }
 
 function text(value: unknown): string {
@@ -422,6 +431,30 @@ export function buildClusterDetailMarkdown(
         formatBytes(vm.memoryMiB),
         vm.configStatus,
         vm.osConfig || vm.osTools,
+      ]),
+    ),
+  ].join("\n");
+}
+
+export function buildClusterOsDetailMarkdown(data: ClusterOsMarkdownData): string {
+  return [
+    `# Betriebssysteme · ${data.cluster}`,
+    "",
+    section("Übersicht", [
+      ["vCenter", data.vcenterDisplayName],
+      ["Datacenter", data.datacenter],
+      ["Quelle", data.sourceLabel],
+      ["VMs", data.rows.reduce((sum, row) => sum + row.vmCount, 0)],
+    ]),
+    "## Betriebssysteme",
+    "",
+    markdownTable(
+      ["Betriebssystem", "VMs", "Anzahl", "Anteil"],
+      data.rows.map((row) => [
+        row.operatingSystem,
+        row.vmNames.join(", "),
+        row.vmCount,
+        formatPct(row.clusterSharePct),
       ]),
     ),
   ].join("\n");

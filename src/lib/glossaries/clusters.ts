@@ -23,6 +23,8 @@ export const CLUSTER_OVERVIEW_COLUMNS: Record<string, GlossaryEntry> = {
   vcpuPerCore: { term: "vCPU/Core", description: "Zugewiesene vCPUs je physischem CPU-Core. Höhere Werte erhöhen das Risiko von CPU-Contention.", source: "berechnet · Σ vCPU / Σ Cores" },
   ramCommitPct: { term: "RAM Commit", description: "Zugesagter VM-RAM im Verhältnis zum physischen Cluster-RAM.", source: "berechnet" },
   risk: { term: "Risiko", description: "Abgeleitete Stufe aus Dichte, Overcommit, Auslastung und Verfügbarkeitskonfiguration.", source: "berechnet" },
+  riskScore: { term: "Score", description: "Numerische Grundlage der Risikostufe. Höhere Werte weisen auf mehr kombinierte Kapazitäts- oder Konfigurationsrisiken hin.", source: "berechnet" },
+  haDrs: { term: "HA / DRS", description: "Status von High Availability und Distributed Resource Scheduler im Cluster.", source: `${RV} · vCluster · „HA enabled“ / „DRS enabled“` },
 };
 
 export const CLUSTER_OS_COLUMNS: Record<string, GlossaryEntry> = {

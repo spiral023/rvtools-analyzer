@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
+import { ClusterOsDetailDialog } from "@/components/cluster/ClusterOsDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
 import { ClusterInfrastructurePanel } from "@/components/cluster/ClusterInfrastructurePanel";
 import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
@@ -16,8 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
-import { clusterScopeKey } from "@/lib/clusterIdentity";
-import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
 type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
@@ -39,6 +40,8 @@ export default function Clusters() {
   const { data: rawHbaRows = [], isLoading: rawHbaLoading } = useRawSheet("vHBA", tab === "infrastructure");
   const { data: rawNicRows = [], isLoading: rawNicLoading } = useRawSheet("vNIC", tab === "infrastructure");
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
+  const [selectedOsCluster, setSelectedOsCluster] = useState<ClusterOsDistributionRow | null>(null);
+  const [osSource, setOsSource] = useState<VmOsSource>("tools");
 
   const activeSnapshotSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
   const scopedSnapshots = useMemo(
@@ -55,9 +58,30 @@ export default function Clusters() {
     });
   }, [clusters, filters.clusters, filters.search, hosts, rawVHostRows, scopedSnapshots, vms]);
   const scopedClusterKeys = useMemo(() => new Set(filteredRows.map((row) => row.clusterKey)), [filteredRows]);
+  const infrastructureAssociationIdentities = useMemo<ClusterIdentity[]>(() => [
+    ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),
+    ...hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+    ...vms.map((vm) => ({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster })),
+  ], [clusters, hosts, vms]);
+  const infrastructureClusters = useMemo(
+    () => clusters.filter((cluster) => {
+      if (!activeSnapshotSet.has(cluster.snapshotId)) return false;
+      const identity = resolveClusterIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name }, infrastructureAssociationIdentities);
+      return scopedClusterKeys.has(clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName));
+    }),
+    [activeSnapshotSet, clusters, infrastructureAssociationIdentities, scopedClusterKeys],
+  );
+  const infrastructureHosts = useMemo(
+    () => hosts.filter((host) => {
+      if (!activeSnapshotSet.has(host.snapshotId)) return false;
+      const identity = resolveClusterIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster }, infrastructureAssociationIdentities);
+      return scopedClusterKeys.has(clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName));
+    }),
+    [activeSnapshotSet, hosts, infrastructureAssociationIdentities, scopedClusterKeys],
+  );
   const osRows = useMemo(
-    () => buildClusterOsDistributionRows(vms, "tools").filter((row) => scopedClusterKeys.has(row.clusterKey)),
-    [scopedClusterKeys, vms],
+    () => buildClusterOsDistributionRows(vms, osSource).filter((row) => scopedClusterKeys.has(row.clusterKey)),
+    [osSource, scopedClusterKeys, vms],
   );
   const capacityData = useMemo(
     () => buildClusterCapacityWorkspace({
@@ -99,7 +123,15 @@ export default function Clusters() {
           <InfoTooltip entry={CLUSTER_TABS.infrastructure}><TabsTrigger value="infrastructure">Infrastruktur</TabsTrigger></InfoTooltip>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
-          <ClusterOverviewPanel rows={filteredRows} osRows={osRows} search={filters.search} onOpenCluster={setSelectedClusterKey} />
+          <ClusterOverviewPanel
+            rows={filteredRows}
+            osRows={osRows}
+            osSource={osSource}
+            onOsSourceChange={setOsSource}
+            search={filters.search}
+            onOpenCluster={setSelectedClusterKey}
+            onOpenOsDetail={setSelectedOsCluster}
+          />
         </TabsContent>
         <TabsContent value="capacity" className="mt-6">
           <ClusterCapacityPanel
@@ -119,8 +151,8 @@ export default function Clusters() {
         </TabsContent>
         <TabsContent value="infrastructure" className="mt-6">
           <ClusterInfrastructurePanel
-            clusters={clusters.filter((cluster) => activeSnapshotSet.has(cluster.snapshotId) && scopedClusterKeys.has(cluster.clusterKey))}
-            hosts={hosts.filter((host) => activeSnapshotSet.has(host.snapshotId) && scopedClusterKeys.has(clusterScopeKey(host.vcenterId, host.datacenter, host.cluster)))}
+            clusters={infrastructureClusters}
+            hosts={infrastructureHosts}
             rawHbaRows={rawHbaRows}
             rawNicRows={rawNicRows}
             search={filters.search}
@@ -137,6 +169,14 @@ export default function Clusters() {
         vms={vms}
         datastores={datastores.filter((datastore) => activeSnapshotSet.has(datastore.snapshotId))}
         rawVHostRows={rawVHostRows}
+      />
+      <ClusterOsDetailDialog
+        cluster={selectedOsCluster}
+        vcenterDisplayName={filteredRows.find((row) => row.clusterKey === selectedOsCluster?.clusterKey)?.vcenterDisplayName}
+        source={osSource}
+        vms={vms}
+        open={selectedOsCluster !== null}
+        onClose={() => setSelectedOsCluster(null)}
       />
     </div>
   );

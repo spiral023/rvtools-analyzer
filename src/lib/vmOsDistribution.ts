@@ -13,6 +13,13 @@ export interface ClusterOsDistributionRow {
   clusterSharePct: number;
 }
 
+export interface ClusterOsDetailRow {
+  operatingSystem: string;
+  vmNames: string[];
+  vmCount: number;
+  clusterSharePct: number;
+}
+
 const UNKNOWN_CLUSTER = "Ohne Cluster";
 const UNKNOWN_OS = "Unbekannt";
 
@@ -67,4 +74,43 @@ export function buildClusterOsDistributionRows(
       b.vmCount - a.vmCount ||
       a.operatingSystem.localeCompare(b.operatingSystem, "de-DE", { numeric: true, sensitivity: "base" }),
   );
+}
+
+/** Builds the OS breakdown for one already vCenter-safe cluster scope. */
+export function buildClusterOsDetailRows(
+  vms: NormalizedVm[],
+  source: VmOsSource,
+  clusterKey: string,
+): ClusterOsDetailRow[] {
+  const grouped = new Map<string, ClusterOsDetailRow>();
+
+  for (const vm of vms) {
+    if (clusterScopeKey(vm.vcenterId, vm.datacenter, vm.cluster) !== clusterKey) continue;
+    const operatingSystem = getVmOperatingSystem(vm, source);
+    const existing = grouped.get(operatingSystem);
+    if (existing) {
+      existing.vmNames.push(vm.vmName);
+      existing.vmCount += 1;
+    } else {
+      grouped.set(operatingSystem, {
+        operatingSystem,
+        vmNames: [vm.vmName],
+        vmCount: 1,
+        clusterSharePct: 0,
+      });
+    }
+  }
+
+  const total = [...grouped.values()].reduce((sum, row) => sum + row.vmCount, 0);
+  return [...grouped.values()]
+    .map((row) => ({
+      ...row,
+      vmNames: row.vmNames.sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true, sensitivity: "base" })),
+      clusterSharePct: total > 0 ? (row.vmCount / total) * 100 : 0,
+    }))
+    .sort(
+      (a, b) =>
+        b.vmCount - a.vmCount ||
+        a.operatingSystem.localeCompare(b.operatingSystem, "de-DE", { numeric: true, sensitivity: "base" }),
+    );
 }

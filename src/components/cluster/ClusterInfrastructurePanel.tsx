@@ -6,7 +6,7 @@ import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { NormalizedCluster, NormalizedHost, SheetRow } from "@/domain/models/types";
-import { clusterScopeKey } from "@/lib/clusterIdentity";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { DRIVER_COLUMNS, HOST_COLUMNS, INFRASTRUCTURE_KPI, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -76,14 +76,25 @@ function matchesSearch(search: string, values: Array<string | null | undefined>)
 
 export function ClusterInfrastructurePanel({ hosts, clusters, rawHbaRows, rawNicRows, search }: ClusterInfrastructurePanelProps) {
   const query = normalized(search);
-  const clusterKeys = useMemo(() => new Set(clusters.map((cluster) => cluster.clusterKey)), [clusters]);
+  const associationIdentities = useMemo<ClusterIdentity[]>(() => [
+    ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),
+    ...hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+  ], [clusters, hosts]);
+  const clusterKeys = useMemo(
+    () => new Set(clusters.map((cluster) => {
+      const identity = resolveClusterIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name }, associationIdentities);
+      return clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName);
+    })),
+    [associationIdentities, clusters],
+  );
   const scopedHosts = useMemo<InfrastructureHostRow[]>(
     () => hosts.flatMap((host) => {
-      const clusterKey = clusterScopeKey(host.vcenterId, host.datacenter, host.cluster);
+      const identity = resolveClusterIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster }, associationIdentities);
+      const clusterKey = clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName);
       if (!host.cluster || !clusterKeys.has(clusterKey)) return [];
       return [{ ...host, clusterKey }];
     }),
-    [clusterKeys, hosts],
+    [associationIdentities, clusterKeys, hosts],
   );
   const filteredHosts = useMemo(
     () => scopedHosts.filter((host) => matchesSearch(query, [host.vcenterId, host.datacenter, host.host, host.cluster, host.version, host.build, host.cpuModel, host.vendor, host.model])),

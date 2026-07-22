@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedVm } from "@/domain/models/types";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
-import { buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
+import { buildClusterOsDetailRows, buildClusterOsDistributionRows } from "@/lib/vmOsDistribution";
 
 function makeVm(overrides: Partial<NormalizedVm>): NormalizedVm {
   return {
@@ -100,6 +100,24 @@ describe("VM OS distribution", () => {
         vmCount: 1,
         clusterSharePct: 100,
       },
+    ]);
+  });
+
+  it("builds a per-cluster OS detail with VM names and shares", () => {
+    const rows = buildClusterOsDetailRows(
+      [
+        makeVm({ vmName: "APP-02", cluster: "CL-Prod", osTools: "Windows Server 2022" }),
+        makeVm({ vmName: "APP-01", cluster: "CL-Prod", osTools: "Windows Server 2022" }),
+        makeVm({ vmName: "DB-01", cluster: "CL-Prod", osTools: "Ubuntu Linux" }),
+        makeVm({ vmName: "TEST-01", cluster: "CL-Test", osTools: "Ubuntu Linux" }),
+      ],
+      "tools",
+      clusterScopeKey("vc-1", null, "CL-Prod"),
+    );
+
+    expect(rows).toEqual([
+      { operatingSystem: "Windows Server 2022", vmNames: ["APP-01", "APP-02"], vmCount: 2, clusterSharePct: 66.66666666666666 },
+      { operatingSystem: "Ubuntu Linux", vmNames: ["DB-01"], vmCount: 1, clusterSharePct: 33.33333333333333 },
     ]);
   });
 });

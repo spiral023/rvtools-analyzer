@@ -210,10 +210,39 @@ describe("Clusters", () => {
     expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
     expect(screen.getByText("Clusterübersicht")).toBeInTheDocument();
     expect(screen.getByText(/Betriebssysteme je Cluster/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "According to VMware Tools" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Configuration file" })).not.toBeChecked();
     expect(screen.getAllByText("vcsa-a").length).toBeGreaterThan(0);
     expect(screen.getAllByText("vcsa-b").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Cluster Production öffnen" })[0]);
     expect(await screen.findByRole("dialog")).toHaveTextContent("vcsa-a · DC1");
+  });
+
+  it("switches the OS source to the configuration file", async () => {
+    const originalOsConfig = vms[0]!.osConfig;
+    vms[0]!.osConfig = "Windows Server 2022 (config)";
+
+    try {
+      renderClusters();
+
+      const configSource = await screen.findByRole("radio", { name: "Configuration file" });
+      fireEvent.click(configSource);
+
+      expect(configSource).toBeChecked();
+      expect(screen.getByText("Windows Server 2022 (config)")).toBeInTheDocument();
+    } finally {
+      vms[0]!.osConfig = originalOsConfig;
+    }
+  });
+
+  it("opens the cluster OS detail with a Markdown copy action", async () => {
+    renderClusters();
+
+    const detailButtons = await screen.findAllByRole("button", { name: "Cluster Production öffnen" });
+    fireEvent.click(detailButtons.at(-1)!);
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Betriebssysteme · Production");
+    expect(screen.getByRole("button", { name: "OS-Details als Markdown kopieren" })).toBeInTheDocument();
   });
 
   it("opens details for a previously imported cluster with a legacy key", async () => {
@@ -283,6 +312,27 @@ describe("Clusters", () => {
     expect(screen.getAllByText("vc-b").length).toBeGreaterThan(0);
     expect(screen.getByText("lpfc-0")).toBeInTheDocument();
     expect(screen.getByText("lpfc-2")).toBeInTheDocument();
+  });
+
+  it("keeps infrastructure inventory when the cluster record has no datacenter", async () => {
+    const originalDatacenter = clusters[0]!.datacenter;
+    const originalKey = clusters[0]!.clusterKey;
+    clusters[0]!.datacenter = null;
+    clusters[0]!.clusterKey = clusterScopeKey("vc-a", null, "Production");
+
+    try {
+      renderClusters();
+
+      const infrastructureTab = await screen.findByRole("tab", { name: "Infrastruktur" });
+      fireEvent.mouseDown(infrastructureTab);
+      fireEvent.click(infrastructureTab);
+
+      expect(screen.getAllByText("esx-11").length).toBeGreaterThan(0);
+      expect(screen.getByText("lpfc-0")).toBeInTheDocument();
+    } finally {
+      clusters[0]!.datacenter = originalDatacenter;
+      clusters[0]!.clusterKey = originalKey;
+    }
   });
 
   it("redirects the legacy maintenance URL to the maintenance tab", async () => {

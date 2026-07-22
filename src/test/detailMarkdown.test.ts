@@ -5,6 +5,7 @@ import type { HardwareModelGroup } from "@/lib/hardwareVariants";
 import {
   buildClientDetailMarkdown,
   buildClusterDetailMarkdown,
+  buildClusterOsDetailMarkdown,
   buildHostDetailMarkdown,
   buildHardwareVariantMarkdown,
   buildVmDetailMarkdown,
@@ -250,5 +251,23 @@ describe("detail markdown builders", () => {
     expect(markdown).toContain("| vCenter | vcsa-a |");
     expect(markdown).toContain("| Max. VMs/Host | 23 (esx01.local) |");
     expect(markdown).not.toContain("vcsa-b");
+  });
+
+  it("builds a cluster OS detail summary with VM names and shares", () => {
+    const markdown = buildClusterOsDetailMarkdown({
+      cluster: "Cluster-A",
+      vcenterDisplayName: "vcsa-a",
+      datacenter: "DC1",
+      sourceLabel: "According to VMware Tools",
+      rows: [
+        { operatingSystem: "Windows Server 2022", vmNames: ["APP-01", "APP-02"], vmCount: 2, clusterSharePct: 66.66666666666666 },
+        { operatingSystem: "Ubuntu Linux", vmNames: ["DB-01"], vmCount: 1, clusterSharePct: 33.33333333333333 },
+      ],
+    });
+
+    expect(markdown).toContain("# Betriebssysteme · Cluster-A");
+    expect(markdown).toContain("| Quelle | According to VMware Tools |");
+    expect(markdown).toContain("| Windows Server 2022 | APP-01, APP-02 | 2 | 66.7% |");
+    expect(markdown).toContain("| Ubuntu Linux | DB-01 | 1 | 33.3% |");
   });
 });
