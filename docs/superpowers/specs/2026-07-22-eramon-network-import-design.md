@@ -75,8 +75,10 @@ ip;name;interface;mac;dnsname;vlan
 
 ## Dateierkennung
 
-`detectParsedFileKind` in `src/lib/xlsx/parseHelpers.ts` wird um beide Typen erweitert,
-Header-Abgleich **case-insensitiv**:
+`detectParsedFileKind` in `src/lib/xlsx/parseHelpers.ts` wird um beide Typen erweitert.
+Der Header-Abgleich erfolgt — wie bei den bestehenden CDP-/IPAM-Erkennungen — **exakt
+gegen die Kleinbuchstaben-Header** der Eramon-Exporte (SQL-Spaltennamen sind durchgängig
+lowercase); auch das Feld-Mapping greift auf diese lowercase-Schlüssel zu:
 
 - `device_name` + `port_name` + `port_status` vorhanden ⇒ `eramon-iface`
 - `name` + `interface` + `mac` + `vlan` vorhanden ⇒ `eramon-l2`
