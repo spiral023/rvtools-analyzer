@@ -232,3 +232,81 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
     };
   });
 }
+
+export interface CdpMacRow {
+  host: string;
+  adapter: string;
+  mac: string | null;
+  macCanonical: string | null;
+  inL2: boolean;
+  l2Switch: string | null;
+  l2Interface: string | null;
+  vlan: string | null;
+  learnedIp: string | null;
+  dnsName: string | null;
+  topologyMismatch: boolean;
+  finding: string | null;
+}
+
+export function buildCdpMacRows(input: { cdpRows: CdpLatest[]; l2Rows: EramonL2Latest[] }): CdpMacRow[] {
+  const l2ByMac = new Map<string, EramonL2Latest[]>();
+  for (const l2 of input.l2Rows) {
+    const macCanonical = canonicalMac(l2.mac);
+    if (!macCanonical) continue;
+    const matches = l2ByMac.get(macCanonical);
+    if (matches) matches.push(l2);
+    else l2ByMac.set(macCanonical, [l2]);
+  }
+
+  const rows: CdpMacRow[] = [];
+  for (const cdp of input.cdpRows) {
+    const macCanonical = canonicalMac(cdp.mac);
+    if (!macCanonical) continue;
+
+    const matches = l2ByMac.get(macCanonical) ?? [];
+    const cdpSwitch = cdp.cdpDeviceId ? extractCdpDeviceHostname(cdp.cdpDeviceId) : null;
+    const cdpInterface = cdp.cdpPortId ? normalizeInterfaceName(cdp.cdpPortId) : null;
+
+    if (matches.length === 0) {
+      rows.push({
+        host: cdp.host,
+        adapter: cdp.adapter,
+        mac: cdp.mac,
+        macCanonical,
+        inL2: false,
+        l2Switch: null,
+        l2Interface: null,
+        vlan: null,
+        learnedIp: null,
+        dnsName: null,
+        topologyMismatch: false,
+        finding: "MAC nicht in L2-Tabelle",
+      });
+      continue;
+    }
+
+    for (const l2 of matches) {
+      const l2Key = `${normalizeVmNameForMatch(shortHostname(l2.switchName))}::${normalizeInterfaceName(l2.interface)}`;
+      const cdpKey = cdpSwitch && cdpInterface ? `${normalizeVmNameForMatch(cdpSwitch)}::${cdpInterface}` : null;
+      const topologyMismatch = cdpKey !== null && cdpKey !== l2Key;
+      rows.push({
+        host: cdp.host,
+        adapter: cdp.adapter,
+        mac: cdp.mac,
+        macCanonical,
+        inL2: true,
+        l2Switch: l2.switchName,
+        l2Interface: l2.interface,
+        vlan: l2.vlan || null,
+        learnedIp: l2.ip,
+        dnsName: l2.dnsName,
+        topologyMismatch,
+        finding: topologyMismatch
+          ? `Topologie weicht ab: CDP ${cdpSwitch}/${cdp.cdpPortId}, L2 ${l2.switchName}/${l2.interface}`
+          : null,
+      });
+    }
+  }
+
+  return rows;
+}

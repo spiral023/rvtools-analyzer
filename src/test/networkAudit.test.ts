@@ -6,8 +6,9 @@ import {
   normalizeInterfaceName,
   buildPortAuditRows,
   canonicalMac,
+  buildCdpMacRows,
 } from "@/lib/networkAudit";
-import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest } from "@/domain/models/types";
+import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest, EramonL2Latest } from "@/domain/models/types";
 
 describe("shortHostname", () => {
   it("schneidet den Domain-Teil einer FQDN ab", () => {
@@ -154,6 +155,25 @@ function makeEramonIface(over: Partial<EramonIfaceLatest> = {}): EramonIfaceLate
     bandbreiteBps: 100_000_000_000,
     portStatus: "1",
     statusLabel: "aktiv",
+    ...over,
+  };
+}
+
+function makeEramonL2(over: Partial<EramonL2Latest> = {}): EramonL2Latest {
+  return {
+    l2EntryKey: "sw01::eth1/1::005056abcdef::100",
+    switchNorm: "sw01",
+    switchName: "sw01",
+    interface: "Ethernet1/1",
+    mac: "0050.56ab.cdef",
+    vlan: "100",
+    importedAt: "2026-07-20T00:00:00.000Z",
+    l2ImportId: "el2-1",
+    rowIndex: 0,
+    ip: "192.168.125.85",
+    dnsName: "esxxsrv2270",
+    type: null,
+    interfaceDescription: null,
     ...over,
   };
 }
@@ -346,5 +366,56 @@ describe("buildPortAuditRows", () => {
       cdpRows: [], hosts: [], techInfo: [], ipam: [],
     });
     expect(rows[0].sourceConflict).toBe(false);
+  });
+});
+
+describe("buildCdpMacRows", () => {
+  it("findet die L2-MAC über kanonische Form (VMware- vs. Cisco-Schreibweise)", () => {
+    const rows = buildCdpMacRows({
+      cdpRows: [makeCdpRow({ mac: "00:50:56:AB:CD:EF", cdpDeviceId: "sw01.domain.at(S1)", cdpPortId: "Ethernet1/1" })],
+      l2Rows: [makeEramonL2({ mac: "0050.56ab.cdef" })],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].inL2).toBe(true);
+    expect(rows[0].learnedIp).toBe("192.168.125.85");
+    expect(rows[0].topologyMismatch).toBe(false);
+  });
+
+  it("markiert Adapter, deren MAC nicht in der L2-Tabelle steht", () => {
+    const rows = buildCdpMacRows({
+      cdpRows: [makeCdpRow({ mac: "00:50:56:00:00:01" })],
+      l2Rows: [makeEramonL2({ mac: "0050.56ab.cdef" })],
+    });
+    expect(rows[0].inL2).toBe(false);
+    expect(rows[0].finding).toBe("MAC nicht in L2-Tabelle");
+  });
+
+  it("überspringt Adapter ohne verwertbare MAC", () => {
+    const rows = buildCdpMacRows({
+      cdpRows: [makeCdpRow({ mac: null })],
+      l2Rows: [],
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it("erkennt Topologie-Abweichung, wenn L2 die MAC auf anderem Switch/Port lernt", () => {
+    const rows = buildCdpMacRows({
+      cdpRows: [makeCdpRow({ mac: "00:50:56:ab:cd:ef", cdpDeviceId: "sw01.domain.at(S1)", cdpPortId: "Ethernet1/1" })],
+      l2Rows: [makeEramonL2({ mac: "0050.56ab.cdef", switchName: "sw02", interface: "Ethernet2/2" })],
+    });
+    expect(rows[0].topologyMismatch).toBe(true);
+    expect(rows[0].finding).toContain("Topologie weicht ab");
+  });
+
+  it("erzeugt je L2-Treffer eine Zeile, wenn dieselbe MAC auf mehreren VLANs gelernt ist", () => {
+    const rows = buildCdpMacRows({
+      cdpRows: [makeCdpRow({ mac: "00:50:56:ab:cd:ef", cdpDeviceId: "sw01.domain.at(S1)", cdpPortId: "Ethernet1/1" })],
+      l2Rows: [
+        makeEramonL2({ mac: "0050.56ab.cdef", vlan: "100" }),
+        makeEramonL2({ mac: "0050.56ab.cdef", vlan: "200" }),
+      ],
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.vlan)).toEqual(["100", "200"]);
   });
 });
