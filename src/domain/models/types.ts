@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch" | "eramon-iface" | "eramon-l2";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"

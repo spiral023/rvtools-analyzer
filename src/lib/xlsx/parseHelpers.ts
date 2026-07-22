@@ -15,7 +15,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "switch" | "eramon-iface" | "eramon-l2";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -29,6 +29,8 @@ const TECH_INFO_REQUIRED_HEADERS = ["Name", "Wartungsfenster", "Betriebssystem"]
 export const TECH_INFO_CLIENT_REQUIRED_HEADERS = ["Name", "BLZ", "MAC Adresse", "Poolname"] as const;
 export const CDP_REQUIRED_HEADERS = ["VMHost", "PhysicalAdapter", "CDPDeviceID", "CDPAvailable"] as const;
 export const IPAM_REQUIRED_HEADERS = ["IP Address", "Status", "Type"] as const;
+export const ERAMON_IFACE_REQUIRED_HEADERS = ["device_name", "port_name", "port_status"] as const;
+export const ERAMON_L2_REQUIRED_HEADERS = ["name", "interface", "mac", "vlan"] as const;
 
 export interface SheetShapeForDetection {
   sheetName: string;
@@ -100,6 +102,16 @@ export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFi
     IPAM_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
   );
   if (hasIpamHeaders) return "ipam";
+
+  const hasEramonIfaceHeaders = sheets.some((sheet) =>
+    ERAMON_IFACE_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasEramonIfaceHeaders) return "eramon-iface";
+
+  const hasEramonL2Headers = sheets.some((sheet) =>
+    ERAMON_L2_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasEramonL2Headers) return "eramon-l2";
 
   return "rvtools";
 }
@@ -263,6 +275,56 @@ export function mapSwitchDisplayFields(row: Record<string, unknown>): SwitchDisp
 
 export function buildSwitchInterfaceKey(hostname: string, interfaceName: string): string {
   return `${normalizeVmNameForMatch(hostname)}::${interfaceName.trim().toLowerCase()}`;
+}
+
+export interface EramonIfaceDisplayFields {
+  portDesc: string | null;
+  bandbreiteBps: number | null;
+  portStatus: string | null;
+  statusLabel: string | null;
+}
+
+/** Port-Status-Rohwerte: 1 = aktiv/up, 2 = down. Unbekannte Werte werden roh übernommen. */
+export function mapEramonPortStatus(raw: unknown): { portStatus: string | null; statusLabel: string | null } {
+  const s = toStr(raw);
+  if (s === null) return { portStatus: null, statusLabel: null };
+  if (s === "1") return { portStatus: "1", statusLabel: "aktiv" };
+  if (s === "2") return { portStatus: "2", statusLabel: "down" };
+  return { portStatus: s, statusLabel: s };
+}
+
+export function mapEramonIfaceDisplayFields(row: Record<string, unknown>): EramonIfaceDisplayFields {
+  const status = mapEramonPortStatus(row["port_status"]);
+  return {
+    portDesc: toStr(row["port_desc"]),
+    bandbreiteBps: toNumber(row["bandbreite"]),
+    portStatus: status.portStatus,
+    statusLabel: status.statusLabel,
+  };
+}
+
+export interface EramonL2DisplayFields {
+  ip: string | null;
+  dnsName: string | null;
+  type: string | null;
+  interfaceDescription: string | null;
+}
+
+export function mapEramonL2DisplayFields(row: Record<string, unknown>): EramonL2DisplayFields {
+  return {
+    ip: toStr(row["ip"]),
+    dnsName: toStr(row["dnsname"]),
+    type: toStr(row["type"]),
+    interfaceDescription: toStr(row["interfacedescription"]),
+  };
+}
+
+export function buildEramonSwitchPortKey(deviceName: string, portName: string): string {
+  return `${normalizeVmNameForMatch(deviceName)}::${portName.trim().toLowerCase()}`;
+}
+
+export function buildEramonL2Key(name: string, interfaceName: string, mac: string, vlan: string): string {
+  return `${normalizeVmNameForMatch(name)}::${interfaceName.trim().toLowerCase()}::${mac.trim().toLowerCase()}::${vlan.trim()}`;
 }
 
 /** vCenter-Anzeigename → vcenterId, identische Konvention wie beim RVTools-Import. */
