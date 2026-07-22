@@ -38,7 +38,7 @@ import type {
   Scenario,
   VCenterGroup,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapSwitchDisplayFields, mapEramonIfaceDisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapSwitchDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
@@ -951,6 +951,42 @@ export async function getEramonIfaceLatestByKeys(keys: string[]): Promise<Eramon
   return values.filter((v): v is EramonIfaceLatest => Boolean(v));
 }
 
+export async function getEramonL2ImportByChecksum(checksum: string): Promise<EramonL2ImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("eramon_l2_imports", "fileChecksum", checksum);
+}
+
+export async function getEramonL2Imports(): Promise<EramonL2ImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("eramon_l2_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+export async function putEramonL2Import(meta: EramonL2ImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("eramon_l2_imports", meta);
+}
+
+export async function batchPutEramonL2Rows(items: EramonL2Row[], batchSize = 5000): Promise<void> {
+  await batchPut("eramon_l2_rows", items, batchSize);
+}
+
+export async function batchPutEramonL2Latest(items: EramonL2Latest[], batchSize = 5000): Promise<void> {
+  await batchPut("eramon_l2_latest", items, batchSize);
+}
+
+export async function getAllEramonL2Latest(): Promise<EramonL2Latest[]> {
+  const db = await getDb();
+  return db.getAll("eramon_l2_latest");
+}
+
+export async function getEramonL2LatestByKeys(keys: string[]): Promise<EramonL2Latest[]> {
+  if (keys.length === 0) return [];
+  const db = await getDb();
+  const values = await Promise.all([...new Set(keys)].map((key) => db.get("eramon_l2_latest", key)));
+  return values.filter((v): v is EramonL2Latest => Boolean(v));
+}
+
 export async function getIpamImportByChecksum(checksum: string): Promise<IpamImportMeta | undefined> {
   const db = await getDb();
   return db.getFromIndex("ipam_imports", "fileChecksum", checksum);
@@ -1184,6 +1220,16 @@ export async function estimateEramonIfaceImportSizesBytes(importIds: string[]): 
   const entries = await Promise.all(importIds.map(async (id) => [
     id,
     await estimateSizeByIndex(db, "eramon_iface_rows", "ifaceImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
+}
+
+export async function estimateEramonL2ImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "eramon_l2_rows", "l2ImportId", id),
   ] as const));
   return Object.fromEntries(entries);
 }
@@ -1552,6 +1598,47 @@ export async function deleteEramonIfaceImport(ifaceImportId: string): Promise<vo
   await db.delete("eramon_iface_imports", ifaceImportId);
   await deleteByKeyPrefix("eramon_iface_rows", ifaceImportId);
   await Promise.all([...affectedKeys].map((key) => rebuildEramonIfaceLatestForKey(key)));
+}
+
+function buildEramonL2LatestFromRow(row: EramonL2Row): EramonL2Latest {
+  return {
+    l2EntryKey: row.l2EntryKey,
+    switchNorm: row.switchNorm,
+    switchName: row.switchName,
+    interface: row.interface,
+    mac: row.mac,
+    vlan: row.vlan,
+    importedAt: row.importedAt,
+    l2ImportId: row.l2ImportId,
+    rowIndex: row.rowIndex,
+    ...mapEramonL2DisplayFields(row.rawData),
+  };
+}
+
+async function rebuildEramonL2LatestForKey(l2EntryKey: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("eramon_l2_rows", "l2EntryKey", l2EntryKey);
+  const latestRow = rows.reduce<EramonL2Row | null>((latest, row) => {
+    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
+    return latest;
+  }, null);
+  if (!latestRow) {
+    await db.delete("eramon_l2_latest", l2EntryKey);
+    return;
+  }
+  await db.put("eramon_l2_latest", buildEramonL2LatestFromRow(latestRow));
+}
+
+export async function deleteEramonL2Import(l2ImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("eramon_l2_rows", "l2ImportId", l2ImportId);
+  const affectedKeys = new Set<string>();
+  for (const row of rows) {
+    if (row.l2EntryKey) affectedKeys.add(row.l2EntryKey);
+  }
+  await db.delete("eramon_l2_imports", l2ImportId);
+  await deleteByKeyPrefix("eramon_l2_rows", l2ImportId);
+  await Promise.all([...affectedKeys].map((key) => rebuildEramonL2LatestForKey(key)));
 }
 
 function buildIpamLatestFromRow(row: IpamRow): IpamLatest {
