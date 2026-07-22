@@ -7,7 +7,7 @@ import {
   buildPortAuditRows,
   canonicalMac,
 } from "@/lib/networkAudit";
-import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest } from "@/domain/models/types";
+import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest } from "@/domain/models/types";
 
 describe("shortHostname", () => {
   it("schneidet den Domain-Teil einer FQDN ab", () => {
@@ -138,6 +138,23 @@ function makeIpam(name: string): IpamLatest {
     rowIndex: 0, name, status: "Used", type: "Host", usage: "DNS", firstDiscovered: null,
     lastDiscovered: null, comment: null, site: null, macAddress: null, os: null,
     netBiosName: null, deviceTypes: null, openPorts: null, fingerprint: null,
+  };
+}
+
+function makeEramonIface(over: Partial<EramonIfaceLatest> = {}): EramonIfaceLatest {
+  return {
+    switchPortKey: "sw01::eth1/1",
+    switchNorm: "sw01",
+    deviceName: "sw01",
+    portName: "Eth1/1",
+    importedAt: "2026-07-20T00:00:00.000Z",
+    ifaceImportId: "eif-1",
+    rowIndex: 0,
+    portDesc: "esxxsrv2270",
+    bandbreiteBps: 100_000_000_000,
+    portStatus: "1",
+    statusLabel: "aktiv",
+    ...over,
   };
 }
 
@@ -278,5 +295,56 @@ describe("buildPortAuditRows", () => {
     expect(rows[0].statusConflict).toBe(true);
     expect(rows[0].finding).toContain('Beschriftung nennt "altgeraet01"');
     expect(rows[0].finding).toContain('Switch meldet "notconnec"');
+  });
+
+  it("Union: derselbe Port aus Cisco und Eramon ergibt eine Zeile mit beiden Quellen", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ hostname: "sw01", interface: "Eth1/1", description: "esxxsrv2270_Port2" })],
+      eramonIfaceRows: [makeEramonIface({ deviceName: "sw01", portName: "Ethernet1/1", portDesc: "esxxsrv2270" })],
+      cdpRows: [], hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sources).toEqual(["cisco", "eramon"]);
+    expect(rows[0].bandwidthBps).toBe(100_000_000_000);
+  });
+
+  it("reiner Eramon-Port (ohne Cisco) mit CDP-Treffer wird confirmed-cdp", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [],
+      eramonIfaceRows: [makeEramonIface({ deviceName: "sw01", portName: "Ethernet1/1", portDesc: "esxxsrv2270" })],
+      cdpRows: [makeCdpRow({ cdpDeviceId: "sw01.domain.at(SERIAL1)", cdpPortId: "Ethernet1/1", host: "esxxsrv2270.rbgooe.at" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sources).toEqual(["eramon"]);
+    expect(rows[0].matchStatus).toBe("confirmed-cdp");
+  });
+
+  it("sourceConflict: Cisco- und Eramon-Beschriftung nennen unterschiedliche Hosts", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ hostname: "sw01", interface: "Eth1/1", description: "esxxsrv2270" })],
+      eramonIfaceRows: [makeEramonIface({ deviceName: "sw01", portName: "Ethernet1/1", portDesc: "altserver99" })],
+      cdpRows: [], hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows[0].sourceConflict).toBe(true);
+    expect(rows[0].finding).toContain("altserver99");
+  });
+
+  it("sourceConflict: Cisco meldet connected, Eramon meldet down", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ hostname: "sw01", interface: "Eth1/1", description: "esxxsrv2270", status: "connected" })],
+      eramonIfaceRows: [makeEramonIface({ deviceName: "sw01", portName: "Ethernet1/1", portDesc: "esxxsrv2270", statusLabel: "down" })],
+      cdpRows: [], hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows[0].sourceConflict).toBe(true);
+  });
+
+  it("kein sourceConflict bei identischer Beschreibung und identischem Status", () => {
+    const rows = buildPortAuditRows({
+      switchRows: [makeSwitchRow({ hostname: "sw01", interface: "Eth1/1", description: "esxxsrv2270", status: "connected" })],
+      eramonIfaceRows: [makeEramonIface({ deviceName: "sw01", portName: "Ethernet1/1", portDesc: "esxxsrv2270", statusLabel: "aktiv" })],
+      cdpRows: [], hosts: [], techInfo: [], ipam: [],
+    });
+    expect(rows[0].sourceConflict).toBe(false);
   });
 });

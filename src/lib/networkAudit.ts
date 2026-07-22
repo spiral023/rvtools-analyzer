@@ -1,5 +1,5 @@
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
-import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest } from "@/domain/models/types";
+import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest, EramonL2Latest } from "@/domain/models/types";
 
 export type PortMatchStatus = "confirmed-cdp" | "no-target" | "text-match" | "documented-only" | "unknown";
 export type MatchedSource = "cdp" | "rvtools" | "techinfo" | "ipam";
@@ -16,6 +16,9 @@ export interface PortAuditRow {
   labelConflict: boolean;
   labelConflictHost: string | null;
   statusConflict: boolean;
+  sources: ("cisco" | "eramon")[];
+  bandwidthBps: number | null;
+  sourceConflict: boolean;
   finding: string | null;
 }
 
@@ -54,14 +57,29 @@ export function canonicalMac(raw: string | null): string | null {
 
 interface BuildPortAuditRowsInput {
   switchRows: SwitchLatest[];
+  eramonIfaceRows?: EramonIfaceLatest[];
   cdpRows: CdpLatest[];
   hosts: NormalizedHost[];
   techInfo: TechInfoLatest[];
   ipam: IpamLatest[];
 }
 
+interface MergedPort {
+  key: string;
+  switchInterfaceKey: string;
+  switchHostname: string;
+  interface: string;
+  ciscoDescription: string | null;
+  ciscoStatus: string | null;
+  eramonPortDesc: string | null;
+  eramonStatusLabel: string | null;
+  bandwidthBps: number | null;
+  sources: ("cisco" | "eramon")[];
+}
+
 export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow[] {
   const { switchRows, cdpRows, hosts, techInfo, ipam } = input;
+  const eramonIfaceRows = input.eramonIfaceRows ?? [];
 
   const cdpByPort = new Map<string, CdpLatest>();
   for (const cdp of cdpRows) {
@@ -77,11 +95,53 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
     if (entry.name) ipamNameSet.add(shortHostname(entry.name));
   }
 
-  return switchRows.map((port): PortAuditRow => {
+  const merged = new Map<string, MergedPort>();
+  for (const port of switchRows) {
     const key = `${shortHostname(port.hostname)}::${normalizeInterfaceName(port.interface)}`;
-    const cdp = cdpByPort.get(key);
-    const candidate = port.description && port.description !== "--" ? stripPortSuffix(port.description) : "";
+    merged.set(key, {
+      key,
+      switchInterfaceKey: port.switchInterfaceKey,
+      switchHostname: port.hostname,
+      interface: port.interface,
+      ciscoDescription: port.description,
+      ciscoStatus: port.status,
+      eramonPortDesc: null,
+      eramonStatusLabel: null,
+      bandwidthBps: null,
+      sources: ["cisco"],
+    });
+  }
+  for (const iface of eramonIfaceRows) {
+    const key = `${shortHostname(iface.deviceName)}::${normalizeInterfaceName(iface.portName)}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.eramonPortDesc = iface.portDesc;
+      existing.eramonStatusLabel = iface.statusLabel;
+      existing.bandwidthBps = iface.bandbreiteBps;
+      if (!existing.sources.includes("eramon")) existing.sources.push("eramon");
+    } else {
+      merged.set(key, {
+        key,
+        switchInterfaceKey: iface.switchPortKey,
+        switchHostname: iface.deviceName,
+        interface: iface.portName,
+        ciscoDescription: null,
+        ciscoStatus: null,
+        eramonPortDesc: iface.portDesc,
+        eramonStatusLabel: iface.statusLabel,
+        bandwidthBps: iface.bandbreiteBps,
+        sources: ["eramon"],
+      });
+    }
+  }
+
+  return [...merged.values()].map((port): PortAuditRow => {
+    const cdp = cdpByPort.get(port.key);
+    const description = port.ciscoDescription ?? port.eramonPortDesc;
+    const rawStatus = port.ciscoStatus ?? port.eramonStatusLabel;
+    const candidate = description && description !== "--" ? stripPortSuffix(description) : "";
     const candidateShort = candidate ? shortHostname(candidate) : "";
+    const switchConnected = port.ciscoStatus ? port.ciscoStatus === "connected" : port.eramonStatusLabel === "aktiv";
 
     let matchStatus: PortMatchStatus;
     let matchedHost: string | null = null;
@@ -120,37 +180,55 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
       }
       if (cdp.linkStatus) {
         const cdpUp = cdp.linkStatus.toLowerCase() === "up";
-        const switchConnected = port.status === "connected";
         if (switchConnected !== cdpUp) statusConflict = true;
       }
     }
 
-    let finding: string | null = null;
-    if (labelConflict && statusConflict) {
-      finding = `Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"; Switch meldet "${port.status}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`;
-    } else if (labelConflict) {
-      finding = `Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"`;
-    } else if (statusConflict) {
-      finding = `Switch meldet "${port.status}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`;
-    } else if (matchStatus === "documented-only") {
-      finding = `Nur in ${matchedSource === "techinfo" ? "TechInfo" : "IPAM"} dokumentiert, kein aktiver RVTools-Host`;
-    } else if (matchStatus === "unknown") {
-      finding = "Kein bekannter Host gefunden";
+    let sourceConflict = false;
+    let sourceConflictText = "";
+    if (port.sources.length > 1) {
+      const ciscoCandidate = port.ciscoDescription && port.ciscoDescription !== "--" ? shortHostname(stripPortSuffix(port.ciscoDescription)) : "";
+      const eramonCandidate = port.eramonPortDesc && port.eramonPortDesc !== "--" ? shortHostname(stripPortSuffix(port.eramonPortDesc)) : "";
+      const labelDiverges = Boolean(ciscoCandidate && eramonCandidate && ciscoCandidate !== eramonCandidate);
+      const statusDiverges = port.ciscoStatus !== null && port.eramonStatusLabel !== null
+        && (port.ciscoStatus === "connected") !== (port.eramonStatusLabel === "aktiv");
+      sourceConflict = labelDiverges || statusDiverges;
+      const parts: string[] = [];
+      if (labelDiverges) parts.push(`Cisco-Beschriftung "${port.ciscoDescription}" ≠ Eramon "${port.eramonPortDesc}"`);
+      if (statusDiverges) parts.push(`Cisco meldet "${port.ciscoStatus}", Eramon meldet "${port.eramonStatusLabel}"`);
+      sourceConflictText = parts.join("; ");
     }
+
+    const findingParts: string[] = [];
+    if (labelConflict && statusConflict) {
+      findingParts.push(`Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"; Switch meldet "${rawStatus}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`);
+    } else if (labelConflict) {
+      findingParts.push(`Beschriftung nennt "${candidate}", CDP zeigt Host "${labelConflictHost}"`);
+    } else if (statusConflict) {
+      findingParts.push(`Switch meldet "${rawStatus}", CDP zeigt Host-Adapter als "${cdp?.linkStatus}"`);
+    } else if (matchStatus === "documented-only") {
+      findingParts.push(`Nur in ${matchedSource === "techinfo" ? "TechInfo" : "IPAM"} dokumentiert, kein aktiver RVTools-Host`);
+    } else if (matchStatus === "unknown") {
+      findingParts.push("Kein bekannter Host gefunden");
+    }
+    if (sourceConflict) findingParts.push(sourceConflictText);
 
     return {
       switchInterfaceKey: port.switchInterfaceKey,
-      switchHostname: port.hostname,
+      switchHostname: port.switchHostname,
       interface: port.interface,
-      description: port.description,
-      status: port.status,
+      description,
+      status: rawStatus,
       matchStatus,
       matchedHost,
       matchedSource,
       labelConflict,
       labelConflictHost,
       statusConflict,
-      finding,
+      sources: port.sources,
+      bandwidthBps: port.bandwidthBps,
+      sourceConflict,
+      finding: findingParts.length ? findingParts.join(" · ") : null,
     };
   });
 }

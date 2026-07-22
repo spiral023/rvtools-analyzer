@@ -30,7 +30,8 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
     rows: [{
       switchInterfaceKey: "core-01::eth1/1", switchHostname: "core-01", interface: "Eth1/1", description: "Uplink",
       status: "connected", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp",
-      labelConflict: false, labelConflictHost: null, statusConflict: false, finding: null,
+      labelConflict: false, labelConflictHost: null, statusConflict: false,
+      sources: ["cisco"], bandwidthBps: null, sourceConflict: false, finding: null,
     }] as PortAuditRow[],
     isLoading: false,
   }),
