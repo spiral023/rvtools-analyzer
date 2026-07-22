@@ -97,8 +97,8 @@ export const NET_IPAM_KPI: Record<string, GlossaryEntry> = {
 export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
   totalPorts: {
     term: "Ports gesamt",
-    description: "Alle importierten Cisco-Switch-Interfaces, die in den Abgleich einfließen.",
-    source: "Cisco-Switch-TXT",
+    description: "Alle Switch-Ports aus Cisco-TXT und Eramon-Inventar, die in den Abgleich einfließen.",
+    source: "Cisco-Switch-TXT · Eramon",
   },
   cdpConfirmed: {
     term: "CDP-bestätigt",
@@ -124,6 +124,16 @@ export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
     term: "Beschriftungs-Konflikte",
     description: "Ports, deren Beschriftung nicht zur ermittelten Gegenstelle passt. Das ist ein Hinweis auf veraltete oder falsche Dokumentation.",
     source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info",
+  },
+  onlyEramon: {
+    term: "Nur in Eramon",
+    description: "Ports, die ausschließlich im Eramon-Inventar vorkommen und keinen Cisco-TXT-Eintrag haben.",
+    source: "Eramon",
+  },
+  sourceConflicts: {
+    term: "Quellen-Konflikte",
+    description: "Ports, bei denen sich Cisco- und Eramon-Sicht in Beschreibung oder Status widersprechen.",
+    source: "Cisco-Switch-TXT · Eramon",
   },
 };
 
@@ -187,6 +197,8 @@ export const NET_AUDIT_COLUMNS: Record<string, GlossaryEntry> = {
   matchStatus: { term: "Match-Status", description: "Qualität der ermittelten Zuordnung: CDP-bestätigt, RVTools-Treffer, nur dokumentiert oder unbekannt.", source: "Abgleich aus Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info" },
   matchedHost: { term: "Vermuteter ESXi-Host", description: "Host, der dem Switch-Port durch CDP oder die Dokumentation zugeordnet wurde.", source: "CDP-CSV · RVTools · Tech-Info" },
   finding: { term: "Auffälligkeit", description: "Erkannte Abweichung oder fehlende Zuordnung, die geprüft werden sollte.", source: "Berechnet aus dem Datenabgleich" },
+  bandwidth: { term: "Bandbreite", description: "Vom Eramon-Switch gemeldete Port-Bandbreite.", source: "Eramon · bandbreite" },
+  source: { term: "Quelle", description: "Datenquelle(n) des Ports: Cisco-TXT, Eramon oder beide.", source: "Cisco-Switch-TXT · Eramon" },
 };
 
 export const NET_HOST_QUALITY_RVTOOLS_COLUMNS: Record<string, GlossaryEntry> = {
@@ -739,6 +751,28 @@ export const NET_VLANUSAGE_SECTIONS: Record<string, GlossaryEntry> = {
       "Welche VLANs innerhalb eines Clusters tatsächlich von VMs genutzt werden (verbundene Adapter). Ergänzt die konfigurationsbasierte VLAN-Verteilung um die reale Nutzung. Join: vNetwork → vPort/dvPort über den Portgruppen-Namen.",
     source: `${RV} · vNetwork · join vPort/dvPort`,
   },
+};
+
+export const NET_MAC_CDP_COLUMNS: Record<string, GlossaryEntry> = {
+  host: { term: "ESXi-Host", description: "ESX-Host, dessen physischer Adapter geprüft wird.", source: `${CDP} · „VMHost“` },
+  adapter: { term: "vmnic", description: "Physischer Netzwerkadapter des Hosts.", source: `${CDP} · „PhysicalAdapter“` },
+  mac: { term: "MAC", description: "MAC-Adresse des Adapters (Roh-Anzeige aus CDP).", source: `${CDP} · „MACAddress“` },
+  inL2: { term: "In L2?", description: "Ob die MAC in der Eramon-L2-Tabelle gelernt wurde.", source: `Abgleich ${CDP} ↔ ${ERAMON}` },
+  l2Location: { term: "Switch/Port (L2)", description: "Switch und Interface, an dem die MAC laut L2-Tabelle gelernt wurde.", source: `${ERAMON} · „name“ / „interface“` },
+  vlan: { term: "VLAN", description: "VLAN-ID, in dem die MAC gelernt wurde.", source: `${ERAMON} · „vlan“` },
+  learnedIp: { term: "Gelernte IP", description: "Vom Switch für die MAC beobachtete IP-Adresse.", source: `${ERAMON} · „ip“` },
+  dnsName: { term: "DNS-Name", description: "Vom Switch beobachteter DNS-Name.", source: `${ERAMON} · „dnsname“` },
+  finding: { term: "Auffälligkeit", description: "Fehlende MAC in der L2-Tabelle oder Topologie-Abweichung gegenüber CDP.", source: "Berechnet aus dem Datenabgleich" },
+};
+
+export const NET_MAC_DISCOVERY_COLUMNS: Record<string, GlossaryEntry> = {
+  l2Location: { term: "Switch/Port", description: "Switch und Interface, an dem der Eintrag gelernt wurde.", source: `${ERAMON} · „name“ / „interface“` },
+  vlan: { term: "VLAN", description: "VLAN-ID des Eintrags.", source: `${ERAMON} · „vlan“` },
+  mac: { term: "MAC", description: "Am Port gelernte MAC-Adresse.", source: `${ERAMON} · „mac“` },
+  learnedIp: { term: "Gelernte IP", description: "Vom Switch beobachtete IP-Adresse.", source: `${ERAMON} · „ip“` },
+  dnsName: { term: "DNS-Name", description: "Vom Switch beobachteter DNS-Name.", source: `${ERAMON} · „dnsname“` },
+  classification: { term: "Klassifikation", description: "ESXi (CDP), IPAM-bekannt oder unbekannt/fremd.", source: `Abgleich ${ERAMON} ↔ ${CDP} ↔ IPAM` },
+  esxiHost: { term: "ESXi-Host", description: "Zugeordneter ESX-Host, falls die MAC ein bekannter vmnic ist.", source: `${CDP} · „VMHost“` },
 };
 
 /* ================================================================== */
