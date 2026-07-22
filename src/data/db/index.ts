@@ -26,6 +26,12 @@ import type {
   SwitchImportMeta,
   SwitchRow,
   SwitchLatest,
+  EramonIfaceImportMeta,
+  EramonIfaceRow,
+  EramonIfaceLatest,
+  EramonL2ImportMeta,
+  EramonL2Row,
+  EramonL2Latest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   MaintenanceWindowDefinition,
@@ -133,6 +139,36 @@ interface RVToolsDBSchema extends DBSchema {
     value: SwitchLatest;
     indexes: { hostnameNorm: string };
   };
+  eramon_iface_imports: {
+    key: string;
+    value: EramonIfaceImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  eramon_iface_rows: {
+    key: [string, number];
+    value: EramonIfaceRow;
+    indexes: { ifaceImportId: string; switchPortKey: string };
+  };
+  eramon_iface_latest: {
+    key: string;
+    value: EramonIfaceLatest;
+    indexes: { switchNorm: string };
+  };
+  eramon_l2_imports: {
+    key: string;
+    value: EramonL2ImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  eramon_l2_rows: {
+    key: [string, number];
+    value: EramonL2Row;
+    indexes: { l2ImportId: string; l2EntryKey: string };
+  };
+  eramon_l2_latest: {
+    key: string;
+    value: EramonL2Latest;
+    indexes: { switchNorm: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -167,13 +203,15 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "cdp_imports" | "cdp_rows" | "cdp_latest"
   | "ipam_imports" | "ipam_rows" | "ipam_latest"
   | "switch_imports" | "switch_rows" | "switch_latest"
+  | "eramon_iface_imports" | "eramon_iface_rows" | "eramon_iface_latest"
+  | "eramon_l2_imports" | "eramon_l2_rows" | "eramon_l2_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios" | "vcenter_groups";
 type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 23;
+const DB_VERSION = 24;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -183,6 +221,8 @@ const ALL_STORES: StoreName[] = [
   "cdp_imports", "cdp_rows", "cdp_latest",
   "ipam_imports", "ipam_rows", "ipam_latest",
   "switch_imports", "switch_rows", "switch_latest",
+  "eramon_iface_imports", "eramon_iface_rows", "eramon_iface_latest",
+  "eramon_l2_imports", "eramon_l2_rows", "eramon_l2_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
 ];
 
@@ -326,6 +366,35 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         if (!db.objectStoreNames.contains("switch_latest")) {
           const latest = db.createObjectStore("switch_latest", { keyPath: "switchInterfaceKey" });
           latest.createIndex("hostnameNorm", "hostnameNorm");
+        }
+        // v24: Eramon-Netzwerkdaten (CSV-Import) — Muster wie CDP.
+        if (!db.objectStoreNames.contains("eramon_iface_imports")) {
+          const imports = db.createObjectStore("eramon_iface_imports", { keyPath: "ifaceImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("eramon_iface_rows")) {
+          const rows = db.createObjectStore("eramon_iface_rows", { keyPath: ["ifaceImportId", "rowIndex"] });
+          rows.createIndex("ifaceImportId", "ifaceImportId");
+          rows.createIndex("switchPortKey", "switchPortKey");
+        }
+        if (!db.objectStoreNames.contains("eramon_iface_latest")) {
+          const latest = db.createObjectStore("eramon_iface_latest", { keyPath: "switchPortKey" });
+          latest.createIndex("switchNorm", "switchNorm");
+        }
+        if (!db.objectStoreNames.contains("eramon_l2_imports")) {
+          const imports = db.createObjectStore("eramon_l2_imports", { keyPath: "l2ImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("eramon_l2_rows")) {
+          const rows = db.createObjectStore("eramon_l2_rows", { keyPath: ["l2ImportId", "rowIndex"] });
+          rows.createIndex("l2ImportId", "l2ImportId");
+          rows.createIndex("l2EntryKey", "l2EntryKey");
+        }
+        if (!db.objectStoreNames.contains("eramon_l2_latest")) {
+          const latest = db.createObjectStore("eramon_l2_latest", { keyPath: "l2EntryKey" });
+          latest.createIndex("switchNorm", "switchNorm");
         }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
@@ -998,8 +1067,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "switchImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows" | "eramon_iface_rows" | "eramon_l2_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "switchImportId" | "ifaceImportId" | "l2ImportId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -1138,6 +1207,12 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   switch_imports: "Switch Importe",
   switch_rows: "Switch Zeilen",
   switch_latest: "Switch Latest",
+  eramon_iface_imports: "Eramon Switch-Port Importe",
+  eramon_iface_rows: "Eramon Switch-Port Zeilen",
+  eramon_iface_latest: "Eramon Switch-Port Latest",
+  eramon_l2_imports: "Eramon MAC-Tabelle Importe",
+  eramon_l2_rows: "Eramon MAC-Tabelle Zeilen",
+  eramon_l2_latest: "Eramon MAC-Tabelle Latest",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   maintenance_windows: "Wartungsfenster",
@@ -1163,7 +1238,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows",
+  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows" | "eramon_iface_rows" | "eramon_l2_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {

@@ -217,6 +217,80 @@ export interface CdpLatest {
   queryStatus: string | null;
 }
 
+export interface EramonIfaceImportMeta {
+  ifaceImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  switchCount: number;
+}
+
+export interface EramonIfaceRow {
+  ifaceImportId: string;
+  rowIndex: number;
+  deviceName: string;
+  switchNorm: string;
+  portName: string;
+  /** `${switchNorm}::${portNorm}` — Primärschlüssel in eramon_iface_latest, Index in eramon_iface_rows. */
+  switchPortKey: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface EramonIfaceLatest {
+  switchPortKey: string;
+  switchNorm: string;
+  deviceName: string;
+  portName: string;
+  importedAt: string;
+  ifaceImportId: string;
+  rowIndex: number;
+  portDesc: string | null;
+  bandbreiteBps: number | null;
+  portStatus: string | null;
+  statusLabel: string | null;
+}
+
+export interface EramonL2ImportMeta {
+  l2ImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  switchCount: number;
+}
+
+export interface EramonL2Row {
+  l2ImportId: string;
+  rowIndex: number;
+  switchName: string;
+  switchNorm: string;
+  interface: string;
+  mac: string;
+  vlan: string;
+  /** `${switchNorm}::${ifaceNorm}::${macNorm}::${vlan}` — Primärschlüssel in eramon_l2_latest, Index in eramon_l2_rows. */
+  l2EntryKey: string;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+export interface EramonL2Latest {
+  l2EntryKey: string;
+  switchNorm: string;
+  switchName: string;
+  interface: string;
+  mac: string;
+  vlan: string;
+  importedAt: string;
+  l2ImportId: string;
+  rowIndex: number;
+  ip: string | null;
+  dnsName: string | null;
+  type: string | null;
+  interfaceDescription: string | null;
+}
+
 export interface IpamImportMeta {
   ipamImportId: string;
   importedAt: string;
