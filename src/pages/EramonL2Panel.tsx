@@ -12,13 +12,13 @@ import type { EramonL2Latest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
 function textCell(value: string | null) {
-  return value ?? "—";
+  return value ? value : "—";
 }
 
 const columns: ColumnDef<EramonL2Latest, unknown>[] = [
   { accessorKey: "ip", header: "IP", meta: { info: NET_ERAMON_L2_COLUMNS.ip }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
   { accessorKey: "dnsName", header: "DNS-Name", meta: { info: NET_ERAMON_L2_COLUMNS.dnsName }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "mac", header: "MAC", meta: { info: NET_ERAMON_L2_COLUMNS.mac }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "mac", header: "MAC", meta: { info: NET_ERAMON_L2_COLUMNS.mac }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
   { accessorKey: "switchName", header: "Switch", meta: { info: NET_ERAMON_L2_COLUMNS.switchName }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "interface", header: "Interface", meta: { info: NET_ERAMON_L2_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "vlan", header: "VLAN", meta: { info: NET_ERAMON_L2_COLUMNS.vlan }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
