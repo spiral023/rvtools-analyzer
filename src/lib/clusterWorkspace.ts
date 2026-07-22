@@ -10,7 +10,7 @@ import {
   groupVHostRowsByCluster,
   metricsFromAggregate,
 } from "@/domain/services/clusterCapacityEngine";
-import { clusterScopeKey } from "@/lib/clusterIdentity";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 
 export interface ClusterWorkspaceInput {
   clusters: NormalizedCluster[];
@@ -139,33 +139,49 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
     }
   }
 
+  const associationIdentities: ClusterIdentity[] = [
+    ...input.hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+    ...input.vms.map((vm) => ({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster })),
+    ...input.rawVHostRows.flatMap((row) => {
+      const vcenterId = vcenterBySnapshot.get(row.snapshotId);
+      return vcenterId ? [{
+        vcenterId,
+        datacenter: String(row.data["Datacenter"] ?? ""),
+        clusterName: String(row.data["Cluster"] ?? ""),
+      }] : [];
+    }),
+  ];
+  const resolveIdentity = (identity: ClusterIdentity) => resolveClusterIdentity(identity, associationIdentities);
+
   const hostsByCluster = new Map<string, number>();
   for (const host of input.hosts) {
     if (!host.cluster) continue;
-    const key = canonicalKey(host.vcenterId, host.datacenter, host.cluster);
+    const resolved = resolveIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster });
+    const key = canonicalKey(resolved.vcenterId, resolved.datacenter, resolved.clusterName);
     hostsByCluster.set(key, (hostsByCluster.get(key) ?? 0) + 1);
   }
 
   const runningVmsByCluster = new Map<string, number>();
   for (const vm of input.vms) {
     if (vm.powerState !== "poweredOn" || !vm.cluster) continue;
-    const key = canonicalKey(vm.vcenterId, vm.datacenter, vm.cluster);
+    const resolved = resolveIdentity({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster });
+    const key = canonicalKey(resolved.vcenterId, resolved.datacenter, resolved.clusterName);
     runningVmsByCluster.set(key, (runningVmsByCluster.get(key) ?? 0) + 1);
   }
 
   const rawRowsByCluster = groupVHostRowsByCluster(input.rawVHostRows, vcenterBySnapshot);
   const clustersByKey = new Map<string, NormalizedCluster>();
   for (const cluster of input.clusters) {
-    const key = canonicalKey(cluster.vcenterId, cluster.datacenter, cluster.name);
+    const resolved = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
+    const key = canonicalKey(resolved.vcenterId, resolved.datacenter, resolved.clusterName);
     if (!clustersByKey.has(key)) clustersByKey.set(key, cluster);
   }
 
   return [...clustersByKey.entries()].map(([clusterKey, cluster]) => {
+    const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
     const rawRows = rawRowsByCluster.get(clusterKey) ?? [];
     const aggregate = aggregateCluster({
-      vcenterId: cluster.vcenterId,
-      datacenter: cluster.datacenter,
-      clusterName: cluster.name,
+      ...identity,
     }, rawRows, vcenterBySnapshot);
     const metrics = metricsFromAggregate(aggregate, {
       clusterName: cluster.name,
@@ -180,7 +196,7 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
       clusterKey,
       vcenterId: cluster.vcenterId,
       vcenterDisplayName: displayByVcenter.get(cluster.vcenterId) ?? cluster.vcenterId,
-      datacenter: cluster.datacenter?.trim() || "—",
+      datacenter: identity.datacenter?.trim() || "—",
       cluster: cluster.name,
       haEnabled: cluster.haEnabled,
       drsEnabled: cluster.drsEnabled,

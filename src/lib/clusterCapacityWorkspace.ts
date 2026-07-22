@@ -1,6 +1,6 @@
 import type { NormalizedCluster, NormalizedHost, NormalizedVm, SheetRow, SnapshotMeta } from "@/domain/models/types";
 import { aggregateCluster, groupVHostRowsByCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
-import { clusterScopeKey } from "@/lib/clusterIdentity";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 
 export interface ClusterCapacityRow {
   clusterKey: string;
@@ -83,7 +83,23 @@ const hostKeyFor = (vcenterId: string, datacenter: string | null | undefined, ho
 export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInput): ClusterCapacityWorkspaceData {
   const vcenterBySnapshot = new Map(input.snapshots.map((snapshot) => [snapshot.snapshotId, snapshot.vcenterId]));
   const displayByVcenter = new Map(input.snapshots.map((snapshot) => [snapshot.vcenterId, snapshot.vcenterDisplayName || snapshot.vcenterId]));
-  const clustersByKey = new Map(input.clusters.map((cluster) => [clusterKeyFor(cluster.vcenterId, cluster.datacenter, cluster.name), cluster]));
+  const associationIdentities: ClusterIdentity[] = [
+    ...input.hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+    ...input.vms.map((vm) => ({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster })),
+    ...input.rawVHostRows.flatMap((row) => {
+      const vcenterId = vcenterBySnapshot.get(row.snapshotId);
+      return vcenterId ? [{
+        vcenterId,
+        datacenter: String(row.data["Datacenter"] ?? ""),
+        clusterName: String(row.data["Cluster"] ?? ""),
+      }] : [];
+    }),
+  ];
+  const resolveIdentity = (identity: ClusterIdentity) => resolveClusterIdentity(identity, associationIdentities);
+  const clustersByKey = new Map(input.clusters.map((cluster) => {
+    const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
+    return [clusterKeyFor(identity.vcenterId, identity.datacenter, identity.clusterName), cluster];
+  }));
   const rawByCluster = groupVHostRowsByCluster(input.rawVHostRows, vcenterBySnapshot);
   const hostsByCluster = new Map<string, NormalizedHost[]>();
   const vmsByCluster = new Map<string, NormalizedVm[]>();
@@ -91,14 +107,16 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
 
   for (const host of input.hosts) {
     if (!host.cluster) continue;
-    const key = clusterKeyFor(host.vcenterId, host.datacenter, host.cluster);
+    const identity = resolveIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster });
+    const key = clusterKeyFor(identity.vcenterId, identity.datacenter, identity.clusterName);
     const rows = hostsByCluster.get(key);
     if (rows) rows.push(host); else hostsByCluster.set(key, [host]);
   }
   for (const vm of input.vms) {
     if (vm.powerState !== "poweredOn") continue;
     if (vm.cluster) {
-      const key = clusterKeyFor(vm.vcenterId, vm.datacenter, vm.cluster);
+      const identity = resolveIdentity({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster });
+      const key = clusterKeyFor(identity.vcenterId, identity.datacenter, identity.clusterName);
       const rows = vmsByCluster.get(key);
       if (rows) rows.push(vm); else vmsByCluster.set(key, [vm]);
     }
@@ -114,11 +132,12 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
   const overcommitRows: ClusterOvercommitRow[] = [];
   const clusterDensity: ClusterDensityRow[] = [];
   for (const [clusterKey, cluster] of clustersByKey) {
+    const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
     const rawRows = rawByCluster.get(clusterKey) ?? [];
-    const aggregate = aggregateCluster({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name }, rawRows, vcenterBySnapshot);
+    const aggregate = aggregateCluster(identity, rawRows, vcenterBySnapshot);
     const metrics = metricsFromAggregate(aggregate, { clusterName: cluster.name, clusterRef: cluster, projected: false });
     const vcenterDisplayName = displayByVcenter.get(cluster.vcenterId) ?? cluster.vcenterId;
-    const datacenter = cluster.datacenter?.trim() || "—";
+    const datacenter = identity.datacenter?.trim() || "—";
     const hostRows = hostsByCluster.get(clusterKey) ?? [];
     const vmRows = vmsByCluster.get(clusterKey) ?? [];
     const cores = hostRows.reduce((sum, host) => sum + (host.cpuCores ?? 0), 0) || cluster.numCpuCores || 0;
@@ -154,10 +173,11 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
 
   const hostDensity = input.hosts.flatMap((host) => {
     if (!host.cluster) return [];
+    const identity = resolveIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster });
     const aggregate = poweredOnByHost.get(hostKeyFor(host.vcenterId, host.datacenter, host.host));
     if (!aggregate) return [];
     return [{
-      hostKey: host.hostKey, clusterKey: clusterKeyFor(host.vcenterId, host.datacenter, host.cluster), name: host.host, vcenterDisplayName: displayByVcenter.get(host.vcenterId) ?? host.vcenterId,
+      hostKey: host.hostKey, clusterKey: clusterKeyFor(identity.vcenterId, identity.datacenter, identity.clusterName), name: host.host, vcenterDisplayName: displayByVcenter.get(host.vcenterId) ?? host.vcenterId,
       cluster: host.cluster, vms: aggregate.count, vcpuPerCore: host.cpuCores ? round(aggregate.vcpus / host.cpuCores) : 0,
       ramGiB: round((host.memoryTotalMiB ?? 0) / 1024, 0),
     }];

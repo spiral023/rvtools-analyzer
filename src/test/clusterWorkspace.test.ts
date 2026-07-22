@@ -7,6 +7,7 @@ import {
   buildVmDistributionChart,
 } from "@/lib/clusterWorkspace";
 import * as clusterWorkspace from "@/lib/clusterWorkspace";
+import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import type {
   NormalizedCluster,
@@ -138,6 +139,48 @@ describe("clusterWorkspace", () => {
       ramCommitPct: 75,
       risk: "niedrig",
     });
+  });
+
+  it("verknüpft Cluster ohne Datacenter-Angabe mit einem eindeutigen Datacenter der Host- und VM-Daten", () => {
+    const missingDatacenterCluster = {
+      ...cluster(),
+      datacenter: null,
+      clusterKey: clusterScopeKey("vc-a", null, "Production"),
+    };
+
+    const [row] = buildClusterOverviewRows({
+      clusters: [missingDatacenterCluster],
+      hosts: [host()],
+      vms: [vm()],
+      rawVHostRows: [rawHost()],
+      snapshots,
+    });
+
+    expect(row).toMatchObject({
+      datacenter: "DC1",
+      hosts: 1,
+      runningVms: 1,
+      maxVmsHost: "esx-01",
+    });
+  });
+
+  it("baut auch Kapazitäts- und Hostdichte-Metriken für einen Cluster mit nachträglich aufgelöstem Datacenter", () => {
+    const missingDatacenterCluster = {
+      ...cluster(),
+      datacenter: null,
+      clusterKey: clusterScopeKey("vc-a", null, "Production"),
+    };
+
+    const workspace = buildClusterCapacityWorkspace({
+      clusters: [missingDatacenterCluster],
+      hosts: [host()],
+      vms: [vm()],
+      rawVHostRows: [rawHost()],
+      snapshots,
+    });
+
+    expect(workspace.capacityRows[0]).toMatchObject({ datacenter: "DC1", hosts: 1, totalVms: 3 });
+    expect(workspace.hostDensity).toHaveLength(1);
   });
 
   it("keeps same-named clusters from separate vCenters separate", () => {

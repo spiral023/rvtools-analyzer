@@ -11,7 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { toBoolLoose, toNumLoose } from "@/lib/conversion";
-import { clusterScopeKey, isSameCluster, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { clusterScopeKey, isSameCluster, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import type {
@@ -92,22 +92,31 @@ function useClusterDetailDialogView({
   datastores,
   rawVHostRows,
 }: ClusterDetailDialogProps) {
+  const associationIdentities = useMemo<ClusterIdentity[]>(() => [
+    ...hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+    ...vms.map((vm) => ({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster })),
+  ], [hosts, vms]);
   const selectedCluster = useMemo(
-    () => clusters.find((cluster) => (
-      cluster.clusterKey === clusterKey
-      || clusterScopeKey(cluster.vcenterId, cluster.datacenter, cluster.name) === clusterKey
-    )) ?? null,
-    [clusterKey, clusters],
+    () => clusters.find((cluster) => {
+      const identity = resolveClusterIdentity({
+        vcenterId: cluster.vcenterId,
+        datacenter: cluster.datacenter,
+        clusterName: cluster.name,
+      }, associationIdentities);
+      return cluster.clusterKey === clusterKey
+        || clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName) === clusterKey;
+    }) ?? null,
+    [associationIdentities, clusterKey, clusters],
   );
   const clusterIdentity = useMemo<ClusterIdentity | null>(() => (
     selectedCluster
-      ? {
+      ? resolveClusterIdentity({
         vcenterId: selectedCluster.vcenterId,
         datacenter: selectedCluster.datacenter,
         clusterName: selectedCluster.name,
-      }
+      }, associationIdentities)
       : null
-  ), [selectedCluster]);
+  ), [associationIdentities, selectedCluster]);
   const normalizedClusterName = selectedCluster?.name ?? "";
   const resolvedVcenterDisplayName = vcenterDisplayName?.trim() || selectedCluster?.vcenterId || "vCenter unbekannt";
   const datacenterDisplayName = selectedCluster?.datacenter?.trim() || "Datacenter unbekannt";
