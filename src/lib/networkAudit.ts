@@ -42,6 +42,16 @@ export function normalizeInterfaceName(raw: string): string {
   return raw.trim().toLowerCase().replace(/^ethernet/, "eth");
 }
 
+/**
+ * "00:50:56:AB:CD:EF" | "0050.56ab.cdef" | "00-50-56-ab-cd-ef" -> "005056abcdef".
+ * Grundlage jedes CDP<->L2-MAC-Vergleichs.
+ */
+export function canonicalMac(raw: string | null): string | null {
+  if (!raw) return null;
+  const hex = raw.toLowerCase().replace(/[^0-9a-f]/g, "");
+  return hex.length >= 12 ? hex.slice(0, 12) : null;
+}
+
 interface BuildPortAuditRowsInput {
   switchRows: SwitchLatest[];
   cdpRows: CdpLatest[];

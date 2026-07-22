@@ -5,6 +5,7 @@ import {
   extractCdpDeviceHostname,
   normalizeInterfaceName,
   buildPortAuditRows,
+  canonicalMac,
 } from "@/lib/networkAudit";
 import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest } from "@/domain/models/types";
 
@@ -49,6 +50,20 @@ describe("normalizeInterfaceName", () => {
 
   it("lässt eine bereits kurze Interface-Bezeichnung unverändert", () => {
     expect(normalizeInterfaceName("Eth1/1")).toBe("eth1/1");
+  });
+});
+
+describe("canonicalMac", () => {
+  it("normalisiert VMware-, Cisco- und Bindestrich-Format auf dieselbe Form", () => {
+    expect(canonicalMac("00:50:56:AB:CD:EF")).toBe("005056abcdef");
+    expect(canonicalMac("0050.56ab.cdef")).toBe("005056abcdef");
+    expect(canonicalMac("00-50-56-ab-cd-ef")).toBe("005056abcdef");
+  });
+
+  it("gibt null für leere, null- oder zu kurze Werte zurück", () => {
+    expect(canonicalMac(null)).toBeNull();
+    expect(canonicalMac("")).toBeNull();
+    expect(canonicalMac("0050.56ab")).toBeNull();
   });
 });
 
