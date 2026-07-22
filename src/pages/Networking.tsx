@@ -12,11 +12,12 @@ import { CdpPanel } from "@/pages/CdpSwitchPorts";
 import { IpamPanel } from "@/pages/IpamPanel";
 import { SwitchPanel } from "@/pages/SwitchPanel";
 import { EramonIfacePanel } from "@/pages/EramonIfacePanel";
+import { EramonL2Panel } from "@/pages/EramonL2Panel";
 import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { NET_NETWORK_TABS } from "@/lib/glossaries/networking";
 
-type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam" | "cisco-switch" | "eramon-iface" | "audit";
+type NetworkTab = "security" | "host" | "vlan" | "cdp" | "ipam" | "cisco-switch" | "eramon-iface" | "eramon-l2" | "audit";
 
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
   const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
@@ -63,6 +64,9 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           <InfoTooltip entry={NET_NETWORK_TABS.eramonIface} side="bottom">
             <TabsTrigger value="eramon-iface">Switch-Ports (Eramon)</TabsTrigger>
           </InfoTooltip>
+          <InfoTooltip entry={NET_NETWORK_TABS.eramonL2} side="bottom">
+            <TabsTrigger value="eramon-l2">MAC-Tabelle (Eramon)</TabsTrigger>
+          </InfoTooltip>
           <InfoTooltip entry={NET_NETWORK_TABS.audit} side="bottom">
             <TabsTrigger value="audit">Kontrolle</TabsTrigger>
           </InfoTooltip>
@@ -95,6 +99,10 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
 
         <TabsContent value="eramon-iface" className="space-y-4">
           <EramonIfacePanel />
+        </TabsContent>
+
+        <TabsContent value="eramon-l2" className="space-y-4">
+          <EramonL2Panel />
         </TabsContent>
 
         <TabsContent value="audit" className="space-y-4">
