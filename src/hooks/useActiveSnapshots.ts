@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
-import { buildPortAuditRows } from "@/lib/networkAudit";
+import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows } from "@/lib/networkAudit";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
@@ -269,24 +269,36 @@ export function useAllSwitchLatest() {
 
 export function useNetworkAudit() {
   const { data: switchRows = [], isLoading: switchLoading } = useAllSwitchLatest();
+  const { data: eramonIfaceRows = [], isLoading: eramonIfaceLoading } = useAllEramonIfaceLatest();
+  const { data: l2Rows = [], isLoading: l2Loading } = useAllEramonL2Latest();
   const { data: cdpRows = [], isLoading: cdpLoading } = useAllCdpLatest();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: techInfo = [], isLoading: techInfoLoading } = useAllTechInfoLatest();
   const { data: ipam = [], isLoading: ipamLoading } = useAllIpamLatest();
 
   const rows = useMemo(
-    () => buildPortAuditRows({ switchRows, cdpRows, hosts, techInfo, ipam }),
-    [switchRows, cdpRows, hosts, techInfo, ipam],
+    () => buildPortAuditRows({ switchRows, eramonIfaceRows, cdpRows, hosts, techInfo, ipam }),
+    [switchRows, eramonIfaceRows, cdpRows, hosts, techInfo, ipam],
   );
   const hostQuality = useMemo(
     () => buildHostDataQualityRows({ hosts, techInfo, ipam }),
     [hosts, techInfo, ipam],
   );
+  const cdpMacRows = useMemo(
+    () => buildCdpMacRows({ cdpRows, l2Rows }),
+    [cdpRows, l2Rows],
+  );
+  const l2DiscoveryRows = useMemo(
+    () => buildL2DiscoveryRows({ l2Rows, cdpRows, ipam }),
+    [l2Rows, cdpRows, ipam],
+  );
 
   return {
     rows,
     hostQuality,
-    isLoading: switchLoading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
+    cdpMacRows,
+    l2DiscoveryRows,
+    isLoading: switchLoading || eramonIfaceLoading || l2Loading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
   };
 }
 
