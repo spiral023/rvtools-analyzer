@@ -34,6 +34,18 @@ export const NET_NETWORK_TABS: Record<string, GlossaryEntry> = {
       "Verknüpft die von ESXi gemeldeten CDP-Nachbarn mit der physischen Switch-Port-Sicht und erleichtert die Nachverfolgung von Uplinks.",
     source: "RVTools · vHost · CDP-CSV",
   },
+  eramonIface: {
+    term: "Switch-Ports (Eramon)",
+    description:
+      "Port-Inventar der Switches aus Eramon: eine Zeile pro Switch-Port mit Beschreibung, Bandbreite und Aktiv/Down-Status.",
+    source: "Eramon · Device-Interface-Daten",
+  },
+  eramonL2: {
+    term: "MAC-Tabelle (Eramon)",
+    description:
+      "L2-Sicht aus Eramon: welche IP/MAC/DNS-Name in welchem VLAN an welchem Switch-Port gesehen wurde.",
+    source: "Eramon · L2-Daten",
+  },
   ipam: {
     term: "IPAM",
     description:
@@ -827,4 +839,69 @@ export const NET_CDP_SECTIONS: Record<string, GlossaryEntry> = {
       "Eine Zeile pro Host und physischem Adapter mit der per CDP ermittelten Switch-Anbindung. Bei mehreren Importen gewinnt je Host+Adapter der neueste Stand.",
     source: `${CDP} · neuester Import je Host+Adapter`,
   },
+};
+
+const ERAMON = "Eramon";
+
+export const NET_ERAMON_IFACE_KPI: Record<string, GlossaryEntry> = {
+  switches: {
+    term: "Switches",
+    description: "Anzahl unterschiedlicher Switches (device_name) im Import.",
+    source: `${ERAMON} · „device_name“`,
+  },
+  ports: {
+    term: "Ports gesamt",
+    description: "Anzahl aller Switch-Ports im aktuellen Filter — eine Zeile pro Switch+Port, neuester Import gewinnt.",
+    source: `${ERAMON} · „port_name“`,
+  },
+  active: {
+    term: "Aktive Ports",
+    description: "Ports mit Status 1 (aktiv/up).",
+    source: `${ERAMON} · „port_status“`,
+  },
+  down: {
+    term: "Down-Ports",
+    description: "Ports mit Status 2 (down).",
+    source: `${ERAMON} · „port_status“`,
+  },
+};
+
+export const NET_ERAMON_IFACE_COLUMNS: Record<string, GlossaryEntry> = {
+  deviceName: { term: "Switch", description: "Switch-Hostname laut Eramon.", source: `${ERAMON} · „device_name“` },
+  portName: { term: "Port", description: "Interface-Bezeichnung (physischer Port, Port-Channel, VLAN-SVI oder mgmt).", source: `${ERAMON} · „port_name“` },
+  portDesc: { term: "Beschreibung", description: "Freie Port-Beschreibung (Gegenstelle, VPC, Tags).", source: `${ERAMON} · „port_desc“` },
+  bandbreite: { term: "Bandbreite", description: "Port-Bandbreite, umgerechnet in Gbit/s bzw. Mbit/s.", source: `${ERAMON} · „bandbreite“` },
+  status: { term: "Status", description: "Port-Status: 1 = aktiv, 2 = down.", source: `${ERAMON} · „port_status“` },
+};
+
+export const NET_ERAMON_L2_KPI: Record<string, GlossaryEntry> = {
+  entries: {
+    term: "Einträge gesamt",
+    description: "Anzahl aller L2-Einträge im aktuellen Filter — eine Zeile pro Switch+Interface+MAC+VLAN.",
+    source: `${ERAMON} · neuester Import je Eintrag`,
+  },
+  macs: {
+    term: "Eindeutige MACs",
+    description: "Anzahl unterschiedlicher MAC-Adressen.",
+    source: `${ERAMON} · „mac“`,
+  },
+  ips: {
+    term: "Eindeutige IPs",
+    description: "Anzahl unterschiedlicher IP-Adressen (nicht-leer).",
+    source: `${ERAMON} · „ip“`,
+  },
+  vlans: {
+    term: "VLANs",
+    description: "Anzahl unterschiedlicher VLAN-IDs (nicht-leer).",
+    source: `${ERAMON} · „vlan“`,
+  },
+};
+
+export const NET_ERAMON_L2_COLUMNS: Record<string, GlossaryEntry> = {
+  ip: { term: "IP", description: "IP-Adresse des am Port gesehenen Endgeräts.", source: `${ERAMON} · „ip“` },
+  dnsName: { term: "DNS-Name", description: "DNS-Name des Endgeräts.", source: `${ERAMON} · „dnsname“` },
+  mac: { term: "MAC", description: "MAC-Adresse des Endgeräts.", source: `${ERAMON} · „mac“` },
+  switchName: { term: "Switch", description: "Switch, an dem die MAC gesehen wurde.", source: `${ERAMON} · „name“` },
+  interface: { term: "Interface", description: "Switch-Port, an dem die MAC gesehen wurde.", source: `${ERAMON} · „interface“` },
+  vlan: { term: "VLAN", description: "VLAN-ID des Eintrags.", source: `${ERAMON} · „vlan“` },
 };

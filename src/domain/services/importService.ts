@@ -30,6 +30,16 @@ import {
   batchPutSwitchRows,
   batchPutSwitchLatest,
   getSwitchLatestBySwitchInterfaceKeys,
+  getEramonIfaceImportByChecksum,
+  putEramonIfaceImport,
+  batchPutEramonIfaceRows,
+  batchPutEramonIfaceLatest,
+  getEramonIfaceLatestByKeys,
+  getEramonL2ImportByChecksum,
+  putEramonL2Import,
+  batchPutEramonL2Rows,
+  batchPutEramonL2Latest,
+  getEramonL2LatestByKeys,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -52,6 +62,12 @@ import {
   isValidIpv4,
   mapSwitchDisplayFields,
   buildSwitchInterfaceKey,
+  ERAMON_IFACE_REQUIRED_HEADERS,
+  mapEramonIfaceDisplayFields,
+  buildEramonSwitchPortKey,
+  ERAMON_L2_REQUIRED_HEADERS,
+  mapEramonL2DisplayFields,
+  buildEramonL2Key,
 } from "@/lib/xlsx/parseHelpers";
 import { isSwitchTxtContent, parseSwitchTxt, findLikelyPromptMismatch } from "@/lib/switchParser";
 import { gzipJson } from "@/lib/compression";
@@ -80,6 +96,10 @@ import type {
   IpamLatest,
   SwitchRow,
   SwitchLatest,
+  EramonIfaceRow,
+  EramonIfaceLatest,
+  EramonL2Row,
+  EramonL2Latest,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -487,13 +507,21 @@ export async function importRvtoolsXlsx(
       return await importIpamCsv(file, checksum, parsed, warnings, errors, report);
     }
 
+    if (parsed.fileKind === "eramon-iface") {
+      return await importEramonIfaceCsv(file, checksum, parsed, warnings, errors, report);
+    }
+
+    if (parsed.fileKind === "eramon-l2") {
+      return await importEramonL2Csv(file, checksum, parsed, warnings, errors, report);
+    }
+
     // CSV-Dateien, die keine CDP-/IPAM-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
     const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
     if (isCsv) {
       return {
         success: false,
         warnings,
-        errors: [...errors, "Keine gültige CDP- oder IPAM-CSV erkannt (erwartete Spalten: VMHost/PhysicalAdapter/CDPDeviceID/CDPAvailable oder IP Address/Status/Type)."],
+        errors: [...errors, "Keine gültige CDP-, IPAM- oder Eramon-CSV erkannt (erwartete Spalten: VMHost/PhysicalAdapter/CDPDeviceID/CDPAvailable, IP Address/Status/Type, device_name/port_name/port_status oder name/interface/mac/vlan)."],
       };
     }
 
@@ -965,6 +993,185 @@ export async function importCdpCsv(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} CDP Zeilen`);
   return { success: true, fileKind: "cdp", warnings, errors, sheetStats };
+}
+
+const ERAMON_IFACE_UI_HEADERS = ["port_desc", "bandbreite"] as const;
+
+function findEramonIfaceSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    ERAMON_IFACE_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+export async function importEramonIfaceCsv(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getEramonIfaceImportByChecksum(checksum);
+  if (existing) {
+    return { success: false, fileKind: "eramon-iface", warnings: [], errors: ["Diese Eramon-Switch-Port-Datei wurde bereits importiert."] };
+  }
+
+  const sheet = findEramonIfaceSheet(parsed.sheets);
+  if (!sheet) {
+    return {
+      success: false,
+      fileKind: "eramon-iface",
+      warnings,
+      errors: [...errors, "Keine gültige Eramon-Switch-Port-CSV erkannt (erwartete Spalten: device_name, port_name, port_status)."],
+    };
+  }
+
+  for (const header of ERAMON_IFACE_UI_HEADERS) {
+    if (!sheet.headers.includes(header)) {
+      warnings.push(`Eramon Spalte "${header}" fehlt. Wert wird als leer übernommen.`);
+    }
+  }
+
+  const importedAt = new Date().toISOString();
+  const ifaceImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [sheet.sheetName]: { rowCount: sheet.rows.length, columnCount: sheet.headers.length },
+  };
+
+  report("Eramon Metadaten speichern", 35);
+  const switchNames = new Set<string>();
+  const fullRows: EramonIfaceRow[] = [];
+  const latestCandidates = new Map<string, EramonIfaceLatest>();
+
+  report("Eramon Zeilen speichern", 45, `${sheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    const deviceName = toStr(row["device_name"]);
+    const portName = toStr(row["port_name"]);
+    if (!deviceName || !portName) {
+      warnings.push(`Eramon Zeile ${i + 1}: device_name oder port_name ist leer, Zeile wurde übersprungen.`);
+      continue;
+    }
+    switchNames.add(deviceName);
+    const switchNorm = normalizeVmNameForMatch(deviceName);
+    const switchPortKey = buildEramonSwitchPortKey(deviceName, portName);
+    fullRows.push({
+      ifaceImportId, rowIndex: i, deviceName, switchNorm, portName, switchPortKey, importedAt,
+      rawData: toRawRowData(row),
+    });
+    latestCandidates.set(switchPortKey, {
+      switchPortKey, switchNorm, deviceName, portName, importedAt, ifaceImportId, rowIndex: i,
+      ...mapEramonIfaceDisplayFields(row),
+    });
+  }
+
+  await putEramonIfaceImport({
+    ifaceImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    rowCount: sheet.rows.length, switchCount: switchNames.size,
+  });
+  await batchPutEramonIfaceRows(fullRows, 5000);
+
+  report("Eramon Latest aktualisieren", 75);
+  const existingLatest = await getEramonIfaceLatestByKeys([...latestCandidates.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.switchPortKey, entry]));
+  const latestUpdates: EramonIfaceLatest[] = [];
+  for (const [key, candidate] of latestCandidates.entries()) {
+    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutEramonIfaceLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Eramon Switch-Ports`);
+  return { success: true, fileKind: "eramon-iface", warnings, errors, sheetStats };
+}
+
+function findEramonL2Sheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    ERAMON_L2_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+export async function importEramonL2Csv(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getEramonL2ImportByChecksum(checksum);
+  if (existing) {
+    return { success: false, fileKind: "eramon-l2", warnings: [], errors: ["Diese Eramon-MAC-Tabellen-Datei wurde bereits importiert."] };
+  }
+
+  const sheet = findEramonL2Sheet(parsed.sheets);
+  if (!sheet) {
+    return {
+      success: false,
+      fileKind: "eramon-l2",
+      warnings,
+      errors: [...errors, "Keine gültige Eramon-MAC-Tabellen-CSV erkannt (erwartete Spalten: name, interface, mac, vlan)."],
+    };
+  }
+
+  const importedAt = new Date().toISOString();
+  const l2ImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [sheet.sheetName]: { rowCount: sheet.rows.length, columnCount: sheet.headers.length },
+  };
+
+  report("Eramon Zeilen speichern", 45, `${sheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  const switchNames = new Set<string>();
+  const fullRows: EramonL2Row[] = [];
+  const latestCandidates = new Map<string, EramonL2Latest>();
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    const switchName = toStr(row["name"]);
+    const interfaceName = toStr(row["interface"]);
+    if (!switchName || !interfaceName) {
+      warnings.push(`Eramon Zeile ${i + 1}: name oder interface ist leer, Zeile wurde übersprungen.`);
+      continue;
+    }
+    const mac = toStr(row["mac"]) ?? "";
+    const vlan = toStr(row["vlan"]) ?? "";
+    switchNames.add(switchName);
+    const switchNorm = normalizeVmNameForMatch(switchName);
+    const l2EntryKey = buildEramonL2Key(switchName, interfaceName, mac, vlan);
+    fullRows.push({
+      l2ImportId, rowIndex: i, switchName, switchNorm, interface: interfaceName, mac, vlan, l2EntryKey, importedAt,
+      rawData: toRawRowData(row),
+    });
+    latestCandidates.set(l2EntryKey, {
+      l2EntryKey, switchNorm, switchName, interface: interfaceName, mac, vlan, importedAt, l2ImportId, rowIndex: i,
+      ...mapEramonL2DisplayFields(row),
+    });
+  }
+
+  report("Eramon Metadaten speichern", 60);
+  await putEramonL2Import({
+    l2ImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    rowCount: sheet.rows.length, switchCount: switchNames.size,
+  });
+  await batchPutEramonL2Rows(fullRows, 5000);
+
+  report("Eramon Latest aktualisieren", 75);
+  const existingLatest = await getEramonL2LatestByKeys([...latestCandidates.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.l2EntryKey, entry]));
+  const latestUpdates: EramonL2Latest[] = [];
+  for (const [key, candidate] of latestCandidates.entries()) {
+    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutEramonL2Latest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Eramon MAC-Einträge`);
+  return { success: true, fileKind: "eramon-l2", warnings, errors, sheetStats };
 }
 
 const IPAM_UI_HEADERS = [
