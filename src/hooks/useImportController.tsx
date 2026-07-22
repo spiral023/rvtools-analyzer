@@ -55,6 +55,8 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "cdp") return "CDP-Netzwerkdaten";
   if (kind === "ipam") return "IPAM-Netzwerkdaten";
   if (kind === "switch") return "Cisco-Switch-Daten";
+  if (kind === "eramon-iface") return "Eramon Switch-Ports";
+  if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
   return "RVTools";
 }
 

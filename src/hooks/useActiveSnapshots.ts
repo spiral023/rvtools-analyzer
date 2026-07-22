@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
 import { buildPortAuditRows } from "@/lib/networkAudit";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
@@ -231,6 +231,22 @@ export function useAllCdpLatest() {
   return useQuery({
     queryKey: ["cdpLatestAll"],
     queryFn: getAllCdpLatest,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useAllEramonIfaceLatest() {
+  return useQuery({
+    queryKey: ["eramonIfaceLatestAll"],
+    queryFn: getAllEramonIfaceLatest,
+    staleTime: STALE_MS,
+  });
+}
+
+export function useAllEramonL2Latest() {
+  return useQuery({
+    queryKey: ["eramonL2LatestAll"],
+    queryFn: getAllEramonL2Latest,
     staleTime: STALE_MS,
   });
 }
