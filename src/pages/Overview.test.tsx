@@ -85,6 +85,7 @@ describe("Overview", () => {
       expect(screen.getByText("VMs Total")).toBeInTheDocument();
     });
 
+    expect(screen.queryByText(/Analysiert:/)).not.toBeInTheDocument();
     expect(screen.getByText(/Virtuelle Maschinen \(0\)/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Betriebssysteme je Cluster/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Host-Verteilung je Cluster" })).not.toBeInTheDocument();

@@ -2,6 +2,13 @@ import { createContext, useContext, useState, useCallback, useEffect, useMemo, u
 import { useQuery } from "@tanstack/react-query";
 import type { FilterState } from "@/domain/models/types";
 import { getSnapshots, getUiState, putUiState } from "@/data/db";
+import {
+  DEFAULT_VM_SCOPE_SETTINGS,
+  getStoredVmScopeSettings,
+  getVmScopeSettingsFromEvent,
+  saveVmScopeSettings,
+  VM_SCOPE_SETTINGS_CHANGED_EVENT,
+} from "@/lib/vmScopeSettings";
 
 const defaultFilter: FilterState = {
   vcenterIds: [],
@@ -11,8 +18,7 @@ const defaultFilter: FilterState = {
   search: "",
   globalFilter: null,
   vmNameList: "",
-  vmPowerScope: "all",
-  excludeVclsVms: false,
+  ...DEFAULT_VM_SCOPE_SETTINGS,
 };
 
 const UI_STATE_ID = "app";
@@ -33,8 +39,12 @@ const FilterContext = createContext<FilterContextValue>({
 export const useFilterState = () => useContext(FilterContext);
 
 export function FilterProvider({ children }: { children: ReactNode }) {
-  const [filters, setFiltersState] = useState<FilterState>(defaultFilter);
+  const [filters, setFiltersState] = useState<FilterState>(() => ({
+    ...defaultFilter,
+    ...getStoredVmScopeSettings(),
+  }));
   const hydratedRef = useRef(false);
+  const filtersTouchedRef = useRef(false);
   const { data: snapshots = [], isSuccess: snapshotsLoaded } = useQuery({
     queryKey: ["snapshots"],
     queryFn: getSnapshots,
@@ -42,11 +52,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   });
 
   const setFilters = useCallback((partial: Partial<FilterState>) => {
-    setFiltersState((prev) => ({ ...prev, ...partial }));
+    filtersTouchedRef.current = true;
+    setFiltersState((prev) => {
+      const next = { ...prev, ...partial };
+      if ("vmPowerScope" in partial || "excludeVclsVms" in partial) saveVmScopeSettings(next);
+      return next;
+    });
   }, []);
 
   const resetFilters = useCallback(() => {
+    filtersTouchedRef.current = true;
     setFiltersState(defaultFilter);
+    saveVmScopeSettings(DEFAULT_VM_SCOPE_SETTINGS);
   }, []);
 
   const effectiveFilters = useMemo(() => {
@@ -66,11 +83,13 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     async function loadState() {
       try {
         const stored = await getUiState(UI_STATE_ID);
-        if (!cancelled && stored?.lastFilter) {
+        if (!cancelled && stored?.lastFilter && !filtersTouchedRef.current) {
+          const vmScopeSettings = getStoredVmScopeSettings();
           setFiltersState({
             ...defaultFilter,
-            ...stored.lastFilter,
-            globalFilter: stored.lastFilter.globalFilter ?? null,
+            ...stored?.lastFilter,
+            globalFilter: stored?.lastFilter?.globalFilter ?? null,
+            ...vmScopeSettings,
           });
         }
       } finally {
@@ -82,6 +101,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const applyStoredVmScopeSettings = (event: Event) => {
+      const settings = getVmScopeSettingsFromEvent(event);
+      if (settings) {
+        filtersTouchedRef.current = true;
+        setFiltersState((current) => ({ ...current, ...settings }));
+      }
+    };
+    globalThis.addEventListener?.(VM_SCOPE_SETTINGS_CHANGED_EVENT, applyStoredVmScopeSettings);
+    return () => globalThis.removeEventListener?.(VM_SCOPE_SETTINGS_CHANGED_EVENT, applyStoredVmScopeSettings);
   }, []);
 
   useEffect(() => {

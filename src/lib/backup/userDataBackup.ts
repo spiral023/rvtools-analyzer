@@ -4,11 +4,13 @@ import type {
   MaintenanceWindowDefinition,
   Scenario,
   VCenterGroup,
+  VmScopeSettings,
 } from "@/domain/models/types";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
+import { DEFAULT_VM_SCOPE_SETTINGS } from "@/lib/vmScopeSettings";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
-export const USER_DATA_BACKUP_VERSION = 3;
+export const USER_DATA_BACKUP_VERSION = 4;
 
 export interface UserDataBackup {
   kind: typeof USER_DATA_BACKUP_KIND;
@@ -19,6 +21,7 @@ export interface UserDataBackup {
   maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
   vcenterGroups: VCenterGroup[];
+  vmScopeSettings?: VmScopeSettings;
 }
 
 export function buildUserDataBackup(input: {
@@ -27,6 +30,7 @@ export function buildUserDataBackup(input: {
   maintenanceWindows: MaintenanceWindowDefinition[];
   scenarios: Scenario[];
   vcenterGroups?: VCenterGroup[];
+  vmScopeSettings?: VmScopeSettings;
   exportedAt?: Date;
 }): UserDataBackup {
   return {
@@ -38,6 +42,7 @@ export function buildUserDataBackup(input: {
     maintenanceWindows: input.maintenanceWindows,
     scenarios: input.scenarios,
     vcenterGroups: input.vcenterGroups ?? [],
+    vmScopeSettings: input.vmScopeSettings ?? DEFAULT_VM_SCOPE_SETTINGS,
   };
 }
 
@@ -133,6 +138,16 @@ function normalizeVcenterGroup(value: unknown): VCenterGroup | null {
   };
 }
 
+function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
+  if (!isRecord(value)
+    || (value.vmPowerScope !== "all" && value.vmPowerScope !== "poweredOn")
+    || typeof value.excludeVclsVms !== "boolean") return null;
+  return {
+    vmPowerScope: value.vmPowerScope,
+    excludeVclsVms: value.excludeVclsVms,
+  };
+}
+
 function normalizeTimestamp(value: unknown, fallback: string): string {
   const candidate = toTrimmedString(value);
   return candidate && Number.isFinite(Date.parse(candidate)) ? candidate : fallback;
@@ -207,7 +222,7 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   if (!isRecord(parsed) || parsed.kind !== USER_DATA_BACKUP_KIND) {
     throw new Error("Die Datei ist kein RVTools-Analyzer-Backup.");
   }
-  if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== USER_DATA_BACKUP_VERSION) {
+  if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3 && parsed.version !== USER_DATA_BACKUP_VERSION) {
     throw new Error(`Backup-Version ${String(parsed.version)} wird nicht unterstützt.`);
   }
 
@@ -221,16 +236,19 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
         .map(normalizeScenario)
         .filter((entry): entry is Scenario => entry !== null)
     : [];
-  const maintenanceWindows = (parsed.version === 2 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.maintenanceWindows)
+  const maintenanceWindows = (parsed.version === 2 || parsed.version === 3 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.maintenanceWindows)
     ? parsed.maintenanceWindows
         .map(normalizeMaintenanceWindow)
         .filter((entry): entry is MaintenanceWindowDefinition => entry !== null)
     : [];
-  const vcenterGroups = parsed.version === USER_DATA_BACKUP_VERSION && Array.isArray(parsed.vcenterGroups)
+  const vcenterGroups = (parsed.version === 3 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.vcenterGroups)
     ? parsed.vcenterGroups
         .map(normalizeVcenterGroup)
         .filter((entry): entry is VCenterGroup => entry !== null)
     : [];
+  const vmScopeSettings = parsed.version === USER_DATA_BACKUP_VERSION
+    ? normalizeVmScopeSettings(parsed.vmScopeSettings) ?? undefined
+    : undefined;
 
   return {
     kind: USER_DATA_BACKUP_KIND,
@@ -241,5 +259,6 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     maintenanceWindows,
     scenarios,
     vcenterGroups,
+    vmScopeSettings,
   };
 }

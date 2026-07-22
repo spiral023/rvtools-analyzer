@@ -14,6 +14,7 @@ import type {
   MaintenanceWindowDefinition,
   Scenario,
 } from "@/domain/models/types";
+import { getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
 const makeMaintenanceWindow = (
   abbreviation = "MW 1",
@@ -90,6 +91,10 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     expect(parsed.maintenanceWindows).toEqual([makeMaintenanceWindow()]);
     expect(parsed.scenarios).toEqual([scenario]);
     expect((parsed as unknown as { vcenterGroups?: unknown[] }).vcenterGroups).toEqual([vcenterGroup]);
+    expect((parsed as unknown as { vmScopeSettings?: unknown }).vmScopeSettings).toEqual({
+      vmPowerScope: "poweredOn",
+      excludeVclsVms: true,
+    });
   });
 
   it("kommt mit leerem Datenbestand zurecht", () => {
@@ -233,6 +238,7 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
   beforeEach(() => {
     vi.resetModules();
     globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
+    localStorage.clear();
   });
 
   it("collects and merges maintenance windows, reports their count, and keeps existing data for an empty backup", async () => {
@@ -283,6 +289,25 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
 
     expect(result.vcenterGroupsImported).toBe(1);
     await expect(getVcenterGroups()).resolves.toEqual([imported]);
+  });
+
+  it("exportiert und importiert die lokalen VM-Scope-Vorgaben", async () => {
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false });
+
+    const collected = await collectUserDataBackup();
+    expect(collected.vmScopeSettings).toEqual({ vmPowerScope: "all", excludeVclsVms: false });
+
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+      vmScopeSettings: { vmPowerScope: "poweredOn", excludeVclsVms: true },
+    }));
+
+    expect(result.vmScopeSettingsImported).toBe(true);
+    expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "poweredOn", excludeVclsVms: true });
   });
 
   it("validates invalid maintenance-window batches before writing other backup data", async () => {

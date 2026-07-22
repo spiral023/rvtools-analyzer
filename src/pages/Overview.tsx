@@ -42,7 +42,7 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
 ];
 
 export default function Overview() {
-  const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
+  const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms, isLoading: vmsLoading } = useVmsWithTechInfo();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
@@ -116,15 +116,7 @@ export default function Overview() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Overview"
-        meta={
-          <span title="Ohne vCenter-Filter werden alle importierten Stände analysiert. Je vCenter existiert ein aktueller Stand.">
-            Analysiert: {activeSnapshotIds.length} von {snapshots.length} Snapshot{snapshots.length !== 1 && "s"}
-          </span>
-        }
-      >
-      </PageHeader>
+      <PageHeader title="Overview" />
       <GlobalFilterScopeHint text="VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert." />
       <KpiGrid>
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />

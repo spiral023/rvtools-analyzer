@@ -24,10 +24,8 @@ import {
   GitCompare,
   Server,
   ClipboardList,
-  CalendarClock,
   CalendarRange,
   Info,
-  Map,
 } from "lucide-react";
 
 const mainNav = [
@@ -36,6 +34,7 @@ const mainNav = [
 ];
 
 const analysisNav = [
+  { title: "vCenter", url: "/fleet-compare", icon: GitCompare },
   { title: "Daily Ops", url: "/daily-ops", icon: Activity },
   { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Capacity", url: "/capacity", icon: HardDrive },
@@ -48,14 +47,8 @@ const analysisNav = [
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 
-const compareNav = [
-  { title: "Fleet Compare", url: "/fleet-compare", icon: GitCompare },
-];
-
 const toolsNav = [
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
-  { title: "Wartungsankündigung", url: "/wartungsankuendigung", icon: CalendarClock },
-  { title: "Planung", url: "/planning", icon: Map },
 ];
 
 const infoNav = [
@@ -118,7 +111,6 @@ export function AppSidebar() {
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
-        <NavSection label="Vergleich" items={compareNav} />
         <NavSection label="Info" items={infoNav} />
       </SidebarContent>
     </Sidebar>

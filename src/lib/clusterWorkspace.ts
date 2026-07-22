@@ -59,6 +59,16 @@ interface ClusterChartPoint {
   cluster: string;
 }
 
+/** Reduces a ranked chart to its most relevant rows while preserving the remainder as one summary row. */
+export function buildTopChartRows<T extends { name: string }>(
+  rows: T[],
+  limit: number,
+  aggregate: (remaining: T[]) => T,
+): T[] {
+  if (rows.length <= limit) return rows;
+  return [...rows.slice(0, limit), aggregate(rows.slice(limit))];
+}
+
 export interface ClusterDensityPoint extends ClusterChartPoint {
   avgVmsPerHost: number;
   vcpuPerCore: number;

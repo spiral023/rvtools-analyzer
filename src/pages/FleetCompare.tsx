@@ -103,21 +103,31 @@ export default function FleetCompare() {
   const compareChart = useMemo(() => summaries.map((s) => ({ name: s.displayName.length > 15 ? s.displayName.slice(0, 12) + "…" : s.displayName, VMs: s.vmCount, Hosts: s.hostCount, Datastores: s.datastoreCount })), [summaries]);
 
   const totalRisk = summaries.reduce((s, v) => s + v.riskScore, 0);
+  const kpis = (
+    <KpiGrid>
+      <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} info={FLEET_KPI.vcenter} />
+      <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} info={FLEET_KPI.vmsTotal} />
+      <KpiCard title="Hosts Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.hostCount, 0))} info={FLEET_KPI.hostsTotal} />
+      <KpiCard title="Health Issues" value={formatNum(summaries.reduce((s, v) => s + v.healthIssues, 0))} severity={summaries.some((s) => s.healthIssues > 0) ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={FLEET_KPI.healthIssues} />
+      <KpiCard title="Security Drift" value={formatNum(summaries.reduce((s, v) => s + v.securityDrift, 0))} severity={summaries.some((s) => s.securityDrift > 0) ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} info={FLEET_KPI.securityDrift} />
+      <KpiCard title="Risiko Total" value={totalRisk} severity={totalRisk > 100 ? "crit" : totalRisk > 50 ? "warn" : "ok"} info={FLEET_KPI.riskTotal} />
+    </KpiGrid>
+  );
 
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || clustersLoading
     || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading;
-  if (dataLoading) return <PageLoadingState title="Fleet Compare" />;
+  if (dataLoading) return <PageLoadingState title="vCenter" />;
 
   if (snapshots.length === 0) {
-    return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Fleet Compare</h1><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
+    return (<div className="space-y-6 animate-fade-in"><PageHeader title="vCenter" /><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
   if (latestSnapshots.length < 2) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <PageHeader title="Fleet Compare">
-        </PageHeader>
-        <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte von mindestens 2 verschiedenen vCentern hoch, um eine Fleet-Analyse durchzuführen." />
+        <PageHeader title="vCenter" />
+        {kpis}
+        <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
         {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>)}
       </div>
     );
@@ -125,16 +135,8 @@ export default function FleetCompare() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Fleet Compare">
-      </PageHeader>
-      <KpiGrid>
-        <KpiCard title="vCenter" value={formatNum(summaries.length)} icon={<Server className="h-4 w-4" />} info={FLEET_KPI.vcenter} />
-        <KpiCard title="VMs Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.vmCount, 0))} icon={<Cpu className="h-4 w-4" />} info={FLEET_KPI.vmsTotal} />
-        <KpiCard title="Hosts Gesamt" value={formatNum(summaries.reduce((s, v) => s + v.hostCount, 0))} info={FLEET_KPI.hostsTotal} />
-        <KpiCard title="Health Issues" value={formatNum(summaries.reduce((s, v) => s + v.healthIssues, 0))} severity={summaries.some((s) => s.healthIssues > 0) ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={FLEET_KPI.healthIssues} />
-        <KpiCard title="Security Drift" value={formatNum(summaries.reduce((s, v) => s + v.securityDrift, 0))} severity={summaries.some((s) => s.securityDrift > 0) ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} info={FLEET_KPI.securityDrift} />
-        <KpiCard title="Risiko Total" value={totalRisk} severity={totalRisk > 100 ? "crit" : totalRisk > 50 ? "warn" : "ok"} info={FLEET_KPI.riskTotal} />
-      </KpiGrid>
+      <PageHeader title="vCenter" />
+      {kpis}
 
       <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <InfoTooltip entry={FLEET_SECTIONS.compareChart} side="bottom">
@@ -145,7 +147,7 @@ export default function FleetCompare() {
         </ResponsiveContainer>
       </div>
 
-      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Fleet Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>
+      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>
     </div>
   );
 }

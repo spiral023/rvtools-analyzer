@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { FilterProvider } from "@/hooks/useFilterState";
 
@@ -31,6 +31,23 @@ vi.mock("@/data/db", () => ({
 }));
 
 describe("FilterBar", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("aktiviert die VM-Standardfilter und zeigt ihre vollständigen Bezeichnungen", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FilterProvider>
+          <FilterBar />
+        </FilterProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Nur Powered On")).toBeInTheDocument();
+    expect(screen.getByText("vCLS ausblenden")).toBeInTheDocument();
+  });
+
   it("does not render a snapshot selector", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 

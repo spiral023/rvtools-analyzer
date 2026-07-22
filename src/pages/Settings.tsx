@@ -83,7 +83,7 @@ export default function Settings() {
         `Backup importiert: ${result.settingsImported ? "Kontaktvorgaben, " : ""}` +
           `${result.assignmentsImported} Cluster-Zuweisungen, ` +
           `${result.maintenanceWindowsImported} Wartungsfenster, ${result.scenariosImported} Szenarien, ` +
-          `${result.vcenterGroupsImported} vCenter-Gruppen.`,
+          `${result.vcenterGroupsImported} vCenter-Gruppen${result.vmScopeSettingsImported ? ", Filtervorgaben" : ""}.`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Import fehlgeschlagen.");

@@ -88,10 +88,10 @@ export default function Clusters() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Cluster" meta={`${activeSnapshotIds.length} aktive Snapshot${activeSnapshotIds.length === 1 ? "" : "s"}`} />
+      <PageHeader title="Cluster" />
       <GlobalFilterScopeHint text="Die globale Einschränkung gilt für die gesamte Seite: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf alle Cluster-Tabs angewendet." />
       <Tabs value={tab} onValueChange={selectTab}>
-        <TabsList className="h-auto flex-wrap justify-start">
+        <TabsList className="h-auto w-full justify-start gap-1 p-1">
           <InfoTooltip entry={CLUSTER_TABS.overview}><TabsTrigger value="overview">Übersicht</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.maintenance}><TabsTrigger value="maintenance">Wartung</TabsTrigger></InfoTooltip>

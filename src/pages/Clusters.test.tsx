@@ -192,6 +192,7 @@ describe("Clusters", () => {
   it("opens capacity from the query tab", async () => {
     renderClusters("/clusters?tab=capacity", true);
 
+    expect(await screen.findByRole("tablist")).toHaveClass("w-full");
     const capacityTab = await screen.findByRole("tab", { name: "Kapazität" });
     expect(capacityTab).toHaveAttribute("data-state", "active");
 
@@ -205,6 +206,8 @@ describe("Clusters", () => {
     renderClusters();
 
     expect(await screen.findByRole("heading", { name: "Cluster" })).toBeInTheDocument();
+    expect(screen.queryByText(/aktive Snapshots?/)).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
     expect(screen.getByText("Clusterübersicht")).toBeInTheDocument();
     expect(screen.getByText(/Betriebssysteme je Cluster/)).toBeInTheDocument();
     expect(screen.getAllByText("vcsa-a").length).toBeGreaterThan(0);
@@ -239,6 +242,8 @@ describe("Clusters", () => {
     expect(screen.getByText(/Cluster Capacity Health/)).toBeInTheDocument();
     expect(screen.getByText(/Cluster Overcommit/)).toBeInTheDocument();
     expect(screen.getByText(/Host Dichte/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ })).toBeInTheDocument();
   });
 
   it("shows maintenance assignments in the Wartung tab", async () => {

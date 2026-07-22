@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { BookmarkPlus, FolderCog, Monitor, Pencil, Search, Server, ShieldOff, Trash2, X } from "lucide-react";
-import { hasVmScopeFilter } from "@/lib/vmScope";
+import { DEFAULT_VM_SCOPE_SETTINGS } from "@/lib/vmScopeSettings";
 import { toast } from "sonner";
 import type { VCenterGroup } from "@/domain/models/types";
 
@@ -137,7 +137,9 @@ export function FilterBar() {
   const hasFilters =
     filters.vcenterIds.length > 0 ||
     filters.search !== "" ||
-    hasVmScopeFilter(filters);
+    filters.vmNameList !== "" ||
+    filters.vmPowerScope !== DEFAULT_VM_SCOPE_SETTINGS.vmPowerScope ||
+    filters.excludeVclsVms !== DEFAULT_VM_SCOPE_SETTINGS.excludeVclsVms;
 
   if (snapshots.length === 0) return null;
 
@@ -198,9 +200,9 @@ export function FilterBar() {
         value={filters.vmPowerScope}
         onValueChange={(value) => setFilters({ vmPowerScope: value as "all" | "poweredOn" })}
       >
-        <SelectTrigger className="h-8 w-[150px] text-xs">
-          <Monitor className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <SelectValue placeholder="VM Scope" />
+        <SelectTrigger className="h-8 w-[180px] text-xs">
+          <Monitor className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <SelectValue className="min-w-0 flex-1 truncate" placeholder="VM Scope" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Alle VMs</SelectItem>
@@ -211,9 +213,9 @@ export function FilterBar() {
         value={filters.excludeVclsVms ? "exclude" : "include"}
         onValueChange={(value) => setFilters({ excludeVclsVms: value === "exclude" })}
       >
-        <SelectTrigger className="h-8 w-[150px] text-xs">
-          <ShieldOff className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <SelectValue placeholder="vCLS" />
+        <SelectTrigger className="h-8 w-[180px] text-xs">
+          <ShieldOff className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <SelectValue className="min-w-0 flex-1 truncate" placeholder="vCLS" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="include">vCLS anzeigen</SelectItem>

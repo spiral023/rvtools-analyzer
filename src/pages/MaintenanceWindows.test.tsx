@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { AppSidebar } from "@/app/layout/AppSidebar";
@@ -306,5 +306,21 @@ describe("MaintenanceWindows", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
     expect(screen.getByRole("link", { name: "Wartungsfenster" })).toHaveAttribute("href", "/wartungsfenster");
+  });
+
+  it("ordnet vCenter im Analysebereich ein", () => {
+    render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
+
+    const analysisGroup = screen.getByText("Analyse").closest('[data-sidebar="group"]');
+    expect(analysisGroup).not.toBeNull();
+    expect(within(analysisGroup!).getByRole("link", { name: "vCenter" })).toHaveAttribute("href", "/fleet-compare");
+    expect(screen.queryByText("Vergleich")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Wartungsankündigung und Planung nicht in der Tools-Navigation", () => {
+    render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
+
+    expect(screen.queryByRole("link", { name: "Wartungsankündigung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Planung" })).not.toBeInTheDocument();
   });
 });

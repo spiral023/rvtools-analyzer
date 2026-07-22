@@ -523,7 +523,12 @@ export interface KpiCardData {
   severity?: "ok" | "warn" | "crit";
 }
 
-export interface FilterState {
+export interface VmScopeSettings {
+  vmPowerScope: "all" | "poweredOn";
+  excludeVclsVms: boolean;
+}
+
+export interface FilterState extends VmScopeSettings {
   vcenterIds: VCenterId[];
   clusters: string[];
   hosts: string[];
@@ -531,8 +536,6 @@ export interface FilterState {
   search: string;
   globalFilter: GlobalFilterGroup | null;
   vmNameList: string;
-  vmPowerScope: "all" | "poweredOn";
-  excludeVclsVms: boolean;
 }
 
 export interface FilterPreset {

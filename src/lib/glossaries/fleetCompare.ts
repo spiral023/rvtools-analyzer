@@ -1,7 +1,7 @@
 import type { GlossaryEntry } from "@/lib/glossary";
 
 /**
- * Glossar für die Seite „Fleet Compare“.
+ * Glossar für die Seite „vCenter“.
  *
  * Zielgruppe: VMware-Administrator:innen. Fleet Compare stellt die vCenter mit
  * ihrem jeweils aktuellen Stand gegenüber, um Größe, Auslastung und Risiko der
@@ -11,7 +11,7 @@ import type { GlossaryEntry } from "@/lib/glossary";
 const RV = "RVTools";
 
 /* ------------------------------------------------------------------ */
-/*  Fleet Compare – KPIs                                              */
+/*  vCenter – KPIs                                                    */
 /* ------------------------------------------------------------------ */
 export const FLEET_KPI: Record<string, GlossaryEntry> = {
   vcenter: {
@@ -53,7 +53,7 @@ export const FLEET_KPI: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Fleet Compare – Tabelle „Fleet Übersicht“                        */
+/*  vCenter – Tabelle „vCenter Übersicht“                            */
 /* ------------------------------------------------------------------ */
 export const FLEET_COLUMNS: Record<string, GlossaryEntry> = {
   displayName: {
@@ -125,7 +125,7 @@ export const FLEET_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Fleet Compare – Abschnitts-Überschriften                         */
+/*  vCenter – Abschnitts-Überschriften                               */
 /* ------------------------------------------------------------------ */
 export const FLEET_SECTIONS: Record<string, GlossaryEntry> = {
   compareChart: {
@@ -134,7 +134,7 @@ export const FLEET_SECTIONS: Record<string, GlossaryEntry> = {
       "Stellt VMs, Hosts und Datastores der verglichenen vCenter nebeneinander. Nutze das Diagramm, um auf einen Blick die Größenverhältnisse einzuordnen und Ausreißer zu erkennen, bevor du in die Detailtabelle darunter gehst.",
   },
   fleetTable: {
-    term: "Fleet Übersicht",
+    term: "vCenter Übersicht",
     description:
       "Kennzahlen aller vCenter in einer sortierbaren Tabelle. Sortiere nach „Risiko Score“ oder einer einzelnen Metrik, um die kritischste Umgebung zu finden, und arbeite die auffälligen Werte (rote/gelbe Ampeln) gezielt ab.",
   },

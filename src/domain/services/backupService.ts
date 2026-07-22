@@ -12,6 +12,7 @@ import {
   validateMaintenanceWindowUpsertInput,
 } from "@/data/db";
 import { buildUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
+import { getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
 export interface UserDataImportResult {
   settingsImported: boolean;
@@ -19,6 +20,7 @@ export interface UserDataImportResult {
   maintenanceWindowsImported: number;
   scenariosImported: number;
   vcenterGroupsImported: number;
+  vmScopeSettingsImported: boolean;
 }
 
 /** Sammelt alle Benutzerdaten (ohne RVTools-/Tech-Info-Daten) für den Export. */
@@ -37,6 +39,7 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     maintenanceWindows,
     scenarios,
     vcenterGroups,
+    vmScopeSettings: getStoredVmScopeSettings(),
   });
 }
 
@@ -56,6 +59,7 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     ...backup.scenarios.map((scenario) => putScenario(scenario)),
     ...backup.vcenterGroups.map((group) => putVcenterGroup(group)),
   ]);
+  if (backup.vmScopeSettings) saveVmScopeSettings(backup.vmScopeSettings);
 
   return {
     settingsImported: Boolean(backup.maintenanceSettings),
@@ -63,5 +67,6 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     maintenanceWindowsImported: maintenanceWindows.length,
     scenariosImported: backup.scenarios.length,
     vcenterGroupsImported: backup.vcenterGroups.length,
+    vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
   };
 }

@@ -6,6 +6,7 @@ import {
   buildRiskChart,
   buildVmDistributionChart,
 } from "@/lib/clusterWorkspace";
+import * as clusterWorkspace from "@/lib/clusterWorkspace";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import type {
   NormalizedCluster,
@@ -90,6 +91,27 @@ function rawHost(overrides: Record<string, string | number | boolean | null> = {
 }
 
 describe("clusterWorkspace", () => {
+  it("reduziert Ranglisten auf die Top-Cluster und fasst den Rest zusammen", () => {
+    const buildTopChartRows = (clusterWorkspace as typeof clusterWorkspace & {
+      buildTopChartRows?: <T extends { name: string }>(rows: T[], limit: number, aggregate: (rows: T[]) => T) => T[];
+    }).buildTopChartRows;
+
+    expect(buildTopChartRows).toBeTypeOf("function");
+    expect(buildTopChartRows?.([
+      { name: "Cluster 1", value: 100 },
+      { name: "Cluster 2", value: 90 },
+      { name: "Cluster 3", value: 80 },
+      { name: "Cluster 4", value: 70 },
+    ], 2, (remaining) => ({
+      name: `Weitere ${remaining.length} Cluster`,
+      value: remaining.reduce((total, row) => total + row.value, 0) / remaining.length,
+    }))).toEqual([
+      { name: "Cluster 1", value: 100 },
+      { name: "Cluster 2", value: 90 },
+      { name: "Weitere 2 Cluster", value: 75 },
+    ]);
+  });
+
   it("builds a row with density, risk and maximum host load", () => {
     const rows = buildClusterOverviewRows({
       clusters: [cluster()],
