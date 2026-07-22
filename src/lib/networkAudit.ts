@@ -310,3 +310,56 @@ export function buildCdpMacRows(input: { cdpRows: CdpLatest[]; l2Rows: EramonL2L
 
   return rows;
 }
+
+export type L2Classification = "esxi-cdp" | "ipam" | "unknown";
+
+export interface L2DiscoveryRow {
+  l2EntryKey: string;
+  switchName: string;
+  interface: string;
+  vlan: string;
+  mac: string;
+  learnedIp: string | null;
+  dnsName: string | null;
+  classification: L2Classification;
+  esxiHost: string | null;
+}
+
+export function buildL2DiscoveryRows(input: {
+  l2Rows: EramonL2Latest[];
+  cdpRows: CdpLatest[];
+  ipam: IpamLatest[];
+}): L2DiscoveryRow[] {
+  const cdpMacToHost = new Map<string, string>();
+  for (const cdp of input.cdpRows) {
+    const macCanonical = canonicalMac(cdp.mac);
+    if (macCanonical && !cdpMacToHost.has(macCanonical)) cdpMacToHost.set(macCanonical, cdp.host);
+  }
+
+  const ipamIps = new Set<string>();
+  for (const entry of input.ipam) {
+    if (entry.ipAddress) ipamIps.add(entry.ipAddress.trim().toLowerCase());
+  }
+
+  return input.l2Rows.map((l2): L2DiscoveryRow => {
+    const macCanonical = canonicalMac(l2.mac);
+    const esxiHost = macCanonical ? cdpMacToHost.get(macCanonical) ?? null : null;
+    const classification: L2Classification = esxiHost
+      ? "esxi-cdp"
+      : l2.ip && ipamIps.has(l2.ip.trim().toLowerCase())
+        ? "ipam"
+        : "unknown";
+
+    return {
+      l2EntryKey: l2.l2EntryKey,
+      switchName: l2.switchName,
+      interface: l2.interface,
+      vlan: l2.vlan,
+      mac: l2.mac,
+      learnedIp: l2.ip,
+      dnsName: l2.dnsName,
+      classification,
+      esxiHost,
+    };
+  });
+}

@@ -7,6 +7,7 @@ import {
   buildPortAuditRows,
   canonicalMac,
   buildCdpMacRows,
+  buildL2DiscoveryRows,
 } from "@/lib/networkAudit";
 import type { SwitchLatest, CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest, EramonL2Latest } from "@/domain/models/types";
 
@@ -417,5 +418,36 @@ describe("buildCdpMacRows", () => {
     });
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.vlan)).toEqual(["100", "200"]);
+  });
+});
+
+describe("buildL2DiscoveryRows", () => {
+  it("klassifiziert eine MAC als ESXi (CDP), wenn sie ein bekannter vmnic ist", () => {
+    const rows = buildL2DiscoveryRows({
+      l2Rows: [makeEramonL2({ mac: "0050.56ab.cdef" })],
+      cdpRows: [makeCdpRow({ mac: "00:50:56:ab:cd:ef", host: "esxxsrv2270.rbgooe.at" })],
+      ipam: [],
+    });
+    expect(rows[0].classification).toBe("esxi-cdp");
+    expect(rows[0].esxiHost).toBe("esxxsrv2270.rbgooe.at");
+  });
+
+  it("klassifiziert als IPAM-bekannt, wenn die gelernte IP im IPAM steht", () => {
+    const rows = buildL2DiscoveryRows({
+      l2Rows: [makeEramonL2({ mac: "aabb.ccdd.eeff", ip: "192.168.20.10" })],
+      cdpRows: [],
+      ipam: [{ ...makeIpam("core-01"), ipAddress: "192.168.20.10" }],
+    });
+    expect(rows[0].classification).toBe("ipam");
+    expect(rows[0].esxiHost).toBeNull();
+  });
+
+  it("klassifiziert als unbekannt, wenn weder CDP noch IPAM greifen", () => {
+    const rows = buildL2DiscoveryRows({
+      l2Rows: [makeEramonL2({ mac: "aabb.ccdd.eeff", ip: "10.9.9.9" })],
+      cdpRows: [],
+      ipam: [],
+    });
+    expect(rows[0].classification).toBe("unknown");
   });
 });
