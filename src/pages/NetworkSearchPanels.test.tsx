@@ -4,7 +4,7 @@ import { NetworkAuditPanel } from "./NetworkAuditPanel";
 import { IpamPanel } from "./IpamPanel";
 import { SwitchPanel } from "./SwitchPanel";
 import type { SwitchLatest, IpamLatest } from "@/domain/models/types";
-import type { PortAuditRow } from "@/lib/networkAudit";
+import type { CdpMacRow, L2DiscoveryRow, PortAuditRow } from "@/lib/networkAudit";
 
 const search = "core-01";
 
@@ -33,6 +33,16 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
       labelConflict: false, labelConflictHost: null, statusConflict: false,
       sources: ["cisco"], bandwidthBps: null, sourceConflict: false, finding: null,
     }] as PortAuditRow[],
+    cdpMacRows: [{
+      host: "esx01", adapter: "vmnic0", mac: "00:50:56:ab:cd:ef", macCanonical: "005056abcdef",
+      inL2: false, l2Switch: null, l2Interface: null, vlan: null, learnedIp: null, dnsName: null,
+      topologyMismatch: false, finding: "MAC nicht in L2-Tabelle",
+    }] as CdpMacRow[],
+    l2DiscoveryRows: [{
+      l2EntryKey: "core-01::eth1/1::aabbccddeeff::100", switchName: "core-01", interface: "Eth1/1",
+      vlan: "100", mac: "aabb.ccdd.eeff", learnedIp: "10.0.0.20", dnsName: null,
+      classification: "unknown", esxiHost: null,
+    }] as L2DiscoveryRow[],
     isLoading: false,
   }),
 }));
@@ -56,5 +66,13 @@ describe("Network search", () => {
     render(<Panel />);
 
     expect(screen.getByTestId(`table-${exportFileName}`)).toHaveAttribute("data-global-filter", search);
+  });
+
+  it("zeigt den Eramon-L2-MAC-Abgleich mit beiden Tabellen", () => {
+    render(<NetworkAuditPanel />);
+
+    expect(screen.getByRole("heading", { name: "MAC-Abgleich (Eramon L2)" })).toBeInTheDocument();
+    expect(screen.getByTestId("table-mac-audit-cdp")).toBeInTheDocument();
+    expect(screen.getByTestId("table-mac-discovery")).toBeInTheDocument();
   });
 });

@@ -15,6 +15,9 @@ const textMatchRow: PortAuditRow = {
   labelConflict: false,
   labelConflictHost: null,
   statusConflict: false,
+  sources: ["cisco"],
+  bandwidthBps: null,
+  sourceConflict: false,
   finding: null,
 };
 
@@ -62,11 +65,13 @@ describe("NetworkAuditPanel", () => {
     expect(screen.getByTestId("tooltip-unbekannt")).toBeInTheDocument();
     expect(screen.getByTestId("tooltip-status-konflikte")).toBeInTheDocument();
     expect(screen.getByTestId("tooltip-beschriftungs-konflikte")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-nur-in-eramon")).toBeInTheDocument();
+    expect(screen.getByTestId("tooltip-quellen-konflikte")).toBeInTheDocument();
   });
 
   it("erklärt alle Spalten der Kontroll-Tabelle", () => {
     render(<NetworkAuditPanel />);
 
-    expect(screen.getAllByTestId("network-audit-table-columns")[0]).toHaveTextContent("Switch|Interface|Port-Beschreibung|Port-Status|Match-Status|Vermuteter ESXi-Host|Auffälligkeit");
+    expect(screen.getAllByTestId("network-audit-table-columns")[0]).toHaveTextContent("Switch|Interface|Port-Beschreibung|Port-Status|Bandbreite|Quelle|Match-Status|Vermuteter ESXi-Host|Auffälligkeit");
   });
 });
