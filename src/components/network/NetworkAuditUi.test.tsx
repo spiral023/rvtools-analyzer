@@ -231,7 +231,7 @@ describe("AuditDetailView", () => {
 });
 
 describe("AuditCheckCard", () => {
-  it("deaktiviert eine nicht ausführbare Prüfung und erklärt die fehlende Aktion", () => {
+  it("verlinkt eine nicht ausführbare Prüfung direkt zur konkret fehlenden Pflichtquelle", () => {
     const onOpen = vi.fn();
     renderWithProviders(
       <AuditCheckCard
@@ -244,27 +244,36 @@ describe("AuditCheckCard", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "Benötigte Daten fehlen" });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
+    expect(screen.getByText("Fehlende Pflichtquelle: Eramon Interface")).toBeInTheDocument();
+    const importLink = screen.getByRole("link", { name: "Eramon Interface importieren" });
+    expect(importLink).toHaveAttribute("href", "/upload");
+    expect(importLink).toHaveClass("min-h-11");
+    fireEvent.click(importLink);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("deklariert Rohbefunde eines nicht ausführbaren Checks als nicht auswertbar", () => {
+  it("nennt mehrere fehlende Pflichtquellen und bietet eine gemeinsame Importaktion", () => {
     const { container } = renderWithProviders(
       <AuditCheckCard
         index={1}
         title="Switch-Port-Zuordnungen"
         question="Stimmen die Quellen überein?"
         actionLabel="84 Port-Befunde prüfen"
-        summary={summary("ports", "unavailable", { critical: 42, review: 42, passed: 3 }, "unavailable")}
+        summary={{
+          ...summary("ports", "unavailable", { critical: 42, review: 42, passed: 3 }, "unavailable"),
+          missingRequired: ["cdp", "eramonL2"],
+        }}
         onOpen={vi.fn()}
       />,
     );
 
     expect(screen.getByText("Nicht auswertbar")).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/84\s*offen/);
-    expect(screen.getByRole("button", { name: "Benötigte Daten fehlen" })).toBeDisabled();
+    expect(screen.getByText("Fehlende Pflichtquellen: CDP und Eramon L2")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CDP und Eramon L2 importieren" })).toHaveAttribute(
+      "href",
+      "/upload",
+    );
   });
 
   it("lässt lange formatierte Aktionslabels umbrechen und hält das Touchziel groß genug", () => {
@@ -322,9 +331,19 @@ describe("AuditSourceStatus", () => {
     expect(within(rvtools).getByText("Fehlt")).toBeInTheDocument();
     expect(within(rvtools).getByText(/^23\.07\.2026, \d{2}:\d{2}$/)).toBeInTheDocument();
     expect(within(rvtools).queryByText("Bereit")).not.toBeInTheDocument();
+    const rvtoolsImport = within(rvtools).getByRole("link", { name: "RVTools importieren" });
+    expect(rvtoolsImport).toHaveAttribute("href", "/upload");
+    expect(rvtoolsImport).toHaveClass("min-h-11");
 
     const techInfo = screen.getByRole("article", { name: "Tech-Info" });
     expect(within(techInfo).getByText("Noch nicht importiert")).toBeInTheDocument();
+    expect(within(techInfo).getByRole("link", { name: "Tech-Info importieren" })).toHaveAttribute(
+      "href",
+      "/upload",
+    );
+    expect(
+      within(screen.getByRole("article", { name: "CDP" })).queryByRole("link"),
+    ).not.toBeInTheDocument();
     const manageImports = screen.getByRole("link", { name: "Importe verwalten" });
     expect(manageImports).toHaveAttribute("href", "/upload");
     expect(manageImports).toHaveClass("min-h-11");

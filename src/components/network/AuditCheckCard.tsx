@@ -2,13 +2,19 @@ import {
   AlertOctagon,
   AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
   Ban,
   CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  formatNetworkAuditSourceList,
+  getNetworkAuditImportLabel,
+} from "@/lib/networkAuditLabels";
 import type {
   NetworkAuditCheckSummary,
   NetworkAuditScope,
@@ -67,6 +73,10 @@ export function AuditCheckCard({
   const openCount = summary.counts.critical + summary.counts.review;
   const isUnavailable = summary.status === "unavailable" || summary.readiness === "unavailable";
   const scope: NetworkAuditScope = summary.status === "passed" ? "all" : "attention";
+  const missingSourceList = formatNetworkAuditSourceList(summary.missingRequired);
+  const missingSourcePrefix = summary.missingRequired.length === 1
+    ? "Fehlende Pflichtquelle"
+    : "Fehlende Pflichtquellen";
 
   return (
     <Card className={cn("relative z-10 flex h-full flex-col border-l-4", status.edge, isUnavailable && "bg-muted/25")}>
@@ -87,7 +97,12 @@ export function AuditCheckCard({
       </CardHeader>
       <CardContent className="mt-auto space-y-3 p-4 pt-3">
         {isUnavailable ? (
-          <p className="text-xs font-medium text-muted-foreground">Nicht auswertbar</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Nicht auswertbar</p>
+            <p className="text-xs text-muted-foreground">
+              {missingSourcePrefix}: {missingSourceList}
+            </p>
+          </div>
         ) : (
           <p className="text-xs text-muted-foreground">
             <span className="font-mono font-bold tabular-nums text-foreground">
@@ -96,19 +111,32 @@ export function AuditCheckCard({
             offen
           </p>
         )}
-        <Button
-          type="button"
-          variant={summary.status === "critical" ? "default" : "outline"}
-          size="sm"
-          className="h-auto min-h-11 w-full min-w-0 justify-center whitespace-normal px-3 py-2.5 text-center leading-snug"
-          disabled={isUnavailable}
-          onClick={() => onOpen(scope)}
-        >
-          <span className="min-w-0 break-words">
-            {isUnavailable ? "Benötigte Daten fehlen" : actionLabel}
-          </span>
-          {!isUnavailable && <ArrowRight aria-hidden="true" />}
-        </Button>
+        {isUnavailable ? (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-auto min-h-11 w-full min-w-0 justify-center whitespace-normal px-3 py-2.5 text-center leading-snug"
+          >
+            <Link to="/upload">
+              <span className="min-w-0 break-words">
+                {getNetworkAuditImportLabel(summary.missingRequired)}
+              </span>
+              <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant={summary.status === "critical" ? "default" : "outline"}
+            size="sm"
+            className="h-auto min-h-11 w-full min-w-0 justify-center whitespace-normal px-3 py-2.5 text-center leading-snug"
+            onClick={() => onOpen(scope)}
+          >
+            <span className="min-w-0 break-words">{actionLabel}</span>
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

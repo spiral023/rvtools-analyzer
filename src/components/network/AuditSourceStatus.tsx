@@ -83,6 +83,21 @@ export function AuditSourceStatus({ sources }: { sources: NetworkAuditSourceFact
               <p className="mt-2 truncate text-[11px] text-muted-foreground" title={formatImportedAt(source.importedAt)}>
                 {formatImportedAt(source.importedAt)}
               </p>
+              {!isReady && (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-2 text-xs"
+                >
+                  <Link to="/upload">
+                    <span className="min-w-0 break-words">
+                      {SOURCE_LABELS[sourceKey]} importieren
+                    </span>
+                    <ArrowUpRight aria-hidden="true" />
+                  </Link>
+                </Button>
+              )}
             </article>
           );
         })}
