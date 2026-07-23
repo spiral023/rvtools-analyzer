@@ -32,6 +32,18 @@ function isNetworkAuditScope(value: string): value is NetworkAuditScope {
   return SCOPE_OPTIONS.some((option) => option.value === value);
 }
 
+function getAdjacentScope(current: NetworkAuditScope, key: string): NetworkAuditScope | null {
+  const direction = key === "ArrowLeft" || key === "ArrowUp"
+    ? -1
+    : key === "ArrowRight" || key === "ArrowDown"
+      ? 1
+      : 0;
+  if (direction === 0) return null;
+  const currentIndex = SCOPE_OPTIONS.findIndex((option) => option.value === current);
+  const nextIndex = (currentIndex + direction + SCOPE_OPTIONS.length) % SCOPE_OPTIONS.length;
+  return SCOPE_OPTIONS[nextIndex].value;
+}
+
 export function AuditDetailView({
   title,
   description,
@@ -51,7 +63,7 @@ export function AuditDetailView({
   return (
     <section aria-labelledby="network-audit-detail-heading" className="space-y-5">
       <div className="space-y-3">
-        <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={onBack}>
+        <Button type="button" variant="ghost" size="sm" className="-ml-3 min-h-11 min-w-11" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
           Zur Übersicht
         </Button>
@@ -76,44 +88,60 @@ export function AuditDetailView({
       )}
 
       <div className="flex flex-col gap-3 border-y py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div
-          role="radiogroup"
-          aria-label="Ergebnisfilter"
-          className="inline-flex w-fit items-center rounded-md border bg-muted/25 p-1"
-        >
-          {SCOPE_OPTIONS.map((option) => (
-            <span key={option.value}>
-              <input
-                id={`network-audit-scope-${option.value}`}
-                className="peer sr-only"
-                type="radio"
-                name="network-audit-scope"
-                value={option.value}
-                checked={scope === option.value}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  if (isNetworkAuditScope(value)) onScopeChange(value);
-                }}
-              />
-              <label
-                htmlFor={`network-audit-scope-${option.value}`}
-                className={cn(
-                  "block cursor-pointer rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors",
-                  "peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
-                  scope === option.value && "bg-background text-foreground shadow-sm",
-                )}
-              >
-                {option.label}
-              </label>
-            </span>
-          ))}
+        <div className="max-w-full overflow-x-auto">
+          <div
+            role="radiogroup"
+            aria-label="Ergebnisfilter"
+            className="inline-flex min-w-max items-center rounded-md border bg-muted/25 p-1"
+          >
+            {SCOPE_OPTIONS.map((option) => (
+              <span key={option.value}>
+                <input
+                  id={`network-audit-scope-${option.value}`}
+                  className="peer sr-only"
+                  type="radio"
+                  name="network-audit-scope"
+                  value={option.value}
+                  checked={scope === option.value}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    if (isNetworkAuditScope(value)) onScopeChange(value);
+                  }}
+                  onKeyDown={(event) => {
+                    const nextScope = getAdjacentScope(option.value, event.key);
+                    if (!nextScope) return;
+                    event.preventDefault();
+                    const nextInput = event.currentTarget
+                      .closest('[role="radiogroup"]')
+                      ?.querySelector<HTMLInputElement>(`[value="${nextScope}"]`);
+                    nextInput?.focus();
+                    onScopeChange(nextScope);
+                  }}
+                />
+                <label
+                  htmlFor={`network-audit-scope-${option.value}`}
+                  className={cn(
+                    "flex min-h-11 cursor-pointer items-center rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors",
+                    "peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
+                    scope === option.value && "bg-background text-foreground shadow-sm",
+                  )}
+                >
+                  {option.label}
+                </label>
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="min-w-0 text-sm text-muted-foreground">
           <p aria-live="polite" className="font-mono tabular-nums text-foreground">
             {visibleCount.toLocaleString("de-DE")} von {totalCount.toLocaleString("de-DE")} Einträgen
           </p>
-          {search && <p className="mt-1 text-xs">Ergebnisse zusätzlich gefiltert nach „{search}“.</p>}
+          {search && (
+            <p className="mt-1 break-words text-xs [overflow-wrap:anywhere]">
+              Ergebnisse zusätzlich gefiltert nach „{search}“.
+            </p>
+          )}
         </div>
       </div>
 

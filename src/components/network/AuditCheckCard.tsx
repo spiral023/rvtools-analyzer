@@ -86,21 +86,27 @@ export function AuditCheckCard({
         </div>
       </CardHeader>
       <CardContent className="mt-auto space-y-3 p-4 pt-3">
-        <p className="text-xs text-muted-foreground">
-          <span className="font-mono font-bold tabular-nums text-foreground">
-            {openCount.toLocaleString("de-DE")}
-          </span>{" "}
-          offen
-        </p>
+        {isUnavailable ? (
+          <p className="text-xs font-medium text-muted-foreground">Nicht auswertbar</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            <span className="font-mono font-bold tabular-nums text-foreground">
+              {openCount.toLocaleString("de-DE")}
+            </span>{" "}
+            offen
+          </p>
+        )}
         <Button
           type="button"
           variant={summary.status === "critical" ? "default" : "outline"}
           size="sm"
-          className="w-full justify-between"
+          className="h-auto min-h-11 w-full min-w-0 justify-center whitespace-normal px-3 py-2.5 text-center leading-snug"
           disabled={isUnavailable}
           onClick={() => onOpen(scope)}
         >
-          {isUnavailable ? "Benötigte Daten fehlen" : actionLabel}
+          <span className="min-w-0 break-words">
+            {isUnavailable ? "Benötigte Daten fehlen" : actionLabel}
+          </span>
           {!isUnavailable && <ArrowRight aria-hidden="true" />}
         </Button>
       </CardContent>

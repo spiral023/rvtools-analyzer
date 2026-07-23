@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { AuditCheckCard } from "@/components/network/AuditCheckCard";
@@ -8,6 +9,7 @@ import { NetworkAuditOverview } from "@/components/network/NetworkAuditOverview"
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type {
   NetworkAuditCheckSummary,
+  NetworkAuditScope,
   NetworkAuditSourceFacts,
   NetworkAuditViewModel,
 } from "@/lib/networkAuditViewModel";
@@ -58,6 +60,29 @@ function renderWithProviders(node: React.ReactNode) {
   );
 }
 
+function DetailScopeHarness({ onScopeChange }: { onScopeChange: (scope: NetworkAuditScope) => void }) {
+  const [scope, setScope] = useState<NetworkAuditScope>("attention");
+
+  return (
+    <AuditDetailView
+      title="Switch-Port-Zuordnungen"
+      description="Beschreibung"
+      summary={summary("ports", "review", { critical: 0, review: 2, passed: 10 }, "limited")}
+      scope={scope}
+      visibleCount={2}
+      totalCount={12}
+      search=""
+      onBack={vi.fn()}
+      onScopeChange={(nextScope) => {
+        setScope(nextScope);
+        onScopeChange(nextScope);
+      }}
+    >
+      <div>Ergebnisliste</div>
+    </AuditDetailView>
+  );
+}
+
 describe("NetworkAuditOverview", () => {
   it("zeigt Datenbasis, Gesamtstatus und den vollständigen empfohlenen Prüfpfad", () => {
     renderWithProviders(<NetworkAuditOverview viewModel={viewModel} onOpenCheck={vi.fn()} />);
@@ -77,6 +102,46 @@ describe("NetworkAuditOverview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nächsten Befund prüfen" }));
 
     expect(onOpenCheck).toHaveBeenCalledWith("ports", "attention");
+  });
+
+  it.each([
+    [{ critical: 1, review: 0, passed: 0 }, "1 kritischer Befund ist offen."],
+    [{ critical: 0, review: 1, passed: 0 }, "1 weiterer Befund ist offen."],
+    [{ critical: 1, review: 1, passed: 0 }, "1 kritischer und 1 weiterer Befund sind offen."],
+  ])("formuliert einzelne und kombinierte offene Befunde grammatikalisch korrekt", (totals, expected) => {
+    renderWithProviders(
+      <NetworkAuditOverview
+        viewModel={{ ...viewModel, totals, nextCheck: "ports" }}
+        onOpenCheck={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("verwendet für jede Prüfaktion die korrekte Einzahl", () => {
+    const singularViewModel: NetworkAuditViewModel = {
+      ...viewModel,
+      checks: {
+        ports: summary("ports", "review", { critical: 0, review: 1, passed: 0 }),
+        hosts: summary("hosts", "review", { critical: 0, review: 1, passed: 0 }),
+        mac: summary("mac", "review", { critical: 0, review: 1, passed: 0 }),
+        discovery: summary("discovery", "review", { critical: 0, review: 1, passed: 0 }),
+      },
+    };
+
+    renderWithProviders(<NetworkAuditOverview viewModel={singularViewModel} onOpenCheck={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "1 Port-Befund prüfen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1 Datenlücke prüfen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1 MAC-Befund prüfen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1 unbekanntes Gerät prüfen" })).toBeInTheDocument();
+  });
+
+  it("stellt die Primäraktion als ausreichend großes Touchziel bereit", () => {
+    renderWithProviders(<NetworkAuditOverview viewModel={viewModel} onOpenCheck={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Nächsten Befund prüfen" })).toHaveClass("min-h-11");
   });
 
   it("weist bei vollständig fehlender Datenbasis auf Importe hin, ohne Checks als bestanden darzustellen", () => {
@@ -111,27 +176,25 @@ describe("NetworkAuditOverview", () => {
 });
 
 describe("AuditDetailView", () => {
-  it("meldet den Ergebniszähler live und schaltet die Filtergruppe auf Alle", () => {
+  it("meldet den Ergebniszähler live und hält den kontrollierten Radiozustand per Klick und Pfeiltaste synchron", () => {
     const onScopeChange = vi.fn();
-    renderWithProviders(
-      <AuditDetailView
-        title="Switch-Port-Zuordnungen"
-        description="Beschreibung"
-        summary={summary("ports", "review", { critical: 0, review: 2, passed: 10 }, "limited")}
-        scope="attention"
-        visibleCount={2}
-        totalCount={12}
-        search=""
-        onBack={vi.fn()}
-        onScopeChange={onScopeChange}
-      >
-        <div>Ergebnisliste</div>
-      </AuditDetailView>,
-    );
+    renderWithProviders(<DetailScopeHarness onScopeChange={onScopeChange} />);
 
     expect(screen.getByText("2 von 12 Einträgen")).toHaveAttribute("aria-live", "polite");
-    fireEvent.click(screen.getByRole("radio", { name: "Alle" }));
+    const attention = screen.getByRole("radio", { name: "Handlungsbedarf" });
+    const passed = screen.getByRole("radio", { name: "Bestanden" });
+    const all = screen.getByRole("radio", { name: "Alle" });
+    expect(attention).toBeChecked();
+
+    fireEvent.click(all);
+    expect(all).toBeChecked();
     expect(onScopeChange).toHaveBeenCalledWith("all");
+
+    all.focus();
+    fireEvent.keyDown(all, { key: "ArrowLeft" });
+    expect(passed).toBeChecked();
+    expect(passed).toHaveFocus();
+    expect(onScopeChange).toHaveBeenLastCalledWith("passed");
   });
 
   it("nennt bei eingeschränkter Prüfung die fehlenden Quellen und erhält die vorhandenen Ergebnisse", () => {
@@ -153,7 +216,17 @@ describe("AuditDetailView", () => {
 
     expect(screen.getByText(/Eingeschränkte Prüfung – IPAM fehlt/)).toBeInTheDocument();
     expect(screen.getByText(/vorhandenen Ergebnisse bleiben nutzbar/i)).toBeInTheDocument();
-    expect(screen.getByText("Ergebnisse zusätzlich gefiltert nach „esx-01“.")).toBeInTheDocument();
+    expect(screen.getByText("Ergebnisse zusätzlich gefiltert nach „esx-01“.")).toHaveClass("break-words");
+  });
+
+  it("hält Filter und Navigation auf kleinen Viewports vollständig erreichbar", () => {
+    renderWithProviders(<DetailScopeHarness onScopeChange={vi.fn()} />);
+
+    const filter = screen.getByRole("radiogroup", { name: "Ergebnisfilter" });
+    expect(filter).toHaveClass("min-w-max");
+    expect(filter.parentElement).toHaveClass("max-w-full", "overflow-x-auto");
+    expect(screen.getByText("Handlungsbedarf").closest("label")).toHaveClass("min-h-11");
+    expect(screen.getByRole("button", { name: "Zur Übersicht" })).toHaveClass("min-h-11");
   });
 });
 
@@ -175,6 +248,44 @@ describe("AuditCheckCard", () => {
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("deklariert Rohbefunde eines nicht ausführbaren Checks als nicht auswertbar", () => {
+    const { container } = renderWithProviders(
+      <AuditCheckCard
+        index={1}
+        title="Switch-Port-Zuordnungen"
+        question="Stimmen die Quellen überein?"
+        actionLabel="84 Port-Befunde prüfen"
+        summary={summary("ports", "unavailable", { critical: 42, review: 42, passed: 3 }, "unavailable")}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Nicht auswertbar")).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/84\s*offen/);
+    expect(screen.getByRole("button", { name: "Benötigte Daten fehlen" })).toBeDisabled();
+  });
+
+  it("lässt lange formatierte Aktionslabels umbrechen und hält das Touchziel groß genug", () => {
+    renderWithProviders(
+      <AuditCheckCard
+        index={4}
+        title="Unbekannte Geräte"
+        question="Welche Geräte sind unbekannt?"
+        actionLabel="12.345 unbekannte Geräte prüfen"
+        summary={summary("discovery", "review", { critical: 0, review: 12_345, passed: 0 })}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "12.345 unbekannte Geräte prüfen" })).toHaveClass(
+      "h-auto",
+      "min-h-11",
+      "whitespace-normal",
+      "text-center",
+      "leading-snug",
+    );
   });
 
   it("öffnet eine vollständig bestandene Prüfung direkt mit allen Ergebnissen", () => {
@@ -214,6 +325,23 @@ describe("AuditSourceStatus", () => {
 
     const techInfo = screen.getByRole("article", { name: "Tech-Info" });
     expect(within(techInfo).getByText("Noch nicht importiert")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Importe verwalten" })).toHaveAttribute("href", "/upload");
+    const manageImports = screen.getByRole("link", { name: "Importe verwalten" });
+    expect(manageImports).toHaveAttribute("href", "/upload");
+    expect(manageImports).toHaveClass("min-h-11");
+  });
+
+  it("zeigt bei einem ungültigen Importzeitpunkt einen neutralen Fallback", () => {
+    renderWithProviders(
+      <AuditSourceStatus
+        sources={{
+          ...sources,
+          rvtools: { count: 12, importedAt: "kein-datum" },
+        }}
+      />,
+    );
+
+    const rvtools = screen.getByRole("article", { name: "RVTools" });
+    expect(within(rvtools).getByText("Datum nicht verfügbar")).toBeInTheDocument();
+    expect(within(rvtools).queryByText("Ungültiges Datum")).not.toBeInTheDocument();
   });
 });

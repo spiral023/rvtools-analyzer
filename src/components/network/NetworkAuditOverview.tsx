@@ -29,26 +29,52 @@ const CHECK_COPY: Record<
   ports: {
     title: "Switch-Port-Zuordnungen",
     question: "Stimmen Portbeschriftung, Link-Status und CDP-Nachbar überein?",
-    action: (count) => count > 0 ? `${count.toLocaleString("de-DE")} Port-Befunde prüfen` : "Alle Port-Prüfungen anzeigen",
+    action: (count) => count > 0
+      ? `${count.toLocaleString("de-DE")} ${count === 1 ? "Port-Befund" : "Port-Befunde"} prüfen`
+      : "Alle Port-Prüfungen anzeigen",
   },
   hosts: {
     title: "Host-Datenqualität",
     question: "Sind alle ESXi-Hosts in Tech-Info und IPAM dokumentiert?",
-    action: (count) => count > 0 ? `${count.toLocaleString("de-DE")} Datenlücken prüfen` : "Alle Host-Prüfungen anzeigen",
+    action: (count) => count > 0
+      ? `${count.toLocaleString("de-DE")} ${count === 1 ? "Datenlücke" : "Datenlücken"} prüfen`
+      : "Alle Host-Prüfungen anzeigen",
   },
   mac: {
     title: "ESXi-MAC-Abgleich",
     question: "Werden die Host-Adapter am erwarteten Switch-Port gesehen?",
-    action: (count) => count > 0 ? `${count.toLocaleString("de-DE")} MAC-Befunde prüfen` : "Alle MAC-Prüfungen anzeigen",
+    action: (count) => count > 0
+      ? `${count.toLocaleString("de-DE")} ${count === 1 ? "MAC-Befund" : "MAC-Befunde"} prüfen`
+      : "Alle MAC-Prüfungen anzeigen",
   },
   discovery: {
     title: "Unbekannte Geräte",
     question: "Welche Geräte lassen sich weder CDP noch IPAM zuordnen?",
-    action: (count) => count > 0 ? `${count.toLocaleString("de-DE")} unbekannte Geräte prüfen` : "Netz-Discovery anzeigen",
+    action: (count) => count > 0
+      ? `${count.toLocaleString("de-DE")} ${count === 1 ? "unbekanntes Gerät" : "unbekannte Geräte"} prüfen`
+      : "Netz-Discovery anzeigen",
   },
 };
 
 const CHECK_ORDER: NetworkAuditCheckId[] = ["ports", "hosts", "mac", "discovery"];
+
+function formatOpenFindings(critical: number, review: number) {
+  const format = (count: number) => count.toLocaleString("de-DE");
+  if (critical > 0 && review > 0) {
+    const criticalLabel = critical === 1 ? "kritischer" : "kritische";
+    const reviewLabel = review === 1 ? "weiterer" : "weitere";
+    const noun = review === 1 ? "Befund sind" : "Befunde sind";
+    return `${format(critical)} ${criticalLabel} und ${format(review)} ${reviewLabel} ${noun} offen.`;
+  }
+  if (critical > 0) {
+    return critical === 1
+      ? "1 kritischer Befund ist offen."
+      : `${format(critical)} kritische Befunde sind offen.`;
+  }
+  return review === 1
+    ? "1 weiterer Befund ist offen."
+    : `${format(review)} weitere Befunde sind offen.`;
+}
 
 export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOverviewProps) {
   return (
@@ -87,7 +113,7 @@ export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOve
               {!viewModel.hasExecutableChecks
                 ? "Noch keine Netzwerkprüfung ausführbar. Importieren Sie die benötigten Datenquellen."
                 : viewModel.nextCheck
-                  ? `${viewModel.totals.critical.toLocaleString("de-DE")} kritische und ${viewModel.totals.review.toLocaleString("de-DE")} weitere Befunde sind offen.`
+                  ? formatOpenFindings(viewModel.totals.critical, viewModel.totals.review)
                   : "Keine offenen Netzwerkbefunde."}
             </p>
           </div>
@@ -95,7 +121,7 @@ export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOve
             <Button
               type="button"
               size="sm"
-              className="shrink-0"
+              className="min-h-11 min-w-11 shrink-0"
               onClick={() => onOpenCheck(viewModel.nextCheck!, "attention")}
             >
               Nächsten Befund prüfen

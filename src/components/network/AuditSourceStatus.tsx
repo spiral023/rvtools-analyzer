@@ -22,7 +22,9 @@ const SOURCE_ORDER = Object.keys(SOURCE_LABELS) as NetworkAuditSourceKey[];
 
 function formatImportedAt(importedAt: string | null) {
   if (!importedAt) return "Noch nicht importiert";
-  return new Date(importedAt).toLocaleString("de-DE", {
+  const date = new Date(importedAt);
+  if (Number.isNaN(date.getTime())) return "Datum nicht verfügbar";
+  return date.toLocaleString("de-DE", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -40,7 +42,7 @@ export function AuditSourceStatus({ sources }: { sources: NetworkAuditSourceFact
             Umfang und Aktualität der lokalen Importe bestimmen, welche Prüfungen belastbar ausführbar sind.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
+        <Button asChild variant="outline" size="sm" className="min-h-11 self-start sm:self-auto">
           <Link to="/upload">
             Importe verwalten
             <ArrowUpRight aria-hidden="true" />
