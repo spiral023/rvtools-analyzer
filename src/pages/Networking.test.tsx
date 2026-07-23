@@ -127,11 +127,32 @@ function selectTab(name: string) {
   });
 }
 
+function expectLocation(expected: string) {
+  expect(screen.getByTestId("location").textContent).toBe(expected);
+}
+
 beforeEach(async () => {
   await deleteAllData();
 });
 
 describe("Networking", () => {
+  it("benennt die äußere Netzwerk-Tablist eindeutig", async () => {
+    renderNetworking();
+
+    expect(
+      await screen.findByRole("tablist", { name: "Netzwerkbereich" }),
+    ).toBeInTheDocument();
+  });
+
+  it("verbirgt das dekorative Netzwerk-Icon im RVTools-Leerzustand", async () => {
+    renderNetworking();
+
+    const emptyStateTitle = await screen.findByText("Keine RVTools-Daten");
+    const icon = emptyStateTitle.parentElement?.querySelector("svg");
+
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("zeigt während des Ladens keinen verfrühten RVTools-Leerzustand", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
 
@@ -173,6 +194,28 @@ describe("Networking", () => {
     expect(screen.getByRole("tab", { name: "Kontrolle" })).toBeInTheDocument();
   });
 
+  it.each([
+    ["Security & Policies", "security"],
+    ["Host-Netzwerk", "host"],
+    ["VLAN-Nutzung", "vlan"],
+    ["CDP/Switch-Ports", "cdp"],
+    ["IPAM", "ipam"],
+    ["Switch-Ports (Eramon)", "eramon-iface"],
+    ["MAC-Tabelle (Eramon)", "eramon-l2"],
+  ])("zeigt im Nicht-Audit-Tab %s ohne Snapshot den lokalen RVTools-Leerzustand", async (
+    tabLabel,
+    tab,
+  ) => {
+    renderNetworking(["/network-security?tab=audit&check=overview"]);
+
+    await screen.findByRole("tab", { name: tabLabel });
+    selectTab(tabLabel);
+
+    expect(screen.getByRole("tab", { name: tabLabel })).toHaveAttribute("data-state", "active");
+    expect(await screen.findByText("Keine RVTools-Daten")).toBeInTheDocument();
+    expectLocation(`/network-security?tab=${tab}&check=overview`);
+  });
+
   it("schreibt Haupttab und Audit-Standard in die URL und bewahrt fremde Audit-Parameter", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
     renderNetworking(["/network-security?tab=security&foo=bar"]);
@@ -180,19 +223,19 @@ describe("Networking", () => {
     await screen.findByTestId("panel-security");
     selectTab("Kontrolle");
 
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=audit&foo=bar&check=overview",
     );
     expect(screen.getByTestId("panel-audit")).toBeInTheDocument();
 
     selectTab("Host-Netzwerk");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=host&foo=bar&check=overview",
     );
     expect(screen.getByTestId("panel-host")).toBeInTheDocument();
 
     selectTab("Security & Policies");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=security&foo=bar&check=overview",
     );
     expect(screen.getByTestId("panel-security")).toBeInTheDocument();
@@ -203,24 +246,24 @@ describe("Networking", () => {
     renderNetworking(["/network-security?tab=security&check=mac&scope=all&foo=bar"]);
 
     await screen.findByTestId("panel-security");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=security&check=mac&scope=all&foo=bar",
     );
 
     selectTab("Kontrolle");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=audit&check=mac&scope=all&foo=bar",
     );
     expect(screen.getByTestId("panel-audit")).toBeInTheDocument();
 
     selectTab("Host-Netzwerk");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=host&check=mac&scope=all&foo=bar",
     );
     expect(screen.getByTestId("panel-host")).toBeInTheDocument();
 
     selectTab("Security & Policies");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=security&check=mac&scope=all&foo=bar",
     );
     expect(screen.getByTestId("panel-security")).toBeInTheDocument();
@@ -273,13 +316,13 @@ describe("Networking", () => {
 
     await screen.findByTestId("panel-audit");
     expect(screen.getByRole("tab", { name: "Kontrolle" })).toHaveAttribute("data-state", "active");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=audit&check=mac&scope=all&foo=bar",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Networking unmounten" }));
     expect(screen.queryByTestId("panel-audit")).not.toBeInTheDocument();
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=audit&check=mac&scope=all&foo=bar",
     );
 
@@ -289,7 +332,7 @@ describe("Networking", () => {
       expect(screen.getByTestId("panel-audit")).toBeInTheDocument();
     });
     expect(screen.getByRole("tab", { name: "Kontrolle" })).toHaveAttribute("data-state", "active");
-    expect(screen.getByTestId("location")).toHaveTextContent(
+    expectLocation(
       "/network-security?tab=audit&check=mac&scope=all&foo=bar",
     );
   });

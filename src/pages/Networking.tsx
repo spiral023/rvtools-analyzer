@@ -16,6 +16,7 @@ import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { NET_NETWORK_TABS } from "@/lib/glossaries/networking";
 import {
+  isNetworkTab,
   parseNetworkTab,
   updateNetworkAuditSearch,
   type NetworkTab,
@@ -24,7 +25,7 @@ import {
 function RvtoolsEmptyState() {
   return (
     <EmptyState
-      icon={<Network className="h-6 w-6" />}
+      icon={<Network aria-hidden="true" className="h-6 w-6" />}
       title="Keine RVTools-Daten"
       description="Laden Sie RVTools-Daten hoch."
       actionLabel="Zum Upload"
@@ -48,8 +49,7 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
   };
 
   const handleTabChange = (value: string) => {
-    const tab = parseNetworkTab(new URLSearchParams({ tab: value }), activeTab);
-    if (tab === value) setActiveTab(tab);
+    if (isNetworkTab(value)) setActiveTab(value);
   };
 
   if (snapshotsLoading) return <PageLoadingState title="Netzwerk" />;
@@ -63,7 +63,10 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
       >
         <PageHeader title="Netzwerk">
           <div className="w-full overflow-x-auto pb-1">
-            <TabsList className="h-auto min-w-max justify-start gap-1 p-1">
+            <TabsList
+              aria-label="Netzwerkbereich"
+              className="h-auto min-w-max justify-start gap-1 p-1"
+            >
               <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
                 <TabsTrigger value="security" className="min-h-11">Security &amp; Policies</TabsTrigger>
               </InfoTooltip>

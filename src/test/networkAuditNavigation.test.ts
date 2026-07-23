@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
+  isNetworkTab,
   parseNetworkAuditLocation,
   parseNetworkTab,
   updateNetworkAuditSearch,
 } from "@/lib/networkAuditNavigation";
 
 describe("network audit navigation", () => {
+  it("erkennt ausschließlich gültige Netzwerk-Tabs", () => {
+    expect([
+      "security",
+      "host",
+      "vlan",
+      "cdp",
+      "ipam",
+      "eramon-iface",
+      "eramon-l2",
+      "audit",
+    ].every(isNetworkTab)).toBe(true);
+    expect(["", "wrong", "AUDIT"].some(isNetworkTab)).toBe(false);
+  });
+
   it("uses the supplied tab fallback and the default audit location for empty search params", () => {
     const params = new URLSearchParams();
 

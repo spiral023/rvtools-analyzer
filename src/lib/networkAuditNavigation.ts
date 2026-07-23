@@ -19,9 +19,13 @@ function includes<T extends string>(values: readonly T[], value: string | null):
   return value !== null && values.includes(value as T);
 }
 
+export function isNetworkTab(value: string): value is NetworkTab {
+  return includes(NETWORK_TABS, value);
+}
+
 export function parseNetworkTab(params: URLSearchParams, fallback: NetworkTab): NetworkTab {
   const tab = params.get("tab");
-  return includes(NETWORK_TABS, tab) ? tab : fallback;
+  return tab !== null && isNetworkTab(tab) ? tab : fallback;
 }
 
 export function parseNetworkAuditLocation(params: URLSearchParams): {
