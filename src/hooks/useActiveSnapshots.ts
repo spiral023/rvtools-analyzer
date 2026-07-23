@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getAllTechInfoLatest, getAllTechInfoClientLatest, getAllCdpLatest, getAllIpamLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
 import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows } from "@/lib/networkAudit";
+import type { NetworkAuditSourceFacts } from "@/lib/networkAuditViewModel";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
@@ -288,13 +289,33 @@ export function useAllIpamLatest() {
   });
 }
 
+function getLatestImportedAt(rows: { importedAt: string }[]): string | null {
+  if (rows.length === 0) return null;
+  return rows.reduce(
+    (latest, row) => row.importedAt > latest ? row.importedAt : latest,
+    rows[0].importedAt,
+  );
+}
+
 export function useNetworkAudit() {
-  const { data: eramonIfaceRows = [], isLoading: eramonIfaceLoading } = useAllEramonIfaceLatest();
-  const { data: l2Rows = [], isLoading: l2Loading } = useAllEramonL2Latest();
-  const { data: cdpRows = [], isLoading: cdpLoading } = useAllCdpLatest();
-  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
-  const { data: techInfo = [], isLoading: techInfoLoading } = useAllTechInfoLatest();
-  const { data: ipam = [], isLoading: ipamLoading } = useAllIpamLatest();
+  const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
+  const eramonIfaceQuery = useAllEramonIfaceLatest();
+  const l2Query = useAllEramonL2Latest();
+  const cdpQuery = useAllCdpLatest();
+  const hostsQuery = useHosts();
+  const techInfoQuery = useAllTechInfoLatest();
+  const ipamQuery = useAllIpamLatest();
+
+  const { data: eramonIfaceRows = [], refetch: refetchEramonIface } = eramonIfaceQuery;
+  const { data: l2Rows = [], refetch: refetchL2 } = l2Query;
+  const { data: cdpRows = [], refetch: refetchCdp } = cdpQuery;
+  const { data: hosts = [], refetch: refetchHosts } = hostsQuery;
+  const { data: techInfo = [], refetch: refetchTechInfo } = techInfoQuery;
+  const { data: ipam = [], refetch: refetchIpam } = ipamQuery;
+  const activeSnapshots = useMemo(() => {
+    const activeSnapshotIdSet = new Set(activeSnapshotIds);
+    return snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId));
+  }, [activeSnapshotIds, snapshots]);
 
   const rows = useMemo(
     () => buildPortAuditRows({ eramonIfaceRows, cdpRows, hosts, techInfo, ipam }),
@@ -312,13 +333,43 @@ export function useNetworkAudit() {
     () => buildL2DiscoveryRows({ l2Rows, cdpRows, ipam }),
     [l2Rows, cdpRows, ipam],
   );
+  const sources = useMemo<NetworkAuditSourceFacts>(() => ({
+    rvtools: { count: hosts.length, importedAt: getLatestImportedAt(activeSnapshots) },
+    cdp: { count: cdpRows.length, importedAt: getLatestImportedAt(cdpRows) },
+    eramonIface: { count: eramonIfaceRows.length, importedAt: getLatestImportedAt(eramonIfaceRows) },
+    eramonL2: { count: l2Rows.length, importedAt: getLatestImportedAt(l2Rows) },
+    ipam: { count: ipam.length, importedAt: getLatestImportedAt(ipam) },
+    techInfo: { count: techInfo.length, importedAt: getLatestImportedAt(techInfo) },
+  }), [activeSnapshots, cdpRows, eramonIfaceRows, hosts.length, ipam, l2Rows, techInfo]);
+  const refetch = useCallback(async () => {
+    await Promise.all([
+      refetchEramonIface(),
+      refetchL2(),
+      refetchCdp(),
+      refetchHosts(),
+      refetchTechInfo(),
+      refetchIpam(),
+    ]);
+  }, [
+    refetchCdp,
+    refetchEramonIface,
+    refetchHosts,
+    refetchIpam,
+    refetchL2,
+    refetchTechInfo,
+  ]);
+  const queries = [eramonIfaceQuery, l2Query, cdpQuery, hostsQuery, techInfoQuery, ipamQuery];
 
   return {
     rows,
     hostQuality,
     cdpMacRows,
     l2DiscoveryRows,
-    isLoading: eramonIfaceLoading || l2Loading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
+    sources,
+    isLoading: queries.some((query) => query.isLoading),
+    isError: queries.some((query) => query.isError),
+    error: queries.find((query) => query.isError)?.error ?? null,
+    refetch,
   };
 }
 

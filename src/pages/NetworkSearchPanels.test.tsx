@@ -34,7 +34,18 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
       vlan: "100", mac: "aabb.ccdd.eeff", learnedIp: "10.0.0.20", dnsName: null,
       classification: "unknown", esxiHost: null,
     }] as L2DiscoveryRow[],
+    sources: {
+      rvtools: { count: 1, importedAt: "2026-07-01T08:00:00.000Z" },
+      cdp: { count: 1, importedAt: "2026-07-02T08:00:00.000Z" },
+      eramonIface: { count: 1, importedAt: "2026-07-03T08:00:00.000Z" },
+      eramonL2: { count: 1, importedAt: "2026-07-04T08:00:00.000Z" },
+      ipam: { count: 1, importedAt: "2026-07-05T08:00:00.000Z" },
+      techInfo: { count: 1, importedAt: "2026-07-06T08:00:00.000Z" },
+    },
     isLoading: false,
+    isError: false,
+    error: null as Error | null,
+    refetch: vi.fn(),
   }),
 }));
 
