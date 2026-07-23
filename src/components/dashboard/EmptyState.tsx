@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 
@@ -21,12 +21,10 @@ export function EmptyState({
   actionTo,
   children,
 }: EmptyStateProps) {
-  const navigate = useNavigate();
-
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-card/50 px-6 py-16 text-center animate-fade-in">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        {icon || <Upload className="h-6 w-6" />}
+        {icon || <Upload aria-hidden="true" className="h-6 w-6" />}
       </div>
       <h3 className="text-lg font-semibold">{title}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -35,7 +33,9 @@ export function EmptyState({
       {(actionLabel && actionTo) || children ? (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {actionLabel && actionTo && (
-            <Button onClick={() => navigate(actionTo)}>{actionLabel}</Button>
+            <Button asChild>
+              <Link to={actionTo}>{actionLabel}</Link>
+            </Button>
           )}
           {children}
         </div>

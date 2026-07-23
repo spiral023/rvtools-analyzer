@@ -948,7 +948,9 @@ describe("Network audit details", () => {
 
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     expect(screen.getByText(description)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Fehlende Daten importieren" }));
+    const importLink = screen.getByRole("link", { name: "Fehlende Daten importieren" });
+    expect(importLink).toHaveAttribute("href", "/upload");
+    fireEvent.click(importLink);
     expect(screen.getByText("Upload-Ziel")).toBeInTheDocument();
   });
 });
