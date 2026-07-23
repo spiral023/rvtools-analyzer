@@ -89,6 +89,21 @@ export const NET_IPAM_KPI: Record<string, GlossaryEntry> = {
 };
 
 export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
+  critical: {
+    term: "Kritische Befunde",
+    description: "Widersprüche zwischen Quellen, Statusangaben oder erwarteter und beobachteter Topologie.",
+    source: "Berechnet aus Netzwerk-Kontrolle",
+  },
+  review: {
+    term: "Zu prüfen",
+    description: "Unbekannte Zuordnungen, Datenlücken und fehlende Beobachtungen ohne direkten Quellenwiderspruch.",
+    source: "Berechnet aus Netzwerk-Kontrolle",
+  },
+  passed: {
+    term: "Bestanden",
+    description: "Prüfungen mit bestätigter Zuordnung und ohne erkannten Konflikt.",
+    source: "Berechnet aus Netzwerk-Kontrolle",
+  },
   totalPorts: {
     term: "Ports gesamt",
     description: "Alle Switch-Ports aus dem Eramon-Inventar, die in den Abgleich einfließen.",
