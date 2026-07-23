@@ -35,4 +35,15 @@ describe("network audit navigation", () => {
 
     expect(result.toString()).toBe("foo=bar&tab=audit&check=mac&scope=passed");
   });
+
+  it("updates only the supplied audit field without mutating the current params", () => {
+    const current = new URLSearchParams("foo=bar&tab=audit&check=mac&scope=attention");
+    const result = updateNetworkAuditSearch(current, { scope: "passed" });
+
+    expect(result.get("tab")).toBe("audit");
+    expect(result.get("check")).toBe("mac");
+    expect(result.get("foo")).toBe("bar");
+    expect(result.get("scope")).toBe("passed");
+    expect(current.toString()).toBe("foo=bar&tab=audit&check=mac&scope=attention");
+  });
 });
