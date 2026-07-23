@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { buildClusterDensityChart, buildClusterOverviewKpis, buildRiskChart, buildTopChartRows, buildVmDistributionChart, type ClusterOverviewRow } from "@/lib/clusterWorkspace";
+import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
 import type { ClusterOsDistributionRow, VmOsSource } from "@/lib/vmOsDistribution";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
@@ -53,7 +54,15 @@ const clusterColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
       return host ? `${count} (${host})` : count;
     },
   },
-  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => (getValue() as number).toLocaleString("de-DE", { maximumFractionDigits: 2 }) },
+  {
+    accessorKey: "vcpuPerCore",
+    header: "vCPU/Core",
+    meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcpuPerCore },
+    cell: ({ getValue }) => {
+      const value = getValue() as number;
+      return <span className={vcpuPerCoreSeverityClass(value)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}</span>;
+    },
+  },
   { accessorKey: "ramCommitPct", header: "RAM Commit", meta: { info: CLUSTER_OVERVIEW_COLUMNS.ramCommitPct }, cell: ({ getValue }) => formatPct(getValue() as number) },
   {
     accessorKey: "risk",
