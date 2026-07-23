@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteAllData, putSnapshot } from "@/data/db";
 import { FilterProvider } from "@/hooks/useFilterState";
@@ -90,6 +91,19 @@ function RouterHarness() {
       <output data-testid="location">{`${location.pathname}${location.search}`}</output>
       <button type="button" onClick={() => navigate(-1)}>Zurück</button>
       <button type="button" onClick={() => navigate(1)}>Vorwärts</button>
+    </>
+  );
+}
+
+function NetworkingRemountHarness() {
+  const [mounted, setMounted] = useState(true);
+
+  return (
+    <>
+      {mounted && <Networking />}
+      <RouterHarness />
+      <button type="button" onClick={() => setMounted(false)}>Networking unmounten</button>
+      <button type="button" onClick={() => setMounted(true)}>Networking remounten</button>
     </>
   );
 }
@@ -184,6 +198,34 @@ describe("Networking", () => {
     expect(screen.getByTestId("panel-security")).toBeInTheDocument();
   });
 
+  it("bewahrt vorhandene Prüfung, Scope und fremde Parameter bei äußeren Tabwechseln", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    renderNetworking(["/network-security?tab=security&check=mac&scope=all&foo=bar"]);
+
+    await screen.findByTestId("panel-security");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=security&check=mac&scope=all&foo=bar",
+    );
+
+    selectTab("Kontrolle");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+    );
+    expect(screen.getByTestId("panel-audit")).toBeInTheDocument();
+
+    selectTab("Host-Netzwerk");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=host&check=mac&scope=all&foo=bar",
+    );
+    expect(screen.getByTestId("panel-host")).toBeInTheDocument();
+
+    selectTab("Security & Policies");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=security&check=mac&scope=all&foo=bar",
+    );
+    expect(screen.getByTestId("panel-security")).toBeInTheDocument();
+  });
+
   it("restauriert den sichtbaren Haupttab über Browser Zurück und Vorwärts", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
     renderNetworking(["/network-security?tab=security&foo=bar"]);
@@ -212,22 +254,44 @@ describe("Networking", () => {
     });
   });
 
-  it("fällt bei ungültigem Tab auf initialTab zurück und bleibt nach Remount URL-gesteuert", async () => {
+  it("fällt bei ungültigem Tab auf initialTab zurück", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
-    const firstView = renderNetworking(["/host-network?tab=ungueltig"], "host");
+    renderNetworking(["/host-network?tab=ungueltig"], "host");
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-host")).toBeInTheDocument();
     });
     expect(screen.getByRole("tab", { name: "Host-Netzwerk" })).toHaveAttribute("data-state", "active");
+  });
 
-    firstView.unmount();
-    renderNetworking(["/network-security?tab=audit&check=mac&scope=all"]);
+  it("liest denselben Audit-Deep-Link nach Komponenten-Remount im bestehenden Router erneut", async () => {
+    render(
+      <Providers initialEntries={["/network-security?tab=audit&check=mac&scope=all&foo=bar"]}>
+        <NetworkingRemountHarness />
+      </Providers>,
+    );
+
+    await screen.findByTestId("panel-audit");
+    expect(screen.getByRole("tab", { name: "Kontrolle" })).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Networking unmounten" }));
+    expect(screen.queryByTestId("panel-audit")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Networking remounten" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-audit")).toBeInTheDocument();
     });
     expect(screen.getByRole("tab", { name: "Kontrolle" })).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+    );
   });
 
   it("erklärt alle Netzwerk-Tabs per Tooltip", async () => {
