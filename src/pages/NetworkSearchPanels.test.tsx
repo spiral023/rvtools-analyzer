@@ -804,7 +804,7 @@ describe("Network audit details", () => {
     {
       name: "Ports",
       totalCount: 7,
-      successText: "Keine Einträge in diesem Ergebnisfilter",
+      successText: "Keine offenen Port-Befunde",
       node: () => (
         <PortAuditDetail
           rows={portRows}
@@ -875,11 +875,29 @@ describe("Network audit details", () => {
     expect(screen.queryByText(successText)).not.toBeInTheDocument();
   });
 
+  it("zeigt bei null offenen Port-Befunden einen bestätigenden Erfolgszustand mit Anzahl", () => {
+    renderWithRouter(
+      <PortAuditDetail
+        rows={[portRows[5], portRows[6]]}
+        summary={readySummary("ports", { critical: 0, review: 0, passed: 2 })}
+        scope="attention"
+        search=""
+        {...sharedCallbacks}
+      />,
+    );
+
+    expect(screen.getByText("Keine offenen Port-Befunde")).toBeInTheDocument();
+    expect(
+      screen.getByText("2 auswertbare Ports wurden ohne offenen Befund bestätigt."),
+    ).toBeInTheDocument();
+  });
+
   it.each([
     {
       name: "Ports",
       title: "Switch-Port-Prüfung noch nicht möglich",
-      description: "Importieren Sie Eramon-Interface-Daten.",
+      description: "Für diese Prüfung fehlt Eramon Interface.",
+      actionLabel: "Eramon Interface importieren",
       node: () => (
         <PortAuditDetail
           rows={[]}
@@ -893,7 +911,8 @@ describe("Network audit details", () => {
     {
       name: "Hosts",
       title: "Host-Datenabgleich noch nicht möglich",
-      description: "Importieren Sie einen RVTools-Snapshot.",
+      description: "Für diese Prüfung fehlt RVTools.",
+      actionLabel: "RVTools importieren",
       node: () => (
         <HostDataAuditDetail
           rvtoolsRows={[]}
@@ -908,7 +927,8 @@ describe("Network audit details", () => {
     {
       name: "MAC",
       title: "MAC-Abgleich noch nicht möglich",
-      description: "Importieren Sie CDP- und Eramon-L2-Daten.",
+      description: "Für diese Prüfung fehlen CDP und Eramon L2.",
+      actionLabel: "CDP und Eramon L2 importieren",
       node: () => (
         <MacAuditDetail
           rows={[]}
@@ -922,7 +942,8 @@ describe("Network audit details", () => {
     {
       name: "Discovery",
       title: "Netz-Discovery noch nicht möglich",
-      description: "Importieren Sie Eramon-L2-Daten.",
+      description: "Für diese Prüfung fehlt Eramon L2.",
+      actionLabel: "Eramon L2 importieren",
       node: () => (
         <NetworkDiscoveryDetail
           rows={[]}
@@ -933,7 +954,12 @@ describe("Network audit details", () => {
         />
       ),
     },
-  ])("führt im nicht verfügbaren $name-Detail zum Import", ({ title, description, node }) => {
+  ])("führt im nicht verfügbaren $name-Detail zum Import", ({
+    title,
+    description,
+    actionLabel,
+    node,
+  }) => {
     render(
       <MemoryRouter
         initialEntries={["/network"]}
@@ -948,9 +974,36 @@ describe("Network audit details", () => {
 
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     expect(screen.getByText(description)).toBeInTheDocument();
-    const importLink = screen.getByRole("link", { name: "Fehlende Daten importieren" });
+    const importLink = screen.getByRole("link", { name: actionLabel });
     expect(importLink).toHaveAttribute("href", "/upload");
     fireEvent.click(importLink);
     expect(screen.getByText("Upload-Ziel")).toBeInTheDocument();
+  });
+
+  it.each([
+    { missingRequired: ["cdp"] as const, label: "CDP" },
+    { missingRequired: ["eramonL2"] as const, label: "Eramon L2" },
+  ])("nennt im MAC-Detail nur die tatsächlich fehlende Einzelquelle $label", ({
+    missingRequired,
+    label,
+  }) => {
+    renderWithRouter(
+      <MacAuditDetail
+        rows={[]}
+        summary={{
+          ...unavailableSummary("mac"),
+          missingRequired: [...missingRequired],
+        }}
+        scope="attention"
+        search=""
+        {...sharedCallbacks}
+      />,
+    );
+
+    expect(screen.getByText(`Für diese Prüfung fehlt ${label}.`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: `${label} importieren` })).toHaveAttribute(
+      "href",
+      "/upload",
+    );
   });
 });

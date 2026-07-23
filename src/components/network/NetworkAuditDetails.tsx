@@ -13,6 +13,10 @@ import {
 } from "@/lib/glossaries/networking";
 import { formatBandwidth } from "@/lib/eramon";
 import { shortHostname } from "@/lib/networkAudit";
+import {
+  formatNetworkAuditSourceList,
+  getNetworkAuditImportLabel,
+} from "@/lib/networkAuditLabels";
 import type {
   CdpMacRow,
   L2Classification,
@@ -185,13 +189,21 @@ function filterByScope<T>(
   });
 }
 
-function unavailableState(title: string, description: string) {
+function unavailableState(
+  title: string,
+  summary: NetworkAuditCheckSummary,
+) {
+  const sourceList = formatNetworkAuditSourceList(summary.missingRequired);
+  const description = summary.missingRequired.length === 1
+    ? `Für diese Prüfung fehlt ${sourceList}.`
+    : `Für diese Prüfung fehlen ${sourceList}.`;
+
   return (
     <EmptyState
       icon={<Database aria-hidden="true" className="h-6 w-6" />}
       title={title}
       description={description}
-      actionLabel="Fehlende Daten importieren"
+      actionLabel={getNetworkAuditImportLabel(summary.missingRequired)}
       actionTo="/upload"
     />
   );
@@ -217,7 +229,7 @@ export function PortAuditDetail({
   if (summary.readiness === "unavailable") {
     return unavailableState(
       "Switch-Port-Prüfung noch nicht möglich",
-      "Importieren Sie Eramon-Interface-Daten.",
+      summary,
     );
   }
 
@@ -239,10 +251,18 @@ export function PortAuditDetail({
         globalFilter={search}
         height={500}
         exportFileName="network-audit"
-        emptyTitle={search ? "Keine passenden Einträge" : "Keine Einträge in diesem Ergebnisfilter"}
+        emptyTitle={search
+          ? "Keine passenden Einträge"
+          : scope === "attention" && visibleRows.length === 0
+            ? "Keine offenen Port-Befunde"
+            : "Keine Einträge in diesem Ergebnisfilter"}
         emptyDescription={search
           ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
-          : "Wählen Sie einen anderen Ergebnisfilter."}
+          : scope === "attention" && visibleRows.length === 0
+            ? rows.length === 1
+              ? "1 auswertbarer Port wurde ohne offenen Befund bestätigt."
+              : `${rows.length.toLocaleString("de-DE")} auswertbare Ports wurden ohne offenen Befund bestätigt.`
+            : "Wählen Sie einen anderen Ergebnisfilter."}
       />
     </AuditDetailView>
   );
@@ -311,7 +331,7 @@ export function HostDataAuditDetail({
   if (summary.readiness === "unavailable") {
     return unavailableState(
       "Host-Datenabgleich noch nicht möglich",
-      "Importieren Sie einen RVTools-Snapshot.",
+      summary,
     );
   }
 
@@ -435,7 +455,7 @@ export function MacAuditDetail({
   if (summary.readiness === "unavailable") {
     return unavailableState(
       "MAC-Abgleich noch nicht möglich",
-      "Importieren Sie CDP- und Eramon-L2-Daten.",
+      summary,
     );
   }
 
@@ -490,7 +510,7 @@ export function NetworkDiscoveryDetail({
   if (summary.readiness === "unavailable") {
     return unavailableState(
       "Netz-Discovery noch nicht möglich",
-      "Importieren Sie Eramon-L2-Daten.",
+      summary,
     );
   }
 
