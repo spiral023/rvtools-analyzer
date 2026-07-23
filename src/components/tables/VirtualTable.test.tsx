@@ -16,6 +16,33 @@ const columns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 describe("VirtualTable", () => {
+  it("zeigt benutzerdefinierte Empty-State-Texte nach einer Filterung ohne Treffer", () => {
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={columns}
+        globalFilter="kein Treffer"
+        emptyTitle="Keine Netzwerkadapter gefunden"
+        emptyDescription="Passe den Filter an oder prüfe den Snapshot."
+      />,
+    );
+
+    expect(screen.getByText("Keine Netzwerkadapter gefunden")).toBeInTheDocument();
+    expect(screen.getByText("Passe den Filter an oder prüfe den Snapshot.")).toBeInTheDocument();
+  });
+
+  it("zeigt den Standardtitel ohne optionale Beschreibung", () => {
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={columns}
+        globalFilter="kein Treffer"
+      />,
+    );
+
+    expect(screen.getByText("Keine Einträge")).toBeInTheDocument();
+  });
+
   it("findet Werte in einer optionalen Spalte, wenn die erste Zeile leer ist", () => {
     render(
       <VirtualTable

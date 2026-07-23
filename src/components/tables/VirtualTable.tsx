@@ -40,6 +40,8 @@ interface VirtualTableProps<T, TColumn = T> {
   selectedKeys?: Set<string>;
   onToggleRow?: (vmKey: string, shiftKey: boolean, sortedKeys: string[], index: number) => void;
   onToggleAll?: (selectAll: boolean) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 const ROW_HEIGHT = 36;
@@ -66,6 +68,8 @@ export function VirtualTable<T, TColumn = T>({
   selectedKeys,
   onToggleRow,
   onToggleAll,
+  emptyTitle = "Keine Einträge",
+  emptyDescription,
 }: VirtualTableProps<T, TColumn>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -133,7 +137,7 @@ export function VirtualTable<T, TColumn = T>({
   });
 
   // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
-  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT + (hasFooter ? ROW_HEIGHT : 0);
+  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT + (hasFooter ? ROW_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
   const effectiveHeight = Math.min(height, contentHeight);
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -216,6 +220,16 @@ export function VirtualTable<T, TColumn = T>({
             ))}
           </thead>
           <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-10 text-center">
+                  <p className="text-sm font-semibold">{emptyTitle}</p>
+                  {emptyDescription && (
+                    <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
+                  )}
+                </td>
+              </tr>
+            )}
             {paddingTop > 0 && (
               <tr>
                 <td
