@@ -78,6 +78,7 @@ export function VirtualTable<T, TColumn = T>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getColumnCanGlobalFilter: (column) => Boolean(column.accessorFn),
   });
 
   const { rows } = table.getRowModel();
