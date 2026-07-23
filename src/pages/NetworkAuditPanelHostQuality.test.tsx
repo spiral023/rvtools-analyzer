@@ -7,7 +7,7 @@ import type { RvtoolsHostQualityRow, TechInfoHostQualityRow } from "@/lib/hostDa
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ filters: { search: "" } }),
   useNetworkAudit: () => ({
-    rows: [{ switchInterfaceKey: "sw01::eth1/1", switchHostname: "sw01", interface: "Eth1/1", description: null, status: "connected", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp", labelConflict: false, labelConflictHost: null, statusConflict: false, sources: ["cisco"], bandwidthBps: null, sourceConflict: false, finding: null }] as PortAuditRow[],
+    rows: [{ switchInterfaceKey: "sw01::eth1/1", switchHostname: "sw01", interface: "Eth1/1", description: null, status: "aktiv", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp", labelConflict: false, labelConflictHost: null, statusConflict: false, bandwidthBps: null, finding: null }] as PortAuditRow[],
     hostQuality: {
       rvtoolsRows: [{ host: "esx02.lab.local", cluster: "Prod", version: "8.0", connectionState: "Connected", techInfoPresent: false, techInfoServerType: null, techInfoDepartment: null, ipamPresent: false, ipamAddresses: [], ipamNetworks: [], finding: "Tech-Info fehlt · IPAM fehlt" }] as RvtoolsHostQualityRow[],
       techInfoRows: [{ techInfoName: "esx03.lab.local", serverType: "ESXi", department: "Platform", maintenanceWindow: null, rvtoolsPresent: false, rvtoolsHost: null, rvtoolsCluster: null, ipamPresent: true, ipamAddresses: ["10.10.20.3"], ipamNetworks: ["10.10.20.0/24"], finding: "RVTools-Host fehlt" }] as TechInfoHostQualityRow[],

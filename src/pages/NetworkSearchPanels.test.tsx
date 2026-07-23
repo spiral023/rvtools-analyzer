@@ -2,22 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { NetworkAuditPanel } from "./NetworkAuditPanel";
 import { IpamPanel } from "./IpamPanel";
-import { SwitchPanel } from "./SwitchPanel";
-import type { SwitchLatest, IpamLatest } from "@/domain/models/types";
+import type { IpamLatest } from "@/domain/models/types";
 import type { CdpMacRow, L2DiscoveryRow, PortAuditRow } from "@/lib/networkAudit";
 
 const search = "core-01";
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ filters: { search } }),
-  useAllSwitchLatest: () => ({
-    data: [{
-      switchInterfaceKey: "core-01::eth1/1", hostnameNorm: "core-01", hostname: "core-01", interface: "Eth1/1",
-      importedAt: "2026-07-15T00:00:00.000Z", switchImportId: "switch-1", rowIndex: 0,
-      description: "Uplink", status: "connected", mode: "trunk", duplex: "full", speed: "10G", transceiver: null,
-    }] as SwitchLatest[],
-    isLoading: false,
-  }),
   useAllIpamLatest: () => ({
     data: [{
       ipAddress: "10.0.0.10", name: "core-01", status: "Used", type: null, usage: null,
@@ -29,9 +20,9 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useNetworkAudit: () => ({
     rows: [{
       switchInterfaceKey: "core-01::eth1/1", switchHostname: "core-01", interface: "Eth1/1", description: "Uplink",
-      status: "connected", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp",
+      status: "aktiv", matchStatus: "confirmed-cdp", matchedHost: "esx01", matchedSource: "cdp",
       labelConflict: false, labelConflictHost: null, statusConflict: false,
-      sources: ["cisco"], bandwidthBps: null, sourceConflict: false, finding: null,
+      bandwidthBps: null, finding: null,
     }] as PortAuditRow[],
     cdpMacRows: [{
       host: "esx01", adapter: "vmnic0", mac: "00:50:56:ab:cd:ef", macCanonical: "005056abcdef",
@@ -59,7 +50,6 @@ vi.mock("@/components/ui/info-tooltip", () => ({
 
 describe("Network search", () => {
   it.each([
-    ["Cisco Switch", SwitchPanel, "cisco-switch-ports"],
     ["IPAM", IpamPanel, "ipam"],
     ["Kontrolle", NetworkAuditPanel, "network-audit"],
   ])("übergibt die globale Suche an die %s-Tabelle", (_name, Panel, exportFileName) => {

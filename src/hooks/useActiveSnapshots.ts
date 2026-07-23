@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllSwitchLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getTechInfoLatestByVmNames, getAllTechInfoLatest, getAllTechInfoClientLatest, getTechInfoClientLatestByClientNames, getAllCdpLatest, getAllIpamLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
 import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows } from "@/lib/networkAudit";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
@@ -259,16 +259,7 @@ export function useAllIpamLatest() {
   });
 }
 
-export function useAllSwitchLatest() {
-  return useQuery({
-    queryKey: ["switchLatestAll"],
-    queryFn: getAllSwitchLatest,
-    staleTime: STALE_MS,
-  });
-}
-
 export function useNetworkAudit() {
-  const { data: switchRows = [], isLoading: switchLoading } = useAllSwitchLatest();
   const { data: eramonIfaceRows = [], isLoading: eramonIfaceLoading } = useAllEramonIfaceLatest();
   const { data: l2Rows = [], isLoading: l2Loading } = useAllEramonL2Latest();
   const { data: cdpRows = [], isLoading: cdpLoading } = useAllCdpLatest();
@@ -277,8 +268,8 @@ export function useNetworkAudit() {
   const { data: ipam = [], isLoading: ipamLoading } = useAllIpamLatest();
 
   const rows = useMemo(
-    () => buildPortAuditRows({ switchRows, eramonIfaceRows, cdpRows, hosts, techInfo, ipam }),
-    [switchRows, eramonIfaceRows, cdpRows, hosts, techInfo, ipam],
+    () => buildPortAuditRows({ eramonIfaceRows, cdpRows, hosts, techInfo, ipam }),
+    [eramonIfaceRows, cdpRows, hosts, techInfo, ipam],
   );
   const hostQuality = useMemo(
     () => buildHostDataQualityRows({ hosts, techInfo, ipam }),
@@ -298,7 +289,7 @@ export function useNetworkAudit() {
     hostQuality,
     cdpMacRows,
     l2DiscoveryRows,
-    isLoading: switchLoading || eramonIfaceLoading || l2Loading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
+    isLoading: eramonIfaceLoading || l2Loading || cdpLoading || hostsLoading || techInfoLoading || ipamLoading,
   };
 }
 

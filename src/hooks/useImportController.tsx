@@ -42,10 +42,8 @@ export function isSupportedImportFile(file: File): boolean {
     name.endsWith(".xlsx") ||
     name.endsWith(".xls") ||
     name.endsWith(".csv") ||
-    name.endsWith(".txt") ||
     file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    file.type === "text/csv" ||
-    file.type === "text/plain"
+    file.type === "text/csv"
   );
 }
 
@@ -54,7 +52,6 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "tech-info-client") return "Tech-Info Client";
   if (kind === "cdp") return "CDP-Netzwerkdaten";
   if (kind === "ipam") return "IPAM-Netzwerkdaten";
-  if (kind === "switch") return "Cisco-Switch-Daten";
   if (kind === "eramon-iface") return "Eramon Switch-Ports";
   if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
   return "RVTools";

@@ -82,7 +82,6 @@ describe("Networking", () => {
       expect(screen.getByTestId("tooltip-vlan-nutzung")).toHaveAttribute("data-tooltip-term", "VLAN-Nutzung");
       expect(screen.getByTestId("tooltip-cdp-switch-ports")).toHaveAttribute("data-tooltip-term", "CDP/Switch-Ports");
       expect(screen.getByTestId("tooltip-ipam")).toHaveAttribute("data-tooltip-term", "IPAM");
-      expect(screen.getByTestId("tooltip-cisco-switch")).toHaveAttribute("data-tooltip-term", "Cisco Switch");
       expect(screen.getByTestId("tooltip-kontrolle")).toHaveAttribute("data-tooltip-term", "Kontrolle");
     });
   });

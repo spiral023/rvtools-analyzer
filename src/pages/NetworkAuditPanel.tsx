@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ListChecks, CheckCircle2, Archive, HelpCircle, AlertTriangle, Tag, Database, Server, Network, Radar } from "lucide-react";
+import { ListChecks, CheckCircle2, Archive, HelpCircle, AlertTriangle, Tag, Database, Server, Radar } from "lucide-react";
 import { useActiveSnapshotIds, useNetworkAudit } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -45,13 +45,7 @@ function matchStatusBadge(status: PortMatchStatus) {
   return <Badge variant="secondary">{label}</Badge>;
 }
 
-function sourceBadge(sources: ("cisco" | "eramon")[]) {
-  const label = sources.length > 1 ? "beide" : sources[0] === "cisco" ? "Cisco" : "Eramon";
-  return <Badge variant="outline">{label}</Badge>;
-}
-
 function isNotable(row: PortAuditRow): boolean {
-  if (row.sourceConflict) return true;
   if (row.matchStatus === "no-target") return false;
   if (row.matchStatus === "confirmed-cdp" && !row.labelConflict && !row.statusConflict) return false;
   return true;
@@ -82,13 +76,6 @@ const columns: ColumnDef<PortAuditRow, unknown>[] = [
       const bps = row.original.bandwidthBps;
       return <span title={bps != null ? `${bps} bit/s` : undefined}>{formatBandwidth(bps)}</span>;
     },
-  },
-  {
-    id: "source",
-    header: "Quelle",
-    meta: { info: NET_AUDIT_COLUMNS.source },
-    accessorFn: (row) => row.sources.join("+"),
-    cell: ({ row }) => sourceBadge(row.original.sources),
   },
   {
     id: "matchStatus",
@@ -202,8 +189,6 @@ export function NetworkAuditPanel() {
   const unknownCount = useMemo(() => allRows.filter((r) => r.matchStatus === "unknown").length, [allRows]);
   const statusConflictCount = useMemo(() => allRows.filter((r) => r.statusConflict).length, [allRows]);
   const labelConflictCount = useMemo(() => allRows.filter((r) => r.labelConflict).length, [allRows]);
-  const onlyEramonCount = useMemo(() => allRows.filter((row) => row.sources.length === 1 && row.sources[0] === "eramon").length, [allRows]);
-  const sourceConflictCount = useMemo(() => allRows.filter((row) => row.sourceConflict).length, [allRows]);
 
   if (isLoading) return <PanelLoadingState />;
 
@@ -212,7 +197,7 @@ export function NetworkAuditPanel() {
       <EmptyState
         icon={<ListChecks className="h-6 w-6" />}
         title="Keine Daten für die Kontrolle"
-        description="Laden Sie eine Cisco-Switch-TXT oder Eramon-Exporte auf der Upload-Seite hoch, um Switch-Ports gegen CDP-, RVTools-, TechInfo-, IPAM- und Eramon-Daten abzugleichen."
+        description="Laden Sie Eramon-Exporte auf der Upload-Seite hoch, um Switch-Ports gegen CDP-, RVTools-, TechInfo- und IPAM-Daten abzugleichen."
         actionLabel="Zum Upload"
         actionTo="/upload"
       />
@@ -228,8 +213,6 @@ export function NetworkAuditPanel() {
         <KpiCard title="Unbekannt" value={formatNum(unknownCount)} severity={unknownCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_AUDIT_KPI.unknown} />
         <KpiCard title="Status-Konflikte" value={formatNum(statusConflictCount)} severity={statusConflictCount > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_AUDIT_KPI.statusConflicts} />
         <KpiCard title="Beschriftungs-Konflikte" value={formatNum(labelConflictCount)} severity={labelConflictCount > 0 ? "warn" : "ok"} icon={<Tag className="h-4 w-4" />} info={NET_AUDIT_KPI.labelConflicts} />
-        <KpiCard title="Nur in Eramon" value={formatNum(onlyEramonCount)} icon={<Network className="h-4 w-4" />} info={NET_AUDIT_KPI.onlyEramon} />
-        <KpiCard title="Quellen-Konflikte" value={formatNum(sourceConflictCount)} severity={sourceConflictCount > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_AUDIT_KPI.sourceConflicts} />
       </KpiGrid>
 
       <div>

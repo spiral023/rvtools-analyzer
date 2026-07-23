@@ -24,8 +24,8 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
 });
 
-describe("v19 upgrade migration", () => {
-  it("preserves user data and creates an empty maintenance-window store when upgrading v19 to v20", async () => {
+describe("IndexedDB-Migration", () => {
+  it("preserves user data and creates an empty maintenance-window store when upgrading v19", async () => {
     const { openDB } = await import("idb");
     const legacyDb = await openDB("rvtools-analyzer", 19, {
       upgrade(db) {
@@ -56,11 +56,31 @@ describe("v19 upgrade migration", () => {
     const { getDb, getMaintenanceWindows } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(24);
+    expect(db.version).toBe(25);
     expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
     await expect(db.getAll("techinfo_latest")).resolves.toHaveLength(1);
     await expect(db.getAll("scenarios")).resolves.toHaveLength(1);
     await expect(getMaintenanceWindows()).resolves.toEqual([]);
+  });
+
+  it("entfernt die alten Cisco-TXT-Stores beim Upgrade von Version 24", async () => {
+    const { openDB } = await import("idb");
+    const legacyDb = await openDB("rvtools-analyzer", 24, {
+      upgrade(db) {
+        db.createObjectStore("switch_imports", { keyPath: "switchImportId" });
+        db.createObjectStore("switch_rows", { keyPath: ["switchImportId", "rowIndex"] });
+        db.createObjectStore("switch_latest", { keyPath: "switchInterfaceKey" });
+      },
+    });
+    legacyDb.close();
+
+    const { getDb } = await import("./index");
+    const db = await getDb();
+
+    expect(db.version).toBe(25);
+    expect(db.objectStoreNames.contains("switch_imports")).toBe(false);
+    expect(db.objectStoreNames.contains("switch_rows")).toBe(false);
+    expect(db.objectStoreNames.contains("switch_latest")).toBe(false);
   });
 
   it("clears RVTools stores and drops legacy raw-sheet stores while preserving CDP data when upgrading from a v18 database", async () => {

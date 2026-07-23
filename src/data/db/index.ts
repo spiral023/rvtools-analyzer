@@ -23,9 +23,6 @@ import type {
   IpamImportMeta,
   IpamRow,
   IpamLatest,
-  SwitchImportMeta,
-  SwitchRow,
-  SwitchLatest,
   EramonIfaceImportMeta,
   EramonIfaceRow,
   EramonIfaceLatest,
@@ -38,7 +35,7 @@ import type {
   Scenario,
   VCenterGroup,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapSwitchDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
@@ -124,21 +121,6 @@ interface RVToolsDBSchema extends DBSchema {
     value: IpamLatest;
     indexes: { ipAddress: string };
   };
-  switch_imports: {
-    key: string;
-    value: SwitchImportMeta;
-    indexes: { fileChecksum: string; importedAt: string };
-  };
-  switch_rows: {
-    key: [string, number];
-    value: SwitchRow;
-    indexes: { switchImportId: string; switchInterfaceKey: string };
-  };
-  switch_latest: {
-    key: string;
-    value: SwitchLatest;
-    indexes: { hostnameNorm: string };
-  };
   eramon_iface_imports: {
     key: string;
     value: EramonIfaceImportMeta;
@@ -202,7 +184,6 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "techinfo_client_imports" | "techinfo_client_rows" | "techinfo_client_latest"
   | "cdp_imports" | "cdp_rows" | "cdp_latest"
   | "ipam_imports" | "ipam_rows" | "ipam_latest"
-  | "switch_imports" | "switch_rows" | "switch_latest"
   | "eramon_iface_imports" | "eramon_iface_rows" | "eramon_iface_latest"
   | "eramon_l2_imports" | "eramon_l2_rows" | "eramon_l2_latest"
   | "maintenance_settings"
@@ -211,7 +192,7 @@ type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 24;
+const DB_VERSION = 25;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -220,7 +201,6 @@ const ALL_STORES: StoreName[] = [
   "techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest",
   "cdp_imports", "cdp_rows", "cdp_latest",
   "ipam_imports", "ipam_rows", "ipam_latest",
-  "switch_imports", "switch_rows", "switch_latest",
   "eramon_iface_imports", "eramon_iface_rows", "eramon_iface_latest",
   "eramon_l2_imports", "eramon_l2_rows", "eramon_l2_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
@@ -352,21 +332,6 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const latest = db.createObjectStore("ipam_latest", { keyPath: "ipAddress" });
           latest.createIndex("ipAddress", "ipAddress");
         }
-        // v22: Cisco-Switch-Daten (TXT-Import) — Muster wie CDP.
-        if (!db.objectStoreNames.contains("switch_imports")) {
-          const imports = db.createObjectStore("switch_imports", { keyPath: "switchImportId" });
-          imports.createIndex("fileChecksum", "fileChecksum");
-          imports.createIndex("importedAt", "importedAt");
-        }
-        if (!db.objectStoreNames.contains("switch_rows")) {
-          const rows = db.createObjectStore("switch_rows", { keyPath: ["switchImportId", "rowIndex"] });
-          rows.createIndex("switchImportId", "switchImportId");
-          rows.createIndex("switchInterfaceKey", "switchInterfaceKey");
-        }
-        if (!db.objectStoreNames.contains("switch_latest")) {
-          const latest = db.createObjectStore("switch_latest", { keyPath: "switchInterfaceKey" });
-          latest.createIndex("hostnameNorm", "hostnameNorm");
-        }
         // v24: Eramon-Netzwerkdaten (CSV-Import) — Muster wie CDP.
         if (!db.objectStoreNames.contains("eramon_iface_imports")) {
           const imports = db.createObjectStore("eramon_iface_imports", { keyPath: "ifaceImportId" });
@@ -416,6 +381,12 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         if (!db.objectStoreNames.contains("vcenter_groups")) {
           const groups = db.createObjectStore("vcenter_groups", { keyPath: "id" });
           groups.createIndex("updatedAt", "updatedAt");
+        }
+        // v25: Cisco-TXT-Import wird vollständig durch Eramon-Exporte ersetzt.
+        if (oldVersion < 25) {
+          for (const storeName of ["switch_imports", "switch_rows", "switch_latest"]) {
+            if (db.objectStoreNames.contains(storeName)) db.deleteObjectStore(storeName);
+          }
         }
       },
     });
@@ -1023,42 +994,6 @@ export async function getIpamLatestByIpAddresses(ips: string[]): Promise<IpamLat
   return values.filter((v): v is IpamLatest => Boolean(v));
 }
 
-export async function getSwitchImportByChecksum(checksum: string): Promise<SwitchImportMeta | undefined> {
-  const db = await getDb();
-  return db.getFromIndex("switch_imports", "fileChecksum", checksum);
-}
-
-export async function getSwitchImports(): Promise<SwitchImportMeta[]> {
-  const db = await getDb();
-  const imports = await db.getAll("switch_imports");
-  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
-}
-
-export async function putSwitchImport(meta: SwitchImportMeta): Promise<void> {
-  const db = await getDb();
-  await db.put("switch_imports", meta);
-}
-
-export async function batchPutSwitchRows(items: SwitchRow[], batchSize = 5000): Promise<void> {
-  await batchPut("switch_rows", items, batchSize);
-}
-
-export async function batchPutSwitchLatest(items: SwitchLatest[], batchSize = 5000): Promise<void> {
-  await batchPut("switch_latest", items, batchSize);
-}
-
-export async function getAllSwitchLatest(): Promise<SwitchLatest[]> {
-  const db = await getDb();
-  return db.getAll("switch_latest");
-}
-
-export async function getSwitchLatestBySwitchInterfaceKeys(keys: string[]): Promise<SwitchLatest[]> {
-  if (keys.length === 0) return [];
-  const db = await getDb();
-  const values = await Promise.all([...new Set(keys)].map((key) => db.get("switch_latest", key)));
-  return values.filter((v): v is SwitchLatest => Boolean(v));
-}
-
 /* ---------- diagnostics ---------- */
 
 /**
@@ -1139,8 +1074,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows" | "eramon_iface_rows" | "eramon_l2_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "switchImportId" | "ifaceImportId" | "l2ImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "ifaceImportId" | "l2ImportId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -1234,17 +1169,6 @@ export async function estimateEramonL2ImportSizesBytes(importIds: string[]): Pro
   return Object.fromEntries(entries);
 }
 
-/** Geschätzte IndexedDB-Größe je Switch-Import. */
-export async function estimateSwitchImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
-  if (importIds.length === 0) return {};
-  const db = await getDb();
-  const entries = await Promise.all(importIds.map(async (id) => [
-    id,
-    await estimateSizeByIndex(db, "switch_rows", "switchImportId", id),
-  ] as const));
-  return Object.fromEntries(entries);
-}
-
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -1296,9 +1220,6 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   ipam_imports: "IPAM Importe",
   ipam_rows: "IPAM Zeilen",
   ipam_latest: "IPAM Latest",
-  switch_imports: "Switch Importe",
-  switch_rows: "Switch Zeilen",
-  switch_latest: "Switch Latest",
   eramon_iface_imports: "Eramon Switch-Port Importe",
   eramon_iface_rows: "Eramon Switch-Port Zeilen",
   eramon_iface_latest: "Eramon Switch-Port Latest",
@@ -1330,7 +1251,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "switch_rows" | "eramon_iface_rows" | "eramon_l2_rows",
+  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -1678,46 +1599,4 @@ export async function deleteIpamImport(ipamImportId: string): Promise<void> {
   await db.delete("ipam_imports", ipamImportId);
   await deleteByKeyPrefix("ipam_rows", ipamImportId);
   await Promise.all([...affectedIps].map((ip) => rebuildIpamLatestForIp(ip)));
-}
-
-function buildSwitchLatestFromRow(row: SwitchRow): SwitchLatest {
-  return {
-    switchInterfaceKey: row.switchInterfaceKey,
-    hostnameNorm: row.hostnameNorm,
-    hostname: row.hostname,
-    interface: row.interface,
-    importedAt: row.importedAt,
-    switchImportId: row.switchImportId,
-    rowIndex: row.rowIndex,
-    ...mapSwitchDisplayFields(row.rawData),
-  };
-}
-
-async function rebuildSwitchLatestForKey(switchInterfaceKey: string): Promise<void> {
-  const db = await getDb();
-  const rows = await db.getAllFromIndex("switch_rows", "switchInterfaceKey", switchInterfaceKey);
-  const latestRow = rows.reduce<SwitchRow | null>((latest, row) => {
-    if (!latest || isTechInfoNewerOrEqual(row.importedAt, latest.importedAt)) return row;
-    return latest;
-  }, null);
-
-  if (!latestRow) {
-    await db.delete("switch_latest", switchInterfaceKey);
-    return;
-  }
-
-  await db.put("switch_latest", buildSwitchLatestFromRow(latestRow));
-}
-
-export async function deleteSwitchImport(switchImportId: string): Promise<void> {
-  const db = await getDb();
-  const rows = await db.getAllFromIndex("switch_rows", "switchImportId", switchImportId);
-  const affectedKeys = new Set<string>();
-  for (const row of rows) {
-    if (row.switchInterfaceKey) affectedKeys.add(row.switchInterfaceKey);
-  }
-
-  await db.delete("switch_imports", switchImportId);
-  await deleteByKeyPrefix("switch_rows", switchImportId);
-  await Promise.all([...affectedKeys].map((key) => rebuildSwitchLatestForKey(key)));
 }

@@ -41,7 +41,7 @@ describe("UploadSnapshots", () => {
       </QueryClientProvider>,
     );
     const input = screen.getByLabelText(
-      /RVTools, Tech-Info, CDP-, IPAM-, Eramon- oder Switch-Datei/i,
+      /RVTools, Tech-Info, CDP-, IPAM- oder Eramon-Datei/i,
     );
     const files = [new File(["a"], "a.xlsx"), new File(["b"], "b.xlsx")];
 

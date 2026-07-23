@@ -52,17 +52,11 @@ export const NET_NETWORK_TABS: Record<string, GlossaryEntry> = {
       "IP-Adressinventar aus dem Infoblox-Export: Belegungsstatus, DNS-Namen, Discovery-Daten und technische Merkmale je Adresse.",
     source: "IPAM-CSV (Infoblox-Export)",
   },
-  ciscoSwitch: {
-    term: "Cisco Switch",
-    description:
-      "Interface-Inventar aus Cisco-Switch-Ausgaben: Port-Status, Beschreibung, Geschwindigkeit, Duplex und Transceiver je Switch-Port.",
-    source: "Cisco-Switch-TXT",
-  },
   audit: {
     term: "Kontrolle",
     description:
-      "Gleicht Cisco-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Zeigt bestätigte Zuordnungen sowie fehlende oder widersprüchliche Angaben.",
-    source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info · IPAM",
+      "Gleicht Eramon-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Zeigt bestätigte Zuordnungen sowie fehlende oder widersprüchliche Angaben.",
+    source: "Eramon · CDP-CSV · RVTools · Tech-Info · IPAM",
   },
 };
 
@@ -97,78 +91,34 @@ export const NET_IPAM_KPI: Record<string, GlossaryEntry> = {
 export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
   totalPorts: {
     term: "Ports gesamt",
-    description: "Alle Switch-Ports aus Cisco-TXT und Eramon-Inventar, die in den Abgleich einfließen.",
-    source: "Cisco-Switch-TXT · Eramon",
+    description: "Alle Switch-Ports aus dem Eramon-Inventar, die in den Abgleich einfließen.",
+    source: "Eramon",
   },
   cdpConfirmed: {
     term: "CDP-bestätigt",
     description: "Switch-Ports, deren Gegenstelle über CDP eindeutig einem ESXi-Host zugeordnet wurde.",
-    source: "Cisco-Switch-TXT · CDP-CSV",
+    source: "Eramon · CDP-CSV",
   },
   documentedOnly: {
     term: "Nur dokumentiert",
     description: "Zuordnungen, die sich aus der Port-Beschriftung oder Dokumentation ergeben, aber nicht durch CDP bestätigt sind.",
-    source: "Cisco-Switch-TXT · RVTools · Tech-Info",
+    source: "Eramon · RVTools · Tech-Info",
   },
   unknown: {
     term: "Unbekannt",
     description: "Ports ohne belastbare Zuordnung zu einem System. Prüfe Beschreibung, CDP und die physischen Anschlüsse.",
-    source: "Cisco-Switch-TXT · CDP-CSV · RVTools",
+    source: "Eramon · CDP-CSV · RVTools",
   },
   statusConflicts: {
     term: "Status-Konflikte",
     description: "Ports mit widersprüchlichen Statusinformationen zwischen Switch-Daten und den verknüpften Quellen.",
-    source: "Cisco-Switch-TXT · CDP-CSV · RVTools",
+    source: "Eramon · CDP-CSV · RVTools",
   },
   labelConflicts: {
     term: "Beschriftungs-Konflikte",
     description: "Ports, deren Beschriftung nicht zur ermittelten Gegenstelle passt. Das ist ein Hinweis auf veraltete oder falsche Dokumentation.",
-    source: "Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info",
+    source: "Eramon · CDP-CSV · RVTools · Tech-Info",
   },
-  onlyEramon: {
-    term: "Nur in Eramon",
-    description: "Ports, die ausschließlich im Eramon-Inventar vorkommen und keinen Cisco-TXT-Eintrag haben.",
-    source: "Eramon",
-  },
-  sourceConflicts: {
-    term: "Quellen-Konflikte",
-    description: "Ports, bei denen sich Cisco- und Eramon-Sicht in Beschreibung oder Status widersprechen.",
-    source: "Cisco-Switch-TXT · Eramon",
-  },
-};
-
-export const NET_SWITCH_KPI: Record<string, GlossaryEntry> = {
-  switches: {
-    term: "Switches",
-    description: "Anzahl unterschiedlicher Switches im importierten Cisco-Interface-Inventar.",
-    source: "Cisco-Switch-TXT",
-  },
-  interfaces: {
-    term: "Interfaces gesamt",
-    description: "Alle erfassten Cisco-Switch-Interfaces über die importierten Switches.",
-    source: "Cisco-Switch-TXT",
-  },
-  connected: {
-    term: "Verbundene Interfaces",
-    description: "Interfaces mit dem Status „connected“. Sie haben aktuell einen aktiven Link.",
-    source: "Cisco-Switch-TXT · Status",
-  },
-  notConnected: {
-    term: "Interfaces ohne Link",
-    description: "Interfaces ohne aktiven Link. Das kann erwartbar sein oder auf einen unterbrochenen Uplink hindeuten.",
-    source: "Cisco-Switch-TXT · Status",
-  },
-};
-
-export const NET_SWITCH_COLUMNS: Record<string, GlossaryEntry> = {
-  hostname: { term: "Switch-Hostname", description: "Name des Cisco-Switches, von dem das Interface stammt.", source: "Cisco-Switch-TXT · Hostname" },
-  interface: { term: "Interface", description: "Physische Schnittstelle am Switch, zum Beispiel Eth1/1.", source: "Cisco-Switch-TXT · Interface" },
-  description: { term: "Port-Beschreibung", description: "Am Switch gepflegte Schnittstellenbeschreibung; häufig der dokumentierte Gegenstellen- oder Zweckhinweis.", source: "Cisco-Switch-TXT · Description" },
-  status: { term: "Port-Status", description: "Vom Switch gemeldeter Link-Status des Interfaces, zum Beispiel connected oder notconnect.", source: "Cisco-Switch-TXT · Status" },
-  mode: { term: "Switchport-Modus", description: "Konfigurationsmodus des Ports, etwa access, trunk oder routed.", source: "Cisco-Switch-TXT · Mode" },
-  duplex: { term: "Duplex", description: "Ausgehandelter Duplex-Modus des Links. Full Duplex ist der erwartete Betriebszustand.", source: "Cisco-Switch-TXT · Duplex" },
-  speed: { term: "Link-Geschwindigkeit", description: "Vom Switch erkannte Übertragungsrate des Interfaces, zum Beispiel 10G oder 25G.", source: "Cisco-Switch-TXT · Speed" },
-  transceiver: { term: "Transceiver", description: "Erkannter Optik- oder Kabeltyp des Interfaces.", source: "Cisco-Switch-TXT · Transceiver" },
 };
 
 export const NET_IPAM_COLUMNS: Record<string, GlossaryEntry> = {
@@ -190,15 +140,14 @@ export const NET_IPAM_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 export const NET_AUDIT_COLUMNS: Record<string, GlossaryEntry> = {
-  switchHostname: { term: "Switch", description: "Cisco-Switch, auf dem das abgeglichene Interface liegt.", source: "Cisco-Switch-TXT · Hostname" },
-  interface: { term: "Interface", description: "Switch-Port, der mit CDP, RVTools, Tech-Info und IPAM abgeglichen wird.", source: "Cisco-Switch-TXT · Interface" },
-  description: { term: "Port-Beschreibung", description: "Dokumentierter Freitext am Switch-Port. Er wird für die Zuordnung zur Gegenstelle herangezogen.", source: "Cisco-Switch-TXT · Description" },
-  status: { term: "Port-Status", description: "Vom Switch gemeldeter Link-Status des Interfaces.", source: "Cisco-Switch-TXT · Status" },
-  matchStatus: { term: "Match-Status", description: "Qualität der ermittelten Zuordnung: CDP-bestätigt, RVTools-Treffer, nur dokumentiert oder unbekannt.", source: "Abgleich aus Cisco-Switch-TXT · CDP-CSV · RVTools · Tech-Info" },
+  switchHostname: { term: "Switch", description: "Switch, auf dem das abgeglichene Interface liegt.", source: "Eramon · device_name" },
+  interface: { term: "Interface", description: "Switch-Port, der mit CDP, RVTools, Tech-Info und IPAM abgeglichen wird.", source: "Eramon · port_name" },
+  description: { term: "Port-Beschreibung", description: "Dokumentierter Freitext am Switch-Port. Er wird für die Zuordnung zur Gegenstelle herangezogen.", source: "Eramon · port_desc" },
+  status: { term: "Port-Status", description: "Vom Switch gemeldeter Link-Status des Interfaces.", source: "Eramon · port_status" },
+  matchStatus: { term: "Match-Status", description: "Qualität der ermittelten Zuordnung: CDP-bestätigt, RVTools-Treffer, nur dokumentiert oder unbekannt.", source: "Abgleich aus Eramon · CDP-CSV · RVTools · Tech-Info" },
   matchedHost: { term: "Vermuteter ESXi-Host", description: "Host, der dem Switch-Port durch CDP oder die Dokumentation zugeordnet wurde.", source: "CDP-CSV · RVTools · Tech-Info" },
   finding: { term: "Auffälligkeit", description: "Erkannte Abweichung oder fehlende Zuordnung, die geprüft werden sollte.", source: "Berechnet aus dem Datenabgleich" },
   bandwidth: { term: "Bandbreite", description: "Vom Eramon-Switch gemeldete Port-Bandbreite.", source: "Eramon · bandbreite" },
-  source: { term: "Quelle", description: "Datenquelle(n) des Ports: Cisco-TXT, Eramon oder beide.", source: "Cisco-Switch-TXT · Eramon" },
 };
 
 export const NET_HOST_QUALITY_RVTOOLS_COLUMNS: Record<string, GlossaryEntry> = {
