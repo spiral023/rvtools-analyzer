@@ -6,17 +6,8 @@ import type {
   NetworkAuditSourceFacts,
   NetworkAuditSourceKey,
 } from "@/lib/networkAuditViewModel";
+import { SOURCE_LABELS } from "@/lib/networkAuditLabels";
 import { cn } from "@/lib/utils";
-
-// eslint-disable-next-line react-refresh/only-export-components -- Öffentliche API dieses UI-Bausteins laut Network-Audit-Spezifikation.
-export const SOURCE_LABELS: Record<NetworkAuditSourceKey, string> = {
-  rvtools: "RVTools",
-  cdp: "CDP",
-  eramonIface: "Eramon Interface",
-  eramonL2: "Eramon L2",
-  ipam: "IPAM",
-  techInfo: "Tech-Info",
-};
 
 const SOURCE_ORDER = Object.keys(SOURCE_LABELS) as NetworkAuditSourceKey[];
 

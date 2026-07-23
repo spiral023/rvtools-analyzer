@@ -30,6 +30,7 @@ import {
   type NetworkAuditCheckSummary,
   type NetworkAuditScope,
 } from "@/lib/networkAuditViewModel";
+import { countTableSearchRows } from "@/lib/tableSearch";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export interface SharedDetailProps {
@@ -208,7 +209,10 @@ export function PortAuditDetail({
     () => filterByScope(rows, scope, classifyPortAuditRow),
     [rows, scope],
   );
-  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
+  const visibleCount = useMemo(
+    () => countTableSearchRows(visibleRows, portColumns, search),
+    [visibleRows, search],
+  );
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -235,7 +239,6 @@ export function PortAuditDetail({
         globalFilter={search}
         height={500}
         exportFileName="network-audit"
-        onFilteredRowCountChange={setVisibleCount}
         emptyTitle={search ? "Keine passenden Einträge" : "Keine Einträge in diesem Ergebnisfilter"}
         emptyDescription={search
           ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
@@ -289,7 +292,13 @@ export function HostDataAuditDetail({
     () => filterByScope(techInfoRows, scope, classifyHostAuditRow),
     [techInfoRows, scope],
   );
-  const [visibleCount, setVisibleCount] = useState(filteredRvtoolsRows.length);
+  const isRvtoolsPerspective = perspective === "rvtools";
+  const visibleCount = useMemo(
+    () => isRvtoolsPerspective
+      ? countTableSearchRows(filteredRvtoolsRows, rvtoolsHostColumns, search)
+      : countTableSearchRows(filteredTechInfoRows, techInfoHostColumns, search),
+    [filteredRvtoolsRows, filteredTechInfoRows, isRvtoolsPerspective, search],
+  );
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -298,7 +307,6 @@ export function HostDataAuditDetail({
     );
   }
 
-  const isRvtoolsPerspective = perspective === "rvtools";
   const totalCount = isRvtoolsPerspective ? rvtoolsRows.length : techInfoRows.length;
 
   return (
@@ -368,7 +376,6 @@ export function HostDataAuditDetail({
             globalFilter={search}
             height={420}
             exportFileName="host-data-quality-rvtools"
-            onFilteredRowCountChange={setVisibleCount}
             emptyTitle={search
               ? "Keine passenden Einträge"
               : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
@@ -385,7 +392,6 @@ export function HostDataAuditDetail({
             globalFilter={search}
             height={420}
             exportFileName="host-data-quality-techinfo"
-            onFilteredRowCountChange={setVisibleCount}
             emptyTitle={search
               ? "Keine passenden Einträge"
               : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
@@ -413,7 +419,10 @@ export function MacAuditDetail({
     () => filterByScope(rows, scope, classifyMacAuditRow),
     [rows, scope],
   );
-  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
+  const visibleCount = useMemo(
+    () => countTableSearchRows(visibleRows, cdpMacColumns, search),
+    [visibleRows, search],
+  );
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -440,7 +449,6 @@ export function MacAuditDetail({
         globalFilter={search}
         height={420}
         exportFileName="mac-audit-cdp"
-        onFilteredRowCountChange={setVisibleCount}
         emptyTitle={search
           ? "Keine passenden Einträge"
           : scope === "attention" ? "Keine offenen MAC-Befunde" : "Keine passenden Einträge"}
@@ -466,7 +474,10 @@ export function NetworkDiscoveryDetail({
     () => filterByScope(rows, scope, classifyDiscoveryAuditRow),
     [rows, scope],
   );
-  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
+  const visibleCount = useMemo(
+    () => countTableSearchRows(visibleRows, l2DiscoveryColumns, search),
+    [visibleRows, search],
+  );
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -493,7 +504,6 @@ export function NetworkDiscoveryDetail({
         globalFilter={search}
         height={420}
         exportFileName="mac-discovery"
-        onFilteredRowCountChange={setVisibleCount}
         emptyTitle={search
           ? "Keine passenden Einträge"
           : scope === "attention" ? "Keine unbekannten Geräte" : "Keine passenden Einträge"}

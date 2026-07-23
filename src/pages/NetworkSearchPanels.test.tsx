@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -46,27 +46,41 @@ vi.mock("@/hooks/useFilterState", () => ({
 
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: function VirtualTableMock({
+    columns,
     data,
     exportFileName,
     globalFilter,
     emptyTitle = "Keine Einträge",
     emptyDescription,
-    onFilteredRowCountChange,
   }: {
+    columns: Array<{
+      accessorKey?: string;
+      accessorFn?: (row: Record<string, unknown>) => unknown;
+      columns?: Array<{
+        accessorKey?: string;
+        accessorFn?: (row: Record<string, unknown>) => unknown;
+        enableGlobalFilter?: boolean;
+      }>;
+      enableGlobalFilter?: boolean;
+    }>;
     data: Array<Record<string, unknown>>;
     exportFileName: string;
     globalFilter?: string;
     emptyTitle?: string;
     emptyDescription?: string;
-    onFilteredRowCountChange?: (count: number) => void;
   }) {
+    const leafColumns = columns.flatMap((column) => column.columns ?? [column]);
+    const searchableColumns = leafColumns.filter(
+      (column) => column.enableGlobalFilter !== false
+        && (column.accessorFn !== undefined || column.accessorKey !== undefined),
+    );
     const filteredData = globalFilter
-      ? data.filter((row) => JSON.stringify(row).toLowerCase().includes(globalFilter.toLowerCase()))
+      ? data.filter((row) => searchableColumns.some((column) => {
+        const value = column.accessorFn?.(row)
+          ?? (column.accessorKey ? row[column.accessorKey] : undefined);
+        return value?.toString().toLowerCase().includes(globalFilter.toLowerCase()) ?? false;
+      }))
       : data;
-
-    useEffect(() => {
-      onFilteredRowCountChange?.(filteredData.length);
-    }, [filteredData.length, onFilteredRowCountChange]);
 
     return (
       <div

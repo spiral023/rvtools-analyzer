@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { ArrowLeft, Info } from "lucide-react";
-import { SOURCE_LABELS } from "@/components/network/AuditSourceStatus";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SOURCE_LABELS } from "@/lib/networkAuditLabels";
 import type {
   NetworkAuditCheckSummary,
   NetworkAuditScope,

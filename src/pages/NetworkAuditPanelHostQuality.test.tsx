@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { NetworkAuditPanel } from "./NetworkAuditPanel";
@@ -92,17 +92,11 @@ vi.mock("@/components/tables/VirtualTable", () => ({
     columns,
     data,
     exportFileName,
-    onFilteredRowCountChange,
   }: {
     columns: Array<{ meta?: { info?: { term: string } } }>;
     data: Array<Record<string, unknown>>;
     exportFileName: string;
-    onFilteredRowCountChange?: (count: number) => void;
   }) {
-    useEffect(() => {
-      onFilteredRowCountChange?.(data.length);
-    }, [data.length, onFilteredRowCountChange]);
-
     return (
       <div data-testid={`table-${exportFileName}`}>
         <span data-testid={`${exportFileName}-columns`}>

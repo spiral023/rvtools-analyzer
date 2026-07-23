@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import type { ColumnDef } from "@tanstack/react-table";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { countTableSearchRows } from "@/lib/tableSearch";
 
 interface TableRow {
   ipAddress: string;
@@ -16,39 +17,6 @@ const columns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 describe("VirtualTable", () => {
-  it("meldet die echte gefilterte Zeilenanzahl initial und nach einer Suchänderung", async () => {
-    const onFilteredRowCountChange = vi.fn();
-    const data: TableRow[] = [
-      { ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" },
-      { ipAddress: "10.0.0.2", name: "db-01", comment: "Datenbank" },
-    ];
-    const view = render(
-      <VirtualTable
-        data={data}
-        columns={columns}
-        globalFilter="app-01"
-        onFilteredRowCountChange={onFilteredRowCountChange}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(onFilteredRowCountChange).toHaveBeenLastCalledWith(1);
-    });
-
-    view.rerender(
-      <VirtualTable
-        data={data}
-        columns={columns}
-        globalFilter="nicht-vorhanden"
-        onFilteredRowCountChange={onFilteredRowCountChange}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(onFilteredRowCountChange).toHaveBeenLastCalledWith(0);
-    });
-  });
-
   it("zeigt benutzerdefinierte Empty-State-Texte nach einer Filterung ohne Treffer", () => {
     render(
       <VirtualTable
@@ -112,5 +80,38 @@ describe("VirtualTable", () => {
     );
 
     expect(screen.getByText("1 Eintrag")).toBeInTheDocument();
+  });
+
+  it.each([
+    { search: "core", expected: 1 },
+    { search: "true", expected: 1 },
+    { search: "prod,edge", expected: 1 },
+    { search: "nicht-vorhanden", expected: 0 },
+  ])("stimmt für '$search' mit der puren Suchzählung überein", ({ search, expected }) => {
+    interface RichRow {
+      name: string | null;
+      active: boolean;
+      tags: string[];
+    }
+    const richRows: RichRow[] = [
+      { name: null, active: false, tags: [] },
+      { name: "Core-01", active: true, tags: ["Prod", "Edge"] },
+    ];
+    const richColumns: ColumnDef<RichRow, unknown>[] = [
+      {
+        header: "Details",
+        columns: [
+          { accessorKey: "name", header: "Name" },
+          { id: "active", accessorFn: (row) => row.active, header: "Aktiv" },
+          { id: "tags", accessorFn: (row) => row.tags, header: "Tags" },
+        ],
+      },
+    ];
+
+    const utilityCount = countTableSearchRows(richRows, richColumns, search);
+    render(<VirtualTable data={richRows} columns={richColumns} globalFilter={search} />);
+
+    expect(utilityCount).toBe(expected);
+    expect(screen.getByText(expected === 1 ? "1 Eintrag" : "0 Einträge")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -42,7 +42,6 @@ interface VirtualTableProps<T, TColumn = T> {
   onToggleAll?: (selectAll: boolean) => void;
   emptyTitle?: string;
   emptyDescription?: string;
-  onFilteredRowCountChange?: (count: number) => void;
 }
 
 const ROW_HEIGHT = 36;
@@ -71,11 +70,9 @@ export function VirtualTable<T, TColumn = T>({
   onToggleAll,
   emptyTitle = "Keine Einträge",
   emptyDescription,
-  onFilteredRowCountChange,
 }: VirtualTableProps<T, TColumn>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const parentRef = useRef<HTMLDivElement>(null);
-  const filteredRowCountCallbackRef = useRef(onFilteredRowCountChange);
 
   const table = useReactTable({
     data,
@@ -90,14 +87,6 @@ export function VirtualTable<T, TColumn = T>({
 
   const { rows } = table.getRowModel();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
-
-  useEffect(() => {
-    filteredRowCountCallbackRef.current = onFilteredRowCountChange;
-  }, [onFilteredRowCountChange]);
-
-  useEffect(() => {
-    filteredRowCountCallbackRef.current?.(rows.length);
-  }, [rows.length]);
 
   const hasFooter = table
     .getVisibleLeafColumns()
