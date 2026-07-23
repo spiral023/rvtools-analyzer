@@ -43,6 +43,29 @@ describe("VirtualTable", () => {
     expect(screen.getByText("Keine Einträge")).toBeInTheDocument();
   });
 
+  it("spannt den Empty State über alle sichtbaren Leaf-Spalten", () => {
+    const groupedColumns: ColumnDef<TableRow, unknown>[] = [
+      {
+        header: "Netzwerk",
+        columns: [
+          { accessorKey: "ipAddress", header: "IP" },
+          { accessorKey: "name", header: "Name" },
+        ],
+      },
+      { accessorKey: "comment", header: "Comment" },
+    ];
+
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={groupedColumns}
+        globalFilter="kein Treffer"
+      />,
+    );
+
+    expect(screen.getByRole("cell", { name: "Keine Einträge" })).toHaveAttribute("colspan", "3");
+  });
+
   it("findet Werte in einer optionalen Spalte, wenn die erste Zeile leer ist", () => {
     render(
       <VirtualTable

@@ -86,6 +86,7 @@ export function VirtualTable<T, TColumn = T>({
   });
 
   const { rows } = table.getRowModel();
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   const hasFooter = table
     .getVisibleLeafColumns()
@@ -222,7 +223,7 @@ export function VirtualTable<T, TColumn = T>({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-10 text-center">
+                <td colSpan={visibleColumnCount} className="px-4 py-10 text-center">
                   <p className="text-sm font-semibold">{emptyTitle}</p>
                   {emptyDescription && (
                     <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
@@ -235,7 +236,7 @@ export function VirtualTable<T, TColumn = T>({
                 <td
                   aria-label="Abstand vor sichtbaren Tabellenzeilen"
                   style={{ height: `${paddingTop}px` }}
-                  colSpan={columns.length}
+                  colSpan={visibleColumnCount}
                 />
               </tr>
             )}
@@ -301,7 +302,7 @@ export function VirtualTable<T, TColumn = T>({
                 <td
                   aria-label="Abstand nach sichtbaren Tabellenzeilen"
                   style={{ height: `${paddingBottom}px` }}
-                  colSpan={columns.length}
+                  colSpan={visibleColumnCount}
                 />
               </tr>
             )}
