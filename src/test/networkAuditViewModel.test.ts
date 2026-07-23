@@ -91,15 +91,7 @@ const techInfoHost = (overrides: Partial<TechInfoHostQualityRow> = {}): TechInfo
   ...overrides,
 });
 
-type NetworkAuditViewModelContractInput = {
-  sources: NetworkAuditSourceFacts;
-  portRows: PortAuditRow[];
-  hostQuality: { rvtoolsRows: RvtoolsHostQualityRow[]; techInfoRows: TechInfoHostQualityRow[] };
-  cdpMacRows: CdpMacRow[];
-  l2DiscoveryRows: L2DiscoveryRow[];
-};
-
-const build = (overrides: Partial<NetworkAuditViewModelContractInput> = {}) =>
+const build = (overrides: Partial<Parameters<typeof buildNetworkAuditViewModel>[0]> = {}) =>
   buildNetworkAuditViewModel({
     sources,
     portRows: [],
@@ -179,5 +171,100 @@ describe("buildNetworkAuditViewModel", () => {
     });
 
     expect(result.checks.hosts.counts).toEqual({ critical: 0, review: 1, passed: 0 });
+  });
+
+  it("uses ports, hosts, MAC, then discovery to break review ties", () => {
+    const reviews: Partial<Parameters<typeof buildNetworkAuditViewModel>[0]> = {
+      portRows: [port({ matchStatus: "text-match" })],
+      hostQuality: { rvtoolsRows: [rvtoolsHost({ finding: "Prüfen" })], techInfoRows: [] },
+      cdpMacRows: [mac({ inL2: false })],
+      l2DiscoveryRows: [discovery({ classification: "unknown", esxiHost: null })],
+    };
+
+    expect(build(reviews).nextCheck).toBe("ports");
+    expect(build({ ...reviews, portRows: [] }).nextCheck).toBe("hosts");
+    expect(build({ ...reviews, portRows: [], hostQuality: { rvtoolsRows: [], techInfoRows: [] } }).nextCheck).toBe("mac");
+    expect(build({ ...reviews, portRows: [], hostQuality: { rvtoolsRows: [], techInfoRows: [] }, cdpMacRows: [] }).nextCheck).toBe("discovery");
+  });
+
+  it("prioritizes critical port findings over equally critical MAC findings", () => {
+    const result = build({
+      portRows: [port({ statusConflict: true })],
+      cdpMacRows: [mac({ topologyMismatch: true })],
+    });
+
+    expect(result.nextCheck).toBe("ports");
+  });
+
+  it("excludes rows in unavailable checks from totals", () => {
+    const result = build({
+      sources: { ...sources, eramonIface: { count: 0, importedAt: null } },
+      portRows: [port({ labelConflict: true })],
+    });
+
+    expect(result.checks.ports.status).toBe("unavailable");
+    expect(result.totals).toEqual({ critical: 0, review: 0, passed: 0 });
+  });
+
+  it.each([
+    ["confirmed-cdp", "passed"],
+    ["no-target", "passed"],
+    ["text-match", "review"],
+    ["documented-only", "review"],
+    ["unknown", "review"],
+  ] as const)("classifies port status %s as %s", (matchStatus, category) => {
+    const result = build({ portRows: [port({ matchStatus })] });
+
+    expect(result.checks.ports.counts[category]).toBe(1);
+  });
+
+  it("classifies port conflicts as critical", () => {
+    const result = build({ portRows: [port({ labelConflict: true })] });
+
+    expect(result.checks.ports.counts.critical).toBe(1);
+  });
+
+  it("rejects unexpected port statuses instead of classifying them as passed", () => {
+    expect(() => build({
+      portRows: [port({ matchStatus: "future-status" as PortAuditRow["matchStatus"] })],
+    })).toThrow("Unexpected port match status");
+  });
+
+  it.each([
+    ["topology mismatch", mac({ topologyMismatch: true }), "critical"],
+    ["missing L2 entry", mac({ inL2: false }), "review"],
+    ["clean entry", mac(), "passed"],
+  ] as const)("classifies MAC %s", (_name, row, category) => {
+    const result = build({ cdpMacRows: [row] });
+
+    expect(result.checks.mac.counts[category]).toBe(1);
+  });
+
+  it.each([
+    ["unknown", "review"],
+    ["esxi-cdp", "passed"],
+    ["ipam", "passed"],
+  ] as const)("classifies discovery status %s as %s", (classification, category) => {
+    const result = build({ l2DiscoveryRows: [discovery({ classification })] });
+
+    expect(result.checks.discovery.counts[category]).toBe(1);
+  });
+
+  it("rejects unexpected discovery statuses instead of classifying them as passed", () => {
+    expect(() => build({
+      l2DiscoveryRows: [discovery({ classification: "future-status" as L2DiscoveryRow["classification"] })],
+    })).toThrow("Unexpected L2 classification");
+  });
+
+  it.each([
+    [null, "passed"],
+    ["Prüfen", "review"],
+    ["", "review"],
+  ] as const)("classifies host finding %o as %s", (finding, category) => {
+    const result = build({
+      hostQuality: { rvtoolsRows: [rvtoolsHost({ finding })], techInfoRows: [] },
+    });
+
+    expect(result.checks.hosts.counts[category]).toBe(1);
   });
 });
