@@ -86,24 +86,46 @@ describe("VirtualTable", () => {
     { search: "core", expected: 1 },
     { search: "true", expected: 1 },
     { search: "prod,edge", expected: 1 },
+    { search: "dotted-leaf", expected: 1 },
+    { search: "ignored-value", expected: 0 },
     { search: "nicht-vorhanden", expected: 0 },
   ])("stimmt für '$search' mit der puren Suchzählung überein", ({ search, expected }) => {
     interface RichRow {
       name: string | null;
       active: boolean;
       tags: string[];
+      nested: { label: string | null };
+      ignored: string;
     }
     const richRows: RichRow[] = [
-      { name: null, active: false, tags: [] },
-      { name: "Core-01", active: true, tags: ["Prod", "Edge"] },
+      {
+        name: null,
+        active: false,
+        tags: [],
+        nested: { label: null },
+        ignored: "ignored-value",
+      },
+      {
+        name: "Core-01",
+        active: true,
+        tags: ["Prod", "Edge"],
+        nested: { label: "Dotted-Leaf" },
+        ignored: "anderer Wert",
+      },
     ];
     const richColumns: ColumnDef<RichRow, unknown>[] = [
       {
         header: "Details",
         columns: [
           { accessorKey: "name", header: "Name" },
+          { accessorKey: "nested.label", header: "Verschachtelt" },
           { id: "active", accessorFn: (row) => row.active, header: "Aktiv" },
           { id: "tags", accessorFn: (row) => row.tags, header: "Tags" },
+          {
+            accessorKey: "ignored",
+            header: "Ignoriert",
+            enableGlobalFilter: false,
+          },
         ],
       },
     ];

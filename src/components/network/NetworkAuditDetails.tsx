@@ -285,18 +285,26 @@ export function HostDataAuditDetail({
 }) {
   const [perspective, setPerspective] = useState<HostPerspective>("rvtools");
   const filteredRvtoolsRows = useMemo(
-    () => filterByScope(rvtoolsRows, scope, classifyHostAuditRow),
+    () => filterByScope<RvtoolsHostQualityRow>(rvtoolsRows, scope, classifyHostAuditRow),
     [rvtoolsRows, scope],
   );
   const filteredTechInfoRows = useMemo(
-    () => filterByScope(techInfoRows, scope, classifyHostAuditRow),
+    () => filterByScope<TechInfoHostQualityRow>(techInfoRows, scope, classifyHostAuditRow),
     [techInfoRows, scope],
   );
   const isRvtoolsPerspective = perspective === "rvtools";
   const visibleCount = useMemo(
     () => isRvtoolsPerspective
-      ? countTableSearchRows(filteredRvtoolsRows, rvtoolsHostColumns, search)
-      : countTableSearchRows(filteredTechInfoRows, techInfoHostColumns, search),
+      ? countTableSearchRows<RvtoolsHostQualityRow>(
+          filteredRvtoolsRows,
+          rvtoolsHostColumns,
+          search,
+        )
+      : countTableSearchRows<TechInfoHostQualityRow>(
+          filteredTechInfoRows,
+          techInfoHostColumns,
+          search,
+        ),
     [filteredRvtoolsRows, filteredTechInfoRows, isRvtoolsPerspective, search],
   );
 
