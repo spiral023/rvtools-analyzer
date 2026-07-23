@@ -91,14 +91,21 @@ const techInfoHost = (overrides: Partial<TechInfoHostQualityRow> = {}): TechInfo
   ...overrides,
 });
 
-const build = (overrides: Partial<Parameters<typeof buildNetworkAuditViewModel>[0]> = {}) =>
+type NetworkAuditViewModelContractInput = {
+  sources: NetworkAuditSourceFacts;
+  portRows: PortAuditRow[];
+  hostQuality: { rvtoolsRows: RvtoolsHostQualityRow[]; techInfoRows: TechInfoHostQualityRow[] };
+  cdpMacRows: CdpMacRow[];
+  l2DiscoveryRows: L2DiscoveryRow[];
+};
+
+const build = (overrides: Partial<NetworkAuditViewModelContractInput> = {}) =>
   buildNetworkAuditViewModel({
     sources,
     portRows: [],
-    rvtoolsHostRows: [],
-    techInfoHostRows: [],
-    macRows: [],
-    discoveryRows: [],
+    hostQuality: { rvtoolsRows: [], techInfoRows: [] },
+    cdpMacRows: [],
+    l2DiscoveryRows: [],
     ...overrides,
   });
 
@@ -115,10 +122,19 @@ describe("buildNetworkAuditViewModel", () => {
     expect(result.checks.mac.readiness).toBe("ready");
   });
 
+  it("treats zero-count sources as missing even when they have an import timestamp", () => {
+    const result = build({
+      sources: { ...sources, cdp: { count: 0, importedAt: "2026-07-23T10:00:00.000Z" } },
+    });
+
+    expect(result.checks.mac.readiness).toBe("unavailable");
+    expect(result.checks.mac.missingRequired).toContain("cdp");
+  });
+
   it("prioritizes critical port conflicts over MAC review findings", () => {
     const result = build({
       portRows: [port({ labelConflict: true, labelConflictHost: "esx-02" })],
-      macRows: [mac({ inL2: false, l2Switch: null, l2Interface: null, vlan: null, learnedIp: null, dnsName: null, finding: "MAC nicht in L2-Tabelle" })],
+      cdpMacRows: [mac({ inL2: false, l2Switch: null, l2Interface: null, vlan: null, learnedIp: null, dnsName: null, finding: "MAC nicht in L2-Tabelle" })],
     });
 
     expect(result.totals).toEqual({ critical: 1, review: 1, passed: 0 });
@@ -127,7 +143,7 @@ describe("buildNetworkAuditViewModel", () => {
   });
 
   it("surfaces unknown L2 discovery as the next review", () => {
-    const result = build({ discoveryRows: [discovery({ classification: "unknown", esxiHost: null })] });
+    const result = build({ l2DiscoveryRows: [discovery({ classification: "unknown", esxiHost: null })] });
 
     expect(result.checks.discovery.counts.review).toBe(1);
     expect(result.nextCheck).toBe("discovery");
@@ -150,11 +166,18 @@ describe("buildNetworkAuditViewModel", () => {
         eramonIface: { count: 0, importedAt: null },
         eramonL2: { count: 0, importedAt: null },
       },
-      rvtoolsHostRows: [rvtoolsHost()],
-      techInfoHostRows: [techInfoHost()],
+      hostQuality: { rvtoolsRows: [rvtoolsHost()], techInfoRows: [techInfoHost()] },
     });
 
     expect(result.hasExecutableChecks).toBe(false);
     expect(result.nextCheck).toBeNull();
+  });
+
+  it("counts an empty host finding as a review", () => {
+    const result = build({
+      hostQuality: { rvtoolsRows: [rvtoolsHost({ finding: "" })], techInfoRows: [] },
+    });
+
+    expect(result.checks.hosts.counts).toEqual({ critical: 0, review: 1, passed: 0 });
   });
 });

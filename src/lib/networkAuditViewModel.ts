@@ -41,10 +41,12 @@ export interface NetworkAuditViewModel {
 export interface BuildNetworkAuditViewModelInput {
   sources: NetworkAuditSourceFacts;
   portRows: PortAuditRow[];
-  rvtoolsHostRows: RvtoolsHostQualityRow[];
-  techInfoHostRows: TechInfoHostQualityRow[];
-  macRows: CdpMacRow[];
-  discoveryRows: L2DiscoveryRow[];
+  hostQuality: {
+    rvtoolsRows: RvtoolsHostQualityRow[];
+    techInfoRows: TechInfoHostQualityRow[];
+  };
+  cdpMacRows: CdpMacRow[];
+  l2DiscoveryRows: L2DiscoveryRow[];
 }
 
 const CHECK_ORDER: NetworkAuditCheckId[] = ["ports", "hosts", "mac", "discovery"];
@@ -71,7 +73,7 @@ function summarizeCheck(
   counts: NetworkAuditCounts,
 ): NetworkAuditCheckSummary {
   const sourceRequirements = CHECK_SOURCES[id];
-  const isMissing = (source: NetworkAuditSourceKey) => sources[source].importedAt === null;
+  const isMissing = (source: NetworkAuditSourceKey) => sources[source].count === 0;
   const missingRequired = sourceRequirements.required.filter(isMissing);
   const missingOptional = sourceRequirements.optional.filter(isMissing);
   const readiness: NetworkAuditReadiness = missingRequired.length > 0
@@ -109,15 +111,15 @@ export function buildNetworkAuditViewModel(input: BuildNetworkAuditViewModelInpu
       return "passed";
     })),
     hosts: summarizeCheck("hosts", input.sources, countRows(
-      [...input.rvtoolsHostRows, ...input.techInfoHostRows],
-      (row) => row.finding ? "review" : "passed",
+      [...input.hostQuality.rvtoolsRows, ...input.hostQuality.techInfoRows],
+      (row) => row.finding !== null ? "review" : "passed",
     )),
-    mac: summarizeCheck("mac", input.sources, countRows(input.macRows, (row) => {
+    mac: summarizeCheck("mac", input.sources, countRows(input.cdpMacRows, (row) => {
       if (row.topologyMismatch) return "critical";
       return row.inL2 ? "passed" : "review";
     })),
     discovery: summarizeCheck("discovery", input.sources, countRows(
-      input.discoveryRows,
+      input.l2DiscoveryRows,
       (row) => row.classification === "unknown" ? "review" : "passed",
     )),
   };
