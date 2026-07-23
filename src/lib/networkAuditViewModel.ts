@@ -21,6 +21,8 @@ export interface NetworkAuditCounts {
   passed: number;
 }
 
+export type NetworkAuditCategory = keyof NetworkAuditCounts;
+
 export interface NetworkAuditCheckSummary {
   id: NetworkAuditCheckId;
   readiness: NetworkAuditReadiness;
@@ -74,21 +76,32 @@ const L2_CLASSIFICATION_CATEGORIES = {
 
 const emptyCounts = (): NetworkAuditCounts => ({ critical: 0, review: 0, passed: 0 });
 
-function countRows<T>(rows: T[], getCategory: (row: T) => keyof NetworkAuditCounts): NetworkAuditCounts {
+function countRows<T>(rows: T[], getCategory: (row: T) => NetworkAuditCategory): NetworkAuditCounts {
   return rows.reduce((counts, row) => {
     counts[getCategory(row)] += 1;
     return counts;
   }, emptyCounts());
 }
 
-function getPortCategory(row: PortAuditRow): keyof NetworkAuditCounts {
+export function classifyPortAuditRow(row: PortAuditRow): NetworkAuditCategory {
   if (row.labelConflict || row.statusConflict) return "critical";
   const category = PORT_MATCH_CATEGORIES[row.matchStatus];
   if (!category) throw new Error(`Unexpected port match status: ${row.matchStatus}`);
   return category;
 }
 
-function getDiscoveryCategory(row: L2DiscoveryRow): keyof NetworkAuditCounts {
+export function classifyHostAuditRow(
+  row: RvtoolsHostQualityRow | TechInfoHostQualityRow,
+): NetworkAuditCategory {
+  return row.finding !== null ? "review" : "passed";
+}
+
+export function classifyMacAuditRow(row: CdpMacRow): NetworkAuditCategory {
+  if (row.topologyMismatch) return "critical";
+  return row.inL2 ? "passed" : "review";
+}
+
+export function classifyDiscoveryAuditRow(row: L2DiscoveryRow): NetworkAuditCategory {
   const category = L2_CLASSIFICATION_CATEGORIES[row.classification];
   if (!category) throw new Error(`Unexpected L2 classification: ${row.classification}`);
   return category;
@@ -132,16 +145,17 @@ function totalCounts(checks: Record<NetworkAuditCheckId, NetworkAuditCheckSummar
 
 export function buildNetworkAuditViewModel(input: BuildNetworkAuditViewModelInput): NetworkAuditViewModel {
   const checks: Record<NetworkAuditCheckId, NetworkAuditCheckSummary> = {
-    ports: summarizeCheck("ports", input.sources, countRows(input.portRows, getPortCategory)),
+    ports: summarizeCheck("ports", input.sources, countRows(input.portRows, classifyPortAuditRow)),
     hosts: summarizeCheck("hosts", input.sources, countRows(
       [...input.hostQuality.rvtoolsRows, ...input.hostQuality.techInfoRows],
-      (row) => row.finding !== null ? "review" : "passed",
+      classifyHostAuditRow,
     )),
-    mac: summarizeCheck("mac", input.sources, countRows(input.cdpMacRows, (row) => {
-      if (row.topologyMismatch) return "critical";
-      return row.inL2 ? "passed" : "review";
-    })),
-    discovery: summarizeCheck("discovery", input.sources, countRows(input.l2DiscoveryRows, getDiscoveryCategory)),
+    mac: summarizeCheck("mac", input.sources, countRows(input.cdpMacRows, classifyMacAuditRow)),
+    discovery: summarizeCheck(
+      "discovery",
+      input.sources,
+      countRows(input.l2DiscoveryRows, classifyDiscoveryAuditRow),
+    ),
   };
 
   const nextCheck = CHECK_ORDER.find((id) => checks[id].status === "critical")

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { useState, type ReactNode } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect, useState, type ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -33,41 +33,46 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({
+  VirtualTable: function VirtualTableMock({
     data,
     exportFileName,
     globalFilter,
     emptyTitle = "Keine Einträge",
     emptyDescription,
+    onFilteredRowCountChange,
   }: {
     data: Array<Record<string, unknown>>;
     exportFileName: string;
     globalFilter?: string;
     emptyTitle?: string;
     emptyDescription?: string;
-  }) => (
-    (() => {
-      const filteredData = globalFilter
-        ? data.filter((row) => JSON.stringify(row).toLowerCase().includes(globalFilter.toLowerCase()))
-        : data;
-      return (
-        <div
-          data-testid={`table-${exportFileName}`}
-          data-global-filter={globalFilter ?? ""}
-          data-row-count={data.length}
-        >
-          {filteredData.length > 0
-            ? filteredData.map((row) => Object.values(row).filter((value) => typeof value === "string").join(" ")).join(" | ")
-            : (
-              <>
-                <p>{emptyTitle}</p>
-                {emptyDescription && <p>{emptyDescription}</p>}
-              </>
-            )}
-        </div>
-      );
-    })()
-  ),
+    onFilteredRowCountChange?: (count: number) => void;
+  }) {
+    const filteredData = globalFilter
+      ? data.filter((row) => JSON.stringify(row).toLowerCase().includes(globalFilter.toLowerCase()))
+      : data;
+
+    useEffect(() => {
+      onFilteredRowCountChange?.(filteredData.length);
+    }, [filteredData.length, onFilteredRowCountChange]);
+
+    return (
+      <div
+        data-testid={`table-${exportFileName}`}
+        data-global-filter={globalFilter ?? ""}
+        data-row-count={data.length}
+      >
+        {filteredData.length > 0
+          ? filteredData.map((row) => Object.values(row).filter((value) => typeof value === "string").join(" ")).join(" | ")
+          : (
+            <>
+              <p>{emptyTitle}</p>
+              {emptyDescription && <p>{emptyDescription}</p>}
+            </>
+          )}
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/info-tooltip", () => ({
@@ -304,6 +309,21 @@ function PortScopeHarness() {
   );
 }
 
+function HostScopeHarness() {
+  const [scope, setScope] = useState<NetworkAuditScope>("attention");
+  return (
+    <HostDataAuditDetail
+      rvtoolsRows={rvtoolsRows}
+      techInfoRows={techInfoRows}
+      summary={readySummary("hosts", { critical: 0, review: 3, passed: 2 })}
+      scope={scope}
+      search=""
+      onBack={vi.fn()}
+      onScopeChange={setScope}
+    />
+  );
+}
+
 describe("Network search", () => {
   it("übergibt die globale Suche an die IPAM-Tabelle", () => {
     render(<IpamPanel />);
@@ -386,9 +406,11 @@ describe("Network audit details", () => {
     expect(screen.getByTestId("table-host-data-quality-rvtools")).not.toHaveTextContent("rv-clean.lab.local");
     expect(screen.getByText("1 von 2 Einträgen")).toBeInTheDocument();
 
-    fireEvent.click(techInfoChoice);
+    rvtoolsChoice.focus();
+    fireEvent.keyDown(rvtoolsChoice, { key: "ArrowRight" });
 
     expect(techInfoChoice).toBeChecked();
+    expect(techInfoChoice).toHaveFocus();
     expect(rvtoolsChoice).not.toBeChecked();
     expect(screen.getByText("Startpunkt: technische Dokumentation")).toBeInTheDocument();
     expect(screen.queryByTestId("table-host-data-quality-rvtools")).not.toBeInTheDocument();
@@ -399,6 +421,24 @@ describe("Network audit details", () => {
 
     fireEvent.click(techInfoChoice);
     expect(techInfoChoice).toBeChecked();
+  });
+
+  it("filtert die aktive Host-Perspektive nach Handlungsbedarf, Bestanden und Alle", () => {
+    renderWithRouter(<HostScopeHarness />);
+
+    const table = screen.getByTestId("table-host-data-quality-rvtools");
+    expect(table).toHaveTextContent("rv-gap.lab.local");
+    expect(table).not.toHaveTextContent("rv-clean.lab.local");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Bestanden" }));
+    expect(table).toHaveTextContent("rv-clean.lab.local");
+    expect(table).not.toHaveTextContent("rv-gap.lab.local");
+    expect(screen.getByText("1 von 2 Einträgen")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Alle" }));
+    expect(table).toHaveTextContent("rv-gap.lab.local");
+    expect(table).toHaveTextContent("rv-clean.lab.local");
+    expect(screen.getByText("2 von 2 Einträgen")).toBeInTheDocument();
   });
 
   it("filtert MAC-Abweichungen und bestandene Adapter getrennt", () => {
@@ -526,6 +566,81 @@ describe("Network audit details", () => {
     expect(screen.getByTestId(tableId)).toBeInTheDocument();
     expect(screen.getByText(title)).toBeInTheDocument();
     expect(screen.getByText(description)).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: "Ports",
+      totalCount: 7,
+      successText: "Keine Einträge in diesem Ergebnisfilter",
+      node: () => (
+        <PortAuditDetail
+          rows={portRows}
+          summary={readySummary("ports", { critical: 2, review: 3, passed: 2 })}
+          scope="attention"
+          search="nicht-vorhanden"
+          {...sharedCallbacks}
+        />
+      ),
+    },
+    {
+      name: "Hosts",
+      totalCount: 2,
+      successText: "Keine offenen Datenlücken",
+      node: () => (
+        <HostDataAuditDetail
+          rvtoolsRows={rvtoolsRows}
+          techInfoRows={techInfoRows}
+          summary={readySummary("hosts", { critical: 0, review: 3, passed: 2 })}
+          scope="attention"
+          search="nicht-vorhanden"
+          {...sharedCallbacks}
+        />
+      ),
+    },
+    {
+      name: "MAC",
+      totalCount: 3,
+      successText: "Keine offenen MAC-Befunde",
+      node: () => (
+        <MacAuditDetail
+          rows={cdpMacRows}
+          summary={readySummary("mac", { critical: 1, review: 1, passed: 1 })}
+          scope="attention"
+          search="nicht-vorhanden"
+          {...sharedCallbacks}
+        />
+      ),
+    },
+    {
+      name: "Discovery",
+      totalCount: 2,
+      successText: "Keine unbekannten Geräte",
+      node: () => (
+        <NetworkDiscoveryDetail
+          rows={l2DiscoveryRows}
+          summary={readySummary("discovery", { critical: 0, review: 1, passed: 1 })}
+          scope="attention"
+          search="nicht-vorhanden"
+          {...sharedCallbacks}
+        />
+      ),
+    },
+  ])("priorisiert im $name-Detail die Suchursache und meldet null sichtbare Treffer", async ({
+    totalCount,
+    successText,
+    node,
+  }) => {
+    renderWithRouter(node());
+
+    await waitFor(() => {
+      expect(screen.getByText(`0 von ${totalCount} Einträgen`)).toBeInTheDocument();
+    });
+    expect(screen.getByText("Keine passenden Einträge")).toBeInTheDocument();
+    expect(
+      screen.getByText("Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(successText)).not.toBeInTheDocument();
   });
 
   it.each([

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { ColumnDef } from "@tanstack/react-table";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 
@@ -16,6 +16,39 @@ const columns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 describe("VirtualTable", () => {
+  it("meldet die echte gefilterte Zeilenanzahl initial und nach einer Suchänderung", async () => {
+    const onFilteredRowCountChange = vi.fn();
+    const data: TableRow[] = [
+      { ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" },
+      { ipAddress: "10.0.0.2", name: "db-01", comment: "Datenbank" },
+    ];
+    const view = render(
+      <VirtualTable
+        data={data}
+        columns={columns}
+        globalFilter="app-01"
+        onFilteredRowCountChange={onFilteredRowCountChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onFilteredRowCountChange).toHaveBeenLastCalledWith(1);
+    });
+
+    view.rerender(
+      <VirtualTable
+        data={data}
+        columns={columns}
+        globalFilter="nicht-vorhanden"
+        onFilteredRowCountChange={onFilteredRowCountChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onFilteredRowCountChange).toHaveBeenLastCalledWith(0);
+    });
+  });
+
   it("zeigt benutzerdefinierte Empty-State-Texte nach einer Filterung ohne Treffer", () => {
     render(
       <VirtualTable

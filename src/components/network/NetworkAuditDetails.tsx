@@ -21,9 +21,14 @@ import type {
   PortMatchStatus,
 } from "@/lib/networkAudit";
 import type { RvtoolsHostQualityRow, TechInfoHostQualityRow } from "@/lib/hostDataQualityAudit";
-import type {
-  NetworkAuditCheckSummary,
-  NetworkAuditScope,
+import {
+  classifyDiscoveryAuditRow,
+  classifyHostAuditRow,
+  classifyMacAuditRow,
+  classifyPortAuditRow,
+  type NetworkAuditCategory,
+  type NetworkAuditCheckSummary,
+  type NetworkAuditScope,
 } from "@/lib/networkAuditViewModel";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -170,10 +175,13 @@ const l2DiscoveryColumns: ColumnDef<L2DiscoveryRow, unknown>[] = [
 function filterByScope<T>(
   rows: T[],
   scope: NetworkAuditScope,
-  hasAttention: (row: T) => boolean,
+  classifyRow: (row: T) => NetworkAuditCategory,
 ): T[] {
   if (scope === "all") return rows;
-  return rows.filter((row) => scope === "attention" ? hasAttention(row) : !hasAttention(row));
+  return rows.filter((row) => {
+    const category = classifyRow(row);
+    return scope === "attention" ? category !== "passed" : category === "passed";
+  });
 }
 
 function unavailableState(title: string, description: string) {
@@ -188,14 +196,6 @@ function unavailableState(title: string, description: string) {
   );
 }
 
-function hasPortAttention(row: PortAuditRow) {
-  return row.labelConflict
-    || row.statusConflict
-    || row.matchStatus === "unknown"
-    || row.matchStatus === "documented-only"
-    || row.matchStatus === "text-match";
-}
-
 export function PortAuditDetail({
   rows,
   summary,
@@ -205,9 +205,10 @@ export function PortAuditDetail({
   onScopeChange,
 }: SharedDetailProps & { rows: PortAuditRow[] }) {
   const visibleRows = useMemo(
-    () => filterByScope(rows, scope, hasPortAttention),
+    () => filterByScope(rows, scope, classifyPortAuditRow),
     [rows, scope],
   );
+  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -222,7 +223,7 @@ export function PortAuditDetail({
       description="Prüft Portbeschriftung, Link-Status und CDP-Nachbar auf Widersprüche."
       summary={summary}
       scope={scope}
-      visibleCount={visibleRows.length}
+      visibleCount={visibleCount}
       totalCount={rows.length}
       search={search}
       onBack={onBack}
@@ -234,6 +235,7 @@ export function PortAuditDetail({
         globalFilter={search}
         height={500}
         exportFileName="network-audit"
+        onFilteredRowCountChange={setVisibleCount}
         emptyTitle={search ? "Keine passenden Einträge" : "Keine Einträge in diesem Ergebnisfilter"}
         emptyDescription={search
           ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
@@ -244,6 +246,27 @@ export function PortAuditDetail({
 }
 
 type HostPerspective = "rvtools" | "techinfo";
+
+const HOST_PERSPECTIVE_OPTIONS: Array<{ value: HostPerspective; label: string }> = [
+  { value: "rvtools", label: "Aus RVTools" },
+  { value: "techinfo", label: "Aus Tech-Info" },
+];
+
+function getAdjacentHostPerspective(
+  current: HostPerspective,
+  key: string,
+): HostPerspective | null {
+  const direction = key === "ArrowLeft" || key === "ArrowUp"
+    ? -1
+    : key === "ArrowRight" || key === "ArrowDown"
+      ? 1
+      : 0;
+  if (direction === 0) return null;
+  const currentIndex = HOST_PERSPECTIVE_OPTIONS.findIndex((option) => option.value === current);
+  const nextIndex = (currentIndex + direction + HOST_PERSPECTIVE_OPTIONS.length)
+    % HOST_PERSPECTIVE_OPTIONS.length;
+  return HOST_PERSPECTIVE_OPTIONS[nextIndex].value;
+}
 
 export function HostDataAuditDetail({
   rvtoolsRows,
@@ -259,13 +282,14 @@ export function HostDataAuditDetail({
 }) {
   const [perspective, setPerspective] = useState<HostPerspective>("rvtools");
   const filteredRvtoolsRows = useMemo(
-    () => filterByScope(rvtoolsRows, scope, (row) => row.finding !== null),
+    () => filterByScope(rvtoolsRows, scope, classifyHostAuditRow),
     [rvtoolsRows, scope],
   );
   const filteredTechInfoRows = useMemo(
-    () => filterByScope(techInfoRows, scope, (row) => row.finding !== null),
+    () => filterByScope(techInfoRows, scope, classifyHostAuditRow),
     [techInfoRows, scope],
   );
+  const [visibleCount, setVisibleCount] = useState(filteredRvtoolsRows.length);
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -275,7 +299,6 @@ export function HostDataAuditDetail({
   }
 
   const isRvtoolsPerspective = perspective === "rvtools";
-  const activeRows = isRvtoolsPerspective ? filteredRvtoolsRows : filteredTechInfoRows;
   const totalCount = isRvtoolsPerspective ? rvtoolsRows.length : techInfoRows.length;
 
   return (
@@ -284,7 +307,7 @@ export function HostDataAuditDetail({
       description="Gleicht ESXi-Namen aus RVTools und Tech-Info mit IPAM ab."
       summary={summary}
       scope={scope}
-      visibleCount={activeRows.length}
+      visibleCount={visibleCount}
       totalCount={totalCount}
       search={search}
       onBack={onBack}
@@ -297,10 +320,7 @@ export function HostDataAuditDetail({
             aria-label="Ausgangspunkt des Host-Abgleichs"
             className="inline-flex min-w-max items-center rounded-md border bg-muted/25 p-1"
           >
-            {([
-              { value: "rvtools", label: "Aus RVTools" },
-              { value: "techinfo", label: "Aus Tech-Info" },
-            ] satisfies Array<{ value: HostPerspective; label: string }>).map((option) => (
+            {HOST_PERSPECTIVE_OPTIONS.map((option) => (
               <span key={option.value}>
                 <input
                   id={`host-audit-perspective-${option.value}`}
@@ -310,6 +330,16 @@ export function HostDataAuditDetail({
                   value={option.value}
                   checked={perspective === option.value}
                   onChange={() => setPerspective(option.value)}
+                  onKeyDown={(event) => {
+                    const nextPerspective = getAdjacentHostPerspective(option.value, event.key);
+                    if (!nextPerspective) return;
+                    event.preventDefault();
+                    const nextInput = event.currentTarget
+                      .closest('[role="radiogroup"]')
+                      ?.querySelector<HTMLInputElement>(`[value="${nextPerspective}"]`);
+                    nextInput?.focus();
+                    setPerspective(nextPerspective);
+                  }}
                 />
                 <label
                   htmlFor={`host-audit-perspective-${option.value}`}
@@ -338,10 +368,15 @@ export function HostDataAuditDetail({
             globalFilter={search}
             height={420}
             exportFileName="host-data-quality-rvtools"
-            emptyTitle={scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
-            emptyDescription={scope === "attention"
-              ? "In dieser Perspektive wurden keine Datenlücken erkannt."
-              : "Ändern Sie Filter oder Suchbegriff."}
+            onFilteredRowCountChange={setVisibleCount}
+            emptyTitle={search
+              ? "Keine passenden Einträge"
+              : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
+            emptyDescription={search
+              ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+              : scope === "attention"
+                ? "In dieser Perspektive wurden keine Datenlücken erkannt."
+                : "Ändern Sie Filter oder Suchbegriff."}
           />
         ) : (
           <VirtualTable
@@ -350,10 +385,15 @@ export function HostDataAuditDetail({
             globalFilter={search}
             height={420}
             exportFileName="host-data-quality-techinfo"
-            emptyTitle={scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
-            emptyDescription={scope === "attention"
-              ? "In dieser Perspektive wurden keine Datenlücken erkannt."
-              : "Ändern Sie Filter oder Suchbegriff."}
+            onFilteredRowCountChange={setVisibleCount}
+            emptyTitle={search
+              ? "Keine passenden Einträge"
+              : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
+            emptyDescription={search
+              ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+              : scope === "attention"
+                ? "In dieser Perspektive wurden keine Datenlücken erkannt."
+                : "Ändern Sie Filter oder Suchbegriff."}
           />
         )}
       </div>
@@ -370,9 +410,10 @@ export function MacAuditDetail({
   onScopeChange,
 }: SharedDetailProps & { rows: CdpMacRow[] }) {
   const visibleRows = useMemo(
-    () => filterByScope(rows, scope, (row) => !row.inL2 || row.topologyMismatch),
+    () => filterByScope(rows, scope, classifyMacAuditRow),
     [rows, scope],
   );
+  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -387,7 +428,7 @@ export function MacAuditDetail({
       description="Vergleicht die MAC-Adressen der ESXi-Adapter mit ihrer beobachteten L2-Position."
       summary={summary}
       scope={scope}
-      visibleCount={visibleRows.length}
+      visibleCount={visibleCount}
       totalCount={rows.length}
       search={search}
       onBack={onBack}
@@ -399,10 +440,15 @@ export function MacAuditDetail({
         globalFilter={search}
         height={420}
         exportFileName="mac-audit-cdp"
-        emptyTitle={scope === "attention" ? "Keine offenen MAC-Befunde" : "Keine passenden Einträge"}
-        emptyDescription={scope === "attention"
-          ? "Alle auswertbaren ESXi-Adapter wurden ohne Abweichung gefunden."
-          : "Ändern Sie Filter oder Suchbegriff."}
+        onFilteredRowCountChange={setVisibleCount}
+        emptyTitle={search
+          ? "Keine passenden Einträge"
+          : scope === "attention" ? "Keine offenen MAC-Befunde" : "Keine passenden Einträge"}
+        emptyDescription={search
+          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          : scope === "attention"
+            ? "Alle auswertbaren ESXi-Adapter wurden ohne Abweichung gefunden."
+            : "Ändern Sie Filter oder Suchbegriff."}
       />
     </AuditDetailView>
   );
@@ -417,9 +463,10 @@ export function NetworkDiscoveryDetail({
   onScopeChange,
 }: SharedDetailProps & { rows: L2DiscoveryRow[] }) {
   const visibleRows = useMemo(
-    () => filterByScope(rows, scope, (row) => row.classification === "unknown"),
+    () => filterByScope(rows, scope, classifyDiscoveryAuditRow),
     [rows, scope],
   );
+  const [visibleCount, setVisibleCount] = useState(visibleRows.length);
 
   if (summary.readiness === "unavailable") {
     return unavailableState(
@@ -434,7 +481,7 @@ export function NetworkDiscoveryDetail({
       description="Klassifiziert gelernte L2-MACs über CDP und IPAM."
       summary={summary}
       scope={scope}
-      visibleCount={visibleRows.length}
+      visibleCount={visibleCount}
       totalCount={rows.length}
       search={search}
       onBack={onBack}
@@ -446,10 +493,15 @@ export function NetworkDiscoveryDetail({
         globalFilter={search}
         height={420}
         exportFileName="mac-discovery"
-        emptyTitle={scope === "attention" ? "Keine unbekannten Geräte" : "Keine passenden Einträge"}
-        emptyDescription={scope === "attention"
-          ? "Alle auswertbaren L2-MACs konnten klassifiziert werden."
-          : "Ändern Sie Filter oder Suchbegriff."}
+        onFilteredRowCountChange={setVisibleCount}
+        emptyTitle={search
+          ? "Keine passenden Einträge"
+          : scope === "attention" ? "Keine unbekannten Geräte" : "Keine passenden Einträge"}
+        emptyDescription={search
+          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          : scope === "attention"
+            ? "Alle auswertbaren L2-MACs konnten klassifiziert werden."
+            : "Ändern Sie Filter oder Suchbegriff."}
       />
     </AuditDetailView>
   );

@@ -3,6 +3,10 @@ import type { CdpMacRow, L2DiscoveryRow, PortAuditRow } from "@/lib/networkAudit
 import type { RvtoolsHostQualityRow, TechInfoHostQualityRow } from "@/lib/hostDataQualityAudit";
 import {
   buildNetworkAuditViewModel,
+  classifyDiscoveryAuditRow,
+  classifyHostAuditRow,
+  classifyMacAuditRow,
+  classifyPortAuditRow,
   type NetworkAuditSourceFacts,
 } from "@/lib/networkAuditViewModel";
 
@@ -100,6 +104,30 @@ const build = (overrides: Partial<Parameters<typeof buildNetworkAuditViewModel>[
     l2DiscoveryRows: [],
     ...overrides,
   });
+
+describe("shared network audit row classification", () => {
+  it("classifies port conflicts and match states through the shared API", () => {
+    expect(classifyPortAuditRow(port({ statusConflict: true }))).toBe("critical");
+    expect(classifyPortAuditRow(port({ matchStatus: "text-match" }))).toBe("review");
+    expect(classifyPortAuditRow(port({ matchStatus: "no-target" }))).toBe("passed");
+  });
+
+  it("classifies host findings through the shared API", () => {
+    expect(classifyHostAuditRow(rvtoolsHost({ finding: "" }))).toBe("review");
+    expect(classifyHostAuditRow(techInfoHost({ finding: null }))).toBe("passed");
+  });
+
+  it("classifies MAC locations through the shared API", () => {
+    expect(classifyMacAuditRow(mac({ topologyMismatch: true }))).toBe("critical");
+    expect(classifyMacAuditRow(mac({ inL2: false }))).toBe("review");
+    expect(classifyMacAuditRow(mac())).toBe("passed");
+  });
+
+  it("classifies discovery results through the shared API", () => {
+    expect(classifyDiscoveryAuditRow(discovery({ classification: "unknown" }))).toBe("review");
+    expect(classifyDiscoveryAuditRow(discovery({ classification: "ipam" }))).toBe("passed");
+  });
+});
 
 describe("buildNetworkAuditViewModel", () => {
   it("preserves source facts for every audit input", () => {
