@@ -21,11 +21,12 @@ const STALE_MS = QUERY_CACHE_DURATION_MS;
 
 export function useActiveSnapshotIds() {
   const { filters } = useFilterState();
-  const { data: snapshots = [], isPending: snapshotsLoading } = useQuery({
+  const snapshotQuery = useQuery({
     queryKey: ["snapshots"],
     queryFn: getSnapshots,
     staleTime: STALE_MS,
   });
+  const { data: snapshots = [], isPending: snapshotsLoading } = snapshotQuery;
 
   const activeSnapshotIds = useMemo(() => {
     const currentVcenterIds = new Set(snapshots.map((snapshot) => snapshot.vcenterId));
@@ -46,7 +47,7 @@ export function useActiveSnapshotIds() {
 
   const allSnapshotIds = useMemo(() => snapshots.map((snapshot) => snapshot.snapshotId), [snapshots]);
 
-  return { snapshots, allSnapshotIds, activeSnapshotIds, filters, snapshotsLoading };
+  return { snapshots, allSnapshotIds, activeSnapshotIds, filters, snapshotsLoading, snapshotQuery };
 }
 
 function filterBySnapshotIds<T extends { snapshotId: string }>(rows: T[], snapshotIds: string[]): T[] {
@@ -107,7 +108,7 @@ export function useVms() {
 }
 
 export function useHosts() {
-  const { allSnapshotIds, activeSnapshotIds } = useActiveSnapshotIds();
+  const { allSnapshotIds, activeSnapshotIds, snapshots, snapshotQuery } = useActiveSnapshotIds();
   const query = useQuery({
     queryKey: ["hosts", allSnapshotIds],
     queryFn: () => timeQuery("hosts", () => getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds)),
@@ -115,7 +116,7 @@ export function useHosts() {
     staleTime: STALE_MS,
   });
   const data = useMemo(() => filterBySnapshotIds(query.data ?? [], activeSnapshotIds), [activeSnapshotIds, query.data]);
-  return { ...query, data };
+  return { ...query, data, snapshots, activeSnapshotIds, snapshotQuery };
 }
 
 export function useClusters() {
@@ -298,7 +299,6 @@ function getLatestImportedAt(rows: { importedAt: string }[]): string | null {
 }
 
 export function useNetworkAudit() {
-  const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
   const eramonIfaceQuery = useAllEramonIfaceLatest();
   const l2Query = useAllEramonL2Latest();
   const cdpQuery = useAllCdpLatest();
@@ -306,6 +306,8 @@ export function useNetworkAudit() {
   const techInfoQuery = useAllTechInfoLatest();
   const ipamQuery = useAllIpamLatest();
 
+  const { snapshots, activeSnapshotIds, snapshotQuery } = hostsQuery;
+  const { refetch: refetchSnapshots } = snapshotQuery;
   const { data: eramonIfaceRows = [], refetch: refetchEramonIface } = eramonIfaceQuery;
   const { data: l2Rows = [], refetch: refetchL2 } = l2Query;
   const { data: cdpRows = [], refetch: refetchCdp } = cdpQuery;
@@ -349,6 +351,7 @@ export function useNetworkAudit() {
       refetchHosts(),
       refetchTechInfo(),
       refetchIpam(),
+      refetchSnapshots(),
     ]);
   }, [
     refetchCdp,
@@ -356,9 +359,11 @@ export function useNetworkAudit() {
     refetchHosts,
     refetchIpam,
     refetchL2,
+    refetchSnapshots,
     refetchTechInfo,
   ]);
-  const queries = [eramonIfaceQuery, l2Query, cdpQuery, hostsQuery, techInfoQuery, ipamQuery];
+  // Fehlerpriorität: Eramon Interface, L2, CDP, Hosts, TechInfo, IPAM, Snapshots.
+  const queries = [eramonIfaceQuery, l2Query, cdpQuery, hostsQuery, techInfoQuery, ipamQuery, snapshotQuery];
 
   return {
     rows,
@@ -366,7 +371,7 @@ export function useNetworkAudit() {
     cdpMacRows,
     l2DiscoveryRows,
     sources,
-    isLoading: queries.some((query) => query.isLoading),
+    isLoading: snapshotQuery.isPending || queries.some((query) => query.isLoading),
     isError: queries.some((query) => query.isError),
     error: queries.find((query) => query.isError)?.error ?? null,
     refetch,
