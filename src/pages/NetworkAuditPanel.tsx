@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, ListChecks } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
@@ -12,7 +12,8 @@ import { NetworkAuditOverview } from "@/components/network/NetworkAuditOverview"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveSnapshotIds, useNetworkAudit } from "@/hooks/useActiveSnapshots";
+import { useNetworkAudit } from "@/hooks/useActiveSnapshots";
+import { useFilterState } from "@/hooks/useFilterState";
 import {
   parseNetworkAuditLocation,
   updateNetworkAuditSearch,
@@ -39,9 +40,15 @@ function isNetworkAuditCheckRoute(value: string): value is NetworkAuditCheckRout
     || value === "discovery";
 }
 
-export function NetworkAuditPanel() {
-  const audit = useNetworkAudit();
-  const { filters } = useActiveSnapshotIds();
+type NetworkAuditResult = ReturnType<typeof useNetworkAudit>;
+
+function NetworkAuditSuccess({
+  audit,
+  search,
+}: {
+  audit: NetworkAuditResult;
+  search: string;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { check, scope } = parseNetworkAuditLocation(searchParams);
   const viewModel = useMemo(
@@ -71,32 +78,6 @@ export function NetworkAuditPanel() {
       scope: nextScope,
     }));
   };
-
-  if (audit.isLoading) {
-    return <PanelLoadingState />;
-  }
-
-  if (audit.isError) {
-    return (
-      <Alert variant="destructive">
-        <AlertTriangle aria-hidden="true" className="h-4 w-4" />
-        <AlertTitle>Netzwerkdaten konnten nicht geladen werden</AlertTitle>
-        <AlertDescription className="space-y-3">
-          <p>Versuchen Sie es erneut. Ihre importierten Daten bleiben erhalten.</p>
-          <Button
-            type="button"
-            variant="destructive"
-            className="min-h-11 min-w-11"
-            onClick={() => {
-              void audit.refetch();
-            }}
-          >
-            Erneut versuchen
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
 
   return (
     <section aria-labelledby="network-audit-heading" className="space-y-5">
@@ -150,7 +131,7 @@ export function NetworkAuditPanel() {
             summary={viewModel.checks.ports}
             rows={audit.rows}
             scope={scope}
-            search={filters.search}
+            search={search}
             onBack={() => navigate("overview", "attention")}
             onScopeChange={(nextScope) => navigate("ports", nextScope)}
           />
@@ -162,7 +143,7 @@ export function NetworkAuditPanel() {
             rvtoolsRows={audit.hostQuality.rvtoolsRows}
             techInfoRows={audit.hostQuality.techInfoRows}
             scope={scope}
-            search={filters.search}
+            search={search}
             onBack={() => navigate("overview", "attention")}
             onScopeChange={(nextScope) => navigate("hosts", nextScope)}
           />
@@ -173,7 +154,7 @@ export function NetworkAuditPanel() {
             summary={viewModel.checks.mac}
             rows={audit.cdpMacRows}
             scope={scope}
-            search={filters.search}
+            search={search}
             onBack={() => navigate("overview", "attention")}
             onScopeChange={(nextScope) => navigate("mac", nextScope)}
           />
@@ -184,7 +165,7 @@ export function NetworkAuditPanel() {
             summary={viewModel.checks.discovery}
             rows={audit.l2DiscoveryRows}
             scope={scope}
-            search={filters.search}
+            search={search}
             onBack={() => navigate("overview", "attention")}
             onScopeChange={(nextScope) => navigate("discovery", nextScope)}
           />
@@ -192,4 +173,55 @@ export function NetworkAuditPanel() {
       </Tabs>
     </section>
   );
+}
+
+export function NetworkAuditPanel() {
+  const audit = useNetworkAudit();
+  const { filters } = useFilterState();
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryPendingRef = useRef(false);
+
+  const handleRetry = async () => {
+    if (retryPendingRef.current) return;
+    retryPendingRef.current = true;
+    setIsRetrying(true);
+    try {
+      await audit.refetch();
+    } catch {
+      // Der Query-Fehlerzustand bleibt sichtbar und bietet einen erneuten Versuch an.
+    } finally {
+      retryPendingRef.current = false;
+      setIsRetrying(false);
+    }
+  };
+
+  if (audit.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+        <AlertTitle>Netzwerkdaten konnten nicht geladen werden</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>Versuchen Sie es erneut. Ihre importierten Daten bleiben erhalten.</p>
+          <Button
+            type="button"
+            variant="destructive"
+            className="min-h-11 min-w-11"
+            disabled={isRetrying}
+            aria-busy={isRetrying}
+            onClick={() => {
+              void handleRetry();
+            }}
+          >
+            {isRetrying ? "Wird erneut versucht…" : "Erneut versuchen"}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (audit.isLoading) {
+    return <PanelLoadingState />;
+  }
+
+  return <NetworkAuditSuccess audit={audit} search={filters.search} />;
 }

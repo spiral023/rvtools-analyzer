@@ -40,6 +40,10 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useFilterState", () => ({
+  useFilterState: () => ({ filters: { search } }),
+}));
+
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: function VirtualTableMock({
     data,
@@ -312,6 +316,16 @@ type AuditHookResult = {
 
 let auditHookResult: AuditHookResult;
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   refetchMock.mockResolvedValue(undefined);
@@ -454,7 +468,7 @@ describe("Network audit orchestrator", () => {
     expect(screen.queryByRole("heading", { name: "Datenbasis" })).not.toBeInTheDocument();
   });
 
-  it("zeigt Fehler mit Retry statt als leeren Datenbestand", () => {
+  it("zeigt Fehler mit Retry statt als leeren Datenbestand", async () => {
     auditHookResult = {
       ...auditHookResult,
       isError: true,
@@ -469,6 +483,71 @@ describe("Network audit orchestrator", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Erneut versuchen" })).toBeEnabled();
+    });
+  });
+
+  it("priorisiert einen Fehler auch während gleichzeitigem Laden", () => {
+    auditHookResult = {
+      ...auditHookResult,
+      isLoading: true,
+      isError: true,
+      error: new Error("Refetch fehlgeschlagen"),
+    };
+
+    renderAudit("/network-security?tab=audit");
+
+    expect(screen.getByText("Netzwerkdaten konnten nicht geladen werden")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Daten werden geladen" })).not.toBeInTheDocument();
+  });
+
+  it("sperrt Retry bis zum Abschluss und verhindert Mehrfachaufrufe", async () => {
+    const retry = deferred<void>();
+    refetchMock.mockReturnValueOnce(retry.promise);
+    auditHookResult = {
+      ...auditHookResult,
+      isError: true,
+      error: new Error("IndexedDB nicht erreichbar"),
+    };
+
+    renderAudit("/network-security?tab=audit");
+
+    const retryButton = screen.getByRole("button", { name: "Erneut versuchen" });
+    fireEvent.click(retryButton);
+
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(retryButton).toBeDisabled();
+    expect(retryButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Wird erneut versucht…" })).toBeInTheDocument();
+
+    fireEvent.click(retryButton);
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+
+    retry.resolve();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Erneut versuchen" })).toBeEnabled();
+    });
+    expect(screen.getByRole("button", { name: "Erneut versuchen" })).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("fängt einen fehlgeschlagenen Retry ab und macht die Aktion wieder verfügbar", async () => {
+    const retry = deferred<void>();
+    refetchMock.mockReturnValueOnce(retry.promise);
+    auditHookResult = {
+      ...auditHookResult,
+      isError: true,
+      error: new Error("IndexedDB nicht erreichbar"),
+    };
+
+    renderAudit("/network-security?tab=audit");
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    retry.reject(new Error("Noch immer nicht erreichbar"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Erneut versuchen" })).toBeEnabled();
+    });
+    expect(screen.getByText("Netzwerkdaten konnten nicht geladen werden")).toBeInTheDocument();
   });
 
   it("fällt bei ungültiger Prüfung und ungültigem Scope sicher auf Übersicht und Handlungsbedarf zurück", () => {

@@ -36,7 +36,6 @@ const techInfoRows: TechInfoHostQualityRow[] = [{
 }];
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
-  useActiveSnapshotIds: () => ({ filters: { search: "" } }),
   useNetworkAudit: (): {
     rows: PortAuditRow[];
     hostQuality: {
@@ -82,6 +81,10 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
     error: null,
     refetch: () => Promise.resolve(),
   }),
+}));
+
+vi.mock("@/hooks/useFilterState", () => ({
+  useFilterState: () => ({ filters: { search: "" } }),
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
