@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState, type ReactNode } from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HostDataAuditDetail,
   MacAuditDetail,
@@ -16,12 +16,20 @@ import type {
   NetworkAuditCheckId,
   NetworkAuditCheckSummary,
   NetworkAuditScope,
+  NetworkAuditSourceFacts,
 } from "@/lib/networkAuditViewModel";
+import { NetworkAuditPanel } from "./NetworkAuditPanel";
 
 const search = "core-01";
 
+const { refetchMock, useNetworkAuditMock } = vi.hoisted(() => ({
+  refetchMock: vi.fn(),
+  useNetworkAuditMock: vi.fn(),
+}));
+
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ filters: { search } }),
+  useNetworkAudit: useNetworkAuditMock,
   useAllIpamLatest: () => ({
     data: [{
       ipAddress: "10.0.0.10", name: "core-01", status: "Used", type: null, usage: null,
@@ -287,10 +295,68 @@ const l2DiscoveryRows: L2DiscoveryRow[] = [
   },
 ];
 
+type AuditHookResult = {
+  rows: PortAuditRow[];
+  hostQuality: {
+    rvtoolsRows: RvtoolsHostQualityRow[];
+    techInfoRows: TechInfoHostQualityRow[];
+  };
+  cdpMacRows: CdpMacRow[];
+  l2DiscoveryRows: L2DiscoveryRow[];
+  sources: NetworkAuditSourceFacts;
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
+};
+
+let auditHookResult: AuditHookResult;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  refetchMock.mockResolvedValue(undefined);
+  auditHookResult = {
+    rows: portRows,
+    hostQuality: { rvtoolsRows, techInfoRows },
+    cdpMacRows,
+    l2DiscoveryRows,
+    sources: {
+      rvtools: { count: rvtoolsRows.length, importedAt: "2026-07-20T08:00:00.000Z" },
+      cdp: { count: cdpMacRows.length, importedAt: "2026-07-20T08:00:00.000Z" },
+      eramonIface: { count: portRows.length, importedAt: "2026-07-20T08:00:00.000Z" },
+      eramonL2: { count: l2DiscoveryRows.length, importedAt: "2026-07-20T08:00:00.000Z" },
+      ipam: { count: 2, importedAt: "2026-07-20T08:00:00.000Z" },
+      techInfo: { count: techInfoRows.length, importedAt: "2026-07-20T08:00:00.000Z" },
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: refetchMock,
+  };
+  useNetworkAuditMock.mockImplementation(() => auditHookResult);
+});
+
 function renderWithRouter(node: ReactNode) {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       {node}
+    </MemoryRouter>,
+  );
+}
+
+function LocationObserver() {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+}
+
+function renderAudit(route: string) {
+  return render(
+    <MemoryRouter
+      initialEntries={[route]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <NetworkAuditPanel />
+      <LocationObserver />
     </MemoryRouter>,
   );
 }
@@ -359,6 +425,79 @@ describe("Network search", () => {
 
     expect(screen.getByTestId("table-mac-discovery")).toHaveAttribute("data-global-filter", search);
     expect(screen.queryByTestId("table-mac-audit-cdp")).not.toBeInTheDocument();
+  });
+});
+
+describe("Network audit orchestrator", () => {
+  it("zeigt in der Standard-URL die Übersicht mit Datenbasis", () => {
+    renderAudit("/network-security?tab=audit");
+
+    expect(screen.getByRole("heading", { name: "Netzwerk-Kontrolle" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Datenbasis" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Übersicht" })).toHaveAttribute("data-state", "active");
+  });
+
+  it("öffnet den MAC-Abgleich direkt aus der URL und rendert nur dessen Tabelle", () => {
+    renderAudit("/network-security?tab=audit&check=mac&scope=all");
+
+    expect(screen.getByRole("heading", { name: "ESXi-MAC-Abgleich" })).toBeInTheDocument();
+    expect(screen.getByTestId("table-mac-audit-cdp")).toBeInTheDocument();
+    expect(screen.queryByTestId("table-network-audit")).not.toBeInTheDocument();
+  });
+
+  it("zeigt bei einem Ladezustand keine verfrühte Übersicht", () => {
+    auditHookResult = { ...auditHookResult, isLoading: true };
+
+    renderAudit("/network-security?tab=audit");
+
+    expect(screen.getByRole("status", { name: "Daten werden geladen" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Datenbasis" })).not.toBeInTheDocument();
+  });
+
+  it("zeigt Fehler mit Retry statt als leeren Datenbestand", () => {
+    auditHookResult = {
+      ...auditHookResult,
+      isError: true,
+      error: new Error("IndexedDB nicht erreichbar"),
+    };
+
+    renderAudit("/network-security?tab=audit");
+
+    expect(screen.getByText("Netzwerkdaten konnten nicht geladen werden")).toBeInTheDocument();
+    expect(screen.getByText("Versuchen Sie es erneut. Ihre importierten Daten bleiben erhalten.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Datenbasis" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fällt bei ungültiger Prüfung und ungültigem Scope sicher auf Übersicht und Handlungsbedarf zurück", () => {
+    renderAudit("/network-security?tab=audit&check=ungueltig&scope=ungueltig");
+
+    expect(screen.getByRole("heading", { name: "Datenbasis" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Übersicht" })).toHaveAttribute("data-state", "active");
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Switch-Ports" }), { button: 0 });
+    expect(screen.getByRole("radio", { name: "Handlungsbedarf" })).toBeChecked();
+  });
+
+  it("synchronisiert Sektion, Scope und Rückweg mit der URL und bewahrt fremde Parameter", () => {
+    renderAudit("/network-security?tab=audit&check=mac&scope=all&quelle=bookmark");
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Host-Daten" }), { button: 0 });
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=hosts&scope=attention&quelle=bookmark",
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Bestanden" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=hosts&scope=passed&quelle=bookmark",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zur Übersicht" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/network-security?tab=audit&check=overview&scope=attention&quelle=bookmark",
+    );
   });
 });
 
