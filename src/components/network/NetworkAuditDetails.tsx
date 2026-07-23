@@ -1,20 +1,39 @@
 import { useMemo, useState } from "react";
-import { ListChecks, CheckCircle2, Archive, HelpCircle, AlertTriangle, Tag, Database, Server, Radar } from "lucide-react";
-import { useActiveSnapshotIds, useNetworkAudit } from "@/hooks/useActiveSnapshots";
-import { KpiCard } from "@/components/dashboard/KpiCard";
-import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { NET_AUDIT_COLUMNS, NET_AUDIT_KPI, NET_HOST_QUALITY_RVTOOLS_COLUMNS, NET_HOST_QUALITY_TECHINFO_COLUMNS, NET_MAC_CDP_COLUMNS, NET_MAC_DISCOVERY_COLUMNS } from "@/lib/glossaries/networking";
+import { Database, Server } from "lucide-react";
+import { AuditDetailView } from "@/components/network/AuditDetailView";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
-import { Switch as ToggleSwitch } from "@/components/ui/switch";
-import { formatNum } from "@/lib/xlsx/parseHelpers";
+import {
+  NET_AUDIT_COLUMNS,
+  NET_HOST_QUALITY_RVTOOLS_COLUMNS,
+  NET_HOST_QUALITY_TECHINFO_COLUMNS,
+  NET_MAC_CDP_COLUMNS,
+  NET_MAC_DISCOVERY_COLUMNS,
+} from "@/lib/glossaries/networking";
 import { formatBandwidth } from "@/lib/eramon";
 import { shortHostname } from "@/lib/networkAudit";
-import type { PortAuditRow, PortMatchStatus, CdpMacRow, L2DiscoveryRow, L2Classification } from "@/lib/networkAudit";
+import type {
+  CdpMacRow,
+  L2Classification,
+  L2DiscoveryRow,
+  PortAuditRow,
+  PortMatchStatus,
+} from "@/lib/networkAudit";
 import type { RvtoolsHostQualityRow, TechInfoHostQualityRow } from "@/lib/hostDataQualityAudit";
+import type {
+  NetworkAuditCheckSummary,
+  NetworkAuditScope,
+} from "@/lib/networkAuditViewModel";
 import type { ColumnDef } from "@tanstack/react-table";
+
+export interface SharedDetailProps {
+  summary: NetworkAuditCheckSummary;
+  scope: NetworkAuditScope;
+  search: string;
+  onBack: () => void;
+  onScopeChange: (scope: NetworkAuditScope) => void;
+}
 
 function textCell(value: string | null) {
   return value ?? "—";
@@ -45,12 +64,6 @@ function matchStatusBadge(status: PortMatchStatus) {
   return <Badge variant="secondary">{label}</Badge>;
 }
 
-function isNotable(row: PortAuditRow): boolean {
-  if (row.matchStatus === "no-target") return false;
-  if (row.matchStatus === "confirmed-cdp" && !row.labelConflict && !row.statusConflict) return false;
-  return true;
-}
-
 function presenceBadge(present: boolean) {
   return present
     ? <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">vorhanden</Badge>
@@ -62,7 +75,7 @@ function listCell(values: string[]) {
   return <span className="font-mono-data text-xs">{values.join(", ")}</span>;
 }
 
-const columns: ColumnDef<PortAuditRow, unknown>[] = [
+const portColumns: ColumnDef<PortAuditRow, unknown>[] = [
   { accessorKey: "switchHostname", header: "Switch", meta: { info: NET_AUDIT_COLUMNS.switchHostname }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "interface", header: "Interface", meta: { info: NET_AUDIT_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "description", header: "Beschreibung", meta: { info: NET_AUDIT_COLUMNS.description }, cell: ({ getValue }) => textCell(getValue() as string | null) },
@@ -154,145 +167,290 @@ const l2DiscoveryColumns: ColumnDef<L2DiscoveryRow, unknown>[] = [
   { accessorKey: "esxiHost", header: "ESXi-Host", meta: { info: NET_MAC_DISCOVERY_COLUMNS.esxiHost }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
 ];
 
-export function NetworkAuditPanel() {
-  const { rows: allRows, hostQuality = { rvtoolsRows: [], techInfoRows: [] }, cdpMacRows = [], l2DiscoveryRows = [], isLoading } = useNetworkAudit();
-  const { filters } = useActiveSnapshotIds();
-  const [onlyNotable, setOnlyNotable] = useState(true);
-  const [onlyHostGaps, setOnlyHostGaps] = useState(true);
-  const [onlyMacFindings, setOnlyMacFindings] = useState(true);
-  const [onlyUnknownL2, setOnlyUnknownL2] = useState(true);
+function filterByScope<T>(
+  rows: T[],
+  scope: NetworkAuditScope,
+  hasAttention: (row: T) => boolean,
+): T[] {
+  if (scope === "all") return rows;
+  return rows.filter((row) => scope === "attention" ? hasAttention(row) : !hasAttention(row));
+}
 
-  const rows = useMemo(() => (onlyNotable ? allRows.filter(isNotable) : allRows), [allRows, onlyNotable]);
-  const rvtoolsHostRows = useMemo(
-    () => onlyHostGaps ? hostQuality.rvtoolsRows.filter((row) => row.finding !== null) : hostQuality.rvtoolsRows,
-    [hostQuality.rvtoolsRows, onlyHostGaps],
+function unavailableState(title: string, description: string) {
+  return (
+    <EmptyState
+      icon={<Database aria-hidden="true" className="h-6 w-6" />}
+      title={title}
+      description={description}
+      actionLabel="Fehlende Daten importieren"
+      actionTo="/upload"
+    />
   );
-  const techInfoHostRows = useMemo(
-    () => onlyHostGaps ? hostQuality.techInfoRows.filter((row) => row.finding !== null) : hostQuality.techInfoRows,
-    [hostQuality.techInfoRows, onlyHostGaps],
-  );
-  const cdpMacDisplay = useMemo(
-    () => (onlyMacFindings ? cdpMacRows.filter((row) => !row.inL2 || row.topologyMismatch) : cdpMacRows),
-    [cdpMacRows, onlyMacFindings],
-  );
-  const l2DiscoveryDisplay = useMemo(
-    () => (onlyUnknownL2 ? l2DiscoveryRows.filter((row) => row.classification === "unknown") : l2DiscoveryRows),
-    [l2DiscoveryRows, onlyUnknownL2],
+}
+
+function hasPortAttention(row: PortAuditRow) {
+  return row.labelConflict
+    || row.statusConflict
+    || row.matchStatus === "unknown"
+    || row.matchStatus === "documented-only"
+    || row.matchStatus === "text-match";
+}
+
+export function PortAuditDetail({
+  rows,
+  summary,
+  scope,
+  search,
+  onBack,
+  onScopeChange,
+}: SharedDetailProps & { rows: PortAuditRow[] }) {
+  const visibleRows = useMemo(
+    () => filterByScope(rows, scope, hasPortAttention),
+    [rows, scope],
   );
 
-  const confirmedCount = useMemo(() => allRows.filter((r) => r.matchStatus === "confirmed-cdp").length, [allRows]);
-  const documentedOnlyCount = useMemo(() => allRows.filter((r) => r.matchStatus === "documented-only").length, [allRows]);
-  const unknownCount = useMemo(() => allRows.filter((r) => r.matchStatus === "unknown").length, [allRows]);
-  const statusConflictCount = useMemo(() => allRows.filter((r) => r.statusConflict).length, [allRows]);
-  const labelConflictCount = useMemo(() => allRows.filter((r) => r.labelConflict).length, [allRows]);
-
-  if (isLoading) return <PanelLoadingState />;
-
-  if (allRows.length === 0 && cdpMacRows.length === 0 && l2DiscoveryRows.length === 0) {
-    return (
-      <EmptyState
-        icon={<ListChecks className="h-6 w-6" />}
-        title="Keine Daten für die Kontrolle"
-        description="Laden Sie Eramon-Exporte auf der Upload-Seite hoch, um Switch-Ports gegen CDP-, RVTools-, TechInfo- und IPAM-Daten abzugleichen."
-        actionLabel="Zum Upload"
-        actionTo="/upload"
-      />
+  if (summary.readiness === "unavailable") {
+    return unavailableState(
+      "Switch-Port-Prüfung noch nicht möglich",
+      "Importieren Sie Eramon-Interface-Daten.",
     );
   }
 
   return (
-    <div className="space-y-6">
-      <KpiGrid>
-        <KpiCard title="Ports gesamt" value={formatNum(allRows.length)} icon={<ListChecks className="h-4 w-4" />} info={NET_AUDIT_KPI.totalPorts} />
-        <KpiCard title="CDP-bestätigt" value={formatNum(confirmedCount)} severity="ok" icon={<CheckCircle2 className="h-4 w-4" />} info={NET_AUDIT_KPI.cdpConfirmed} />
-        <KpiCard title="Nur dokumentiert" value={formatNum(documentedOnlyCount)} severity={documentedOnlyCount > 0 ? "warn" : "ok"} icon={<Archive className="h-4 w-4" />} info={NET_AUDIT_KPI.documentedOnly} />
-        <KpiCard title="Unbekannt" value={formatNum(unknownCount)} severity={unknownCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_AUDIT_KPI.unknown} />
-        <KpiCard title="Status-Konflikte" value={formatNum(statusConflictCount)} severity={statusConflictCount > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_AUDIT_KPI.statusConflicts} />
-        <KpiCard title="Beschriftungs-Konflikte" value={formatNum(labelConflictCount)} severity={labelConflictCount > 0 ? "warn" : "ok"} icon={<Tag className="h-4 w-4" />} info={NET_AUDIT_KPI.labelConflicts} />
-      </KpiGrid>
+    <AuditDetailView
+      title="Switch-Port-Zuordnungen"
+      description="Prüft Portbeschriftung, Link-Status und CDP-Nachbar auf Widersprüche."
+      summary={summary}
+      scope={scope}
+      visibleCount={visibleRows.length}
+      totalCount={rows.length}
+      search={search}
+      onBack={onBack}
+      onScopeChange={onScopeChange}
+    >
+      <VirtualTable
+        data={visibleRows}
+        columns={portColumns}
+        globalFilter={search}
+        height={500}
+        exportFileName="network-audit"
+        emptyTitle={search ? "Keine passenden Einträge" : "Keine Einträge in diesem Ergebnisfilter"}
+        emptyDescription={search
+          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          : "Wählen Sie einen anderen Ergebnisfilter."}
+      />
+    </AuditDetailView>
+  );
+}
 
-      <div>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Switch-Ports ({rows.length} von {allRows.length})</h3>
-          <label htmlFor="only-notable" className="flex cursor-pointer items-center gap-3 rounded-md bg-background/70 px-3 py-2 text-xs font-medium">
-            <span>Nur Auffälligkeiten</span>
-            <ToggleSwitch id="only-notable" checked={onlyNotable} onCheckedChange={setOnlyNotable} aria-label="Nur auffällige Ports anzeigen" />
-          </label>
+type HostPerspective = "rvtools" | "techinfo";
+
+export function HostDataAuditDetail({
+  rvtoolsRows,
+  techInfoRows,
+  summary,
+  scope,
+  search,
+  onBack,
+  onScopeChange,
+}: SharedDetailProps & {
+  rvtoolsRows: RvtoolsHostQualityRow[];
+  techInfoRows: TechInfoHostQualityRow[];
+}) {
+  const [perspective, setPerspective] = useState<HostPerspective>("rvtools");
+  const filteredRvtoolsRows = useMemo(
+    () => filterByScope(rvtoolsRows, scope, (row) => row.finding !== null),
+    [rvtoolsRows, scope],
+  );
+  const filteredTechInfoRows = useMemo(
+    () => filterByScope(techInfoRows, scope, (row) => row.finding !== null),
+    [techInfoRows, scope],
+  );
+
+  if (summary.readiness === "unavailable") {
+    return unavailableState(
+      "Host-Datenabgleich noch nicht möglich",
+      "Importieren Sie einen RVTools-Snapshot.",
+    );
+  }
+
+  const isRvtoolsPerspective = perspective === "rvtools";
+  const activeRows = isRvtoolsPerspective ? filteredRvtoolsRows : filteredTechInfoRows;
+  const totalCount = isRvtoolsPerspective ? rvtoolsRows.length : techInfoRows.length;
+
+  return (
+    <AuditDetailView
+      title="Host-Datenqualität"
+      description="Gleicht ESXi-Namen aus RVTools und Tech-Info mit IPAM ab."
+      summary={summary}
+      scope={scope}
+      visibleCount={activeRows.length}
+      totalCount={totalCount}
+      search={search}
+      onBack={onBack}
+      onScopeChange={onScopeChange}
+    >
+      <div className="space-y-4">
+        <div className="max-w-full overflow-x-auto">
+          <div
+            role="radiogroup"
+            aria-label="Ausgangspunkt des Host-Abgleichs"
+            className="inline-flex min-w-max items-center rounded-md border bg-muted/25 p-1"
+          >
+            {([
+              { value: "rvtools", label: "Aus RVTools" },
+              { value: "techinfo", label: "Aus Tech-Info" },
+            ] satisfies Array<{ value: HostPerspective; label: string }>).map((option) => (
+              <span key={option.value}>
+                <input
+                  id={`host-audit-perspective-${option.value}`}
+                  className="peer sr-only"
+                  type="radio"
+                  name="host-audit-perspective"
+                  value={option.value}
+                  checked={perspective === option.value}
+                  onChange={() => setPerspective(option.value)}
+                />
+                <label
+                  htmlFor={`host-audit-perspective-${option.value}`}
+                  className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors peer-checked:bg-background peer-checked:text-foreground peer-checked:shadow-sm peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
+                >
+                  {option.label}
+                </label>
+              </span>
+            ))}
+          </div>
         </div>
-        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="network-audit" />
+
+        <div className="flex min-h-11 items-center gap-2 rounded-md border bg-muted/20 px-3 text-sm text-muted-foreground">
+          <Server aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+          <span>
+            {isRvtoolsPerspective
+              ? "Startpunkt: vCenter-Inventar"
+              : "Startpunkt: technische Dokumentation"}
+          </span>
+        </div>
+
+        {isRvtoolsPerspective ? (
+          <VirtualTable
+            data={filteredRvtoolsRows}
+            columns={rvtoolsHostColumns}
+            globalFilter={search}
+            height={420}
+            exportFileName="host-data-quality-rvtools"
+            emptyTitle={scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
+            emptyDescription={scope === "attention"
+              ? "In dieser Perspektive wurden keine Datenlücken erkannt."
+              : "Ändern Sie Filter oder Suchbegriff."}
+          />
+        ) : (
+          <VirtualTable
+            data={filteredTechInfoRows}
+            columns={techInfoHostColumns}
+            globalFilter={search}
+            height={420}
+            exportFileName="host-data-quality-techinfo"
+            emptyTitle={scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
+            emptyDescription={scope === "attention"
+              ? "In dieser Perspektive wurden keine Datenlücken erkannt."
+              : "Ändern Sie Filter oder Suchbegriff."}
+          />
+        )}
       </div>
+    </AuditDetailView>
+  );
+}
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card/60" aria-labelledby="host-quality-heading">
-        <div className="border-b border-border bg-muted/20 px-4 py-4 sm:px-5">
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg border border-primary/30 bg-primary/10 p-2 text-primary"><Database className="h-4 w-4" /></div>
-              <div>
-                <h3 id="host-quality-heading" className="text-sm font-semibold">Host-Datenabgleich</h3>
-                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">Gleicht ESXi-Namen aus RVTools und Tech-Info mit IPAM ab. Die Netze werden aus den IPAM-Adressen als IPv4-/24 bzw. IPv6-/64 abgeleitet.</p>
-              </div>
-            </div>
-            <label htmlFor="only-host-gaps" className="flex cursor-pointer items-center gap-3 rounded-md border bg-background/70 px-3 py-2 text-xs font-medium">
-              <span>Nur Datenlücken</span>
-              <ToggleSwitch id="only-host-gaps" checked={onlyHostGaps} onCheckedChange={setOnlyHostGaps} aria-label="Nur Host-Datenlücken anzeigen" />
-            </label>
-          </div>
-        </div>
+export function MacAuditDetail({
+  rows,
+  summary,
+  scope,
+  search,
+  onBack,
+  onScopeChange,
+}: SharedDetailProps & { rows: CdpMacRow[] }) {
+  const visibleRows = useMemo(
+    () => filterByScope(rows, scope, (row) => !row.inL2 || row.topologyMismatch),
+    [rows, scope],
+  );
 
-        <div className="space-y-6 p-4 sm:p-5">
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2"><Server className="h-4 w-4 text-primary" /><h4 className="text-sm font-semibold">ESXi aus RVTools ({rvtoolsHostRows.length} von {hostQuality.rvtoolsRows.length})</h4></div>
-              <span className="text-xs text-muted-foreground">Startpunkt: vCenter-Inventar</span>
-            </div>
-            <VirtualTable data={rvtoolsHostRows} columns={rvtoolsHostColumns} globalFilter={filters.search} height={360} exportFileName="host-data-quality-rvtools" />
-          </div>
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><h4 className="text-sm font-semibold">Objekte aus Tech-Info ({techInfoHostRows.length} von {hostQuality.techInfoRows.length})</h4></div>
-              <span className="text-xs text-muted-foreground">Startpunkt: technische Dokumentation</span>
-            </div>
-            <VirtualTable data={techInfoHostRows} columns={techInfoHostColumns} globalFilter={filters.search} height={360} exportFileName="host-data-quality-techinfo" />
-          </div>
-        </div>
-      </section>
+  if (summary.readiness === "unavailable") {
+    return unavailableState(
+      "MAC-Abgleich noch nicht möglich",
+      "Importieren Sie CDP- und Eramon-L2-Daten.",
+    );
+  }
 
-      {(cdpMacRows.length > 0 || l2DiscoveryRows.length > 0) && (
-        <section className="overflow-hidden rounded-xl border border-border bg-card/60" aria-labelledby="mac-audit-heading">
-          <div className="border-b border-border bg-muted/20 px-4 py-4 sm:px-5">
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg border border-primary/30 bg-primary/10 p-2 text-primary"><Radar className="h-4 w-4" /></div>
-              <div>
-                <h3 id="mac-audit-heading" className="text-sm font-semibold">MAC-Abgleich (Eramon L2)</h3>
-                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">Gleicht die MAC-Adressen der ESXi-Adapter (CDP) mit der Eramon-L2-Tabelle ab und klassifiziert alle am Netz gelernten MACs. MAC-Formate werden dafür kanonisiert.</p>
-              </div>
-            </div>
-          </div>
+  return (
+    <AuditDetailView
+      title="ESXi-MAC-Abgleich"
+      description="Vergleicht die MAC-Adressen der ESXi-Adapter mit ihrer beobachteten L2-Position."
+      summary={summary}
+      scope={scope}
+      visibleCount={visibleRows.length}
+      totalCount={rows.length}
+      search={search}
+      onBack={onBack}
+      onScopeChange={onScopeChange}
+    >
+      <VirtualTable
+        data={visibleRows}
+        columns={cdpMacColumns}
+        globalFilter={search}
+        height={420}
+        exportFileName="mac-audit-cdp"
+        emptyTitle={scope === "attention" ? "Keine offenen MAC-Befunde" : "Keine passenden Einträge"}
+        emptyDescription={scope === "attention"
+          ? "Alle auswertbaren ESXi-Adapter wurden ohne Abweichung gefunden."
+          : "Ändern Sie Filter oder Suchbegriff."}
+      />
+    </AuditDetailView>
+  );
+}
 
-          <div className="space-y-6 p-4 sm:p-5">
-            <div>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2"><Server className="h-4 w-4 text-primary" /><h4 className="text-sm font-semibold">ESXi-Adapter in L2 ({cdpMacDisplay.length} von {cdpMacRows.length})</h4></div>
-                <label htmlFor="only-mac-findings" className="flex cursor-pointer items-center gap-3 rounded-md border bg-background/70 px-3 py-2 text-xs font-medium">
-                  <span>Nur Auffälligkeiten</span>
-                  <ToggleSwitch id="only-mac-findings" checked={onlyMacFindings} onCheckedChange={setOnlyMacFindings} aria-label="Nur auffällige Adapter anzeigen" />
-                </label>
-              </div>
-              <VirtualTable data={cdpMacDisplay} columns={cdpMacColumns} globalFilter={filters.search} height={360} exportFileName="mac-audit-cdp" />
-            </div>
-            <div>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2"><Radar className="h-4 w-4 text-primary" /><h4 className="text-sm font-semibold">Netz-Discovery ({l2DiscoveryDisplay.length} von {l2DiscoveryRows.length})</h4></div>
-                <label htmlFor="only-unknown-l2" className="flex cursor-pointer items-center gap-3 rounded-md border bg-background/70 px-3 py-2 text-xs font-medium">
-                  <span>Nur Unbekannte</span>
-                  <ToggleSwitch id="only-unknown-l2" checked={onlyUnknownL2} onCheckedChange={setOnlyUnknownL2} aria-label="Nur unbekannte MACs anzeigen" />
-                </label>
-              </div>
-              <VirtualTable data={l2DiscoveryDisplay} columns={l2DiscoveryColumns} globalFilter={filters.search} height={360} exportFileName="mac-discovery" />
-            </div>
-          </div>
-        </section>
-      )}
-    </div>
+export function NetworkDiscoveryDetail({
+  rows,
+  summary,
+  scope,
+  search,
+  onBack,
+  onScopeChange,
+}: SharedDetailProps & { rows: L2DiscoveryRow[] }) {
+  const visibleRows = useMemo(
+    () => filterByScope(rows, scope, (row) => row.classification === "unknown"),
+    [rows, scope],
+  );
+
+  if (summary.readiness === "unavailable") {
+    return unavailableState(
+      "Netz-Discovery noch nicht möglich",
+      "Importieren Sie Eramon-L2-Daten.",
+    );
+  }
+
+  return (
+    <AuditDetailView
+      title="Unbekannte Geräte"
+      description="Klassifiziert gelernte L2-MACs über CDP und IPAM."
+      summary={summary}
+      scope={scope}
+      visibleCount={visibleRows.length}
+      totalCount={rows.length}
+      search={search}
+      onBack={onBack}
+      onScopeChange={onScopeChange}
+    >
+      <VirtualTable
+        data={visibleRows}
+        columns={l2DiscoveryColumns}
+        globalFilter={search}
+        height={420}
+        exportFileName="mac-discovery"
+        emptyTitle={scope === "attention" ? "Keine unbekannten Geräte" : "Keine passenden Einträge"}
+        emptyDescription={scope === "attention"
+          ? "Alle auswertbaren L2-MACs konnten klassifiziert werden."
+          : "Ändern Sie Filter oder Suchbegriff."}
+      />
+    </AuditDetailView>
   );
 }
