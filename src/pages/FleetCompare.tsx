@@ -15,6 +15,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, NormalizedCluster, NormalizedDatastore, NormalizedHealth, NormalizedSnapshot as NormSnap, SnapshotMeta } from "@/domain/models/types";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { FLEET_KPI, FLEET_COLUMNS, FLEET_SECTIONS } from "@/lib/glossaries/fleetCompare";
+import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
 
 interface VCenterSummary {
   vcenterId: string; displayName: string; vmCount: number; poweredOn: number;
@@ -47,17 +48,17 @@ export default function FleetCompare() {
     return [...map.values()];
   }, [snapshots]);
 
-  const allSnapshotIds = latestSnapshots.map((s) => s.snapshotId);
+  const allSnapshotIds = getFleetQuerySnapshotIds(snapshots);
 
-  const { data: allVms = [], isLoading: vmsLoading } = useQuery({ queryKey: ["fleet-vms", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allHosts = [], isLoading: hostsLoading } = useQuery({ queryKey: ["fleet-hosts", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allClusters = [], isLoading: clustersLoading } = useQuery({ queryKey: ["fleet-clusters", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allDatastores = [], isLoading: datastoresLoading } = useQuery({ queryKey: ["fleet-ds", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allHealth = [], isLoading: healthLoading } = useQuery({ queryKey: ["fleet-health", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
-  const { data: allSnaps = [], isLoading: snapsLoading } = useQuery({ queryKey: ["fleet-snaps", allSnapshotIds], queryFn: () => getBySnapshotIds<NormSnap>("entities_snapshot", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allVms = [], isLoading: vmsLoading } = useQuery({ queryKey: ["vms", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allHosts = [], isLoading: hostsLoading } = useQuery({ queryKey: ["hosts", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allClusters = [], isLoading: clustersLoading } = useQuery({ queryKey: ["clusters", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedCluster>("entities_cluster", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allDatastores = [], isLoading: datastoresLoading } = useQuery({ queryKey: ["datastores", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allHealth = [], isLoading: healthLoading } = useQuery({ queryKey: ["health", allSnapshotIds], queryFn: () => getBySnapshotIds<NormalizedHealth>("entities_health", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
+  const { data: allSnaps = [], isLoading: snapsLoading } = useQuery({ queryKey: ["vmSnapshots", allSnapshotIds], queryFn: () => getBySnapshotIds<NormSnap>("entities_snapshot", allSnapshotIds), enabled: allSnapshotIds.length > 0 });
 
   // Security drift per vcenter (check dvPort)
-  const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["fleet-dvport", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
+  const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["rawSheet", "dvPort", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
 
   const summaries = useMemo<VCenterSummary[]>(() =>
     latestSnapshots.map((snap) => {

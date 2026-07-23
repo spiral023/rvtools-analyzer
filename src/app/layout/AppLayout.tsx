@@ -6,6 +6,7 @@ import { Moon, Settings, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalFilterControl } from "@/components/global-filter/GlobalFilterControl";
 import { Link } from "react-router-dom";
+import { ImportedDataPreloadControl } from "@/components/layout/ImportedDataPreloadControl";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useTheme();
@@ -22,6 +23,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div id="app-header-slot" className="flex min-w-0 flex-1 flex-wrap items-center gap-2" />
             <div className="flex items-center gap-2">
               <GlobalFilterControl />
+              <ImportedDataPreloadControl />
               <Button
                 asChild
                 variant="ghost"

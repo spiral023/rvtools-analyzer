@@ -307,7 +307,7 @@ describe("timeSampleVmQuery", () => {
 
 describe("getRawSheetFieldNames", () => {
   it("returns raw sheet field names without reading full sheet rows", async () => {
-    const { getDb, getRawSheetFieldNames } = await import("./index");
+    const { getDb, getRawSheetFieldNames, getRawSheetFieldNamesBySnapshot } = await import("./index");
     const { gzipJson } = await import("@/lib/compression");
     const db = await getDb();
 
@@ -337,6 +337,33 @@ describe("getRawSheetFieldNames", () => {
       "Disk",
       "VM",
     ]);
+    await expect(getRawSheetFieldNamesBySnapshot(["snap-1", "snap-2"], "vDisk")).resolves.toEqual({
+      "snap-1": ["Capacity MiB", "Disk", "VM"],
+      "snap-2": ["Datastore", "VM"],
+    });
+  });
+});
+
+describe("Raw-Sheet-Dekompression", () => {
+  it("dekomprimiert Snapshot-Blobs eines Sheets strikt nacheinander", async () => {
+    const { hydrateRawSheetBlobsSequentially } = await import("./index");
+    let active = 0;
+    let maximumActive = 0;
+    const decompress = async (): Promise<(string | number | boolean | null)[][]> => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await Promise.resolve();
+      active -= 1;
+      return [["VM-01"]];
+    };
+
+    const rows = await hydrateRawSheetBlobsSequentially([
+      { snapshotId: "snap-1", sheetName: "vCPU", headers: ["VM"], rowCount: 1, codec: "gzip-json-v1", data: new ArrayBuffer(1) },
+      { snapshotId: "snap-2", sheetName: "vCPU", headers: ["VM"], rowCount: 1, codec: "gzip-json-v1", data: new ArrayBuffer(1) },
+    ], decompress);
+
+    expect(maximumActive).toBe(1);
+    expect(rows.map((row) => row.snapshotId)).toEqual(["snap-1", "snap-2"]);
   });
 });
 
@@ -666,5 +693,73 @@ describe("CDP import listing and deletion", () => {
 
     await deleteAllData();
     await expect(getCdpImports()).resolves.toHaveLength(0);
+  });
+});
+
+describe("Importdaten-Preload-Inventar", () => {
+  it("findet alle gespeicherten Raw-Sheets der angeforderten Snapshots eindeutig und sortiert", async () => {
+    const { getDb, getStoredRawSheetNames } = await import("./index");
+    const db = await getDb();
+
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snapshot-b",
+      sheetName: "vDisk",
+      headers: [],
+      rowCount: 0,
+      codec: "gzip-json-v1",
+      data: new ArrayBuffer(0),
+    });
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snapshot-a",
+      sheetName: "vCPU",
+      headers: [],
+      rowCount: 0,
+      codec: "gzip-json-v1",
+      data: new ArrayBuffer(0),
+    });
+    await db.put("rawSheetBlobs", {
+      snapshotId: "snapshot-c",
+      sheetName: "vMemory",
+      headers: [],
+      rowCount: 0,
+      codec: "gzip-json-v1",
+      data: new ArrayBuffer(0),
+    });
+
+    await expect(getStoredRawSheetNames(["snapshot-a", "snapshot-b"])).resolves.toEqual(["vCPU", "vDisk"]);
+  });
+
+  it("liest vollständige Import-Stores und erkennt auch auxiliary-only Imports", async () => {
+    const { getDb, getImportedStoreRecords, hasImportedData } = await import("./index");
+    const db = await getDb();
+
+    await db.put("techinfo_rows", {
+      techInfoImportId: "tech-1",
+      rowIndex: 0,
+      vmName: "VM-01",
+      vmNameNorm: "vm-01",
+      importedAt: "2026-07-23T00:00:00.000Z",
+      rawData: { Name: "VM-01" },
+    });
+    await db.put("techinfo_rows", {
+      techInfoImportId: "tech-1",
+      rowIndex: 1,
+      vmName: "VM-02",
+      vmNameNorm: "vm-02",
+      importedAt: "2026-07-23T00:00:00.000Z",
+      rawData: { Name: "VM-02" },
+    });
+    await db.put("techinfo_imports", {
+      techInfoImportId: "tech-1",
+      importedAt: "2026-07-23T00:00:00.000Z",
+      fileName: "tech.xlsx",
+      fileChecksum: "checksum",
+      sheetName: "Tabelle1",
+      rowCount: 2,
+      columnCount: 1,
+    });
+
+    await expect(getImportedStoreRecords("techinfo_rows")).resolves.toHaveLength(2);
+    await expect(hasImportedData()).resolves.toBe(true);
   });
 });

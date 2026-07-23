@@ -9,6 +9,7 @@ import {
   saveVmScopeSettings,
   VM_SCOPE_SETTINGS_CHANGED_EVENT,
 } from "@/lib/vmScopeSettings";
+import { QUERY_CACHE_DURATION_MS } from "@/lib/queryCache";
 
 const defaultFilter: FilterState = {
   vcenterIds: [],
@@ -22,7 +23,7 @@ const defaultFilter: FilterState = {
 };
 
 const UI_STATE_ID = "app";
-const SNAPSHOT_STALE_MS = 5 * 60 * 1000;
+const SNAPSHOT_STALE_MS = QUERY_CACHE_DURATION_MS;
 
 interface FilterContextValue {
   filters: FilterState;

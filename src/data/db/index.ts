@@ -188,6 +188,24 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "eramon_l2_imports" | "eramon_l2_rows" | "eramon_l2_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios" | "vcenter_groups";
+
+export const IMPORT_DATA_STORE_NAMES = [
+  "techinfo_imports",
+  "techinfo_rows",
+  "techinfo_client_imports",
+  "techinfo_client_rows",
+  "cdp_imports",
+  "cdp_rows",
+  "ipam_imports",
+  "ipam_rows",
+  "eramon_iface_imports",
+  "eramon_iface_rows",
+  "eramon_l2_imports",
+  "eramon_l2_rows",
+] as const satisfies readonly StoreName[];
+
+export type ImportedDataStoreName = (typeof IMPORT_DATA_STORE_NAMES)[number];
+
 type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host" | "entities_cluster"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
@@ -399,6 +417,44 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
 export async function getSnapshots(): Promise<SnapshotMeta[]> {
   const db = await getDb();
   return db.getAll("snapshots");
+}
+
+/** Liefert alle tatsächlich persistierten Raw-Sheet-Namen der angegebenen Snapshots. */
+export async function getStoredRawSheetNames(snapshotIds: string[]): Promise<string[]> {
+  if (snapshotIds.length === 0) return [];
+  const db = await getDb();
+  const snapshotIdSet = new Set(snapshotIds);
+  const keys = await db.getAllKeys("rawSheetBlobs");
+  const sheetNames = new Set<string>();
+  for (const [snapshotId, sheetName] of keys) {
+    if (snapshotIdSet.has(snapshotId)) sheetNames.add(sheetName);
+  }
+  return [...sheetNames].sort((left, right) => left.localeCompare(right, "de-DE"));
+}
+
+/** Vollständiger read-only Zugriff für das nutzergesteuerte Importdaten-Preloading. */
+export async function getImportedStoreRecords(storeName: ImportedDataStoreName): Promise<unknown[]> {
+  const db = await getDb();
+  return db.getAll(storeName);
+}
+
+/** Erkennt RVTools- und Auxiliary-Imports, ohne große Zeilen-Stores einzulesen. */
+export async function hasImportedData(): Promise<boolean> {
+  const db = await getDb();
+  const metadataStores = [
+    "snapshots",
+    "techinfo_imports",
+    "techinfo_client_imports",
+    "cdp_imports",
+    "ipam_imports",
+    "eramon_iface_imports",
+    "eramon_l2_imports",
+  ] as const;
+
+  for (const storeName of metadataStores) {
+    if (await db.count(storeName)) return true;
+  }
+  return false;
 }
 
 export async function getSnapshotsByChecksum(checksum: string): Promise<SnapshotMeta | undefined> {
@@ -717,6 +773,22 @@ function hydrateSheetRows(
   });
 }
 
+type RawSheetValues = (string | number | boolean | null)[][];
+type RawSheetDecompressor = (data: ArrayBuffer) => Promise<RawSheetValues>;
+
+/** Dekomprimiert große Snapshot-Blobs bewusst nacheinander, um Heap-Spitzen zu begrenzen. */
+export async function hydrateRawSheetBlobsSequentially(
+  blobs: RawSheetBlob[],
+  decompress: RawSheetDecompressor = (data) => gunzipJson<RawSheetValues>(data),
+): Promise<SheetRow[]> {
+  const rows: SheetRow[] = [];
+  for (const blob of blobs) {
+    const values = await decompress(blob.data);
+    rows.push(...hydrateSheetRows(blob.snapshotId, blob.sheetName, blob.headers, values));
+  }
+  return rows;
+}
+
 export async function putRawSheetBlob(blob: RawSheetBlob): Promise<void> {
   const db = await getDb();
   await db.put("rawSheetBlobs", blob);
@@ -729,15 +801,27 @@ export async function getRawSheetRows(
 ): Promise<SheetRow[]> {
   if (snapshotIds.length === 0) return [];
   const db = await getDb();
-  const perId = await Promise.all(
-    snapshotIds.map(async (sid) => {
-      const blob = await db.get("rawSheetBlobs", [sid, sheetName]);
-      if (!blob) return [];
-      const values = await gunzipJson<(string | number | boolean | null)[][]>(blob.data);
-      return hydrateSheetRows(sid, sheetName, blob.headers, values);
-    }),
-  );
-  return perId.flat();
+  const blobs: RawSheetBlob[] = [];
+  for (const snapshotId of snapshotIds) {
+    const blob = await db.get("rawSheetBlobs", [snapshotId, sheetName]);
+    if (blob) blobs.push(blob);
+  }
+  return hydrateRawSheetBlobsSequentially(blobs);
+}
+
+export async function getRawSheetFieldNamesBySnapshot(
+  snapshotIds: string[],
+  sheetName: string,
+): Promise<Record<string, string[]>> {
+  if (snapshotIds.length === 0) return {};
+  const db = await getDb();
+  const result: Record<string, string[]> = {};
+  await Promise.all(snapshotIds.map(async (snapshotId) => {
+    const blob = await db.get("rawSheetBlobs", [snapshotId, sheetName]);
+    if (!blob) return;
+    result[snapshotId] = [...blob.headers].sort((a, b) => a.localeCompare(b, "de-DE", { sensitivity: "base" }));
+  }));
+  return result;
 }
 
 export async function getRawSheetFieldNames(

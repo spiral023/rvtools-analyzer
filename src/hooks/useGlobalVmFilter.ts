@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { getBySnapshotIds, getRawSheetFieldNames, getRawSheetRows, getSnapshots, getTechInfoLatestByVmNames, getTechInfoClientLatestByClientNames } from "@/data/db";
+import { getAllTechInfoClientLatest, getAllTechInfoLatest, getBySnapshotIds, getRawSheetFieldNamesBySnapshot, getRawSheetRows, getSnapshots } from "@/data/db";
 import { useFilterState } from "@/hooks/useFilterState";
 import {
   buildGlobalFilterFields,
   buildVmJoinKey,
+  collectRawFieldNamesForSnapshots,
   collectReferencedRawFilterSources,
   evaluateGlobalFilter,
   filterRowsByMatchingVmJoinKeys,
@@ -16,10 +17,9 @@ import {
 } from "@/lib/globalFilter";
 import { buildVmScopeJoinKeys } from "@/lib/vmScope";
 import type { GlobalFilterField, GlobalFilterGroup, NormalizedVm, SheetRow } from "@/domain/models/types";
+import { QUERY_CACHE_DURATION_MS, RAW_QUERY_GC_MS } from "@/lib/queryCache";
 
-const STALE_MS = 5 * 60 * 1000;
-// Muss staleTime entsprechen — siehe RAW_QUERY_GC_MS in useActiveSnapshots.ts.
-const RAW_QUERY_GC_MS = STALE_MS;
+const STALE_MS = QUERY_CACHE_DURATION_MS;
 
 export interface GlobalVmFilterEngineResult {
   fields: GlobalFilterField[];
@@ -61,12 +61,18 @@ export function useGlobalVmFilterEngine(
     return [...latestByVcenter.values()].map((entry) => entry.id);
   }, [filters.vcenterIds, snapshots]);
 
-  const { data: allVms = [] } = useQuery({
-    queryKey: ["vms", activeSnapshotIds],
-    queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", activeSnapshotIds),
-    enabled: enabled && activeSnapshotIds.length > 0,
+  const allSnapshotIds = useMemo(() => snapshots.map((snapshot) => snapshot.snapshotId), [snapshots]);
+
+  const { data: importedVms = [] } = useQuery({
+    queryKey: ["vms", allSnapshotIds],
+    queryFn: () => getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds),
+    enabled: enabled && allSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });
+  const allVms = useMemo(() => {
+    const activeSnapshotIdSet = new Set(activeSnapshotIds);
+    return importedVms.filter((vm) => activeSnapshotIdSet.has(vm.snapshotId));
+  }, [activeSnapshotIds, importedVms]);
   const hasActiveFilter = hasGlobalFilterDefinition(filters.globalFilter);
 
   const normalizedVmNames = useMemo(
@@ -81,19 +87,27 @@ export function useGlobalVmFilterEngine(
     [allVms],
   );
 
-  const { data: techInfoLatest = [] } = useQuery({
-    queryKey: ["techInfoLatestByVmNames", normalizedVmNames],
-    queryFn: () => getTechInfoLatestByVmNames(normalizedVmNames),
+  const { data: allTechInfoLatest = [] } = useQuery({
+    queryKey: ["techInfoLatestAll"],
+    queryFn: getAllTechInfoLatest,
     enabled: enabled && normalizedVmNames.length > 0,
     staleTime: STALE_MS,
   });
+  const techInfoLatest = useMemo(() => {
+    const nameSet = new Set(normalizedVmNames.map((name) => name.toLocaleLowerCase("de-DE")));
+    return allTechInfoLatest.filter((entry) => nameSet.has(entry.vmNameNorm));
+  }, [allTechInfoLatest, normalizedVmNames]);
 
-  const { data: techInfoClientLatest = [] } = useQuery({
-    queryKey: ["techInfoClientLatestByClientNames", normalizedVmNames],
-    queryFn: () => getTechInfoClientLatestByClientNames(normalizedVmNames),
+  const { data: allTechInfoClientLatest = [] } = useQuery({
+    queryKey: ["techInfoClientLatestAll"],
+    queryFn: getAllTechInfoClientLatest,
     enabled: enabled && normalizedVmNames.length > 0,
     staleTime: STALE_MS,
   });
+  const techInfoClientLatest = useMemo(() => {
+    const nameSet = new Set(normalizedVmNames.map((name) => name.toLocaleLowerCase("de-DE")));
+    return allTechInfoClientLatest.filter((entry) => nameSet.has(entry.clientNameNorm));
+  }, [allTechInfoClientLatest, normalizedVmNames]);
 
   const referencedRawSources = useMemo(
     () => collectReferencedRawFilterSources(filters.globalFilter, previewFilter),
@@ -105,24 +119,24 @@ export function useGlobalVmFilterEngine(
     [referencedRawSources],
   );
 
-  const shouldLoadAllRawFieldNames = enabled && activeSnapshotIds.length > 0 && previewFilter !== undefined;
+  const shouldLoadAllRawFieldNames = enabled && allSnapshotIds.length > 0 && previewFilter !== undefined;
 
   const rawFieldNameSourceList = shouldLoadAllRawFieldNames ? RAW_VM_FILTER_SOURCES : referencedRawSourceList;
 
   const rawFieldNameQueryResults = useQueries({
     queries: rawFieldNameSourceList.map((source) => ({
-      queryKey: ["globalVmFilterRawSheetFields", source, activeSnapshotIds],
-      queryFn: () => getRawSheetFieldNames(activeSnapshotIds, source),
-      enabled: enabled && activeSnapshotIds.length > 0,
+      queryKey: ["rawSheetFieldsBySnapshot", source, allSnapshotIds],
+      queryFn: () => getRawSheetFieldNamesBySnapshot(allSnapshotIds, source),
+      enabled: enabled && allSnapshotIds.length > 0,
       staleTime: STALE_MS,
     })),
   });
 
   const rawQueryResults = useQueries({
     queries: referencedRawSourceList.map((source) => ({
-      queryKey: ["globalVmFilterRawSheet", source, activeSnapshotIds],
-      queryFn: () => getRawSheetRows(activeSnapshotIds, source),
-      enabled: enabled && activeSnapshotIds.length > 0,
+      queryKey: ["rawSheet", source, allSnapshotIds],
+      queryFn: () => getRawSheetRows(allSnapshotIds, source),
+      enabled: enabled && allSnapshotIds.length > 0,
       staleTime: STALE_MS,
       gcTime: RAW_QUERY_GC_MS,
     })),
@@ -131,19 +145,22 @@ export function useGlobalVmFilterEngine(
   const rawFieldNamesBySource = useMemo(
     () =>
       rawFieldNameSourceList.reduce<Partial<Record<VmRawFilterSource, string[]>>>((acc, source, index) => {
-        acc[source] = (rawFieldNameQueryResults[index]?.data as string[] | undefined) ?? [];
+        const bySnapshot = (rawFieldNameQueryResults[index]?.data as Record<string, string[]> | undefined) ?? {};
+        acc[source] = collectRawFieldNamesForSnapshots(bySnapshot, activeSnapshotIds);
         return acc;
       }, {}),
-    [rawFieldNameQueryResults, rawFieldNameSourceList],
+    [activeSnapshotIds, rawFieldNameQueryResults, rawFieldNameSourceList],
   );
 
   const rawRowsBySource = useMemo(
     () =>
       referencedRawSourceList.reduce<Partial<Record<VmRawFilterSource, SheetRow[]>>>((acc, source, index) => {
-        acc[source] = (rawQueryResults[index]?.data as SheetRow[] | undefined) ?? [];
+        const rows = (rawQueryResults[index]?.data as SheetRow[] | undefined) ?? [];
+        const activeSnapshotIdSet = new Set(activeSnapshotIds);
+        acc[source] = rows.filter((row) => activeSnapshotIdSet.has(row.snapshotId));
         return acc;
       }, {}),
-    [rawQueryResults, referencedRawSourceList],
+    [activeSnapshotIds, rawQueryResults, referencedRawSourceList],
   );
 
   const contexts = useMemo(() => {

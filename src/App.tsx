@@ -11,6 +11,7 @@ import { AppLayout } from "@/app/layout/AppLayout";
 import { ImportProvider } from "@/hooks/useImportController";
 import { OnboardingProvider } from "@/hooks/useOnboarding";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
@@ -40,7 +41,7 @@ const queryClient = new QueryClient({
     queries: {
       // Daten ändern sich nur durch einen Import → lange als frisch behandeln,
       // spart Refetches beim Seitenwechsel.
-      staleTime: 5 * 60 * 1000,
+      ...IMPORTED_DATA_QUERY_DEFAULTS,
       refetchOnWindowFocus: false,
     },
   },

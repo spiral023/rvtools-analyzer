@@ -41,6 +41,17 @@ export const RAW_VM_FILTER_SOURCES: VmRawFilterSource[] = [
   "vUSB",
 ];
 
+export function collectRawFieldNamesForSnapshots(
+  fieldNamesBySnapshot: Record<string, string[]>,
+  snapshotIds: string[],
+): string[] {
+  const fields = new Set<string>();
+  for (const snapshotId of snapshotIds) {
+    for (const field of fieldNamesBySnapshot[snapshotId] ?? []) fields.add(field);
+  }
+  return [...fields].sort((left, right) => left.localeCompare(right, "de-DE", { sensitivity: "base" }));
+}
+
 export const ROOT_GROUP_SOURCE_OPTIONS: Exclude<GlobalFilterSourceScope, "root">[] = [
   "vm",
   "techInfo",

@@ -5,11 +5,21 @@ import {
   buildGlobalFilterFields,
   buildVmJoinKey,
   collectReferencedRawFilterSources,
+  collectRawFieldNamesForSnapshots,
   evaluateGlobalFilter,
   parseSerializedGlobalFilter,
   serializeGlobalFilter,
   type VmGlobalFilterContextEntry,
 } from "@/lib/globalFilter";
+
+describe("collectRawFieldNamesForSnapshots", () => {
+  it("liefert nur Felder der aktiven Snapshots", () => {
+    expect(collectRawFieldNamesForSnapshots({
+      "snap-1": ["VM", "CPU"],
+      "snap-2": ["VM", "Fremdes Feld"],
+    }, ["snap-1"])).toEqual(["CPU", "VM"]);
+  });
+});
 
 function makeVm(overrides: Partial<NormalizedVm> = {}): NormalizedVm {
   return {

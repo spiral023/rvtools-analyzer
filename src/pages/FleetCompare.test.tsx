@@ -2,11 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { describe, expect, it, vi } from "vitest";
+import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
 
 const snapshots = [{
   snapshotId: "snap-1", vcenterId: "vc-1", vcenterDisplayName: "vcenter-prod",
   exportTs: "2026-07-22T00:00:00.000Z", importedAt: "2026-07-22T00:00:00.000Z",
   fileName: "prod.xlsx", fileChecksum: "checksum", sheetStats: {},
+}, {
+  snapshotId: "snap-old", vcenterId: "vc-1", vcenterDisplayName: "vcenter-prod",
+  exportTs: "2026-07-01T00:00:00.000Z", importedAt: "2026-07-01T00:00:00.000Z",
+  fileName: "prod-old.xlsx", fileChecksum: "checksum-old", sheetStats: {},
 }];
 
 vi.mock("@tanstack/react-query", () => ({
@@ -24,6 +29,10 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 const { default: FleetCompare } = await import("./FleetCompare");
 
 describe("FleetCompare", () => {
+  it("verwendet für Queries alle importierten Snapshot-IDs", () => {
+    expect(getFleetQuerySnapshotIds(snapshots)).toEqual(["snap-1", "snap-old"]);
+  });
+
   it("shows vCenter KPIs directly below the page heading for a single vCenter", () => {
     render(
       <MemoryRouter>

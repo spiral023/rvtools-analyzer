@@ -107,6 +107,24 @@ function Probe({ filters }: { filters?: Partial<FilterState> }) {
   );
 }
 
+function CanonicalScopeProbe({ vcenterIds }: { vcenterIds: string[] }) {
+  const { setFilters } = useFilterState();
+  const { activeSnapshotIds, allSnapshotIds } = useActiveSnapshotIds();
+  const { vms } = useVms();
+
+  useEffect(() => {
+    setFilters({ vcenterIds });
+  }, [setFilters, vcenterIds]);
+
+  return (
+    <>
+      <div data-testid="canonical-snapshots">{allSnapshotIds.join(",")}</div>
+      <div data-testid="canonical-active">{activeSnapshotIds.join(",")}</div>
+      <div data-testid="canonical-vms">{vms.map((entry) => entry.vmName).join(",")}</div>
+    </>
+  );
+}
+
 beforeEach(async () => {
   await deleteAllData();
 });
@@ -164,6 +182,30 @@ describe("useRawSheet", () => {
 });
 
 describe("useActiveSnapshotIds", () => {
+  it("lädt alle vCenter in einen kanonischen Cache und schneidet den aktiven Scope im Speicher zu", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    await putSnapshot(snapshot("snap-2", "vc-2", "2026-01-02T00:00:00.000Z"));
+    await batchPut("entities_vm", [
+      vm("snap-1", "VC1-VM", "CL-1"),
+      { ...vm("snap-2", "VC2-VM", "CL-2"), vcenterId: "vc-2" },
+    ]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <FilterProvider>{children}</FilterProvider>
+      </QueryClientProvider>
+    );
+
+    render(<CanonicalScopeProbe vcenterIds={["vc-1"]} />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canonical-snapshots")).toHaveTextContent("snap-1,snap-2");
+      expect(screen.getByTestId("canonical-active")).toHaveTextContent(/^snap-1$/);
+      expect(screen.getByTestId("canonical-vms")).toHaveTextContent(/^VC1-VM$/);
+    });
+    expect(queryClient.getQueryData(["vms", ["snap-1", "snap-2"]])).toHaveLength(2);
+  });
+
   it("selects the latest export for each vCenter (defensive reduction if several exist)", async () => {
     await putSnapshot(snapshot("vc1-old", "vc-1", "2026-01-01T00:00:00.000Z"));
     await putSnapshot(snapshot("vc1-new", "vc-1", "2026-02-01T00:00:00.000Z"));
