@@ -42,6 +42,6 @@ describe("NetworkAuditPanel host data quality", () => {
 
     const tables = screen.getAllByTestId("host-quality-table-columns");
     expect(tables[1]).toHaveTextContent("ESXi-Host aus RVTools|Cluster|ESXi-Version|Tech-Info vorhanden|Servertyp|Abteilung|IPAM vorhanden|IP-Adressen|IPAM-Netze|Datenlücke");
-    expect(tables[2]).toHaveTextContent("Objekt aus Tech-Info|Servertyp|Abteilung|Wartungsfenster|RVTools vorhanden|ESXi-Host aus RVTools|Cluster|IPAM vorhanden|IP-Adressen|IPAM-Netze|Datenlücke");
+    expect(tables[2]).toHaveTextContent("Objekt aus Tech-Info|RVTools vorhanden|ESXi-Host aus RVTools|Cluster|IPAM vorhanden|IP-Adressen|Datenlücke");
   });
 });

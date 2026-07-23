@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useRawSheet, useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
+import { useRawSheet, useActiveSnapshotIds, useClusters, useDatastores, useHosts, useVms } from "@/hooks/useActiveSnapshots";
+import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -158,12 +159,14 @@ function shortenVendor(vendor: string): string {
 /*  Sub-Components                                                     */
 /* ------------------------------------------------------------------ */
 
-function ModelCard({
+export function ModelCard({
   group,
   onSelect,
+  onSelectCluster,
 }: {
   group: HardwareModelGroup;
   onSelect: (h: HostDetail) => void;
+  onSelectCluster: (h: HostDetail) => void;
 }) {
   const {
     modelLabel,
@@ -181,7 +184,7 @@ function ModelCard({
   const ramLabel = formatMemorySummary(memoryValuesMiB, memoryMiB);
   const coreLabel = totalCores ? `${totalCores} Cores` : "Cores n/a";
   const socketLabel = cpuSockets ? `${cpuSockets} Sockel` : "Sockel n/a";
-  const clusters = [...new Set(hosts.flatMap((h) => h.cluster ? [h.cluster] : []))];
+  const clusters = [...new Map(hosts.filter((h) => h.cluster).map((h) => [h.cluster, h])).entries()];
   const totalVms = hosts.reduce((s, h) => s + h.vmCount, 0);
 
   return (
@@ -222,10 +225,19 @@ function ModelCard({
         </div>
         {clusters.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {clusters.map((c) => (
-              <Badge key={c} variant="outline" className="text-[10px] font-normal">
-                {c}
-              </Badge>
+            {clusters.map(([cluster, host]) => (
+              <button
+                type="button"
+                key={cluster}
+                onClick={() => onSelectCluster(host)}
+                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={`Cluster ${cluster} öffnen`}
+                title="Cluster-Details öffnen"
+              >
+                <Badge variant="outline" className="cursor-pointer text-[10px] font-normal hover:bg-accent">
+                  {cluster}
+                </Badge>
+              </button>
             ))}
           </div>
         )}
@@ -823,14 +835,18 @@ export function HostDetailDialog({
 /* ------------------------------------------------------------------ */
 
 export default function Hardware() {
-  const { activeSnapshotIds, filters } = useActiveSnapshotIds();
+  const { activeSnapshotIds, filters, snapshots } = useActiveSnapshotIds();
   const { data: hostRows = [] } = useRawSheet("vHost");
   const { data: hbaRows = [] } = useRawSheet("vHBA");
   const { data: nicRows = [] } = useRawSheet("vNIC");
+  const { data: clusters = [] } = useClusters();
+  const { data: normalizedHosts = [] } = useHosts();
+  const { data: datastores = [] } = useDatastores();
   const { allVms = [] } = useVms();
 
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<HardwareModelGroup | null>(null);
+  const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const [countRamAsVariant, setCountRamAsVariant] = useState(false);
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
@@ -885,6 +901,21 @@ export default function Hardware() {
   const totalHosts = filteredHosts.length;
   const totalVms = filteredHosts.reduce((s, h) => s + h.vmCount, 0);
   const uniqueVendors = new Set(filteredHosts.map((h) => h.vendor)).size;
+  const selectedCluster = clusters.find((cluster) => cluster.clusterKey === selectedClusterKey) ?? null;
+
+  const openClusterDetail = (host: HostDetail) => {
+    const normalizedHost = normalizedHosts.find((candidate) =>
+      candidate.host === host.host
+      && candidate.cluster === host.cluster
+      && candidate.datacenter === host.datacenter,
+    );
+    const cluster = clusters.find((candidate) =>
+      candidate.name === host.cluster
+      && candidate.datacenter === host.datacenter
+      && (!normalizedHost || candidate.vcenterId === normalizedHost.vcenterId),
+    );
+    if (cluster) setSelectedClusterKey(cluster.clusterKey);
+  };
 
   if (activeSnapshotIds.length === 0) {
     return (
@@ -1017,6 +1048,7 @@ export default function Hardware() {
               key={g.signature}
               group={g}
               onSelect={setSelectedHost}
+              onSelectCluster={openClusterDetail}
             />
           ))}
         </div>
@@ -1031,6 +1063,18 @@ export default function Hardware() {
           setSelectedVariant(null);
           setSelectedHost(h);
         }}
+      />
+
+      <ClusterDetailDialog
+        clusterKey={selectedClusterKey}
+        vcenterDisplayName={snapshots.find((snapshot) => snapshot.vcenterId === selectedCluster?.vcenterId)?.vcenterDisplayName}
+        open={selectedClusterKey !== null}
+        onClose={() => setSelectedClusterKey(null)}
+        clusters={clusters}
+        hosts={normalizedHosts}
+        vms={allVms}
+        datastores={datastores}
+        rawVHostRows={hostRows}
       />
 
       {/* Detail dialog */}

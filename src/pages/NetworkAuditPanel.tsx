@@ -112,15 +112,11 @@ const rvtoolsHostColumns: ColumnDef<RvtoolsHostQualityRow, unknown>[] = [
 
 const techInfoHostColumns: ColumnDef<TechInfoHostQualityRow, unknown>[] = [
   { accessorKey: "techInfoName", header: "Objekt (Tech-Info)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.techInfoName }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
-  { accessorKey: "serverType", header: "Servertyp", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.serverType }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "department", header: "Abteilung", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.department }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.maintenanceWindow }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { id: "rvtoolsPresent", header: "RVTools", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsPresent }, accessorFn: (row) => row.rvtoolsPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.rvtoolsPresent) },
   { accessorKey: "rvtoolsHost", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsHost }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
   { accessorKey: "rvtoolsCluster", header: "Cluster", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsCluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { id: "ipamPresent", header: "IPAM", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamPresent }, accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
   { id: "ipamAddresses", header: "IP-Adressen", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamAddresses }, accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
-  { id: "ipamNetworks", header: "IPAM-Netze", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamNetworks }, accessorFn: (row) => row.ipamNetworks.join(" "), cell: ({ row }) => listCell(row.original.ipamNetworks) },
   { accessorKey: "finding", header: "Datenlücke", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.finding }, cell: ({ getValue }) => <span className="text-warning text-xs">{textCell(getValue() as string | null)}</span> },
 ];
 

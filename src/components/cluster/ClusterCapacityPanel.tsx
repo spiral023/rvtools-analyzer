@@ -75,6 +75,29 @@ function hostDensityColor(vcpuPerCore: number): string {
   return CHART_COLORS.success;
 }
 
+export function HostDensityTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: HostDensityPoint }>;
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-mono-data font-semibold text-popover-foreground">{point.name}</p>
+      <p className="mt-0.5 text-muted-foreground">{point.vcenterDisplayName} · {point.cluster}</p>
+      <div className="mt-2 grid grid-cols-3 gap-x-3 text-muted-foreground">
+        <span>VMs: <strong className="text-popover-foreground">{point.vms}</strong></span>
+        <span>vCPU/Core: <strong className="text-popover-foreground">{point.vcpuPerCore.toFixed(2)}</strong></span>
+        <span>RAM: <strong className="text-popover-foreground">{point.ramGiB} GiB</strong></span>
+      </div>
+    </div>
+  );
+}
+
 export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity, clusterDensity, search, onOpenCluster }: ClusterCapacityPanelProps) {
   const [selectedVcenter, setSelectedVcenter] = useState("all");
   const [onlyNotableHosts, setOnlyNotableHosts] = useState(false);
@@ -124,10 +147,7 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
                 contentStyle={CHART_TOOLTIP_STYLE}
                 itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-                labelFormatter={(_, payload) => {
-                  const point = payload[0]?.payload as HostDensityPoint | undefined;
-                  return point ? `Host: ${point.name} · ${point.cluster} · ${point.vcenterDisplayName}` : "";
-                }}
+                content={(props) => <HostDensityTooltip active={props.active} payload={props.payload as Array<{ payload?: HostDensityPoint }> | undefined} />}
               />
               <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
               <Scatter data={visibleHostDensity}>{visibleHostDensity.map((row) => <Cell key={row.hostKey} fill={hostDensityColor(row.vcpuPerCore)} />)}</Scatter>

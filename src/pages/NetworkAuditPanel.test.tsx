@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
 import type { PortAuditRow } from "@/lib/networkAudit";
+import { NET_MAC_DISCOVERY_COLUMNS } from "@/lib/glossaries/networking";
 
 const textMatchRow: PortAuditRow = {
   switchInterfaceKey: "sw01::eth1/1",
@@ -70,5 +71,19 @@ describe("NetworkAuditPanel", () => {
 
     expect(screen.getAllByTestId("network-audit-table-columns")[0]).toHaveTextContent("Switch|Interface|Port-Beschreibung|Port-Status|Bandbreite|Match-Status|Vermuteter ESXi-Host|Auffälligkeit");
     expect(screen.getAllByTestId("network-audit-table-columns")[0]).not.toHaveTextContent("Quelle");
+  });
+
+  it("zeigt bei Objekten aus Tech-Info nur die für den Abgleich relevanten Spalten", () => {
+    render(<NetworkAuditPanel />);
+
+    expect(screen.getAllByTestId("network-audit-table-columns")[2]).toHaveTextContent(
+      "Objekt aus Tech-Info|RVTools vorhanden|ESXi-Host aus RVTools|Cluster|IPAM vorhanden|IP-Adressen|Datenlücke",
+    );
+  });
+
+  it("erklärt die L2-Discovery-Klassifikation und VLAN-Zuordnung verständlich", () => {
+    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("IPAM-bekannt");
+    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("kein CDP-Treffer");
+    expect(NET_MAC_DISCOVERY_COLUMNS.vlan.description).toContain("Layer-2-Segment");
   });
 });

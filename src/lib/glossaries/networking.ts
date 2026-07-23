@@ -165,15 +165,11 @@ export const NET_HOST_QUALITY_RVTOOLS_COLUMNS: Record<string, GlossaryEntry> = {
 
 export const NET_HOST_QUALITY_TECHINFO_COLUMNS: Record<string, GlossaryEntry> = {
   techInfoName: { term: "Objekt aus Tech-Info", description: "Name des technischen Objekts aus der lokalen Tech-Info-Dokumentation.", source: "Tech-Info · VM/Servername" },
-  serverType: { term: "Servertyp", description: "In Tech-Info gepflegte Systemklassifizierung.", source: "Tech-Info · Servertyp" },
-  department: { term: "Abteilung", description: "In Tech-Info hinterlegte zuständige Abteilung.", source: "Tech-Info · Abteilung" },
-  maintenanceWindow: { term: "Wartungsfenster", description: "In Tech-Info gepflegter Wartungsfensterwert des Objekts.", source: "Tech-Info · Wartungsfenster" },
   rvtoolsPresent: { term: "RVTools vorhanden", description: "Zeigt, ob ein passender ESXi-Host im RVTools-Inventar gefunden wurde.", source: "Abgleich Tech-Info · RVTools" },
   rvtoolsHost: { term: "ESXi-Host aus RVTools", description: "Passender ESXi-Host aus dem RVTools-Inventar.", source: "RVTools · vHost · Host" },
   rvtoolsCluster: { term: "Cluster", description: "Cluster des passenden RVTools-Hosts.", source: "RVTools · vHost · Cluster" },
   ipamPresent: { term: "IPAM vorhanden", description: "Zeigt, ob für das Tech-Info-Objekt ein passender IPAM-Eintrag gefunden wurde.", source: "Abgleich Tech-Info · IPAM" },
   ipamAddresses: { term: "IP-Adressen", description: "Passende IP-Adressen aus dem IPAM.", source: "IPAM-CSV · IP Address" },
-  ipamNetworks: { term: "IPAM-Netze", description: "Aus den gefundenen IP-Adressen abgeleitete IPv4-/24- bzw. IPv6-/64-Netze.", source: "Berechnet aus IPAM-CSV" },
   finding: { term: "Datenlücke", description: "Fehlende oder widersprüchliche Zuordnung zwischen Tech-Info, RVTools und IPAM.", source: "Berechnet aus dem Datenabgleich" },
 };
 
@@ -864,27 +860,27 @@ export const NET_ERAMON_L2_COLUMNS: Record<string, GlossaryEntry> = {
   mac: { term: "MAC", description: "MAC-Adresse des Endgeräts.", source: `${ERAMON} · „mac“` },
   switchName: { term: "Switch", description: "Switch, an dem die MAC gesehen wurde.", source: `${ERAMON} · „name“` },
   interface: { term: "Interface", description: "Switch-Port, an dem die MAC gesehen wurde.", source: `${ERAMON} · „interface“` },
-  vlan: { term: "VLAN", description: "VLAN-ID des Eintrags.", source: `${ERAMON} · „vlan“` },
+  vlan: { term: "VLAN", description: "VLAN-ID des Layer-2-Segments, in dem der Switch die MAC-Adresse gelernt hat. Dieselbe MAC kann in mehreren VLANs als getrennte Einträge vorkommen.", source: `${ERAMON} · „vlan“` },
 };
 
 export const NET_MAC_CDP_COLUMNS: Record<string, GlossaryEntry> = {
   host: { term: "ESXi-Host", description: "ESX-Host, dessen physischer Adapter geprüft wird.", source: `${CDP} · „VMHost“` },
   adapter: { term: "vmnic", description: "Physischer Netzwerkadapter des Hosts.", source: `${CDP} · „PhysicalAdapter“` },
   mac: { term: "MAC", description: "MAC-Adresse des Adapters (Roh-Anzeige aus CDP).", source: `${CDP} · „MACAddress“` },
-  inL2: { term: "In L2?", description: "Ob die MAC in der Eramon-L2-Tabelle gelernt wurde.", source: `Abgleich ${CDP} ↔ ${ERAMON}` },
+  inL2: { term: "In L2?", description: "„Vorhanden“ bedeutet, dass die MAC des CDP-Adapters in der Eramon-L2-Tabelle auf einem Switch-Port gelernt wurde. „Fehlt“ kann auf einen anderen Erfassungszeitpunkt, ein fehlendes L2-Importsegment oder eine nicht sichtbare MAC hindeuten.", source: `Abgleich ${CDP} ↔ ${ERAMON}` },
   l2Location: { term: "Switch/Port (L2)", description: "Switch und Interface, an dem die MAC laut L2-Tabelle gelernt wurde.", source: `${ERAMON} · „name“ / „interface“` },
-  vlan: { term: "VLAN", description: "VLAN-ID, in dem die MAC gelernt wurde.", source: `${ERAMON} · „vlan“` },
+  vlan: { term: "VLAN", description: "VLAN-ID des Layer-2-Segments, in dem der Switch die MAC dieses Adapters gelernt hat. Sie hilft, die Portzuordnung vom CDP-Abgleich einzugrenzen.", source: `${ERAMON} · „vlan“` },
   learnedIp: { term: "Gelernte IP", description: "Vom Switch für die MAC beobachtete IP-Adresse.", source: `${ERAMON} · „ip“` },
   dnsName: { term: "DNS-Name", description: "Vom Switch beobachteter DNS-Name.", source: `${ERAMON} · „dnsname“` },
   finding: { term: "Auffälligkeit", description: "Fehlende MAC in der L2-Tabelle oder Topologie-Abweichung gegenüber CDP.", source: "Berechnet aus dem Datenabgleich" },
 };
 
 export const NET_MAC_DISCOVERY_COLUMNS: Record<string, GlossaryEntry> = {
-  l2Location: { term: "Switch/Port", description: "Switch und Interface, an dem der Eintrag gelernt wurde.", source: `${ERAMON} · „name“ / „interface“` },
-  vlan: { term: "VLAN", description: "VLAN-ID des Eintrags.", source: `${ERAMON} · „vlan“` },
+  l2Location: { term: "Switch/Port", description: "Switch und Interface, an dem die MAC im Eramon-L2-Export gelernt wurde. Das ist der Beobachtungspunkt im physischen Netzwerk, nicht zwingend die Endstation der Verbindung.", source: `${ERAMON} · „name“ / „interface“` },
+  vlan: { term: "VLAN", description: "VLAN-ID des Layer-2-Segments, in dem die MAC gelernt wurde. VLANs trennen Broadcast-Domänen; dieselbe MAC kann deshalb in mehreren VLANs als eigene Zeile erscheinen.", source: `${ERAMON} · „vlan“` },
   mac: { term: "MAC", description: "Am Port gelernte MAC-Adresse.", source: `${ERAMON} · „mac“` },
-  learnedIp: { term: "Gelernte IP", description: "Vom Switch beobachtete IP-Adresse.", source: `${ERAMON} · „ip“` },
-  dnsName: { term: "DNS-Name", description: "Vom Switch beobachteter DNS-Name.", source: `${ERAMON} · „dnsname“` },
-  classification: { term: "Klassifikation", description: "ESXi (CDP), IPAM-bekannt oder unbekannt/fremd.", source: `Abgleich ${ERAMON} ↔ ${CDP} ↔ IPAM` },
-  esxiHost: { term: "ESXi-Host", description: "Zugeordneter ESX-Host, falls die MAC ein bekannter vmnic ist.", source: `${CDP} · „VMHost“` },
+  learnedIp: { term: "Gelernte IP", description: "IP-Adresse, die Eramon für diese MAC beobachtet hat. Sie unterstützt die Zuordnung, ist aber eine Momentaufnahme und keine Garantie für die aktuelle oder eindeutige IP-Adresse des Geräts.", source: `${ERAMON} · „ip“` },
+  dnsName: { term: "DNS-Name", description: "DNS-Name, den Eramon zu der beobachteten MAC/IP-Kombination liefert. Ein leerer oder abweichender Name ist für sich allein kein Fehler.", source: `${ERAMON} · „dnsname“` },
+  classification: { term: "Klassifikation", description: "„ESXi (CDP)“: Die MAC passt zu einem per CDP bekannten ESXi-vmnic. „IPAM-bekannt“: Für die beobachtete IP oder MAC gibt es einen IPAM-Eintrag, aber kein CDP-Treffer zu einem ESXi-Host. „Unbekannt/Fremd“: Weder CDP noch IPAM liefern eine passende Zuordnung; das kann ein Client, ein anderes Gerät oder eine Datenlücke sein.", source: `Abgleich ${ERAMON} ↔ ${CDP} ↔ IPAM` },
+  esxiHost: { term: "ESXi-Host", description: "Der ESXi-Host wird nur angezeigt, wenn die gelernte MAC direkt mit einem CDP-erfassten vmnic übereinstimmt. Bei IPAM-bekannten oder unbekannten Geräten bleibt das Feld leer.", source: `${CDP} · „VMHost“` },
 };
