@@ -15,6 +15,7 @@ import type {
   NormalizedVm,
   SheetRow,
   SnapshotMeta,
+  VropsLatest,
 } from "@/domain/models/types";
 
 const snapshots: SnapshotMeta[] = [
@@ -248,5 +249,32 @@ describe("clusterWorkspace", () => {
       expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, maxVmsPerHost: 3 }),
       expect.objectContaining({ name: "vcsa-a · DC1 · No hosts", avgVmsPerHost: null, maxVmsPerHost: null }),
     ]);
+  });
+
+  it("gewichtet vROps-Ausfallskonzept-Werte in den Capacity-Risk-Score ein und markiert Cluster ohne vROps-Import", () => {
+    const vropsLatest: VropsLatest[] = [
+      {
+        clusterNorm: "production", clusterName: "Production", importedAt: "2026-07-24T00:00:00.000Z",
+        vropsImportId: "vrops-1", capturedAt: null,
+        ramUsageHighPct: null, ramAssignedHighPct: 51, clusterRamAssignedPct: null,
+        cpuUsageHighPct: null, clusterCpuUsagePct: null, avgVmsPerHost: null, cpuOvercommitRatio: null,
+      },
+    ];
+
+    const withVrops = buildClusterCapacityWorkspace({
+      clusters: [cluster()], hosts: [host(), host({ hostKey: "host-2", host: "esx-02" })],
+      vms: Array.from({ length: 10 }, (_, index) => vm({ vmKey: `vm-${index}` })),
+      rawVHostRows: [rawHost(), rawHost({ Host: "esx-02" })],
+      snapshots, vropsLatest,
+    });
+    const withoutVrops = buildClusterCapacityWorkspace({
+      clusters: [cluster()], hosts: [host(), host({ hostKey: "host-2", host: "esx-02" })],
+      vms: Array.from({ length: 10 }, (_, index) => vm({ vmKey: `vm-${index}` })),
+      rawVHostRows: [rawHost(), rawHost({ Host: "esx-02" })],
+      snapshots,
+    });
+
+    expect(withVrops.capacityRows[0]).toMatchObject({ risk: "hoch", vropsMissing: false });
+    expect(withoutVrops.capacityRows[0]).toMatchObject({ risk: "niedrig", vropsMissing: true });
   });
 });

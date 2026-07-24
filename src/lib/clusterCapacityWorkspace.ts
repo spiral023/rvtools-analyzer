@@ -31,6 +31,8 @@ export interface ClusterCapacityRow {
   vropsClusterRamAssignedPct: number | null;
   vropsClusterCpuUsagePct: number | null;
   siteFailoverRisk: SiteFailoverRisk | null;
+  /** `true`, wenn kein vROps-Import für diesen Cluster vorliegt — die vROps-gewichteten Risiko-Faktoren wurden dann nicht bewertet. */
+  vropsMissing: boolean;
 }
 
 export interface ClusterOvercommitRow {
@@ -150,7 +152,21 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
     const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
     const rawRows = rawByCluster.get(clusterKey) ?? [];
     const aggregate = aggregateCluster(identity, rawRows, vcenterBySnapshot);
-    const metrics = metricsFromAggregate(aggregate, { clusterName: cluster.name, clusterRef: cluster, projected: false });
+    const vrops = vropsByClusterNorm.get(normalizeVmNameForMatch(cluster.name)) ?? null;
+    const metrics = metricsFromAggregate(aggregate, {
+      clusterName: cluster.name,
+      clusterRef: cluster,
+      projected: false,
+      vrops: vrops ? {
+        ramAssignedHighPct: vrops.ramAssignedHighPct,
+        ramUsageHighPct: vrops.ramUsageHighPct,
+        cpuUsageHighPct: vrops.cpuUsageHighPct,
+        clusterRamAssignedPct: vrops.clusterRamAssignedPct,
+        clusterCpuUsagePct: vrops.clusterCpuUsagePct,
+        avgVmsPerHost: vrops.avgVmsPerHost,
+        cpuOvercommitRatio: vrops.cpuOvercommitRatio,
+      } : null,
+    });
     const vcenterDisplayName = displayByVcenter.get(cluster.vcenterId) ?? cluster.vcenterId;
     const datacenter = identity.datacenter?.trim() || "—";
     const hostRows = hostsByCluster.get(clusterKey) ?? [];
@@ -161,7 +177,6 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
     const ramTotalMiB = cluster.totalMemoryMiB ?? 0;
     const cpuRatio = cores > 0 ? vCpuSum / cores : 0;
     const ramRatio = ramTotalMiB > 0 ? ramAllocMiB / ramTotalMiB : 0;
-    const vrops = vropsByClusterNorm.get(normalizeVmNameForMatch(cluster.name)) ?? null;
 
     capacityRows.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name,
@@ -179,6 +194,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
       vropsClusterRamAssignedPct: vrops?.clusterRamAssignedPct ?? null,
       vropsClusterCpuUsagePct: vrops?.clusterCpuUsagePct ?? null,
       siteFailoverRisk: computeSiteFailoverRisk(vrops?.ramAssignedHighPct ?? null),
+      vropsMissing: vrops === null,
     });
     overcommitRows.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name,
