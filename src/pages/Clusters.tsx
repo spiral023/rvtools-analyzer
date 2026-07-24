@@ -50,14 +50,14 @@ export default function Clusters() {
     [activeSnapshotSet, snapshots],
   );
   const filteredRows = useMemo(() => {
-    const allRows = buildClusterOverviewRows({ clusters, hosts, vms, rawVHostRows, snapshots: scopedSnapshots });
+    const allRows = buildClusterOverviewRows({ clusters, hosts, vms, rawVHostRows, snapshots: scopedSnapshots, vropsLatest });
     const selectedClusters = new Set(filters.clusters);
     const query = filters.search.trim().toLocaleLowerCase("de-DE");
     return allRows.filter((row) => {
       if (selectedClusters.size > 0 && !selectedClusters.has(row.cluster)) return false;
       return !query || [row.vcenterDisplayName, row.datacenter, row.cluster].some((value) => value.toLocaleLowerCase("de-DE").includes(query));
     });
-  }, [clusters, filters.clusters, filters.search, hosts, rawVHostRows, scopedSnapshots, vms]);
+  }, [clusters, filters.clusters, filters.search, hosts, rawVHostRows, scopedSnapshots, vms, vropsLatest]);
   const scopedClusterKeys = useMemo(() => new Set(filteredRows.map((row) => row.clusterKey)), [filteredRows]);
   const infrastructureAssociationIdentities = useMemo<ClusterIdentity[]>(() => [
     ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),

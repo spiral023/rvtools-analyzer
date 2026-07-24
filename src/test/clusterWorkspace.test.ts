@@ -277,4 +277,26 @@ describe("clusterWorkspace", () => {
     expect(withVrops.capacityRows[0]).toMatchObject({ risk: "hoch", vropsMissing: false });
     expect(withoutVrops.capacityRows[0]).toMatchObject({ risk: "niedrig", vropsMissing: true });
   });
+
+  it("gewichtet vROps-Ausfallskonzept-Werte auch in den Cluster-Übersicht-Score ein (konsistent mit der Capacity-Tabelle)", () => {
+    const vropsLatest: VropsLatest[] = [
+      {
+        clusterNorm: "production", clusterName: "Production", importedAt: "2026-07-24T00:00:00.000Z",
+        vropsImportId: "vrops-1", capturedAt: null,
+        ramUsageHighPct: null, ramAssignedHighPct: 51, clusterRamAssignedPct: null,
+        cpuUsageHighPct: null, clusterCpuUsagePct: null, avgVmsPerHost: null, cpuOvercommitRatio: null,
+      },
+    ];
+
+    const rows = buildClusterOverviewRows({
+      clusters: [cluster()],
+      hosts: [host(), host({ hostKey: "host-2", host: "esx-02" })],
+      vms: Array.from({ length: 10 }, (_, index) => vm({ vmKey: `vm-${index}` })),
+      rawVHostRows: [rawHost(), rawHost({ Host: "esx-02" })],
+      snapshots,
+      vropsLatest,
+    });
+
+    expect(rows[0]).toMatchObject({ risk: "hoch" });
+  });
 });

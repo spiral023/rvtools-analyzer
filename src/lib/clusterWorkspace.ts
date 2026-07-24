@@ -4,6 +4,7 @@ import type {
   NormalizedVm,
   SheetRow,
   SnapshotMeta,
+  VropsLatest,
 } from "@/domain/models/types";
 import {
   aggregateCluster,
@@ -11,6 +12,7 @@ import {
   metricsFromAggregate,
 } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 
 export interface ClusterWorkspaceInput {
   clusters: NormalizedCluster[];
@@ -18,6 +20,8 @@ export interface ClusterWorkspaceInput {
   vms: NormalizedVm[];
   rawVHostRows: SheetRow[];
   snapshots: SnapshotMeta[];
+  /** Optional: vROps-Kapazitätsmetriken je Cluster (Ausfallskonzept HIGH_RP/STD). */
+  vropsLatest?: VropsLatest[];
 }
 
 export interface ClusterOverviewRow {
@@ -132,6 +136,7 @@ function chartBase(row: ClusterOverviewRow): ClusterChartPoint {
 /** Builds vCenter-safe overview rows from the currently scoped snapshot data. */
 export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterOverviewRow[] {
   const vcenterBySnapshot = new Map(input.snapshots.map((snapshot) => [snapshot.snapshotId, snapshot.vcenterId]));
+  const vropsByClusterNorm = new Map((input.vropsLatest ?? []).map((entry) => [entry.clusterNorm, entry]));
   const displayByVcenter = new Map<string, string>();
   for (const snapshot of input.snapshots) {
     if (!displayByVcenter.has(snapshot.vcenterId) && snapshot.vcenterDisplayName.trim()) {
@@ -183,10 +188,20 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
     const aggregate = aggregateCluster({
       ...identity,
     }, rawRows, vcenterBySnapshot);
+    const vrops = vropsByClusterNorm.get(normalizeVmNameForMatch(cluster.name)) ?? null;
     const metrics = metricsFromAggregate(aggregate, {
       clusterName: cluster.name,
       clusterRef: cluster,
       projected: false,
+      vrops: vrops ? {
+        ramAssignedHighPct: vrops.ramAssignedHighPct,
+        ramUsageHighPct: vrops.ramUsageHighPct,
+        cpuUsageHighPct: vrops.cpuUsageHighPct,
+        clusterRamAssignedPct: vrops.clusterRamAssignedPct,
+        clusterCpuUsagePct: vrops.clusterCpuUsagePct,
+        avgVmsPerHost: vrops.avgVmsPerHost,
+        cpuOvercommitRatio: vrops.cpuOvercommitRatio,
+      } : null,
     });
     const hosts = hostsByCluster.get(clusterKey) ?? 0;
     const runningVms = runningVmsByCluster.get(clusterKey) ?? 0;
