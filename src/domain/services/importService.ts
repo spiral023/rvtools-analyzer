@@ -35,6 +35,11 @@ import {
   batchPutEramonL2Rows,
   batchPutEramonL2Latest,
   getEramonL2LatestByKeys,
+  getVropsImportByChecksum,
+  putVropsImport,
+  batchPutVropsRows,
+  batchPutVropsLatest,
+  getVropsLatestByClusterNorms,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -61,6 +66,12 @@ import {
   ERAMON_L2_REQUIRED_HEADERS,
   mapEramonL2DisplayFields,
   buildEramonL2Key,
+  VROPS_REQUIRED_HEADERS,
+  parseVropsPanelNumber,
+  stripVropsHighRpSuffix,
+  parseVropsCapturedAt,
+  buildVropsLatestFromRows,
+  VROPS_IGNORED_PANEL,
 } from "@/lib/xlsx/parseHelpers";
 import { gzipJson } from "@/lib/compression";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
@@ -90,6 +101,8 @@ import type {
   EramonIfaceLatest,
   EramonL2Row,
   EramonL2Latest,
+  VropsRow,
+  VropsLatest,
 } from "@/domain/models/types";
 
 /* ---------- progress callback ---------- */
@@ -486,13 +499,17 @@ export async function importRvtoolsXlsx(
       return await importEramonL2Csv(file, checksum, parsed, warnings, errors, report);
     }
 
-    // CSV-Dateien, die keine CDP-/IPAM-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
+    if (parsed.fileKind === "vrops") {
+      return await importVropsCsv(file, checksum, parsed, warnings, errors, report);
+    }
+
+    // CSV-Dateien, die keine CDP-/IPAM-/vROps-Struktur haben, dürfen nicht in den RVTools-Zweig laufen.
     const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
     if (isCsv) {
       return {
         success: false,
         warnings,
-        errors: [...errors, "Keine gültige CDP-, IPAM- oder Eramon-CSV erkannt (erwartete Spalten: VMHost/PhysicalAdapter/CDPDeviceID/CDPAvailable, IP Address/Status/Type, device_name/port_name/port_status oder name/interface/mac/vlan)."],
+        errors: [...errors, "Keine gültige CDP-, IPAM-, Eramon- oder vROps-CSV erkannt (erwartete Spalten: VMHost/PhysicalAdapter/CDPDeviceID/CDPAvailable, IP Address/Status/Type, device_name/port_name/port_status, name/interface/mac/vlan oder Panel/Objekt/Metrik/Wert/Einheit)."],
       };
     }
 
@@ -1252,4 +1269,133 @@ export async function importIpamCsv(
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} IPAM Zeilen`);
   return { success: true, fileKind: "ipam", warnings, errors, sheetStats };
+}
+
+function findVropsSheet(sheets: ParsedSheetData[]): ParsedSheetData | undefined {
+  return sheets.find((sheet) =>
+    VROPS_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+}
+
+export async function importVropsCsv(
+  file: File,
+  checksum: string,
+  parsed: WorkerParseResult,
+  warnings: string[],
+  errors: string[],
+  report: (step: string, percent: number, detail?: string) => void,
+): Promise<ImportResult> {
+  const existing = await getVropsImportByChecksum(checksum);
+  if (existing) {
+    return {
+      success: false,
+      fileKind: "vrops",
+      warnings: [],
+      errors: ["Diese vROps-Datei wurde bereits importiert."],
+    };
+  }
+
+  const sheet = findVropsSheet(parsed.sheets);
+  if (!sheet) {
+    return {
+      success: false,
+      fileKind: "vrops",
+      warnings,
+      errors: [...errors, "Keine gültige vROps-Dashboard-CSV erkannt (erwartete Spalten: Panel, Objekt, Metrik, Wert, Einheit)."],
+    };
+  }
+
+  const importedAt = new Date().toISOString();
+  const vropsImportId = shortId();
+  const sheetStats: Record<string, SheetStats> = {
+    [sheet.sheetName]: { rowCount: sheet.rows.length, columnCount: sheet.headers.length },
+  };
+
+  report("vROps Zeilen verarbeiten", 45, `${sheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
+  const fullRows: VropsRow[] = [];
+  let ignoredEmptyCount = 0;
+  let ignoredPanel8Count = 0;
+  let capturedAt: string | null = null;
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    const panelNumber = parseVropsPanelNumber(toStr(row["Panel"]));
+    if (panelNumber === null) {
+      warnings.push(`vROps Zeile ${i + 1}: Panel "${toStr(row["Panel"]) ?? ""}" konnte nicht erkannt werden, Zeile wurde übersprungen.`);
+      continue;
+    }
+    if (panelNumber === VROPS_IGNORED_PANEL) {
+      ignoredPanel8Count++;
+      continue;
+    }
+
+    const objekt = toStr(row["Objekt"]);
+    if (!objekt) {
+      warnings.push(`vROps Zeile ${i + 1}: Objekt ist leer, Zeile wurde übersprungen.`);
+      continue;
+    }
+
+    const value = toNumber(row["Wert"]);
+    if (value === null) {
+      // Leerer Cluster ("? pc"/"? Ratio") – kein Messwert, bewusst kein Fehler.
+      ignoredEmptyCount++;
+      continue;
+    }
+
+    const { clusterName, scope } = stripVropsHighRpSuffix(objekt);
+    const rowCapturedAt = parseVropsCapturedAt(toStr(row["Erfasst am"]));
+    if (rowCapturedAt) capturedAt = rowCapturedAt;
+
+    fullRows.push({
+      vropsImportId,
+      rowIndex: i,
+      clusterName,
+      clusterNorm: normalizeVmNameForMatch(clusterName),
+      scope,
+      panelNumber,
+      importedAt,
+      rawData: toRawRowData(row),
+    });
+  }
+
+  if (ignoredEmptyCount > 0) {
+    warnings.push(`${ignoredEmptyCount} Zeile(n) ohne Messwert ("?", leerer Cluster) wurden ignoriert.`);
+  }
+  if (ignoredPanel8Count > 0) {
+    warnings.push(`${ignoredPanel8Count} Zeile(n) aus Panel 8 ("Free vCPU") wurden ignoriert (wird aktuell nicht ausgewertet).`);
+  }
+
+  report("vROps Metadaten speichern", 60);
+  await putVropsImport({
+    vropsImportId,
+    importedAt,
+    fileName: file.name,
+    fileChecksum: checksum,
+    rowCount: sheet.rows.length,
+    columnCount: sheet.headers.length,
+    capturedAt,
+  });
+  await batchPutVropsRows(fullRows, 5000);
+
+  report("vROps Latest aktualisieren", 75);
+  const rowsByCluster = new Map<string, VropsRow[]>();
+  for (const row of fullRows) {
+    const bucket = rowsByCluster.get(row.clusterNorm);
+    if (bucket) bucket.push(row);
+    else rowsByCluster.set(row.clusterNorm, [row]);
+  }
+  const existingLatest = await getVropsLatestByClusterNorms([...rowsByCluster.keys()]);
+  const existingMap = new Map(existingLatest.map((entry) => [entry.clusterNorm, entry]));
+  const latestUpdates: VropsLatest[] = [];
+  for (const [clusterNorm, rows] of rowsByCluster.entries()) {
+    const candidate = buildVropsLatestFromRows(clusterNorm, rows);
+    if (candidate && isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(clusterNorm)?.importedAt)) {
+      latestUpdates.push(candidate);
+    }
+  }
+  if (latestUpdates.length > 0) {
+    await batchPutVropsLatest(latestUpdates, 2000);
+  }
+
+  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} vROps-Messwerte, ${rowsByCluster.size} Cluster`);
+  return { success: true, fileKind: "vrops", warnings, errors, sheetStats };
 }

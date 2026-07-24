@@ -7,9 +7,10 @@ import {
   getIpamImports, deleteIpamImport,
   getEramonIfaceImports, deleteEramonIfaceImport,
   getEramonL2Imports, deleteEramonL2Import,
+  getVropsImports, deleteVropsImport,
   estimateSnapshotSizesBytes, estimateTechInfoImportSizesBytes, estimateTechInfoClientImportSizesBytes,
   estimateCdpImportSizesBytes, estimateIpamImportSizesBytes,
-  estimateEramonIfaceImportSizesBytes, estimateEramonL2ImportSizesBytes,
+  estimateEramonIfaceImportSizesBytes, estimateEramonL2ImportSizesBytes, estimateVropsImportSizesBytes,
 } from "@/data/db";
 import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
 import { fileKindLabel, useImportController } from "@/hooks/useImportController";
@@ -21,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta } from "@/domain/models/types";
+import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta, VropsImportMeta } from "@/domain/models/types";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
@@ -30,7 +31,8 @@ type StoredUpload =
   | { kind: "cdp"; id: string; importedAt: string; cdp: CdpImportMeta }
   | { kind: "ipam"; id: string; importedAt: string; ipam: IpamImportMeta }
   | { kind: "eramon-iface"; id: string; importedAt: string; eramonIface: EramonIfaceImportMeta }
-  | { kind: "eramon-l2"; id: string; importedAt: string; eramonL2: EramonL2ImportMeta };
+  | { kind: "eramon-l2"; id: string; importedAt: string; eramonL2: EramonL2ImportMeta }
+  | { kind: "vrops"; id: string; importedAt: string; vrops: VropsImportMeta };
 
 type UploadState = {
   dragOver: boolean;
@@ -68,6 +70,7 @@ function buildStoredUploads(
   ipamImports: IpamImportMeta[],
   eramonIfaceImports: EramonIfaceImportMeta[],
   eramonL2Imports: EramonL2ImportMeta[],
+  vropsImports: VropsImportMeta[],
 ): StoredUpload[] {
   const uploads: StoredUpload[] = [];
   for (const snapshot of snapshots) {
@@ -91,6 +94,9 @@ function buildStoredUploads(
   for (const eramonL2 of eramonL2Imports) {
     uploads.push({ kind: "eramon-l2", id: eramonL2.l2ImportId, importedAt: eramonL2.importedAt, eramonL2 });
   }
+  for (const vrops of vropsImports) {
+    uploads.push({ kind: "vrops", id: vrops.vropsImportId, importedAt: vrops.importedAt, vrops });
+  }
   return uploads.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
 
@@ -113,7 +119,7 @@ function useUploadSnapshotsView() {
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
     queryFn: async () => {
-      const [snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports] = await Promise.all([
+      const [snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports] = await Promise.all([
         getSnapshots(),
         getTechInfoImports(),
         getTechInfoClientImports(),
@@ -121,8 +127,9 @@ function useUploadSnapshotsView() {
         getIpamImports(),
         getEramonIfaceImports(),
         getEramonL2Imports(),
+        getVropsImports(),
       ]);
-      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports);
+      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports);
     },
   });
 
@@ -136,9 +143,9 @@ function useUploadSnapshotsView() {
           acc[upload.kind].push(upload.id);
           return acc;
         },
-        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [], ipam: [], "eramon-iface": [], "eramon-l2": [] },
+        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [], ipam: [], "eramon-iface": [], "eramon-l2": [], vrops: [] },
       );
-      const [rvtools, techInfo, techInfoClient, cdp, ipam, eramonIfaceSizes, eramonL2Sizes] = await Promise.all([
+      const [rvtools, techInfo, techInfoClient, cdp, ipam, eramonIfaceSizes, eramonL2Sizes, vropsSizes] = await Promise.all([
         estimateSnapshotSizesBytes(uploadIdsByKind.rvtools),
         estimateTechInfoImportSizesBytes(uploadIdsByKind["tech-info"]),
         estimateTechInfoClientImportSizesBytes(uploadIdsByKind["tech-info-client"]),
@@ -146,8 +153,9 @@ function useUploadSnapshotsView() {
         estimateIpamImportSizesBytes(uploadIdsByKind.ipam),
         estimateEramonIfaceImportSizesBytes(uploadIdsByKind["eramon-iface"]),
         estimateEramonL2ImportSizesBytes(uploadIdsByKind["eramon-l2"]),
+        estimateVropsImportSizesBytes(uploadIdsByKind.vrops),
       ]);
-      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp, ipam, "eramon-iface": eramonIfaceSizes, "eramon-l2": eramonL2Sizes } satisfies Record<StoredUpload["kind"], Record<string, number>>;
+      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp, ipam, "eramon-iface": eramonIfaceSizes, "eramon-l2": eramonL2Sizes, vrops: vropsSizes } satisfies Record<StoredUpload["kind"], Record<string, number>>;
     },
   });
   const totalSizeBytes = uploadSizes
@@ -210,6 +218,10 @@ function useUploadSnapshotsView() {
     await runDelete(() => deleteEramonL2Import(l2ImportId), "Eramon MAC-Tabellen-Daten gelöscht.");
   }, [runDelete]);
 
+  const handleDeleteVropsImport = useCallback(async (vropsImportId: string) => {
+    await runDelete(() => deleteVropsImport(vropsImportId), "vROps-Daten gelöscht.");
+  }, [runDelete]);
+
   const handleDeleteAll = useCallback(async () => {
     dispatch({ type: "set-delete-all-open", value: false });
     await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
@@ -252,9 +264,9 @@ function useUploadSnapshotsView() {
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
       >
-        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info, CDP-, IPAM- oder Eramon-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info, CDP-, IPAM-, Eramon- oder vROps-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), CDP-/IPAM-/Eramon-CSV hierher ziehen oder klicken"}</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), CDP-/IPAM-/Eramon-/vROps-CSV hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
       </label>
 
@@ -330,7 +342,7 @@ function useUploadSnapshotsView() {
           )}
         </div>
         {uploads.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine RVTools-, Tech-Info-, CDP-, IPAM- oder Eramon-Dateien importiert.</p>
+          <p className="text-sm text-muted-foreground">Noch keine RVTools-, Tech-Info-, CDP-, IPAM-, Eramon- oder vROps-Dateien importiert.</p>
         ) : (
           <div className="space-y-2">
             {uploads.map((upload) => {
@@ -341,7 +353,8 @@ function useUploadSnapshotsView() {
                 : upload.kind === "cdp" ? upload.cdp.fileName
                 : upload.kind === "ipam" ? upload.ipam.fileName
                 : upload.kind === "eramon-iface" ? upload.eramonIface.fileName
-                : upload.eramonL2.fileName;
+                : upload.kind === "eramon-l2" ? upload.eramonL2.fileName
+                : upload.vrops.fileName;
               const rowCount = upload.kind === "rvtools"
                 ? Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0)
                 : upload.kind === "tech-info" ? upload.techInfo.rowCount
@@ -349,7 +362,8 @@ function useUploadSnapshotsView() {
                 : upload.kind === "cdp" ? upload.cdp.rowCount
                 : upload.kind === "ipam" ? upload.ipam.rowCount
                 : upload.kind === "eramon-iface" ? upload.eramonIface.rowCount
-                : upload.eramonL2.rowCount;
+                : upload.kind === "eramon-l2" ? upload.eramonL2.rowCount
+                : upload.vrops.rowCount;
               const sheetCount = isRvtools ? Object.keys(upload.snapshot.sheetStats).length : 1;
               const sizeBytes = uploadSizes?.[upload.kind]?.[upload.id];
 
@@ -373,7 +387,7 @@ function useUploadSnapshotsView() {
                           <p className="text-xs text-muted-foreground">
                             Import: {new Date(upload.importedAt).toLocaleString("de-DE")} · {(upload.kind === "eramon-iface" ? upload.eramonIface.switchCount : upload.eramonL2.switchCount).toLocaleString("de-DE")} {(upload.kind === "eramon-iface" ? upload.eramonIface.switchCount : upload.eramonL2.switchCount) === 1 ? "Switch" : "Switches"}
                           </p>
-                        ) : upload.kind === "cdp" || upload.kind === "ipam" ? (
+                        ) : upload.kind === "cdp" || upload.kind === "ipam" || upload.kind === "vrops" ? (
                           <p className="text-xs text-muted-foreground">
                             Import: {new Date(upload.importedAt).toLocaleString("de-DE")}
                           </p>
@@ -400,6 +414,7 @@ function useUploadSnapshotsView() {
                         else if (upload.kind === "ipam") void handleDeleteIpamImport(upload.id);
                         else if (upload.kind === "eramon-iface") void handleDeleteEramonIfaceImport(upload.id);
                         else if (upload.kind === "eramon-l2") void handleDeleteEramonL2Import(upload.id);
+                        else if (upload.kind === "vrops") void handleDeleteVropsImport(upload.id);
                         else void handleDeleteSnapshot(upload.id);
                       }}
                       aria-label={isRvtools ? "Snapshot löschen" : `${fileKindLabel(upload.kind)} löschen`}

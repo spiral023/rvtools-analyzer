@@ -56,7 +56,7 @@ describe("IndexedDB-Migration", () => {
     const { getDb, getMaintenanceWindows } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(25);
+    expect(db.version).toBe(26);
     expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
     await expect(db.getAll("techinfo_latest")).resolves.toHaveLength(1);
     await expect(db.getAll("scenarios")).resolves.toHaveLength(1);
@@ -77,7 +77,7 @@ describe("IndexedDB-Migration", () => {
     const { getDb } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(25);
+    expect(db.version).toBe(26);
     expect(db.objectStoreNames.contains("switch_imports")).toBe(false);
     expect(db.objectStoreNames.contains("switch_rows")).toBe(false);
     expect(db.objectStoreNames.contains("switch_latest")).toBe(false);

@@ -31,6 +31,31 @@ export interface ClusterAggregate {
   memMax: number;
 }
 
+export type SiteFailoverRisk = "ok" | "warn" | "crit";
+
+/**
+ * Schwellenwerte für die Site-Failover-Tragfähigkeit (Stretched-Cluster, ESXi-Hosts 50/50
+ * auf zwei Standorte verteilt). Basis ist der vROps-Ist-Wert "% RAM Assigned High_RP/Prod"
+ * relativ zur Gesamt-Cluster-Kapazität, siehe {@link computeSiteFailoverRisk}.
+ */
+export const SITE_FAILOVER_THRESHOLDS = {
+  ramAssignedHigh: { warn: 35, danger: 45 },
+} as const;
+
+/**
+ * Bewertet, ob die HIGH-RP-VMs (produktive/wichtige VMs) im Worst-Case — ein kompletter
+ * Standort fällt aus, es bleiben nur noch ~50 % der Cluster-Hosts — auf den verbleibenden
+ * Ressourcen weiterlaufen können. Reicht die HIGH-RP-RAM-Zuweisung nahe an oder über 50 %
+ * der Gesamt-Cluster-Kapazität heran, ist im Ausfall kein Platz mehr für HIGH-RP-VMs auf
+ * der halbierten Kapazität. `null`, wenn keine vROps-Daten für den Cluster vorliegen.
+ */
+export function computeSiteFailoverRisk(ramAssignedHighPct: number | null): SiteFailoverRisk | null {
+  if (ramAssignedHighPct === null) return null;
+  if (ramAssignedHighPct > SITE_FAILOVER_THRESHOLDS.ramAssignedHigh.danger) return "crit";
+  if (ramAssignedHighPct > SITE_FAILOVER_THRESHOLDS.ramAssignedHigh.warn) return "warn";
+  return "ok";
+}
+
 export interface ClusterMetrics {
   clusterName: string;
   hosts: number;

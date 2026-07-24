@@ -29,13 +29,16 @@ import type {
   EramonL2ImportMeta,
   EramonL2Row,
   EramonL2Latest,
+  VropsImportMeta,
+  VropsRow,
+  VropsLatest,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   MaintenanceWindowDefinition,
   Scenario,
   VCenterGroup,
 } from "@/domain/models/types";
-import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, toStr } from "@/lib/xlsx/parseHelpers";
+import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, buildVropsLatestFromRows, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
 
@@ -151,6 +154,21 @@ interface RVToolsDBSchema extends DBSchema {
     value: EramonL2Latest;
     indexes: { switchNorm: string };
   };
+  vrops_imports: {
+    key: string;
+    value: VropsImportMeta;
+    indexes: { fileChecksum: string; importedAt: string };
+  };
+  vrops_rows: {
+    key: [string, number];
+    value: VropsRow;
+    indexes: { vropsImportId: string; clusterNorm: string };
+  };
+  vrops_latest: {
+    key: string;
+    value: VropsLatest;
+    indexes: { clusterNorm: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -186,6 +204,7 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "ipam_imports" | "ipam_rows" | "ipam_latest"
   | "eramon_iface_imports" | "eramon_iface_rows" | "eramon_iface_latest"
   | "eramon_l2_imports" | "eramon_l2_rows" | "eramon_l2_latest"
+  | "vrops_imports" | "vrops_rows" | "vrops_latest"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios" | "vcenter_groups";
 
@@ -202,6 +221,8 @@ export const IMPORT_DATA_STORE_NAMES = [
   "eramon_iface_rows",
   "eramon_l2_imports",
   "eramon_l2_rows",
+  "vrops_imports",
+  "vrops_rows",
 ] as const satisfies readonly StoreName[];
 
 export type ImportedDataStoreName = (typeof IMPORT_DATA_STORE_NAMES)[number];
@@ -210,7 +231,7 @@ type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 25;
+const DB_VERSION = 26;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -221,6 +242,7 @@ const ALL_STORES: StoreName[] = [
   "ipam_imports", "ipam_rows", "ipam_latest",
   "eramon_iface_imports", "eramon_iface_rows", "eramon_iface_latest",
   "eramon_l2_imports", "eramon_l2_rows", "eramon_l2_latest",
+  "vrops_imports", "vrops_rows", "vrops_latest",
   "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
 ];
 
@@ -379,6 +401,21 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const latest = db.createObjectStore("eramon_l2_latest", { keyPath: "l2EntryKey" });
           latest.createIndex("switchNorm", "switchNorm");
         }
+        // v26: vROps-Kapazitätsmetriken (CSV-Import) — Muster wie IPAM.
+        if (!db.objectStoreNames.contains("vrops_imports")) {
+          const imports = db.createObjectStore("vrops_imports", { keyPath: "vropsImportId" });
+          imports.createIndex("fileChecksum", "fileChecksum");
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("vrops_rows")) {
+          const rows = db.createObjectStore("vrops_rows", { keyPath: ["vropsImportId", "rowIndex"] });
+          rows.createIndex("vropsImportId", "vropsImportId");
+          rows.createIndex("clusterNorm", "clusterNorm");
+        }
+        if (!db.objectStoreNames.contains("vrops_latest")) {
+          const latest = db.createObjectStore("vrops_latest", { keyPath: "clusterNorm" });
+          latest.createIndex("clusterNorm", "clusterNorm");
+        }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
         }
@@ -449,6 +486,7 @@ export async function hasImportedData(): Promise<boolean> {
     "ipam_imports",
     "eramon_iface_imports",
     "eramon_l2_imports",
+    "vrops_imports",
   ] as const;
 
   for (const storeName of metadataStores) {
@@ -1078,6 +1116,42 @@ export async function getIpamLatestByIpAddresses(ips: string[]): Promise<IpamLat
   return values.filter((v): v is IpamLatest => Boolean(v));
 }
 
+export async function getVropsImportByChecksum(checksum: string): Promise<VropsImportMeta | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("vrops_imports", "fileChecksum", checksum);
+}
+
+export async function getVropsImports(): Promise<VropsImportMeta[]> {
+  const db = await getDb();
+  const imports = await db.getAll("vrops_imports");
+  return imports.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+}
+
+export async function putVropsImport(meta: VropsImportMeta): Promise<void> {
+  const db = await getDb();
+  await db.put("vrops_imports", meta);
+}
+
+export async function batchPutVropsRows(items: VropsRow[], batchSize = 5000): Promise<void> {
+  await batchPut("vrops_rows", items, batchSize);
+}
+
+export async function batchPutVropsLatest(items: VropsLatest[], batchSize = 5000): Promise<void> {
+  await batchPut("vrops_latest", items, batchSize);
+}
+
+export async function getAllVropsLatest(): Promise<VropsLatest[]> {
+  const db = await getDb();
+  return db.getAll("vrops_latest");
+}
+
+export async function getVropsLatestByClusterNorms(clusterNorms: string[]): Promise<VropsLatest[]> {
+  if (clusterNorms.length === 0) return [];
+  const db = await getDb();
+  const values = await Promise.all([...new Set(clusterNorms)].map((clusterNorm) => db.get("vrops_latest", clusterNorm)));
+  return values.filter((v): v is VropsLatest => Boolean(v));
+}
+
 /* ---------- diagnostics ---------- */
 
 /**
@@ -1158,8 +1232,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "ifaceImportId" | "l2ImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows" | "vrops_rows",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "ifaceImportId" | "l2ImportId" | "vropsImportId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -1253,6 +1327,17 @@ export async function estimateEramonL2ImportSizesBytes(importIds: string[]): Pro
   return Object.fromEntries(entries);
 }
 
+/** Geschätzte IndexedDB-Größe je vROps-Import. */
+export async function estimateVropsImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const entries = await Promise.all(importIds.map(async (id) => [
+    id,
+    await estimateSizeByIndex(db, "vrops_rows", "vropsImportId", id),
+  ] as const));
+  return Object.fromEntries(entries);
+}
+
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -1310,6 +1395,9 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   eramon_l2_imports: "Eramon MAC-Tabelle Importe",
   eramon_l2_rows: "Eramon MAC-Tabelle Zeilen",
   eramon_l2_latest: "Eramon MAC-Tabelle Latest",
+  vrops_imports: "vROps Importe",
+  vrops_rows: "vROps Zeilen",
+  vrops_latest: "vROps Latest",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   maintenance_windows: "Wartungsfenster",
@@ -1335,7 +1423,7 @@ async function runSequential<T>(
  * IndexedDB-Sortierung hinter allen Strings und Zahlen liegen.
  */
 async function deleteByKeyPrefix(
-  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows",
+  storeName: "rawSheetBlobs" | "metrics_cache" | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows" | "vrops_rows",
   prefix: string,
   onChunkDeleted?: (deletedCount: number) => void,
 ): Promise<void> {
@@ -1683,4 +1771,34 @@ export async function deleteIpamImport(ipamImportId: string): Promise<void> {
   await db.delete("ipam_imports", ipamImportId);
   await deleteByKeyPrefix("ipam_rows", ipamImportId);
   await Promise.all([...affectedIps].map((ip) => rebuildIpamLatestForIp(ip)));
+}
+
+/**
+ * Baut den zusammengeführten Latest-Datensatz eines Clusters aus allen verbliebenen
+ * vrops_rows neu auf (nach Löschen eines Imports). Anders als bei IPAM/CDP reicht hier
+ * nicht "die jüngste Einzelzeile" — {@link buildVropsLatestFromRows} muss erneut über
+ * alle Panels des jüngsten verbliebenen Import-Batches für diesen Cluster laufen.
+ */
+async function rebuildVropsLatestForCluster(clusterNorm: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("vrops_rows", "clusterNorm", clusterNorm);
+  const latest = buildVropsLatestFromRows(clusterNorm, rows);
+  if (!latest) {
+    await db.delete("vrops_latest", clusterNorm);
+    return;
+  }
+  await db.put("vrops_latest", latest);
+}
+
+export async function deleteVropsImport(vropsImportId: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllFromIndex("vrops_rows", "vropsImportId", vropsImportId);
+  const affectedClusterNorms = new Set<string>();
+  for (const row of rows) {
+    if (row.clusterNorm) affectedClusterNorms.add(row.clusterNorm);
+  }
+
+  await db.delete("vrops_imports", vropsImportId);
+  await deleteByKeyPrefix("vrops_rows", vropsImportId);
+  await Promise.all([...affectedClusterNorms].map((clusterNorm) => rebuildVropsLatestForCluster(clusterNorm)));
 }

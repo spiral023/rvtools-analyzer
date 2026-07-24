@@ -32,6 +32,7 @@ function dependencies(overrides: Partial<PreloadDependencies> = {}): PreloadDepe
     getAllIpamLatest: empty,
     getAllEramonIfaceLatest: empty,
     getAllEramonL2Latest: empty,
+    getAllVropsLatest: empty,
     ...overrides,
   } as PreloadDependencies;
 }
@@ -58,7 +59,7 @@ describe("preloadImportedData", () => {
     });
     expect(queryClient.getQueryData(["techInfoLatestByVmNames", ["VM-01", "VM-02"]])).toHaveLength(1);
     expect(queryClient.getQueryData(["importedDataStore", "techinfo_rows"])).toHaveLength(1);
-    expect(queryClient.getQueryData(["storedUploads"])).toHaveLength(8);
+    expect(queryClient.getQueryData(["storedUploads"])).toHaveLength(9);
 
     expect(updates.at(-1)).toMatchObject({
       phase: "loading",

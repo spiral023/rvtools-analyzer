@@ -14,7 +14,7 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveSnapshotIds, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
@@ -39,6 +39,7 @@ export default function Clusters() {
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const { data: rawHbaRows = [], isLoading: rawHbaLoading } = useRawSheet("vHBA", tab === "infrastructure");
   const { data: rawNicRows = [], isLoading: rawNicLoading } = useRawSheet("vNIC", tab === "infrastructure");
+  const { data: vropsLatest = [] } = useAllVropsLatest();
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const [selectedOsCluster, setSelectedOsCluster] = useState<ClusterOsDistributionRow | null>(null);
   const [osSource, setOsSource] = useState<VmOsSource>("tools");
@@ -90,8 +91,9 @@ export default function Clusters() {
       vms,
       rawVHostRows,
       snapshots: scopedSnapshots,
+      vropsLatest,
     }),
-    [activeSnapshotSet, clusters, hosts, rawVHostRows, scopedSnapshots, vms],
+    [activeSnapshotSet, clusters, hosts, rawVHostRows, scopedSnapshots, vms, vropsLatest],
   );
   const selectedRow = filteredRows.find((row) => row.clusterKey === selectedClusterKey) ?? null;
 

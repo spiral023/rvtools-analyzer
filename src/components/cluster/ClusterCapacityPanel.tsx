@@ -47,6 +47,14 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   } },
   { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => getValue() === null ? "—" : getValue() ? "An" : "Aus" },
   { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => getValue() === null ? "—" : getValue() ? "An" : "Aus" },
+  { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : `${v.toFixed(0)}%`; } },
+  { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => {
+    const v = getValue() as "ok" | "warn" | "crit" | null;
+    if (v === null) return "—";
+    const className = v === "crit" ? "text-destructive font-semibold" : v === "warn" ? "text-warning font-semibold" : "text-success";
+    const label = v === "crit" ? "kritisch" : v === "warn" ? "knapp" : "ok";
+    return <span className={className}>{label}</span>;
+  } },
 ];
 
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [
@@ -58,6 +66,7 @@ const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [
   { accessorKey: "cores", header: "Cores", meta: { info: CAPACITY_CLUSTER_COLUMNS.cores }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "ramAllocGiB", header: "RAM Alloc", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramAllocGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
   { accessorKey: "ramTotalGiB", header: "RAM Total", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramTotalGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
+  { accessorKey: "vropsCpuOvercommitRatio", header: "CPU Overcommit (vROps Ist)", meta: { info: CAPACITY_CLUSTER_COLUMNS.vropsCpuOvercommitRatio }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : `${v.toFixed(2)}:1`; } },
 ];
 
 const densityColumns: ColumnDef<ClusterDensityRow, unknown>[] = [
@@ -67,6 +76,7 @@ const densityColumns: ColumnDef<ClusterDensityRow, unknown>[] = [
   { accessorKey: "vmsPerHost", header: "VMs/Host", meta: { info: CLUSTER_DENSITY_COLUMNS.vmsPerHost }, cell: ({ getValue }) => (getValue() as number).toFixed(1) },
   { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CLUSTER_DENSITY_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => (getValue() as number).toFixed(2) },
   { accessorKey: "ramUtilPct", header: "RAM Util %", meta: { info: CLUSTER_DENSITY_COLUMNS.ramUtilPct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)}%` },
+  { accessorKey: "vropsAvgVmsPerHost", header: "VMs/Host (vROps Ist)", meta: { info: CLUSTER_DENSITY_COLUMNS.vropsAvgVmsPerHost }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : v.toFixed(1); } },
 ];
 
 function hostDensityColor(vcpuPerCore: number): string {

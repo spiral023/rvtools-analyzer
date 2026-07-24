@@ -124,6 +124,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
     data: sheetName === "vHost" ? rawVHostRows : sheetName === "vHBA" ? rawHBARows : sheetName === "vNIC" ? rawNICRows : [],
     isLoading: false,
   }),
+  useAllVropsLatest: () => ({ data: [] as never[], isLoading: false }),
   useTechInfoLatestByVmNames: () => ({ data: [] as never[], isLoading: false }),
 }));
 

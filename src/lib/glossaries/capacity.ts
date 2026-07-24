@@ -179,6 +179,12 @@ export const CAPACITY_CLUSTER_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Physisch verfügbarer Arbeitsspeicher des Clusters (Summe der Hosts).",
     source: `${RV} · vCluster · „Total memory“`,
   },
+  vropsCpuOvercommitRatio: {
+    term: "CPU Overcommit (vROps Ist)",
+    description:
+      "Tatsächliches CPU-Überbuchungsverhältnis laut vROps zum Erfassungszeitpunkt – im Gegensatz zu „vCPU/Core“, das aus der statischen RVTools-Konfiguration berechnet wird. „—“ ohne vROps-Import.",
+    source: "vROps-Dashboard-Export · Panel 7",
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -381,6 +387,18 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
     description:
       "Prozentuale Abweichung zwischen aggregiertem Host-RAM und dem in vCluster gemeldeten RAM. Große Abweichungen (>5 %) deuten auf Inkonsistenzen im Export hin.",
     source: "berechnet · vHost vs. vCluster",
+  },
+  vropsRamAssignedHighPct: {
+    term: "HIGH-RP RAM %",
+    description:
+      "Dem HIGH-Resource-Pool (produktive/wichtige VMs) zugewiesenes RAM im Verhältnis zur gesamten Cluster-Kapazität. Da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 35 % (gelb) bzw. über 45 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
+    source: "vROps-Dashboard-Export · Panel 2",
+  },
+  siteFailoverRisk: {
+    term: "Site-Failover",
+    description:
+      "Tragfähigkeit im Worst-Case: fällt ein ganzer Standort (50 % der Hosts) aus, sollen HIGH-RP-VMs weiterlaufen, STD-VMs werden per Resource-Pool-Shares zurückgedrängt. Die Ampel zeigt, ob die HIGH-RP-RAM-Zuweisung in die halbierte Cluster-Kapazität passt. „—“ ohne vROps-Import.",
+    source: "berechnet · vROps-Dashboard-Export",
   },
 };
 

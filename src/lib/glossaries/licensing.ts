@@ -163,6 +163,12 @@ export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
     description:
       "Anteil des zugewiesenen VM-RAM an der physischen Cluster-Kapazität. Ab ~85 % (gelb) schrumpft der Puffer für Spitzen und Host-Ausfälle.",
   },
+  vropsAvgVmsPerHost: {
+    term: "VMs/Host (vROps Ist)",
+    description:
+      "Tatsächliche durchschnittliche Anzahl laufender VMs je Host laut vROps zum Erfassungszeitpunkt – Ist-Wert neben dem aus RVTools berechneten „VMs/Host“. „—“ ohne vROps-Import.",
+    source: "vROps-Dashboard-Export · Panel 6",
+  },
 };
 
 /* ------------------------------------------------------------------ */

@@ -54,6 +54,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "ipam") return "IPAM-Netzwerkdaten";
   if (kind === "eramon-iface") return "Eramon Switch-Ports";
   if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
+  if (kind === "vrops") return "vROps-Kapazitätsmetriken";
   return "RVTools";
 }
 

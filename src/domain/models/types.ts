@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -327,6 +327,57 @@ export interface IpamLatest {
   deviceTypes: string | null;
   openPorts: string | null;
   fingerprint: string | null;
+}
+
+export type VropsClusterScope = "cluster" | "high-rp";
+
+export interface VropsImportMeta {
+  vropsImportId: string;
+  importedAt: string;
+  fileName: string;
+  fileChecksum: string;
+  rowCount: number;
+  columnCount: number;
+  /** Zeitstempel der vROps-Erfassung aus der Quelldatei ("Erfasst am"), informativ. */
+  capturedAt: string | null;
+}
+
+export interface VropsRow {
+  vropsImportId: string;
+  rowIndex: number;
+  clusterName: string;
+  clusterNorm: string;
+  scope: VropsClusterScope;
+  panelNumber: number;
+  importedAt: string;
+  rawData: Record<string, string | number | boolean | null>;
+}
+
+/**
+ * Zusammengeführter Ausfallskonzept-Stand je Cluster: die Panels 1–7 des vROps-Exports
+ * verteilen sich auf mehrere Rohzeilen (HIGH-RP- und Cluster-Objekte) und werden hier zu
+ * einem Datensatz pro Cluster zusammengeführt.
+ */
+export interface VropsLatest {
+  clusterNorm: string;
+  clusterName: string;
+  importedAt: string;
+  vropsImportId: string;
+  capturedAt: string | null;
+  /** Panel 1: RAM-Nutzung der HIGH-RP-VMs relativ zum eigenen RP-Kontingent. */
+  ramUsageHighPct: number | null;
+  /** Panel 2: RAM-Zuweisung der HIGH-RP-VMs relativ zur Gesamt-Cluster-Kapazität. */
+  ramAssignedHighPct: number | null;
+  /** Panel 3: RAM-Zuweisung des gesamten Clusters (HIGH + STD). */
+  clusterRamAssignedPct: number | null;
+  /** Panel 4: CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Leistung. */
+  cpuUsageHighPct: number | null;
+  /** Panel 5: Gesamte Cluster-CPU-Nutzung. */
+  clusterCpuUsagePct: number | null;
+  /** Panel 6: Durchschnittliche Anzahl laufender VMs je Host (vROps-Ist-Wert). */
+  avgVmsPerHost: number | null;
+  /** Panel 7: CPU-Überbuchungsverhältnis (vROps-Ist-Wert). */
+  cpuOvercommitRatio: number | null;
 }
 
 export interface MaintenanceSettings {

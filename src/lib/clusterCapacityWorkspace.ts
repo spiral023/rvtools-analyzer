@@ -1,6 +1,7 @@
-import type { NormalizedCluster, NormalizedHost, NormalizedVm, SheetRow, SnapshotMeta } from "@/domain/models/types";
-import { aggregateCluster, groupVHostRowsByCluster, metricsFromAggregate } from "@/domain/services/clusterCapacityEngine";
+import type { NormalizedCluster, NormalizedHost, NormalizedVm, SheetRow, SnapshotMeta, VropsLatest } from "@/domain/models/types";
+import { aggregateCluster, computeSiteFailoverRisk, groupVHostRowsByCluster, metricsFromAggregate, type SiteFailoverRisk } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 
 export interface ClusterCapacityRow {
   clusterKey: string;
@@ -23,6 +24,13 @@ export interface ClusterCapacityRow {
   clusterMemoryDeltaPct: number | null;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
+  /** vROps-Ist-Werte des Ausfallskonzepts (HIGH_RP/STD, Standort 50/50) — `null` ohne vROps-Import. */
+  vropsRamAssignedHighPct: number | null;
+  vropsRamUsageHighPct: number | null;
+  vropsCpuUsageHighPct: number | null;
+  vropsClusterRamAssignedPct: number | null;
+  vropsClusterCpuUsagePct: number | null;
+  siteFailoverRisk: SiteFailoverRisk | null;
 }
 
 export interface ClusterOvercommitRow {
@@ -36,6 +44,8 @@ export interface ClusterOvercommitRow {
   cores: number;
   ramAllocGiB: number;
   ramTotalGiB: number;
+  /** vROps-Ist-Wert des CPU-Overcommit-Verhältnisses (Panel 7) — `null` ohne vROps-Import. */
+  vropsCpuOvercommitRatio: number | null;
 }
 
 export interface HostDensityPoint {
@@ -58,6 +68,8 @@ export interface ClusterDensityRow {
   vmsPerHost: number;
   vcpuPerCore: number;
   ramUtilPct: number;
+  /** vROps-Ist-Wert der durchschnittlichen VMs je Host (Panel 6) — `null` ohne vROps-Import. */
+  vropsAvgVmsPerHost: number | null;
 }
 
 export interface ClusterCapacityWorkspaceInput {
@@ -66,6 +78,8 @@ export interface ClusterCapacityWorkspaceInput {
   vms: NormalizedVm[];
   rawVHostRows: SheetRow[];
   snapshots: SnapshotMeta[];
+  /** Optional: vROps-Kapazitätsmetriken je Cluster (Ausfallskonzept HIGH_RP/STD). */
+  vropsLatest?: VropsLatest[];
 }
 
 export interface ClusterCapacityWorkspaceData {
@@ -100,6 +114,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
     const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
     return [clusterKeyFor(identity.vcenterId, identity.datacenter, identity.clusterName), cluster];
   }));
+  const vropsByClusterNorm = new Map((input.vropsLatest ?? []).map((entry) => [entry.clusterNorm, entry]));
   const rawByCluster = groupVHostRowsByCluster(input.rawVHostRows, vcenterBySnapshot);
   const hostsByCluster = new Map<string, NormalizedHost[]>();
   const vmsByCluster = new Map<string, NormalizedVm[]>();
@@ -146,6 +161,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
     const ramTotalMiB = cluster.totalMemoryMiB ?? 0;
     const cpuRatio = cores > 0 ? vCpuSum / cores : 0;
     const ramRatio = ramTotalMiB > 0 ? ramAllocMiB / ramTotalMiB : 0;
+    const vrops = vropsByClusterNorm.get(normalizeVmNameForMatch(cluster.name)) ?? null;
 
     capacityRows.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name,
@@ -157,17 +173,25 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
       clusterHostDelta: cluster.numHosts != null ? aggregate.hosts - cluster.numHosts : null,
       clusterMemoryDeltaPct: cluster.totalMemoryMiB ? round(((aggregate.totalMemoryMiB - cluster.totalMemoryMiB) / cluster.totalMemoryMiB) * 100, 1) : null,
       riskScore: metrics.riskScore, risk: metrics.risk,
+      vropsRamAssignedHighPct: vrops?.ramAssignedHighPct ?? null,
+      vropsRamUsageHighPct: vrops?.ramUsageHighPct ?? null,
+      vropsCpuUsageHighPct: vrops?.cpuUsageHighPct ?? null,
+      vropsClusterRamAssignedPct: vrops?.clusterRamAssignedPct ?? null,
+      vropsClusterCpuUsagePct: vrops?.clusterCpuUsagePct ?? null,
+      siteFailoverRisk: computeSiteFailoverRisk(vrops?.ramAssignedHighPct ?? null),
     });
     overcommitRows.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name,
       cpuRatio: round(cpuRatio), ramRatio: round(ramRatio), vCpuSum, cores,
       ramAllocGiB: ramAllocMiB / 1024, ramTotalGiB: ramTotalMiB / 1024,
+      vropsCpuOvercommitRatio: vrops?.cpuOvercommitRatio ?? null,
     });
     clusterDensity.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name, hosts: hostRows.length,
       vmsPerHost: hostRows.length > 0 ? vmRows.length / hostRows.length : 0,
       vcpuPerCore: cluster.numCpuThreads ? vCpuSum / cluster.numCpuThreads : 0,
       ramUtilPct: ramTotalMiB > 0 ? (ramAllocMiB / ramTotalMiB) * 100 : 0,
+      vropsAvgVmsPerHost: vrops?.avgVmsPerHost ?? null,
     });
   }
 

@@ -4,6 +4,7 @@ import {
   getAllEramonIfaceLatest,
   getAllEramonL2Latest,
   getAllIpamLatest,
+  getAllVropsLatest,
   getAllTechInfoClientLatest,
   getAllTechInfoLatest,
   getBySnapshotIds,
@@ -39,6 +40,7 @@ export interface PreloadDependencies {
   getAllIpamLatest: () => Promise<unknown[]>;
   getAllEramonIfaceLatest: () => Promise<unknown[]>;
   getAllEramonL2Latest: () => Promise<unknown[]>;
+  getAllVropsLatest: () => Promise<unknown[]>;
 }
 
 export interface PreloadProgress {
@@ -70,6 +72,7 @@ const DEFAULT_DEPENDENCIES: PreloadDependencies = {
   getAllIpamLatest,
   getAllEramonIfaceLatest,
   getAllEramonL2Latest,
+  getAllVropsLatest,
 };
 
 const ENTITY_STEPS: ReadonlyArray<{
@@ -98,6 +101,8 @@ const IMPORT_STORE_LABELS: Record<ImportedDataStoreName, string> = {
   eramon_iface_rows: "Eramon-Interface-Datensätze",
   eramon_l2_imports: "Eramon-L2-Dateien",
   eramon_l2_rows: "Eramon-L2-Datensätze",
+  vrops_imports: "vROps-Dateien",
+  vrops_rows: "vROps-Datensätze",
 };
 
 function recordCount(value: unknown): number {
@@ -148,6 +153,7 @@ function buildStoredUploads(queryClient: QueryClient, snapshots: unknown[]): unk
     { store: "ipam_imports", kind: "ipam", id: "ipamImportId", field: "ipam" },
     { store: "eramon_iface_imports", kind: "eramon-iface", id: "ifaceImportId", field: "eramonIface" },
     { store: "eramon_l2_imports", kind: "eramon-l2", id: "l2ImportId", field: "eramonL2" },
+    { store: "vrops_imports", kind: "vrops", id: "vropsImportId", field: "vrops" },
   ] as const;
 
   for (const definition of definitions) {
@@ -236,6 +242,7 @@ export async function preloadImportedData(
     { label: "Aktuelle IPAM-Daten", queryKey: ["ipamLatestAll"], load: dependencies.getAllIpamLatest },
     { label: "Aktuelle Eramon-Interface-Daten", queryKey: ["eramonIfaceLatestAll"], load: dependencies.getAllEramonIfaceLatest },
     { label: "Aktuelle Eramon-L2-Daten", queryKey: ["eramonL2LatestAll"], load: dependencies.getAllEramonL2Latest },
+    { label: "Aktuelle vROps-Daten", queryKey: ["vropsLatestAll"], load: dependencies.getAllVropsLatest },
   ];
 
   const totalSteps = steps.length + 1;

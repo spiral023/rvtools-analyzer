@@ -1,3 +1,5 @@
+import type { VropsClusterScope, VropsRow, VropsLatest } from "@/domain/models/types";
+
 /**
  * Convert Excel serial date number to ISO string.
  * Excel serial dates: days since 1899-12-30 (with the Lotus 123 bug).
@@ -15,7 +17,7 @@ export interface ParsedRvtoolsFileName {
   exportTs: string;
 }
 
-export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2";
+export type ParsedFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops";
 
 const RVTOOLS_CANONICAL_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork",
@@ -31,6 +33,7 @@ export const CDP_REQUIRED_HEADERS = ["VMHost", "PhysicalAdapter", "CDPDeviceID",
 export const IPAM_REQUIRED_HEADERS = ["IP Address", "Status", "Type"] as const;
 export const ERAMON_IFACE_REQUIRED_HEADERS = ["device_name", "port_name", "port_status"] as const;
 export const ERAMON_L2_REQUIRED_HEADERS = ["name", "interface", "mac", "vlan"] as const;
+export const VROPS_REQUIRED_HEADERS = ["Panel", "Objekt", "Metrik", "Wert", "Einheit"] as const;
 
 export interface SheetShapeForDetection {
   sheetName: string;
@@ -112,6 +115,11 @@ export function detectParsedFileKind(sheets: SheetShapeForDetection[]): ParsedFi
     ERAMON_L2_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
   );
   if (hasEramonL2Headers) return "eramon-l2";
+
+  const hasVropsHeaders = sheets.some((sheet) =>
+    VROPS_REQUIRED_HEADERS.every((header) => sheet.headers.includes(header)),
+  );
+  if (hasVropsHeaders) return "vrops";
 
   return "rvtools";
 }
@@ -301,6 +309,82 @@ export function buildEramonSwitchPortKey(deviceName: string, portName: string): 
 
 export function buildEramonL2Key(name: string, interfaceName: string, mac: string, vlan: string): string {
   return `${normalizeVmNameForMatch(name)}::${interfaceName.trim().toLowerCase()}::${mac.trim().toLowerCase()}::${vlan.trim()}`;
+}
+
+/**
+ * vROps-Panels sind mit einer laufenden Nummer beschriftet, z.B. "1) % RAM Usage High_RP/Prod".
+ * Panel 8 (Free vCPU) wird bewusst nicht unterstützt, siehe {@link VROPS_IGNORED_PANEL}.
+ */
+export function parseVropsPanelNumber(panelLabel: string | null | undefined): number | null {
+  const match = panelLabel?.match(/^(\d+)\)/);
+  return match ? Number(match[1]) : null;
+}
+
+/** Panel-Nummer, die auf fachlichen Wunsch (noch) nicht ausgewertet wird ("Free vCPU per Cluster"). */
+export const VROPS_IGNORED_PANEL = 8;
+
+const VROPS_HIGH_RP_SUFFIX = /_High_RP$/;
+
+/**
+ * vROps-Objektnamen für HIGH-RP-spezifische Panels tragen das Suffix "_High_RP"
+ * (z.B. "CL_LNZ_SRV_9910_APB01_High_RP"). Cluster-weite Panels nutzen den reinen
+ * Clusternamen. STD wird nicht separat exportiert – es ist implizit "Cluster minus HIGH".
+ */
+export function stripVropsHighRpSuffix(objekt: string): { clusterName: string; scope: VropsClusterScope } {
+  const match = objekt.match(VROPS_HIGH_RP_SUFFIX);
+  if (match && match.index !== undefined) return { clusterName: objekt.slice(0, match.index), scope: "high-rp" };
+  return { clusterName: objekt, scope: "cluster" };
+}
+
+/** Parst "24.7.2026, 15:47:35" (vROps-Erfassungszeitstempel, de-AT-Format) zu ISO 8601. */
+export function parseVropsCapturedAt(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s*(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, day, month, year, hour, minute, second] = match.map(Number);
+  const dt = new Date(year, month - 1, day, hour, minute, second);
+  return isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
+/**
+ * Führt die Panels 1–7 eines vROps-Exports (verteilt auf mehrere Rohzeilen: HIGH-RP- und
+ * Cluster-Objekte) zu einem Datensatz je Cluster zusammen. Bei mehreren Import-Batches für
+ * denselben Cluster gewinnt ausschließlich der jüngste Batch (importedAt) — Panels aus
+ * unterschiedlichen Zeitpunkten dürfen nicht vermischt werden. Wird sowohl beim Import als
+ * auch beim Rebuild nach einem Teil-Löschvorgang verwendet.
+ */
+export function buildVropsLatestFromRows(clusterNorm: string, rows: VropsRow[]): VropsLatest | null {
+  if (rows.length === 0) return null;
+  const newestImportedAt = rows.reduce((max, r) => (r.importedAt > max ? r.importedAt : max), rows[0].importedAt);
+  const newestRows = rows.filter((r) => r.importedAt === newestImportedAt);
+  const first = newestRows[0];
+
+  const latest: VropsLatest = {
+    clusterNorm,
+    clusterName: first.clusterName,
+    importedAt: newestImportedAt,
+    vropsImportId: first.vropsImportId,
+    capturedAt: parseVropsCapturedAt(toStr(first.rawData["Erfasst am"])),
+    ramUsageHighPct: null,
+    ramAssignedHighPct: null,
+    clusterRamAssignedPct: null,
+    cpuUsageHighPct: null,
+    clusterCpuUsagePct: null,
+    avgVmsPerHost: null,
+    cpuOvercommitRatio: null,
+  };
+  for (const row of newestRows) {
+    const value = toNumber(row.rawData["Wert"]);
+    if (value === null) continue;
+    if (row.panelNumber === 1 && row.scope === "high-rp") latest.ramUsageHighPct = value;
+    else if (row.panelNumber === 2 && row.scope === "high-rp") latest.ramAssignedHighPct = value;
+    else if (row.panelNumber === 3 && row.scope === "cluster") latest.clusterRamAssignedPct = value;
+    else if (row.panelNumber === 4 && row.scope === "high-rp") latest.cpuUsageHighPct = value;
+    else if (row.panelNumber === 5 && row.scope === "cluster") latest.clusterCpuUsagePct = value;
+    else if (row.panelNumber === 6 && row.scope === "cluster") latest.avgVmsPerHost = value;
+    else if (row.panelNumber === 7 && row.scope === "cluster") latest.cpuOvercommitRatio = value;
+  }
+  return latest;
 }
 
 /** vCenter-Anzeigename → vcenterId, identische Konvention wie beim RVTools-Import. */

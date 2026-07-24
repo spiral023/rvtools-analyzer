@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshots, getBySnapshotIds, getRawSheetRows, getAllTechInfoLatest, getAllTechInfoClientLatest, getAllCdpLatest, getAllIpamLatest, getAllEramonIfaceLatest, getAllEramonL2Latest } from "@/data/db";
+import { getSnapshots, getBySnapshotIds, getRawSheetRows, getAllTechInfoLatest, getAllTechInfoClientLatest, getAllCdpLatest, getAllIpamLatest, getAllEramonIfaceLatest, getAllEramonL2Latest, getAllVropsLatest } from "@/data/db";
 import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows } from "@/lib/networkAudit";
 import type { NetworkAuditSourceFacts } from "@/lib/networkAuditViewModel";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
@@ -286,6 +286,15 @@ export function useAllIpamLatest() {
   return useQuery({
     queryKey: ["ipamLatestAll"],
     queryFn: getAllIpamLatest,
+    staleTime: STALE_MS,
+  });
+}
+
+/** vROps-Kapazitätsmetriken je Cluster, unabhängig vom aktiven RVTools-Snapshot-Scope. */
+export function useAllVropsLatest() {
+  return useQuery({
+    queryKey: ["vropsLatestAll"],
+    queryFn: getAllVropsLatest,
     staleTime: STALE_MS,
   });
 }
