@@ -27,6 +27,8 @@ export interface WhatIfClusterResult {
   vropsRamAssignedHighPctAfter: number | null;
   siteFailoverRiskBefore: SiteFailoverRisk | null;
   siteFailoverRiskAfter: SiteFailoverRisk | null;
+  /** `true`, wenn kein vROps-Import für diesen Cluster vorliegt — Vorher/Nachher-Score enthält dann keine vROps-Faktoren. */
+  vropsMissing: boolean;
 }
 
 function round1(value: number): number {
@@ -138,7 +140,6 @@ export function computeWhatIf(
     const clusterRef = clusterRefByKey.get(clusterKey) ?? null;
     const clusterName = labelsByKey.get(clusterKey) ?? "Unbekannter Cluster";
     const beforeAgg = getBeforeAggregate(clusterKey);
-    const before = metricsFromAggregate(beforeAgg, { clusterName, clusterRef, projected: false });
     const moves = movesByCluster.get(clusterKey) ?? { incoming: [], outgoing: [] };
 
     const withLoad = (vm: NormalizedVm) => {
@@ -150,7 +151,6 @@ export function computeWhatIf(
       incoming: moves.incoming.map(withLoad),
       outgoing: moves.outgoing.map(withLoad),
     });
-    const after = metricsFromAggregate(afterAgg, { clusterName, clusterRef, projected: true });
 
     // Ausfallskonzept-Projektion: HIGH-RP-VMs, die in diesen Cluster wechseln bzw. ihn
     // verlassen, verschieben die HIGH-RP-RAM-Zuweisung additiv — analog zum Prinzip der
@@ -173,6 +173,27 @@ export function computeWhatIf(
     const afterHighMiB = baselineHighMiB !== null ? Math.max(0, baselineHighMiB + highDeltaMiB) : null;
     const afterHighPct = afterHighMiB !== null && totalMemoryMiB ? (afterHighMiB / totalMemoryMiB) * 100 : null;
 
+    // Die übrigen vROps-Faktoren (CPU-Overcommit, HIGH-RP-CPU, ...) haben kein Projektionsmodell
+    // für VM-Verschiebungen und fließen daher mit demselben statischen Ist-Wert in Vorher- und
+    // Nachher-Score ein (siehe Design-Spec, Abschnitt "Integration").
+    const staticVropsFactors = {
+      ramUsageHighPct: vropsEntry?.ramUsageHighPct ?? null,
+      cpuUsageHighPct: vropsEntry?.cpuUsageHighPct ?? null,
+      clusterRamAssignedPct: vropsEntry?.clusterRamAssignedPct ?? null,
+      clusterCpuUsagePct: vropsEntry?.clusterCpuUsagePct ?? null,
+      avgVmsPerHost: vropsEntry?.avgVmsPerHost ?? null,
+      cpuOvercommitRatio: vropsEntry?.cpuOvercommitRatio ?? null,
+    };
+
+    const before = metricsFromAggregate(beforeAgg, {
+      clusterName, clusterRef, projected: false,
+      vrops: { ramAssignedHighPct: baselineHighPct, ...staticVropsFactors },
+    });
+    const after = metricsFromAggregate(afterAgg, {
+      clusterName, clusterRef, projected: true,
+      vrops: { ramAssignedHighPct: afterHighPct, ...staticVropsFactors },
+    });
+
     totalMovedVms += moves.incoming.length;
     results.push({
       clusterKey,
@@ -185,6 +206,7 @@ export function computeWhatIf(
       vropsRamAssignedHighPctAfter: afterHighPct !== null ? round1(afterHighPct) : null,
       siteFailoverRiskBefore: computeSiteFailoverRisk(baselineHighPct),
       siteFailoverRiskAfter: computeSiteFailoverRisk(afterHighPct),
+      vropsMissing: vropsEntry === null,
     });
   }
 

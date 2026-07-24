@@ -215,4 +215,61 @@ describe("computeWhatIf", () => {
     expect(beta?.before.totalVms).toBe(7);
     expect(beta?.after.totalVms).toBe(8);
   });
+
+  it("gewichtet die HIGH-RP-RAM-Projektion in Vorher-/Nachher-Risk-Score und erzwingt hoch bei kritischem Site-Failover-Risiko", () => {
+    const targetKey = clusterScopeKey("vc-b", "DC1", "Beta");
+    const scenario: Scenario = {
+      id: "scn-6", name: "Move High Critical", type: "cluster-migration",
+      createdAt: "2026-07-24T00:00:00.000Z", updatedAt: "2026-07-24T00:00:00.000Z",
+      vcenterScope: ["vc-a", "vc-b"],
+      groups: [{ id: "grp-1", label: null, targetClusterKey: targetKey, vmKeys: ["vm-1"] }],
+      notes: null,
+    };
+    const highVm = vm({
+      cluster: "Alpha", vcenterId: "vc-a", memoryMiB: 20000,
+      resourcePool: "/LNZ9910/CL_Alpha/Resources/HIGH",
+    });
+
+    const result = computeWhatIf(
+      scenario,
+      [highVm],
+      [hostRow("snap-a", "esx-a", 5, "Alpha"), hostRow("snap-b", "esx-b", 7, "Beta")],
+      [cluster("vc-a", "Alpha"), cluster("vc-b", "Beta")],
+      new Map([["snap-a", "vc-a"], ["snap-b", "vc-b"]]),
+      [
+        vropsLatest({ clusterNorm: "alpha", clusterName: "Alpha", ramAssignedHighPct: 40 }),
+        vropsLatest({ clusterNorm: "beta", clusterName: "Beta", ramAssignedHighPct: 38 }),
+      ],
+    );
+
+    const alpha = result.clusters.find((entry) => entry.clusterName === "Alpha");
+    const beta = result.clusters.find((entry) => entry.clusterName === "Beta");
+
+    // Beta: 38 % + 20000 MiB HIGH-RP-Zuzug auf 100000 MiB Gesamt-RAM → 58 % (> 50 % danger) → siteFailoverRiskAfter "crit".
+    expect(beta?.siteFailoverRiskAfter).toBe("crit");
+    expect(beta?.after.risk).toBe("hoch");
+    expect(beta?.vropsMissing).toBe(false);
+    expect(alpha?.after.risk).toBe("niedrig");
+  });
+
+  it("markiert Cluster ohne vROps-Import als vropsMissing", () => {
+    const targetKey = clusterScopeKey("vc-b", "DC1", "Beta");
+    const scenario: Scenario = {
+      id: "scn-7", name: "Move ohne vROps", type: "cluster-migration",
+      createdAt: "2026-07-24T00:00:00.000Z", updatedAt: "2026-07-24T00:00:00.000Z",
+      vcenterScope: ["vc-a", "vc-b"],
+      groups: [{ id: "grp-1", label: null, targetClusterKey: targetKey, vmKeys: ["vm-1"] }],
+      notes: null,
+    };
+
+    const result = computeWhatIf(
+      scenario,
+      [vm({ cluster: "Alpha", vcenterId: "vc-a" })],
+      [hostRow("snap-a", "esx-a", 5, "Alpha"), hostRow("snap-b", "esx-b", 7, "Beta")],
+      [cluster("vc-a", "Alpha"), cluster("vc-b", "Beta")],
+      new Map([["snap-a", "vc-a"], ["snap-b", "vc-b"]]),
+    );
+
+    expect(result.clusters.every((entry) => entry.vropsMissing)).toBe(true);
+  });
 });
