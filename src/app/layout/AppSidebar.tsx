@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -11,9 +12,12 @@ import {
 } from "@/components/ui/sidebar";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
+import { useOptionalImportController } from "@/hooks/useImportController";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Upload,
+  Loader2,
   Activity,
   HardDrive,
   Gauge,
@@ -26,14 +30,23 @@ import {
   ClipboardList,
   CalendarRange,
   Info,
+  type LucideIcon,
 } from "lucide-react";
 
-const mainNav = [
+interface NavItem {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  /** Erlaubt das direkte Droppen von Import-Dateien auf diesen Menüpunkt. */
+  dropzone?: boolean;
+}
+
+const mainNav: NavItem[] = [
   { title: "Overview", url: "/overview", icon: LayoutDashboard },
-  { title: "Uploads & Snapshots", url: "/upload", icon: Upload },
+  { title: "Uploads", url: "/upload", icon: Upload, dropzone: true },
 ];
 
-const analysisNav = [
+const analysisNav: NavItem[] = [
   { title: "vCenter", url: "/fleet-compare", icon: GitCompare },
   { title: "Daily Ops", url: "/daily-ops", icon: Activity },
   { title: "Cluster", url: "/clusters", icon: Server },
@@ -60,8 +73,18 @@ function NavSection({
   items,
 }: {
   label: string;
-  items: typeof mainNav;
+  items: NavItem[];
 }) {
+  const importController = useOptionalImportController();
+  const [dragOverUrl, setDragOverUrl] = useState<string | null>(null);
+
+  const handleDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    setDragOverUrl(null);
+    if (!importController || event.dataTransfer.files.length === 0) return;
+    void importController.importFiles(event.dataTransfer.files);
+  }, [importController]);
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
@@ -69,23 +92,37 @@ function NavSection({
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.url}>
-              <InfoTooltip entry={SIDEBAR_GLOSSARY[item.url]} side="right" align="center">
-                <SidebarMenuButton asChild>
-                  <NavLink
-                    to={item.url}
-                    end
-                    className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.title}</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </InfoTooltip>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isDropzone = !!item.dropzone && !!importController;
+            const isDragOver = isDropzone && dragOverUrl === item.url;
+            const isImporting = isDropzone && importController.importing;
+
+            return (
+              <SidebarMenuItem key={item.url}>
+                <InfoTooltip entry={SIDEBAR_GLOSSARY[item.url]} side="right" align="center">
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        isDragOver && "bg-primary/10 text-primary ring-2 ring-inset ring-primary/50",
+                      )}
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      onDragOver={isDropzone ? (e) => { e.preventDefault(); setDragOverUrl(item.url); } : undefined}
+                      onDragLeave={isDropzone ? () => setDragOverUrl(null) : undefined}
+                      onDrop={isDropzone ? handleDrop : undefined}
+                    >
+                      {isImporting
+                        ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        : <item.icon className="h-4 w-4 shrink-0" />}
+                      <span className="truncate">{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </InfoTooltip>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

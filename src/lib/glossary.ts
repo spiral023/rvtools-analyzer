@@ -42,9 +42,9 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
       "Flottenweiter Einstieg: VMs, Hosts, Datastores und Health-Events der aktiven Snapshots auf einen Blick. Startpunkt für jede Analyse.",
   },
   "/upload": {
-    term: "Uploads & Snapshots",
+    term: "Uploads",
     description:
-      "RVTools-Exporte (.xlsx) importieren und Datenstände verwalten. Je vCenter wird ein aktueller Stand gehalten; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.",
+      "Droppe unterstützte Dateien einfach hier oder klicke für Details. RVTools-Exporte (.xlsx) und weitere Importe landen im Hintergrund in der Warteschlange – du kannst währenddessen ungestört weiterarbeiten. Je vCenter wird ein aktueller Stand gehalten; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.",
   },
   "/daily-ops": {
     term: "Daily Ops",
