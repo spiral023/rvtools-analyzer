@@ -32,6 +32,8 @@ interface ImportContextValue {
   rejectedFileNames: string[];
   importFiles: (files: FileList | File[]) => Promise<void>;
   clearImportState: () => void;
+  /** Zählt hoch, sobald ein Import-Batch mindestens eine erfolgreich importierte Datei enthielt. */
+  importSuccessSignal: number;
 }
 
 const ImportContext = createContext<ImportContextValue | null>(null);
@@ -64,6 +66,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const [importing, setImporting] = useState(false);
   const [items, setItems] = useState<ImportQueueItem[]>([]);
   const [rejectedFileNames, setRejectedFileNames] = useState<string[]>([]);
+  const [importSuccessSignal, setImportSuccessSignal] = useState(0);
 
   const patchItem = useCallback((id: string, patch: Partial<ImportQueueItem>) => {
     setItems((current) =>
@@ -105,6 +108,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       runningRef.current = true;
       setImporting(true);
 
+      let anySuccess = false;
       try {
         for (let index = 0; index < validFiles.length; index += 1) {
           const file = validFiles[index];
@@ -130,6 +134,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
             });
 
             if (result.success) {
+              anySuccess = true;
               toast.success(
                 `„${file.name}“ (${fileKindLabel(result.fileKind)}) erfolgreich importiert.`,
               );
@@ -149,6 +154,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         }
 
         await queryClient.invalidateQueries();
+        if (anySuccess) setImportSuccessSignal((n) => n + 1);
       } finally {
         runningRef.current = false;
         setImporting(false);
@@ -164,8 +170,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ importing, items, rejectedFileNames, importFiles, clearImportState }),
-    [clearImportState, importFiles, importing, items, rejectedFileNames],
+    () => ({ importing, items, rejectedFileNames, importFiles, clearImportState, importSuccessSignal }),
+    [clearImportState, importFiles, importing, items, rejectedFileNames, importSuccessSignal],
   );
 
   return <ImportContext.Provider value={value}>{children}</ImportContext.Provider>;
@@ -177,4 +183,9 @@ export function useImportController(): ImportContextValue {
     throw new Error("useImportController must be used within an ImportProvider");
   }
   return context;
+}
+
+/** Wie useImportController, aber liefert null außerhalb eines ImportProvider statt zu werfen. */
+export function useOptionalImportController(): ImportContextValue | null {
+  return useContext(ImportContext);
 }

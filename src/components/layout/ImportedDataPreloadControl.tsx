@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock3, DatabaseZap, HardDrive, Loader2, MemoryStick } from "lucide-react";
 import { hasImportedData } from "@/data/db";
@@ -16,6 +17,7 @@ import {
   useImportedDataPreload,
   type ImportedDataPreloadRunner,
 } from "@/hooks/useImportedDataPreload";
+import { useOptionalImportController } from "@/hooks/useImportController";
 import { preloadImportedData } from "@/lib/preloadImportedData";
 import { QUERY_CACHE_DURATION_MS } from "@/lib/queryCache";
 
@@ -35,6 +37,22 @@ export function ImportedDataPreloadControl({
   });
   const { status, progress, error, start, dismissError, isRunning } = useImportedDataPreload(preload);
   const dialogOpen = status !== "idle";
+
+  // Nach einem erfolgreichen Datei-Upload automatisch alle Daten vorladen.
+  const importController = useOptionalImportController();
+  const lastSeenSuccessSignal = useRef<number | null>(null);
+  useEffect(() => {
+    const signal = importController?.importSuccessSignal;
+    if (signal === undefined) return;
+    if (lastSeenSuccessSignal.current === null) {
+      lastSeenSuccessSignal.current = signal;
+      return;
+    }
+    if (signal !== lastSeenSuccessSignal.current) {
+      lastSeenSuccessSignal.current = signal;
+      void start();
+    }
+  }, [importController?.importSuccessSignal, start]);
 
   return (
     <>

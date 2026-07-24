@@ -4,11 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ImportedDataPreloadControl } from "@/components/layout/ImportedDataPreloadControl";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ImportProvider, useImportController } from "@/hooks/useImportController";
+import { importRvtoolsXlsx } from "@/domain/services/importService";
 import type { ImportedDataPreloadRunner } from "@/hooks/useImportedDataPreload";
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
+vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn() }));
+
+const mockedImport = vi.mocked(importRvtoolsXlsx);
 
 function renderControl(preload: ImportedDataPreloadRunner, hasData = async () => true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -94,5 +99,36 @@ describe("ImportedDataPreloadControl", () => {
   it("deaktiviert die Aktion ohne importierte Daten", async () => {
     renderControl(vi.fn<ImportedDataPreloadRunner>(), async () => false);
     expect(await screen.findByRole("button", { name: "Alle importierten Daten vorladen" })).toBeDisabled();
+  });
+
+  it("startet das Vorladen automatisch nach einem erfolgreichen Datei-Upload", async () => {
+    mockedImport.mockResolvedValue({ success: true, fileKind: "rvtools", warnings: [], errors: [] });
+    const preload = vi.fn<ImportedDataPreloadRunner>().mockResolvedValue({ processedRecords: 5, totalSteps: 1 });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    function Harness() {
+      const { importFiles } = useImportController();
+      return (
+        <>
+          <ImportedDataPreloadControl preload={preload} hasData={async () => true} />
+          <button onClick={() => void importFiles([new File(["a"], "a.xlsx")])}>upload</button>
+        </>
+      );
+    }
+
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <ImportProvider>
+            <Harness />
+          </ImportProvider>
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(preload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "upload" }));
+
+    await waitFor(() => expect(preload).toHaveBeenCalledTimes(1));
   });
 });
