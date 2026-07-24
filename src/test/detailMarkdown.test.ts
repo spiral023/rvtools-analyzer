@@ -112,6 +112,7 @@ const datastore: NormalizedDatastore = {
   dsKey: "ds-1",
   name: "DS01",
   clusterName: "Cluster-A",
+  hostNames: ["esx01.lab.local"],
   type: "VMFS",
   capacityMiB: 1024000,
   inUseMiB: 512000,

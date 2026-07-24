@@ -401,6 +401,20 @@ function normalizeClusters(sheet: ParsedSheetData | undefined, snapshotId: strin
   });
 }
 
+/**
+ * vDatastore führt keine verlässliche Cluster-Zuordnung (Datastores sind i.d.R. von
+ * mehreren Hosts/Clustern gemeinsam genutzt). Die Spalte "Hosts" listet stattdessen
+ * die verbundenen ESXi-Hosts kommagetrennt auf – darüber lässt sich der Compute-Cluster
+ * zuverlässig über die Host-Zuordnung (vHost/vInfo) auflösen.
+ */
+function parseHostNames(value: unknown): string[] {
+  if (value === null || value === undefined || value === "") return [];
+  return String(value)
+    .split(",")
+    .map((host) => host.trim())
+    .filter((host) => host.length > 0);
+}
+
 function normalizeDatastores(sheet: ParsedSheetData | undefined, snapshotId: string, vcenterId: string): NormalizedDatastore[] {
   if (!sheet) return [];
   return sheet.rows.map((row) => {
@@ -415,6 +429,7 @@ function normalizeDatastores(sheet: ParsedSheetData | undefined, snapshotId: str
       dsKey: `${name}::${vcenterId}`,
       name,
       clusterName: toStr(row["Cluster"] || row["Datacenter/Cluster"]),
+      hostNames: parseHostNames(row["Hosts"]),
       type: toStr(row["Type"]),
       capacityMiB: capMiB,
       inUseMiB: inUseMiB ?? (capMiB && freeMiB ? capMiB - freeMiB : null),

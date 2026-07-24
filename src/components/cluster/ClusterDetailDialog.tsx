@@ -123,13 +123,16 @@ function useClusterDetailDialogView({
 
   const scopedClusters = useMemo(
     () => clusterIdentity
-      ? clusters.filter((cluster) => isSameCluster({
-        vcenterId: cluster.vcenterId,
-        datacenter: cluster.datacenter,
-        clusterName: cluster.name,
-      }, clusterIdentity))
+      ? clusters.filter((cluster) => isSameCluster(
+        resolveClusterIdentity({
+          vcenterId: cluster.vcenterId,
+          datacenter: cluster.datacenter,
+          clusterName: cluster.name,
+        }, associationIdentities),
+        clusterIdentity,
+      ))
       : [],
-    [clusterIdentity, clusters],
+    [associationIdentities, clusterIdentity, clusters],
   );
 
   const scopedHosts = useMemo(
@@ -171,15 +174,20 @@ function useClusterDetailDialogView({
     [scopedClusters],
   );
 
+  const scopedHostNames = useMemo(
+    () => new Set(scopedHosts.map((host) => host.host.trim().toLowerCase())),
+    [scopedHosts],
+  );
+
   const scopedDatastores = useMemo(
     () => clusterIdentity
       ? datastores.filter((ds) => (
         scopedSnapshotIds.has(ds.snapshotId)
         && ds.vcenterId === clusterIdentity.vcenterId
-        && (ds.clusterName || "").trim() === (clusterIdentity.clusterName || "").trim()
+        && ds.hostNames.some((host) => scopedHostNames.has(host.trim().toLowerCase()))
       ))
       : [],
-    [clusterIdentity, datastores, scopedSnapshotIds],
+    [clusterIdentity, datastores, scopedHostNames, scopedSnapshotIds],
   );
 
   const scopedRawVHostRows = useMemo(() => {

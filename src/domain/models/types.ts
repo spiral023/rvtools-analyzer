@@ -495,6 +495,8 @@ export interface NormalizedDatastore {
   dsKey: string;
   name: string;
   clusterName: string | null;
+  /** ESXi-Hostnamen (aus der vDatastore-Spalte "Hosts"), die diesen Datastore verbunden haben. */
+  hostNames: string[];
   type: string | null;
   capacityMiB: number | null;
   inUseMiB: number | null;
