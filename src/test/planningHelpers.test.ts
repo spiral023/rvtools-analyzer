@@ -150,4 +150,69 @@ describe("computeWhatIf", () => {
     const alpha = result.clusters.find((entry) => entry.clusterName === "Alpha");
     expect(alpha).toMatchObject({ vropsRamAssignedHighPctBefore: 40, vropsRamAssignedHighPctAfter: 40 });
   });
+
+  it("projiziert die HIGH-RP-RAM-Zuweisung auch ohne clusterRef.totalMemoryMiB (Fallback auf vHost-Aggregat)", () => {
+    const targetKey = clusterScopeKey("vc-b", "DC1", "Beta");
+    const scenario: Scenario = {
+      id: "scn-4", name: "Move High ohne vCluster-TotalMemory", type: "cluster-migration",
+      createdAt: "2026-07-24T00:00:00.000Z", updatedAt: "2026-07-24T00:00:00.000Z",
+      vcenterScope: ["vc-a", "vc-b"],
+      groups: [{ id: "grp-1", label: null, targetClusterKey: targetKey, vmKeys: ["vm-1"] }],
+      notes: null,
+    };
+    const highVm = vm({
+      cluster: "Alpha", vcenterId: "vc-a", memoryMiB: 10000,
+      resourcePool: "/LNZ9910/CL_Alpha/Resources/HIGH",
+    });
+
+    const result = computeWhatIf(
+      scenario,
+      [highVm],
+      [hostRow("snap-a", "esx-a", 5, "Alpha"), hostRow("snap-b", "esx-b", 7, "Beta")],
+      [cluster("vc-a", "Alpha", null as unknown as number), cluster("vc-b", "Beta", null as unknown as number)],
+      new Map([["snap-a", "vc-a"], ["snap-b", "vc-b"]]),
+      [
+        vropsLatest({ clusterNorm: "alpha", clusterName: "Alpha", ramAssignedHighPct: 40 }),
+        vropsLatest({ clusterNorm: "beta", clusterName: "Beta", ramAssignedHighPct: 38 }),
+      ],
+    );
+
+    const alpha = result.clusters.find((entry) => entry.clusterName === "Alpha");
+    const beta = result.clusters.find((entry) => entry.clusterName === "Beta");
+
+    expect(alpha).toMatchObject({
+      vropsRamAssignedHighPctBefore: 40, vropsRamAssignedHighPctAfter: 30,
+      siteFailoverRiskBefore: "ok", siteFailoverRiskAfter: "ok",
+    });
+    expect(beta).toMatchObject({
+      vropsRamAssignedHighPctBefore: 38, vropsRamAssignedHighPctAfter: 48,
+      siteFailoverRiskBefore: "ok", siteFailoverRiskAfter: "warn",
+    });
+  });
+
+  it("findet die vHost-Zeilen eines Ziel-Clusters auch ohne Datacenter im vCluster-Import (Rehydration)", () => {
+    const targetCluster = cluster("vc-b", "Beta");
+    const targetClusterWithoutDatacenter: NormalizedCluster = { ...targetCluster, datacenter: null };
+    const targetKey = targetClusterWithoutDatacenter.clusterKey;
+    const scenario: Scenario = {
+      id: "scn-5", name: "Move ohne Ziel-Datacenter", type: "cluster-migration",
+      createdAt: "2026-07-24T00:00:00.000Z", updatedAt: "2026-07-24T00:00:00.000Z",
+      vcenterScope: ["vc-a", "vc-b"],
+      groups: [{ id: "grp-1", label: null, targetClusterKey: targetKey, vmKeys: ["vm-1"] }],
+      notes: null,
+    };
+
+    const result = computeWhatIf(
+      scenario,
+      [vm({ cluster: "Alpha", vcenterId: "vc-a" })],
+      [hostRow("snap-a", "esx-a", 5, "Alpha"), hostRow("snap-b", "esx-b", 7, "Beta")],
+      [cluster("vc-a", "Alpha"), targetClusterWithoutDatacenter],
+      new Map([["snap-a", "vc-a"], ["snap-b", "vc-b"]]),
+    );
+
+    const beta = result.clusters.find((entry) => entry.clusterName === "Beta");
+    expect(beta?.before.hosts).toBe(1);
+    expect(beta?.before.totalVms).toBe(7);
+    expect(beta?.after.totalVms).toBe(8);
+  });
 });

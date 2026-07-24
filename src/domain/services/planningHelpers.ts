@@ -1,5 +1,5 @@
 import type { NormalizedCluster, NormalizedVm, Scenario, SheetRow, VropsLatest } from "@/domain/models/types";
-import { clusterScopeKey, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 import {
   aggregateCluster,
@@ -69,8 +69,22 @@ export function computeWhatIf(
   const rowsByCluster = groupVHostRowsByCluster(rawVHostRows, vcenterBySnapshot);
   const affectedClusterKeys = new Set<string>();
   const movesByCluster = new Map<string, { incoming: NormalizedVm[]; outgoing: NormalizedVm[] }>();
+  // Der vCluster-Import liefert für manche Cluster kein Datacenter (null). Ohne Rehydration
+  // würde die Cluster-Identität (mit Datacenter = null) nicht mit den vHost-Zeilen (mit dem
+  // tatsächlichen Datacenter) übereinstimmen, sodass das Vorher-Aggregat leer bliebe — analog
+  // zum Mechanismus in clusterCapacityWorkspace.ts.
+  const associationIdentities: ClusterIdentity[] = [
+    ...allVms.map(vmClusterIdentity),
+    ...rawVHostRows.flatMap((row) => {
+      const vcenterId = vcenterBySnapshot.get(row.snapshotId);
+      return vcenterId
+        ? [{ vcenterId, datacenter: String(row.data["Datacenter"] ?? ""), clusterName: String(row.data["Cluster"] ?? "") }]
+        : [];
+    }),
+  ];
+  const resolveIdentity = (identity: ClusterIdentity) => resolveClusterIdentity(identity, associationIdentities);
   const identitiesByKey = new Map<string, ClusterIdentity>(
-    clusterRefs.map((cluster) => [cluster.clusterKey, clusterIdentity(cluster)]),
+    clusterRefs.map((cluster) => [cluster.clusterKey, resolveIdentity(clusterIdentity(cluster))]),
   );
   const labelsByKey = new Map(clusterRefs.map((cluster) => [cluster.clusterKey, cluster.name]));
 
@@ -82,7 +96,7 @@ export function computeWhatIf(
       const vm = vmByKey.get(vmKey);
       if (!vm || !vm.cluster) continue;
 
-      const sourceIdentity = vmClusterIdentity(vm);
+      const sourceIdentity = resolveIdentity(vmClusterIdentity(vm));
       const sourceClusterKey = clusterScopeKey(
         sourceIdentity.vcenterId,
         sourceIdentity.datacenter,
@@ -107,8 +121,11 @@ export function computeWhatIf(
     const cached = beforeAggregates.get(clusterKey);
     if (cached) return cached;
     const identity = identitiesByKey.get(clusterKey);
+    // rowsByCluster ist nach dem tatsächlichen (rehydrierten) Datacenter gruppiert — der
+    // übergebene clusterKey kann noch das ursprüngliche (ggf. fehlende) Datacenter tragen.
+    const rowsKey = identity ? clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName) : clusterKey;
     const aggregate = identity
-      ? aggregateCluster(identity, rowsByCluster.get(clusterKey) ?? [], vcenterBySnapshot)
+      ? aggregateCluster(identity, rowsByCluster.get(rowsKey) ?? [], vcenterBySnapshot)
       : emptyAggregate();
     beforeAggregates.set(clusterKey, aggregate);
     return aggregate;
@@ -125,7 +142,8 @@ export function computeWhatIf(
     const moves = movesByCluster.get(clusterKey) ?? { incoming: [], outgoing: [] };
 
     const withLoad = (vm: NormalizedVm) => {
-      const sourceKey = clusterScopeKey(vm.vcenterId, vm.datacenter, vm.cluster);
+      const sourceIdentity = resolveIdentity(vmClusterIdentity(vm));
+      const sourceKey = clusterScopeKey(sourceIdentity.vcenterId, sourceIdentity.datacenter, sourceIdentity.clusterName);
       return { vm, load: estimateVmLoad(getBeforeAggregate(sourceKey), vm) };
     };
     const afterAgg = applyVmMoves(beforeAgg, {
@@ -138,7 +156,9 @@ export function computeWhatIf(
     // verlassen, verschieben die HIGH-RP-RAM-Zuweisung additiv — analog zum Prinzip der
     // übrigen What-If-Metriken (proportionale/additive Fortschreibung des Ist-Zustands).
     const vropsEntry = vropsByClusterNorm.get(normalizeVmNameForMatch(clusterName)) ?? null;
-    const totalMemoryMiB = clusterRef?.totalMemoryMiB ?? null;
+    // vCluster-Import (clusterRef.totalMemoryMiB) kann fehlen; das vHost-Aggregat ist
+    // dieselbe Kapazitätsbasis, die RAM-Commit & Co. bereits erfolgreich nutzen.
+    const totalMemoryMiB = beforeAgg.totalMemoryMiB || clusterRef?.totalMemoryMiB || null;
     const baselineHighPct = vropsEntry?.ramAssignedHighPct ?? null;
     const baselineHighMiB = baselineHighPct !== null && totalMemoryMiB ? (baselineHighPct / 100) * totalMemoryMiB : null;
 
