@@ -50,3 +50,16 @@ export function siteFailoverBadge(severity: Severity | null): string | JSX.Eleme
   if (severity === null) return "—";
   return severityBadge(siteFailoverLabel(severity), severity);
 }
+
+/** Kleiner Hinweis-Badge, wenn kein vROps-Import für den Cluster vorliegt — verhindert, dass ein niedriger Risiko-Score als "Standortausfall sicher" missverstanden wird. */
+export function vropsMissingBadge(missing: boolean): JSX.Element | null {
+  if (!missing) return null;
+  return (
+    <span
+      className="text-xs text-muted-foreground"
+      title="Kein vROps-Import für diesen Cluster — Ausfallskonzept-Faktoren (HIGH-RP RAM/CPU, Overcommit) wurden nicht bewertet."
+    >
+      vROps fehlt
+    </span>
+  );
+}

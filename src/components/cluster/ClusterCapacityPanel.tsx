@@ -12,7 +12,7 @@ import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/li
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
+import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
   capacityRows: ClusterCapacityRow[];
@@ -31,7 +31,12 @@ const vcenterColumns = [
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
-  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => severityBadge(`${row.original.risk} (${row.original.riskScore})`, row.original.risk === "hoch" ? "crit" : row.original.risk === "mittel" ? "warn" : "ok") },
+  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => (
+    <span className="inline-flex items-center gap-1.5">
+      {severityBadge(`${row.original.risk} (${row.original.riskScore})`, row.original.risk === "hoch" ? "crit" : row.original.risk === "mittel" ? "warn" : "ok")}
+      {vropsMissingBadge(row.original.vropsMissing)}
+    </span>
+  ) },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
   { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
   { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },
@@ -50,6 +55,8 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
   { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
   { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => siteFailoverBadge(getValue() as "ok" | "warn" | "crit" | null) },
+  { accessorKey: "vropsCpuUsageHighPct", header: "HIGH-RP CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsCpuUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 40, 50, 0) },
+  { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM-Nutzung %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 80, 90, 0) },
 ];
 
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [
