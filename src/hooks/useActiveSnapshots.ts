@@ -135,7 +135,11 @@ export function useDatastores() {
   const { allSnapshotIds, activeSnapshotIds } = useActiveSnapshotIds();
   const query = useQuery({
     queryKey: ["datastores", allSnapshotIds],
-    queryFn: () => timeQuery("datastores", () => getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds)),
+    queryFn: () => timeQuery("datastores", async () => {
+      const rows = await getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds);
+      // Snapshots persisted before hostNames existed lack the field in IndexedDB.
+      return rows.map((row) => (row.hostNames ? row : { ...row, hostNames: [] }));
+    }),
     enabled: allSnapshotIds.length > 0,
     staleTime: STALE_MS,
   });

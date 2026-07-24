@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { batchPut, deleteAllData, getDb, putSnapshot } from "@/data/db";
 import { FilterProvider, useFilterState } from "@/hooks/useFilterState";
-import { useActiveSnapshotIds, useHealthEvents, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
-import type { FilterState, NormalizedHealth, NormalizedVm, SnapshotMeta } from "@/domain/models/types";
+import { useActiveSnapshotIds, useDatastores, useHealthEvents, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
+import type { FilterState, NormalizedDatastore, NormalizedHealth, NormalizedVm, SnapshotMeta } from "@/domain/models/types";
 
 function snapshot(
   snapshotId: string,
@@ -133,6 +133,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function DatastoreProbe() {
+  const { data = [] } = useDatastores();
+  return (
+    <div data-testid="datastore-hostnames">
+      {data.map((ds) => `${ds.name}:${ds.hostNames.length}`).join(",")}
+    </div>
+  );
+}
+
 function RawSheetProbe() {
   const { data = [] } = useRawSheet("vCPU");
   return <div data-testid="raw-rows">{data.length}</div>;
@@ -178,6 +187,34 @@ describe("useRawSheet", () => {
     render(<RawSheetProbe />, { wrapper });
     // Daten müssen sofort aus dem Cache kommen, ohne erneutes Laden aus IndexedDB.
     expect(screen.getByTestId("raw-rows")).toHaveTextContent(/^2$/);
+  });
+});
+
+describe("useDatastores", () => {
+  it("backfills hostNames for datastore rows persisted before the field existed", async () => {
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    // Simuliert einen vor der hostNames-Einführung gespeicherten IndexedDB-Datensatz.
+    const legacyDatastore = {
+      snapshotId: "snap-1",
+      vcenterId: "vc-1",
+      dsKey: "ds-01::vc-1",
+      name: "ds-01",
+      clusterName: null,
+      type: null,
+      capacityMiB: null,
+      inUseMiB: null,
+      freeMiB: null,
+      freePct: null,
+      version: null,
+      siocEnabled: null,
+    } as unknown as NormalizedDatastore;
+    await batchPut("entities_datastore", [legacyDatastore]);
+
+    render(<DatastoreProbe />, { wrapper: TestProviders });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("datastore-hostnames")).toHaveTextContent("ds-01:0");
+    });
   });
 });
 
