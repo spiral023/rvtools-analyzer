@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { WhatIfClusterResult } from "@/domain/services/planningHelpers";
-import { coloredNum, coloredPct, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
+import { coloredNum, coloredPct, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
 
 const riskSeverity = (risk: "hoch" | "mittel" | "niedrig") => risk === "hoch" ? "crit" : risk === "mittel" ? "warn" : "ok";
 
@@ -14,7 +14,12 @@ const columns: ColumnDef<WhatIfClusterResult, unknown>[] = [
   { accessorKey: "after.memoryUsagePct", header: "RAM % (Nachher)", cell: ({ row }) => coloredPct(row.original.after.memoryUsagePct, 50, 70) },
   { accessorKey: "before.vcpuPerCore", header: "vCPU/Core (Vorher)", cell: ({ row }) => coloredNum(row.original.before.vcpuPerCore, 4, 5) },
   { accessorKey: "after.vcpuPerCore", header: "vCPU/Core (Nachher)", cell: ({ row }) => coloredNum(row.original.after.vcpuPerCore, 4, 5) },
-  { accessorKey: "before.riskScore", header: "Risk (Vorher)", cell: ({ row }) => severityBadge(String(row.original.before.riskScore), riskSeverity(row.original.before.risk)) },
+  { accessorKey: "before.riskScore", header: "Risk (Vorher)", cell: ({ row }) => (
+    <span className="inline-flex items-center gap-1.5">
+      {severityBadge(String(row.original.before.riskScore), riskSeverity(row.original.before.risk))}
+      {vropsMissingBadge(row.original.vropsMissing)}
+    </span>
+  ) },
   { accessorKey: "after.riskScore", header: "Risk (Nachher)", cell: ({ row }) => severityBadge(String(row.original.after.riskScore), riskSeverity(row.original.after.risk)) },
   { accessorKey: "vropsRamAssignedHighPctBefore", header: "HIGH-RP RAM % (Vorher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctBefore, 45, 50, 0) },
   { accessorKey: "vropsRamAssignedHighPctAfter", header: "HIGH-RP RAM % (Nachher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctAfter, 45, 50, 0) },
