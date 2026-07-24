@@ -405,7 +405,11 @@ export const VERSIONS_KPI: Record<string, GlossaryEntry> = {
 export const VERSIONS_COLUMNS: Record<string, GlossaryEntry> = {
   title: {
     term: "Release",
-    description: "Offizieller Release-Name (VMware). Der Link führt zu den zugehörigen Release Notes.",
+    description: "Offizieller Release-Name (VMware). Klick öffnet die Nutzungs-Übersicht: welche vCenter bzw. Hosts auf diesem Release laufen.",
+  },
+  releaseNotesUrl: {
+    term: "Release Notes",
+    description: "Öffnet die offiziellen Release Notes (Broadcom/VMware) in einem neuen Tab.",
   },
   version: {
     term: "Version",

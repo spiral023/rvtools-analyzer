@@ -10,14 +10,17 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { HardDrive, Server, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
-import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
+import { formatBytes, formatPct, formatNum, parseDatastoreFromDiskPath } from "@/lib/xlsx/parseHelpers";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import {
   CAPACITY_KPI,
   CAPACITY_DS_COLUMNS,
   CAPACITY_RP_COLUMNS,
   CAPACITY_THIN_COLUMNS,
+  CAPACITY_THIN_DISK_COLUMNS,
   CAPACITY_SECTIONS,
 } from "@/lib/glossaries/capacity";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -38,6 +41,7 @@ const dsColumns: ColumnDef<NormalizedDatastore, unknown>[] = [
 
 interface RpRow { name: string; path: string; status: string; vms: number; cpuLimit: string; cpuReservation: number; cpuExpandable: boolean; memLimit: string; memReservation: number; memExpandable: boolean; risk: string }
 interface ThinRiskRow { datastore: string; freePct: number | null; thinDisks: number; totalThinMiB: number; risk: string }
+interface ThinDiskRow { snapshotId: string; vm: string; disk: string; capacityMiB: number; diskPath: string; datastore: string; datastoreFreePct: number | null; cluster: string; host: string }
 
 function CapacityOverviewCards({
   datastoresCount,
@@ -99,11 +103,15 @@ function CapacityTablesSection({
   globalFilter,
   rpData,
   thinRiskData,
+  thinDiskData,
+  onThinDiskRowClick,
 }: {
   datastores: NormalizedDatastore[];
   globalFilter: string;
   rpData: RpRow[];
   thinRiskData: ThinRiskRow[];
+  thinDiskData: ThinDiskRow[];
+  onThinDiskRowClick: (row: unknown) => void;
 }) {
   return (
     <>
@@ -115,6 +123,13 @@ function CapacityTablesSection({
 
       {thinRiskData.length > 0 && (
         <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable data={thinRiskData} columns={thinRiskColumns} globalFilter={globalFilter} height={250} /></div>
+      )}
+
+      {thinDiskData.length > 0 && (
+        <div>
+          <InfoTooltip entry={CAPACITY_SECTIONS.thinDiskDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin Disks – Migrationsplanung ({thinDiskData.length})</h3></InfoTooltip>
+          <VirtualTable data={thinDiskData} columns={thinDiskColumns} globalFilter={globalFilter} height={400} onRowClick={onThinDiskRowClick} />
+        </div>
       )}
     </>
   );
@@ -142,13 +157,33 @@ const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
   { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_THIN_COLUMNS.risk }, cell: ({ getValue }) => { const v = getValue() as string; return <span className={v === "hoch" ? "text-destructive font-semibold" : v === "mittel" ? "text-warning" : "text-success"}>{v}</span>; }},
 ];
 
+const thinDiskColumns: ColumnDef<ThinDiskRow, unknown>[] = [
+  { accessorKey: "vm", header: "VM", meta: { info: CAPACITY_THIN_DISK_COLUMNS.vm } },
+  { accessorKey: "disk", header: "Disk", meta: { info: CAPACITY_THIN_DISK_COLUMNS.disk } },
+  { accessorKey: "capacityMiB", header: "Größe", meta: { info: CAPACITY_THIN_DISK_COLUMNS.capacityMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  {
+    accessorKey: "diskPath",
+    header: "VMDK-Pfad",
+    meta: { info: CAPACITY_THIN_DISK_COLUMNS.diskPath },
+    cell: ({ getValue }) => {
+      const value = getValue() as string;
+      return <div className="max-w-[360px] truncate" title={value || "—"}>{value || "—"}</div>;
+    },
+  },
+  { accessorKey: "datastore", header: "Datastore", meta: { info: CAPACITY_THIN_DISK_COLUMNS.datastore }, cell: ({ getValue }) => (getValue() as string) || "—" },
+  { accessorKey: "datastoreFreePct", header: "Datastore Frei %", meta: { info: CAPACITY_THIN_DISK_COLUMNS.datastoreFreePct }, cell: ({ getValue }) => { const v = getValue() as number | null; if (v === null) return "—"; return <span className={v < 10 ? "text-destructive font-semibold" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
+  { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_THIN_DISK_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string) || "—" },
+  { accessorKey: "host", header: "Host", meta: { info: CAPACITY_THIN_DISK_COLUMNS.host }, cell: ({ getValue }) => (getValue() as string) || "—" },
+];
+
 function useCapacityPageData() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms, isLoading: vmsLoading } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { data: rawRP = [], isLoading: rawRPLoading } = useRawSheet("vRP");
   const { data: rawDisks = [], isLoading: rawDisksLoading } = useRawSheet("vDisk");
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const dataLoading = snapshotsLoading || vmsLoading || datastoresLoading || rawRPLoading || rawDisksLoading;
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
 
@@ -224,6 +259,43 @@ function useCapacityPageData() {
     return [{ datastore: "Alle Datastores (gesamt)", freePct: minFreePct, thinDisks, totalThinMiB, risk }];
   }, [datastores, filteredRawDisks]);
 
+  // Thin-Disk-Details für die Thick-Migrationsplanung: Datastore/Cluster werden aus dem
+  // VMDK-Pfad ("[Datastore] ...") bzw. über die VM aufgelöst, da vDisk selbst weder
+  // Datastore noch Cluster/Host als eigene Spalte trägt.
+  const thinDiskData = useMemo<ThinDiskRow[]>(() => {
+    const dsByKey = new Map<string, NormalizedDatastore>();
+    for (const d of datastores) dsByKey.set(`${d.snapshotId}::${d.name.trim().toLowerCase()}`, d);
+    const vmByKey = new Map<string, (typeof allVms)[number]>();
+    for (const v of allVms) vmByKey.set(`${v.snapshotId}::${normalizeVmName(v.vmName)}`, v);
+
+    const rows: ThinDiskRow[] = [];
+    for (const r of filteredRawDisks) {
+      if (String(r.data["Thin"] || "").toLowerCase() !== "true") continue;
+      const vmName = String(r.data["VM"] || "");
+      const diskPath = String(r.data["Disk Path"] || "");
+      const datastoreName = parseDatastoreFromDiskPath(diskPath) || "";
+      const ds = datastoreName ? dsByKey.get(`${r.snapshotId}::${datastoreName.toLowerCase()}`) : undefined;
+      const vm = vmByKey.get(`${r.snapshotId}::${normalizeVmName(vmName)}`);
+      rows.push({
+        snapshotId: r.snapshotId,
+        vm: vmName,
+        disk: String(r.data["Disk"] || ""),
+        capacityMiB: Number(r.data["Capacity MiB"] || 0),
+        diskPath,
+        datastore: datastoreName || ds?.name || "",
+        datastoreFreePct: ds?.freePct ?? null,
+        cluster: ds?.clusterName || vm?.cluster || "",
+        host: vm?.host || "",
+      });
+    }
+    return rows.sort((a, b) => {
+      const af = a.datastoreFreePct ?? Infinity;
+      const bf = b.datastoreFreePct ?? Infinity;
+      if (af !== bf) return af - bf;
+      return b.capacityMiB - a.capacityMiB;
+    });
+  }, [allVms, datastores, filteredRawDisks]);
+
   // Unshared vs Provisioned
   const storageEfficiency = useMemo(() => {
     const totalProv = vms.reduce((s, v) => s + (v.provisionedMiB || 0), 0);
@@ -244,7 +316,10 @@ function useCapacityPageData() {
     rpData,
     rpRisks,
     thinRiskData,
+    thinDiskData,
     storageEfficiency,
+    openVmDetail,
+    vmDetailDialog,
   };
 }
 
@@ -261,7 +336,10 @@ export default function Capacity() {
     rpData,
     rpRisks,
     thinRiskData,
+    thinDiskData,
     storageEfficiency,
+    openVmDetail,
+    vmDetailDialog,
   } = useCapacityPageData();
 
   if (dataLoading) return <PageLoadingState title="Capacity" />;
@@ -293,7 +371,10 @@ export default function Capacity() {
         globalFilter={filters.search}
         rpData={rpData}
         thinRiskData={thinRiskData}
+        thinDiskData={thinDiskData}
+        onThinDiskRowClick={openVmDetail}
       />
+      {vmDetailDialog}
     </div>
   );
 }

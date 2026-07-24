@@ -460,6 +460,45 @@ export function buildClusterOsDetailMarkdown(data: ClusterOsMarkdownData): strin
   ].join("\n");
 }
 
+interface ReleaseUsageMarkdownEntry {
+  primary: string;
+  secondary?: string;
+  tertiary?: string;
+  meta?: string;
+}
+
+interface ReleaseUsageMarkdownData {
+  release: { title: string; version: string; releaseDateLabel: string; build: string };
+  entityLabel: string;
+  usageCount: number;
+  totalAssets: number;
+  adoptionPct: number;
+  entries: ReleaseUsageMarkdownEntry[];
+}
+
+export function buildReleaseUsageMarkdown(data: ReleaseUsageMarkdownData): string {
+  return [
+    `# ${data.release.title}`,
+    "",
+    section("Übersicht", [
+      ["Version", data.release.version],
+      ["Build", data.release.build],
+      ["Release Date", data.release.releaseDateLabel],
+      ["In Nutzung", `${data.usageCount} / ${data.totalAssets}`],
+      ["Adoption", formatPct(data.adoptionPct)],
+    ]),
+    `## ${data.entityLabel}`,
+    "",
+    markdownTable(
+      [data.entityLabel, "Details"],
+      data.entries.map((entry) => [
+        entry.primary,
+        [entry.secondary, entry.tertiary, entry.meta].filter(Boolean).join(" · "),
+      ]),
+    ),
+  ].join("\n");
+}
+
 function collectClusterDatacenters(clusters: NormalizedCluster[]): string[] {
   const datacenters = new Set<string>();
   for (const cluster of clusters) {

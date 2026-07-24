@@ -480,6 +480,16 @@ export async function computeChecksum(buffer: ArrayBuffer): Promise<string> {
     .join("");
 }
 
+/**
+ * Extrahiert den Datastore-Namen aus einem RVTools-„Disk Path“ der Form
+ * "[datastore_name] vmordner/vmname.vmdk".
+ */
+export function parseDatastoreFromDiskPath(diskPath: string | null | undefined): string | null {
+  if (!diskPath) return null;
+  const match = diskPath.match(/^\[([^\]]+)\]/);
+  return match ? match[1].trim() : null;
+}
+
 /** Format bytes to human-readable */
 export function formatBytes(mib: number | null): string {
   if (mib === null || mib === undefined) return "—";

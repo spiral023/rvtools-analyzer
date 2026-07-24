@@ -288,6 +288,53 @@ export const CAPACITY_THIN_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Capacity – Thin-Disk-Detailtabelle (Thick-Migrationsplanung)       */
+/* ------------------------------------------------------------------ */
+export const CAPACITY_THIN_DISK_COLUMNS: Record<string, GlossaryEntry> = {
+  vm: {
+    term: "VM",
+    description: "Name der virtuellen Maschine, der die Disk zugeordnet ist.",
+    source: `${RV} · vDisk · „VM“`,
+  },
+  disk: {
+    term: "Disk",
+    description: "Bezeichnung der virtuellen Disk innerhalb der VM (z.B. „Hard disk 1“).",
+    source: `${RV} · vDisk · „Disk“`,
+  },
+  capacityMiB: {
+    term: "Größe",
+    description: "Provisionierte Kapazität der Disk. Entspricht dem zusätzlichen Platzbedarf im schlimmsten Fall, wenn die Disk auf Thick umgestellt wird.",
+    source: `${RV} · vDisk · „Capacity MiB“`,
+  },
+  diskPath: {
+    term: "VMDK-Pfad",
+    description: "Vollständiger Pfad zur VMDK-Datei auf dem Datastore ([Datastore] VM-Ordner/Datei.vmdk) – direkt für den Datastore-Browser bzw. Storage-vMotion/Inflate nutzbar.",
+    source: `${RV} · vDisk · „Disk Path“`,
+  },
+  datastore: {
+    term: "Datastore",
+    description: "Aus dem VMDK-Pfad extrahierter Datastore-Name.",
+    source: "berechnet · vDisk · „Disk Path“",
+  },
+  datastoreFreePct: {
+    term: "Datastore Frei %",
+    description:
+      "Freier Speicher des Datastores, auf dem die Disk liegt. Vor einer Inflate-Migration (Thin→Thick auf demselben Datastore) muss mindestens die Differenz aus Größe und aktuell belegtem Speicher frei sein – bei knappem Datastore zuerst Storage vMotion auf einen anderen Datastore erwägen.",
+    source: `${RV} · vDatastore · „Free %“`,
+  },
+  cluster: {
+    term: "Cluster",
+    description: "Cluster, dem der Datastore der Disk zugeordnet ist.",
+    source: `${RV} · vDatastore`,
+  },
+  host: {
+    term: "Host",
+    description: "ESXi-Host, auf dem die VM aktuell läuft.",
+    source: `${RV} · vInfo · „Host“`,
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /*  Capacity – Cluster-Capacity-Health-Tabelle                         */
 /* ------------------------------------------------------------------ */
 export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
@@ -457,5 +504,10 @@ export const CAPACITY_SECTIONS: Record<string, GlossaryEntry> = {
     term: "Thin-Provisioning Risiko",
     description:
       "Menge und Kapazität der Thin-Disks gegen den freien Speicher des knappsten Datastores. Zeigt das Overcommit-Risiko am Storage: Werden viele Thin-Disks vollgeschrieben, kann der Datastore volllaufen.",
+  },
+  thinDiskDetails: {
+    term: "Thin Disks – Migrationsplanung",
+    description:
+      "Alle Thin-provisionierten Disks einzeln mit VM, VMDK-Pfad, Datastore, Cluster und Host – die Arbeitsgrundlage, um Disks gezielt auf Thick umzustellen (Inflate oder Storage vMotion mit Formatwechsel). Sortiert nach dem knappsten Ziel-Datastore zuerst, damit riskante Konvertierungen zuerst geplant werden.",
   },
 };
