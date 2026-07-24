@@ -12,7 +12,7 @@ const NETWORK_TABS: readonly NetworkTab[] = [
   "eramon-l2",
   "audit",
 ];
-const NETWORK_AUDIT_CHECKS: readonly NetworkAuditCheckRoute[] = ["overview", "ports", "hosts", "mac", "discovery"];
+const NETWORK_AUDIT_CHECKS: readonly NetworkAuditCheckRoute[] = ["overview", "ports", "hosts", "mac", "discovery", "help"];
 const NETWORK_AUDIT_SCOPES: readonly NetworkAuditScope[] = ["attention", "passed", "all"];
 
 function includes<T extends string>(values: readonly T[], value: string | null): value is T {

@@ -3,7 +3,7 @@ import type { RvtoolsHostQualityRow, TechInfoHostQualityRow } from "@/lib/hostDa
 
 export type NetworkAuditSourceKey = "rvtools" | "cdp" | "eramonIface" | "eramonL2" | "ipam" | "techInfo";
 export type NetworkAuditCheckId = "ports" | "hosts" | "mac" | "discovery";
-export type NetworkAuditCheckRoute = "overview" | NetworkAuditCheckId;
+export type NetworkAuditCheckRoute = "overview" | "help" | NetworkAuditCheckId;
 export type NetworkAuditScope = "attention" | "passed" | "all";
 export type NetworkAuditReadiness = "ready" | "limited" | "unavailable";
 export type NetworkAuditStatus = "critical" | "review" | "passed" | "unavailable";

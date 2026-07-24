@@ -8,6 +8,7 @@ import {
   NetworkDiscoveryDetail,
   PortAuditDetail,
 } from "@/components/network/NetworkAuditDetails";
+import { NetworkAuditHelp } from "@/components/network/NetworkAuditHelp";
 import { NetworkAuditOverview } from "@/components/network/NetworkAuditOverview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const AUDIT_SECTIONS = [
   { value: "hosts", label: "Host-Daten" },
   { value: "mac", label: "MAC-Abgleich" },
   { value: "discovery", label: "Netz-Discovery" },
+  { value: "help", label: "Hilfe" },
 ] as const satisfies ReadonlyArray<{ value: NetworkAuditCheckRoute; label: string }>;
 
 function isNetworkAuditCheckRoute(value: string): value is NetworkAuditCheckRoute {
@@ -37,7 +39,8 @@ function isNetworkAuditCheckRoute(value: string): value is NetworkAuditCheckRout
     || value === "ports"
     || value === "hosts"
     || value === "mac"
-    || value === "discovery";
+    || value === "discovery"
+    || value === "help";
 }
 
 type NetworkAuditResult = ReturnType<typeof useNetworkAudit>;
@@ -169,6 +172,10 @@ function NetworkAuditSuccess({
             onBack={() => navigate("overview", "attention")}
             onScopeChange={(nextScope) => navigate("discovery", nextScope)}
           />
+        </TabsContent>
+
+        <TabsContent value="help">
+          <NetworkAuditHelp />
         </TabsContent>
       </Tabs>
     </section>
