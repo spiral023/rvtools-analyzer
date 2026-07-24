@@ -145,6 +145,7 @@ function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
   return {
     vmPowerScope: value.vmPowerScope,
     excludeVclsVms: value.excludeVclsVms,
+    excludeDummyVms: typeof value.excludeDummyVms === "boolean" ? value.excludeDummyVms : false,
   };
 }
 

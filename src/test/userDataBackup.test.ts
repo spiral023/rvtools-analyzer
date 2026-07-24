@@ -94,6 +94,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     expect((parsed as unknown as { vmScopeSettings?: unknown }).vmScopeSettings).toEqual({
       vmPowerScope: "poweredOn",
       excludeVclsVms: true,
+      excludeDummyVms: false,
     });
   });
 
@@ -293,21 +294,21 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
 
   it("exportiert und importiert die lokalen VM-Scope-Vorgaben", async () => {
     const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
-    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false });
+    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false });
 
     const collected = await collectUserDataBackup();
-    expect(collected.vmScopeSettings).toEqual({ vmPowerScope: "all", excludeVclsVms: false });
+    expect(collected.vmScopeSettings).toEqual({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false });
 
     const result = await applyUserDataBackup(buildUserDataBackup({
       maintenanceSettings: null,
       maintenanceClusterAssignments: [],
       maintenanceWindows: [],
       scenarios: [],
-      vmScopeSettings: { vmPowerScope: "poweredOn", excludeVclsVms: true },
+      vmScopeSettings: { vmPowerScope: "poweredOn", excludeVclsVms: true, excludeDummyVms: true },
     }));
 
     expect(result.vmScopeSettingsImported).toBe(true);
-    expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "poweredOn", excludeVclsVms: true });
+    expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "poweredOn", excludeVclsVms: true, excludeDummyVms: true });
   });
 
   it("validates invalid maintenance-window batches before writing other backup data", async () => {

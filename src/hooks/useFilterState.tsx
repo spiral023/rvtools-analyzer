@@ -56,7 +56,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     filtersTouchedRef.current = true;
     setFiltersState((prev) => {
       const next = { ...prev, ...partial };
-      if ("vmPowerScope" in partial || "excludeVclsVms" in partial) saveVmScopeSettings(next);
+      if ("vmPowerScope" in partial || "excludeVclsVms" in partial || "excludeDummyVms" in partial) saveVmScopeSettings(next);
       return next;
     });
   }, []);

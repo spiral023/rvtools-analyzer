@@ -6,6 +6,7 @@ import {
   applyVmScopeToVms,
   parseVmNameScopeList,
   isVclsVm,
+  isDummyVm,
 } from "@/lib/vmScope";
 
 function makeVm(overrides: Partial<NormalizedVm> = {}): NormalizedVm {
@@ -53,6 +54,7 @@ function makeFilter(overrides: Partial<FilterState> = {}): FilterState {
     vmNameList: "",
     vmPowerScope: "all",
     excludeVclsVms: false,
+    excludeDummyVms: false,
     ...overrides,
   };
 }
@@ -72,6 +74,12 @@ describe("VM scope filters", () => {
     expect(isVclsVm(makeVm({ vmName: "APP-01", folder: "vm/vCLS" }))).toBe(true);
     expect(isVclsVm(makeVm({ vmName: "APP-01", resourcePool: "vCLS" }))).toBe(true);
     expect(isVclsVm(makeVm({ vmName: "APP-VCLS-REPORT" }))).toBe(false);
+  });
+
+  it("detects dummy VMs by name prefix", () => {
+    expect(isDummyVm(makeVm({ vmName: "dummy-vm-01" }))).toBe(true);
+    expect(isDummyVm(makeVm({ vmName: "Dummy-VM2" }))).toBe(true);
+    expect(isDummyVm(makeVm({ vmName: "APP-01" }))).toBe(false);
   });
 
   it("parses flexible VM name lists from paragraphs, commas, semicolons, and whitespace", () => {
@@ -107,6 +115,17 @@ describe("VM scope filters", () => {
     expect(
       applyVmScopeToVms(rows, makeFilter({ vmPowerScope: "poweredOn", excludeVclsVms: true })).map((vm) => vm.vmName),
     ).toEqual(["APP-ON"]);
+  });
+
+  it("applies the dummy-vm exclude scope filter to normalized VMs", () => {
+    const rows = [
+      makeVm({ vmName: "APP-01" }),
+      makeVm({ vmName: "dummy-vm-01" }),
+    ];
+
+    expect(
+      applyVmScopeToVms(rows, makeFilter({ excludeDummyVms: true })).map((vm) => vm.vmName),
+    ).toEqual(["APP-01"]);
   });
 
   it("applies the same scope to raw VM sheet rows by matching normalized VMs", () => {

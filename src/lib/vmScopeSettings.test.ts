@@ -12,11 +12,11 @@ describe("VM-Scope-Vorgaben", () => {
   it("startet mit aktiven sinnvollen Filtern und speichert Änderungen in localStorage", () => {
     expect(getStoredVmScopeSettings()).toEqual(DEFAULT_VM_SCOPE_SETTINGS);
 
-    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false });
+    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false });
 
     expect(localStorage.getItem(VM_SCOPE_SETTINGS_STORAGE_KEY)).toBe(
-      JSON.stringify({ vmPowerScope: "all", excludeVclsVms: false }),
+      JSON.stringify({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false }),
     );
-    expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "all", excludeVclsVms: false });
+    expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false });
   });
 });

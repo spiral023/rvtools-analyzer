@@ -6,6 +6,7 @@ export const VM_SCOPE_SETTINGS_CHANGED_EVENT = "rvtools-vm-scope-settings-change
 export const DEFAULT_VM_SCOPE_SETTINGS: VmScopeSettings = {
   vmPowerScope: "poweredOn",
   excludeVclsVms: true,
+  excludeDummyVms: false,
 };
 
 function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
@@ -16,6 +17,7 @@ function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
   return {
     vmPowerScope: settings.vmPowerScope,
     excludeVclsVms: settings.excludeVclsVms,
+    excludeDummyVms: typeof settings.excludeDummyVms === "boolean" ? settings.excludeDummyVms : false,
   };
 }
 

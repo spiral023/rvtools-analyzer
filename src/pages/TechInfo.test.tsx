@@ -9,6 +9,7 @@ const filters = {
   vmNameList: "",
   vmPowerScope: "all",
   excludeVclsVms: false,
+  excludeDummyVms: false,
   search: "",
 };
 

@@ -71,6 +71,17 @@ export function FilterBar() {
     });
   }, [filters.vcenterIds, setFilters]);
 
+  const vmExcludeOptions = [
+    { key: "excludeVclsVms" as const, label: "vCLS ausblenden" },
+    { key: "excludeDummyVms" as const, label: "dummy-vm* ausblenden" },
+  ];
+  const activeVmExcludeOptions = vmExcludeOptions.filter((option) => filters[option.key]);
+  const vmExcludeLabel = activeVmExcludeOptions.length === 0
+    ? "Keine Ausschlüsse"
+    : activeVmExcludeOptions.length === 1
+      ? activeVmExcludeOptions[0].label
+      : `${activeVmExcludeOptions.length} Ausschlüsse aktiv`;
+
   const applyGroup = useCallback((group: VCenterGroup) => {
     setFilters({ vcenterIds: group.vcenterIds });
   }, [setFilters]);
@@ -139,7 +150,8 @@ export function FilterBar() {
     filters.search !== "" ||
     filters.vmNameList !== "" ||
     filters.vmPowerScope !== DEFAULT_VM_SCOPE_SETTINGS.vmPowerScope ||
-    filters.excludeVclsVms !== DEFAULT_VM_SCOPE_SETTINGS.excludeVclsVms;
+    filters.excludeVclsVms !== DEFAULT_VM_SCOPE_SETTINGS.excludeVclsVms ||
+    filters.excludeDummyVms !== DEFAULT_VM_SCOPE_SETTINGS.excludeDummyVms;
 
   if (snapshots.length === 0) return null;
 
@@ -209,19 +221,26 @@ export function FilterBar() {
           <SelectItem value="poweredOn">Nur Powered On</SelectItem>
         </SelectContent>
       </Select>
-      <Select
-        value={filters.excludeVclsVms ? "exclude" : "include"}
-        onValueChange={(value) => setFilters({ excludeVclsVms: value === "exclude" })}
-      >
-        <SelectTrigger className="h-8 w-[180px] text-xs">
-          <ShieldOff className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <SelectValue className="min-w-0 flex-1 truncate" placeholder="vCLS" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="include">vCLS anzeigen</SelectItem>
-          <SelectItem value="exclude">vCLS ausblenden</SelectItem>
-        </SelectContent>
-      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 min-w-[180px] justify-start text-xs" aria-label="VMs ausblenden">
+            <ShieldOff className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="max-w-[138px] truncate">{vmExcludeLabel}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {vmExcludeOptions.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.key}
+              checked={filters[option.key]}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) => setFilters({ [option.key]: checked === true })}
+            >
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {hasFilters && (
         <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground">
           <X className="mr-1 h-3 w-3" />Reset

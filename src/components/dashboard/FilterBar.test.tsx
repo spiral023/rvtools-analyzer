@@ -81,4 +81,24 @@ describe("FilterBar", () => {
 
     await waitFor(() => expect(trigger).toHaveTextContent("vCenter Server Prod"));
   });
+
+  it("erlaubt das zusätzliche Ausblenden von dummy-vm* per Mehrfachauswahl", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FilterProvider>
+          <FilterBar />
+        </FilterProvider>
+      </QueryClientProvider>,
+    );
+
+    const trigger = await screen.findByRole("button", { name: "VMs ausblenden" });
+    expect(trigger).toHaveTextContent("vCLS ausblenden");
+
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByText("dummy-vm* ausblenden"));
+
+    await waitFor(() => expect(trigger).toHaveTextContent("2 Ausschlüsse aktiv"));
+  });
 });

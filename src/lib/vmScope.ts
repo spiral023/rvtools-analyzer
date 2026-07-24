@@ -20,6 +20,10 @@ export function isVclsVm(vm: NormalizedVm): boolean {
   );
 }
 
+export function isDummyVm(vm: NormalizedVm): boolean {
+  return /^dummy-vm/.test(vm.vmName.trim().toLowerCase());
+}
+
 export function parseVmNameScopeList(value: string | null | undefined): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
@@ -34,10 +38,13 @@ export function parseVmNameScopeList(value: string | null | undefined): string[]
   return names;
 }
 
-type VmScopeFilters = Pick<FilterState, "vmNameList" | "vmPowerScope" | "excludeVclsVms">;
+type VmScopeFilters = Pick<FilterState, "vmNameList" | "vmPowerScope" | "excludeVclsVms" | "excludeDummyVms">;
 
 export function hasVmScopeFilter(filters: VmScopeFilters): boolean {
-  return filters.vmPowerScope === "poweredOn" || filters.excludeVclsVms || parseVmNameScopeList(filters.vmNameList).length > 0;
+  return filters.vmPowerScope === "poweredOn"
+    || filters.excludeVclsVms
+    || filters.excludeDummyVms
+    || parseVmNameScopeList(filters.vmNameList).length > 0;
 }
 
 export function applyVmScopeToVms(
@@ -51,6 +58,7 @@ export function applyVmScopeToVms(
     if (vmNameSet.size > 0 && !vmNameSet.has(vm.vmName.trim().toLowerCase())) return false;
     if (filters.vmPowerScope === "poweredOn" && !isPoweredOnVm(vm)) return false;
     if (filters.excludeVclsVms && isVclsVm(vm)) return false;
+    if (filters.excludeDummyVms && isDummyVm(vm)) return false;
     return true;
   });
 }

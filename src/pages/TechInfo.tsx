@@ -126,13 +126,14 @@ export default function TechInfo() {
         vmNameList: filters.vmNameList,
         vmPowerScope: filters.vmPowerScope,
         excludeVclsVms: filters.excludeVclsVms,
+        excludeDummyVms: filters.excludeDummyVms,
       }).filter((vm) => {
         if (hasActiveFilter && matchingVmKeys && !matchingVmKeys.has(vm.vmKey)) return false;
         if (clusterFilterSet.size > 0 && (!vm.cluster || !clusterFilterSet.has(vm.cluster))) return false;
         if (hostFilterSet.size > 0 && (!vm.host || !hostFilterSet.has(vm.host))) return false;
         return true;
       }),
-    [allVms, clusterFilterSet, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
+    [allVms, clusterFilterSet, filters.excludeDummyVms, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope, hasActiveFilter, hostFilterSet, matchingVmKeys],
   );
 
   const { data: techInfoLatest = [], isLoading: techInfoLoading } = useTechInfoLatestByVmNames(scopeVms.map((vm) => vm.vmName));

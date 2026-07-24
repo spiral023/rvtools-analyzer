@@ -614,6 +614,7 @@ export interface KpiCardData {
 export interface VmScopeSettings {
   vmPowerScope: "all" | "poweredOn";
   excludeVclsVms: boolean;
+  excludeDummyVms: boolean;
 }
 
 export interface FilterState extends VmScopeSettings {

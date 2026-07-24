@@ -203,8 +203,9 @@ export function useGlobalVmFilterEngine(
         vmNameList: filters.vmNameList,
         vmPowerScope: filters.vmPowerScope,
         excludeVclsVms: filters.excludeVclsVms,
+        excludeDummyVms: filters.excludeDummyVms,
       }),
-    [allVms, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope],
+    [allVms, filters.excludeDummyVms, filters.excludeVclsVms, filters.vmNameList, filters.vmPowerScope],
   );
 
   const scopedContexts = useMemo(() => {
