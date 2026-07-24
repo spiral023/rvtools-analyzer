@@ -156,12 +156,12 @@ export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
   vcpuPerCore: {
     term: "vCPU/Core",
     description:
-      "vCPU-Overcommit: zugewiesene vCPUs eingeschalteter VMs je physischem CPU-Thread. Höhere Werte sparen Lizenzen/Hardware, erhöhen aber das Risiko von CPU-Ready-Zeiten.",
+      "vCPU-Overcommit: zugewiesene vCPUs eingeschalteter VMs je physischem CPU-Thread. Ab 4:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Ready-Zeiten.",
   },
   ramUtilPct: {
     term: "RAM Util %",
     description:
-      "Anteil des zugewiesenen VM-RAM an der physischen Cluster-Kapazität. Ab ~85 % (gelb) schrumpft der Puffer für Spitzen und Host-Ausfälle.",
+      "Anteil des zugewiesenen VM-RAM an der physischen Cluster-Kapazität. Ab 50 % (gelb) bzw. 70 % (rot) schrumpft der Puffer für Spitzen und Host-Ausfälle.",
   },
   vropsAvgVmsPerHost: {
     term: "VMs/Host (vROps Ist)",

@@ -150,13 +150,13 @@ export const CAPACITY_CLUSTER_COLUMNS: Record<string, GlossaryEntry> = {
   cpuRatio: {
     term: "vCPU/Core",
     description:
-      "vCPU-zu-physischem-Core-Verhältnis (nur eingeschaltete VMs). Über 3:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Contention.",
+      "vCPU-zu-physischem-Core-Verhältnis (nur eingeschaltete VMs). Ab 4:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Contention.",
     source: "berechnet · Σ vCPU / Σ Host-Cores",
   },
   ramRatio: {
     term: "RAM Overcommit",
     description:
-      "Zugewiesener VM-RAM im Verhältnis zum physischen Cluster-RAM. Über 1,0 (gelb) bzw. 1,5 (rot) droht Ballooning/Swapping bei realer RAM-Nutzung.",
+      "Zugewiesener VM-RAM im Verhältnis zum physischen Cluster-RAM. Ab 0,6:1 (gelb) bzw. 0,7:1 (rot) droht Ballooning/Swapping bei realer RAM-Nutzung.",
     source: "berechnet · Σ VM-RAM / Cluster-RAM",
   },
   vCpuSum: {
@@ -182,7 +182,7 @@ export const CAPACITY_CLUSTER_COLUMNS: Record<string, GlossaryEntry> = {
   vropsCpuOvercommitRatio: {
     term: "CPU Overcommit (vROps Ist)",
     description:
-      "Tatsächliches CPU-Überbuchungsverhältnis laut vROps zum Erfassungszeitpunkt – im Gegensatz zu „vCPU/Core“, das aus der statischen RVTools-Konfiguration berechnet wird. „—“ ohne vROps-Import.",
+      "Tatsächliches CPU-Überbuchungsverhältnis laut vROps zum Erfassungszeitpunkt – im Gegensatz zu „vCPU/Core“, das aus der statischen RVTools-Konfiguration berechnet wird. Ab 4:1 (gelb) bzw. 5:1 (rot). „—“ ohne vROps-Import.",
     source: "vROps-Dashboard-Export · Panel 7",
   },
 };
@@ -325,25 +325,25 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   cpuUsagePct: {
     term: "CPU %",
     description:
-      "Durchschnittliche CPU-Auslastung der Hosts. Über 75 % (gelb) bzw. 85 % (rot) sinkt die Reserve für Lastspitzen und Host-Ausfälle.",
+      "Durchschnittliche CPU-Auslastung der Hosts. Ab 40 % (gelb) bzw. 50 % (rot) sinkt die Reserve für Lastspitzen und Host-Ausfälle.",
     source: `${RV} · vHost · „CPU usage %“`,
   },
   memoryUsagePct: {
     term: "RAM %",
     description:
-      "Durchschnittliche RAM-Auslastung der Hosts. Über 80 % (gelb) bzw. 90 % (rot) wird der Puffer für HA-Failover und Lastspitzen knapp.",
+      "Durchschnittliche RAM-Auslastung der Hosts. Ab 50 % (gelb) bzw. 70 % (rot) wird der Puffer für HA-Failover und Lastspitzen knapp.",
     source: `${RV} · vHost · „Memory usage %“`,
   },
   vcpuPerCore: {
     term: "vCPU/Core",
     description:
-      "vCPU-Dichte je physischem Core. Über 4:1 (gelb) bzw. 6:1 (rot) steigt das Risiko von CPU-Contention (CPU Ready).",
+      "vCPU-Dichte je physischem Core. Ab 4:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Contention (CPU Ready).",
     source: "berechnet · Σ vCPU / Σ Cores",
   },
   ramCommitPct: {
     term: "RAM Commit %",
     description:
-      "Zugesagter RAM im Verhältnis zum physischen RAM. Über 140 % (gelb) bzw. 180 % (rot) ist der Cluster stark überbucht.",
+      "Zugesagter RAM im Verhältnis zum physischen RAM. Ab 50 % (gelb) bzw. 70 % (rot) ist der Cluster überbucht.",
     source: "berechnet · vHost",
   },
   ramActivePct: {
@@ -367,13 +367,13 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   drsEnabled: {
     term: "DRS",
     description:
-      "Ob Distributed Resource Scheduler aktiv ist. Ohne DRS erfolgt kein automatischer Lastausgleich zwischen den Hosts.",
+      "Ob Distributed Resource Scheduler aktiv ist. „Aus“ (rot) bedeutet: kein automatischer Lastausgleich zwischen den Hosts.",
     source: `${RV} · vCluster · „DRS enabled“`,
   },
   haEnabled: {
     term: "HA",
     description:
-      "Ob vSphere High Availability aktiv ist. Ohne HA werden VMs eines ausgefallenen Hosts nicht automatisch neu gestartet.",
+      "Ob vSphere High Availability aktiv ist. „Aus“ (rot) bedeutet: VMs eines ausgefallenen Hosts werden nicht automatisch neu gestartet.",
     source: `${RV} · vCluster · „HA enabled“`,
   },
   clusterHostDelta: {
@@ -391,7 +391,7 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   vropsRamAssignedHighPct: {
     term: "HIGH-RP RAM %",
     description:
-      "Dem HIGH-Resource-Pool (produktive/wichtige VMs) zugewiesenes RAM im Verhältnis zur gesamten Cluster-Kapazität. Da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 35 % (gelb) bzw. über 45 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
+      "Dem HIGH-Resource-Pool (produktive/wichtige VMs) zugewiesenes RAM im Verhältnis zur gesamten Cluster-Kapazität. Da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 45 % (gelb) bzw. ab 50 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
     source: "vROps-Dashboard-Export · Panel 2",
   },
   siteFailoverRisk: {

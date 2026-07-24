@@ -39,7 +39,7 @@ export type SiteFailoverRisk = "ok" | "warn" | "crit";
  * relativ zur Gesamt-Cluster-Kapazität, siehe {@link computeSiteFailoverRisk}.
  */
 export const SITE_FAILOVER_THRESHOLDS = {
-  ramAssignedHigh: { warn: 35, danger: 45 },
+  ramAssignedHigh: { warn: 45, danger: 50 },
 } as const;
 
 /**

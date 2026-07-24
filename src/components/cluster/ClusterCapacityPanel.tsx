@@ -27,6 +27,34 @@ const vcenterColumns = [
   { accessorKey: "datacenter", header: "Datacenter" },
 ] as const;
 
+/** Ampel-Farbe ab den übergebenen Schwellwerten (inklusive, "ab X"). */
+function thresholdClass(value: number, warn: number, danger: number): string {
+  if (value >= danger) return "text-destructive font-semibold";
+  if (value >= warn) return "text-warning font-semibold";
+  return "";
+}
+
+function coloredPct(value: number | null, warn: number, danger: number, decimals = 1): string | JSX.Element {
+  if (value === null) return "—";
+  return <span className={thresholdClass(value, warn, danger)}>{value.toFixed(decimals)}%</span>;
+}
+
+function coloredNum(value: number | null, warn: number, danger: number, decimals = 2): string | JSX.Element {
+  if (value === null) return "—";
+  return <span className={thresholdClass(value, warn, danger)}>{value.toFixed(decimals)}</span>;
+}
+
+function coloredRatio(value: number | null, warn: number, danger: number, decimals = 2): string | JSX.Element {
+  if (value === null) return "—";
+  return <span className={thresholdClass(value, warn, danger)}>{`${value.toFixed(decimals)}:1`}</span>;
+}
+
+function boolCell(value: boolean | null): string | JSX.Element {
+  if (value === null) return "—";
+  if (!value) return <span className="text-destructive font-semibold">Aus</span>;
+  return "An";
+}
+
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
@@ -34,10 +62,10 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
   { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
   { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },
-  { accessorKey: "cpuUsagePct", header: "CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.cpuUsagePct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(1)}%` },
-  { accessorKey: "memoryUsagePct", header: "RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.memoryUsagePct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(1)}%` },
-  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CAPACITY_HEALTH_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => (getValue() as number).toFixed(2) },
-  { accessorKey: "ramCommitPct", header: "RAM Commit %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramCommitPct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(1)}%` },
+  { accessorKey: "cpuUsagePct", header: "CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.cpuUsagePct }, cell: ({ getValue }) => coloredPct(getValue() as number, 40, 50) },
+  { accessorKey: "memoryUsagePct", header: "RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.memoryUsagePct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
+  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CAPACITY_HEALTH_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => coloredNum(getValue() as number, 4, 5) },
+  { accessorKey: "ramCommitPct", header: "RAM Commit %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramCommitPct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
   { accessorKey: "ramActivePct", header: "RAM Active %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramActivePct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(1)}%` },
   { accessorKey: "swapBalloonPct", header: "Swap+Balloon %", meta: { info: CAPACITY_HEALTH_COLUMNS.swapBalloonPct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(2)}%` },
   { accessorKey: "hotHosts", header: "Hot Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hotHosts }, cell: ({ row }) => {
@@ -45,9 +73,9 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     const className = severity === "crit" ? "text-destructive font-semibold" : severity === "warn" ? "text-warning font-semibold" : "text-success font-semibold";
     return <span className={className}>{row.original.hotHosts}/{row.original.hosts}</span>;
   } },
-  { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => getValue() === null ? "—" : getValue() ? "An" : "Aus" },
-  { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => getValue() === null ? "—" : getValue() ? "An" : "Aus" },
-  { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : `${v.toFixed(0)}%`; } },
+  { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
+  { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
+  { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
   { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => {
     const v = getValue() as "ok" | "warn" | "crit" | null;
     if (v === null) return "—";
@@ -60,13 +88,13 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_CLUSTER_COLUMNS.name } },
-  { accessorKey: "cpuRatio", header: "vCPU/Core", meta: { info: CAPACITY_CLUSTER_COLUMNS.cpuRatio }, cell: ({ getValue }) => `${(getValue() as number).toFixed(2)}:1` },
-  { accessorKey: "ramRatio", header: "RAM Overcommit", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramRatio }, cell: ({ getValue }) => `${(getValue() as number).toFixed(2)}:1` },
+  { accessorKey: "cpuRatio", header: "vCPU/Core", meta: { info: CAPACITY_CLUSTER_COLUMNS.cpuRatio }, cell: ({ getValue }) => coloredRatio(getValue() as number, 4, 5) },
+  { accessorKey: "ramRatio", header: "RAM Overcommit", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramRatio }, cell: ({ getValue }) => coloredRatio(getValue() as number, 0.6, 0.7) },
   { accessorKey: "vCpuSum", header: "vCPUs", meta: { info: CAPACITY_CLUSTER_COLUMNS.vCpuSum }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "cores", header: "Cores", meta: { info: CAPACITY_CLUSTER_COLUMNS.cores }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "ramAllocGiB", header: "RAM Alloc", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramAllocGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
   { accessorKey: "ramTotalGiB", header: "RAM Total", meta: { info: CAPACITY_CLUSTER_COLUMNS.ramTotalGiB }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)} GiB` },
-  { accessorKey: "vropsCpuOvercommitRatio", header: "CPU Overcommit (vROps Ist)", meta: { info: CAPACITY_CLUSTER_COLUMNS.vropsCpuOvercommitRatio }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : `${v.toFixed(2)}:1`; } },
+  { accessorKey: "vropsCpuOvercommitRatio", header: "CPU Overcommit (vROps Ist)", meta: { info: CAPACITY_CLUSTER_COLUMNS.vropsCpuOvercommitRatio }, cell: ({ getValue }) => coloredRatio(getValue() as number | null, 4, 5) },
 ];
 
 const densityColumns: ColumnDef<ClusterDensityRow, unknown>[] = [
@@ -74,8 +102,8 @@ const densityColumns: ColumnDef<ClusterDensityRow, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_DENSITY_COLUMNS.cluster } },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_DENSITY_COLUMNS.hosts } },
   { accessorKey: "vmsPerHost", header: "VMs/Host", meta: { info: CLUSTER_DENSITY_COLUMNS.vmsPerHost }, cell: ({ getValue }) => (getValue() as number).toFixed(1) },
-  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CLUSTER_DENSITY_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => (getValue() as number).toFixed(2) },
-  { accessorKey: "ramUtilPct", header: "RAM Util %", meta: { info: CLUSTER_DENSITY_COLUMNS.ramUtilPct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)}%` },
+  { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CLUSTER_DENSITY_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => coloredNum(getValue() as number, 4, 5) },
+  { accessorKey: "ramUtilPct", header: "RAM Util %", meta: { info: CLUSTER_DENSITY_COLUMNS.ramUtilPct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70, 0) },
   { accessorKey: "vropsAvgVmsPerHost", header: "VMs/Host (vROps Ist)", meta: { info: CLUSTER_DENSITY_COLUMNS.vropsAvgVmsPerHost }, cell: ({ getValue }) => { const v = getValue() as number | null; return v === null ? "—" : v.toFixed(1); } },
 ];
 
