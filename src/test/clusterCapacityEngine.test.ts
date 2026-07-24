@@ -8,6 +8,8 @@ import {
   emptyAggregate,
   groupVHostRowsByCluster,
   metricsFromAggregate,
+  VROPS_RISK_THRESHOLDS,
+  type VropsRiskInput,
 } from "@/domain/services/clusterCapacityEngine";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
 import { clusterScopeKey, type ClusterIdentity } from "@/lib/clusterIdentity";
@@ -261,5 +263,163 @@ describe("computeSiteFailoverRisk", () => {
     expect(computeSiteFailoverRisk(30)).toBe("ok");
     expect(computeSiteFailoverRisk(46)).toBe("warn");
     expect(computeSiteFailoverRisk(51)).toBe("crit");
+  });
+});
+
+function vropsRisk(overrides: Partial<VropsRiskInput> = {}): VropsRiskInput {
+  return {
+    ramAssignedHighPct: null, ramUsageHighPct: null, cpuUsageHighPct: null,
+    clusterRamAssignedPct: null, clusterCpuUsagePct: null, avgVmsPerHost: null,
+    cpuOvercommitRatio: null,
+    ...overrides,
+  };
+}
+
+describe("metricsFromAggregate – vROps-Gewichtung", () => {
+  // 2 Hosts, CPU 50 %, RAM 60 % → Basis-riskScore 0, risk "niedrig" (siehe erste describe-Gruppe oben).
+  function lowRiskAgg() {
+    const rows: SheetRow[] = [hostRow({ Host: "esx-1" }), hostRow({ Host: "esx-2" })];
+    return aggregateCluster("A", rows);
+  }
+
+  it("verhält sich ohne vrops-Feld exakt wie bisher (kein Breaking Change)", () => {
+    const m = metricsFromAggregate(lowRiskAgg(), { clusterName: "A", projected: false });
+    expect(m.riskScore).toBe(0);
+    expect(m.risk).toBe("niedrig");
+  });
+
+  it("ignoriert ein vrops-Objekt, in dem alle Felder null sind", () => {
+    const m = metricsFromAggregate(lowRiskAgg(), { clusterName: "A", projected: false, vrops: vropsRisk() });
+    expect(m.riskScore).toBe(0);
+    expect(m.risk).toBe("niedrig");
+  });
+
+  it("HIGH-RP RAM %: warn +18, danger +35, danger erzwingt zusätzlich risk=hoch (Hard-Override)", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ ramAssignedHighPct: VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1 }),
+    });
+    expect(warn.riskScore).toBe(18);
+    expect(warn.risk).toBe("niedrig");
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ ramAssignedHighPct: VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger + 1 }),
+    });
+    expect(danger.riskScore).toBe(35);
+    // Score allein (35) läge unter der 60er-Schwelle — die Hard-Override-Regel erzwingt "hoch" trotzdem.
+    expect(danger.risk).toBe("hoch");
+  });
+
+  it("CPU-Overcommit Ist: warn +10, danger +20", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ cpuOvercommitRatio: VROPS_RISK_THRESHOLDS.cpuOvercommit.warn + 0.5 }),
+    });
+    expect(warn.riskScore).toBe(10);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ cpuOvercommitRatio: VROPS_RISK_THRESHOLDS.cpuOvercommit.danger + 0.5 }),
+    });
+    expect(danger.riskScore).toBe(20);
+    expect(danger.risk).toBe("niedrig");
+  });
+
+  it("HIGH-RP CPU %: warn +9, danger +18", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ cpuUsageHighPct: VROPS_RISK_THRESHOLDS.cpuUsageHigh.warn + 5 }),
+    });
+    expect(warn.riskScore).toBe(9);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ cpuUsageHighPct: VROPS_RISK_THRESHOLDS.cpuUsageHigh.danger + 5 }),
+    });
+    expect(danger.riskScore).toBe(18);
+  });
+
+  it("HIGH-RP RAM-Nutzung im eigenen RP: warn +5, danger +10", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ ramUsageHighPct: VROPS_RISK_THRESHOLDS.ramUsageHigh.warn + 5 }),
+    });
+    expect(warn.riskScore).toBe(5);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ ramUsageHighPct: VROPS_RISK_THRESHOLDS.ramUsageHigh.danger + 5 }),
+    });
+    expect(danger.riskScore).toBe(10);
+  });
+
+  it("Cluster-RAM-Zuweisung gesamt: warn +4, danger +8", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ clusterRamAssignedPct: VROPS_RISK_THRESHOLDS.clusterRamAssigned.warn + 5 }),
+    });
+    expect(warn.riskScore).toBe(4);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ clusterRamAssignedPct: VROPS_RISK_THRESHOLDS.clusterRamAssigned.danger + 5 }),
+    });
+    expect(danger.riskScore).toBe(8);
+  });
+
+  it("Cluster-CPU-Nutzung gesamt: warn +4, danger +8", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ clusterCpuUsagePct: VROPS_RISK_THRESHOLDS.clusterCpuUsage.warn + 5 }),
+    });
+    expect(warn.riskScore).toBe(4);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ clusterCpuUsagePct: VROPS_RISK_THRESHOLDS.clusterCpuUsage.danger + 5 }),
+    });
+    expect(danger.riskScore).toBe(8);
+  });
+
+  it("Ø VMs/Host Ist: warn +2, danger +5", () => {
+    const warn = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ avgVmsPerHost: VROPS_RISK_THRESHOLDS.avgVmsPerHost.warn + 5 }),
+    });
+    expect(warn.riskScore).toBe(2);
+
+    const danger = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ avgVmsPerHost: VROPS_RISK_THRESHOLDS.avgVmsPerHost.danger + 5 }),
+    });
+    expect(danger.riskScore).toBe(5);
+  });
+
+  it("summiert mehrere Danger-Faktoren zu risk=hoch über die normale 60er-Schwelle, auch ohne HIGH-RP-RAM-Override", () => {
+    // 20 (CPU-Overcommit) + 18 (HIGH-RP CPU) + 10 (HIGH-RP RAM-Nutzung) + 8 (Cluster-RAM) + 8 (Cluster-CPU) + 5 (VMs/Host) = 69
+    const m = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({
+        ramAssignedHighPct: null,
+        cpuOvercommitRatio: VROPS_RISK_THRESHOLDS.cpuOvercommit.danger + 1,
+        cpuUsageHighPct: VROPS_RISK_THRESHOLDS.cpuUsageHigh.danger + 1,
+        ramUsageHighPct: VROPS_RISK_THRESHOLDS.ramUsageHigh.danger + 1,
+        clusterRamAssignedPct: VROPS_RISK_THRESHOLDS.clusterRamAssigned.danger + 1,
+        clusterCpuUsagePct: VROPS_RISK_THRESHOLDS.clusterCpuUsage.danger + 1,
+        avgVmsPerHost: VROPS_RISK_THRESHOLDS.avgVmsPerHost.danger + 1,
+      }),
+    });
+    expect(m.riskScore).toBe(69);
+    expect(m.risk).toBe("hoch");
+  });
+
+  it("erzwingt risk=hoch NICHT bei Site-Failover-Warn (nur bei crit)", () => {
+    const m = metricsFromAggregate(lowRiskAgg(), {
+      clusterName: "A", projected: false,
+      vrops: vropsRisk({ ramAssignedHighPct: VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1 }),
+    });
+    expect(computeSiteFailoverRisk(VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1)).toBe("warn");
+    expect(m.risk).toBe("niedrig");
   });
 });

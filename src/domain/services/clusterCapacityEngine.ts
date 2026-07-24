@@ -42,6 +42,33 @@ export const SITE_FAILOVER_THRESHOLDS = {
   ramAssignedHigh: { warn: 45, danger: 50 },
 } as const;
 
+/** Vom vROps-Ausfallskonzept-Export abgeleitete Risiko-Eingaben, siehe {@link VROPS_RISK_THRESHOLDS}. */
+export interface VropsRiskInput {
+  ramAssignedHighPct: number | null;
+  ramUsageHighPct: number | null;
+  cpuUsageHighPct: number | null;
+  clusterRamAssignedPct: number | null;
+  clusterCpuUsagePct: number | null;
+  avgVmsPerHost: number | null;
+  cpuOvercommitRatio: number | null;
+}
+
+/**
+ * Schwellenwerte für die vROps-gewichteten Risiko-Faktoren (Ausfallskonzept-Panels).
+ * Priorisiert nach Business-Relevanz: HIGH-RP RAM (Standortausfall-Tragfähigkeit) > CPU-
+ * Overcommit (Ist) > HIGH-RP CPU > restliche Panels als Ist-Cross-Check/Dichte-Signal.
+ * Siehe docs/superpowers/specs/2026-07-24-cluster-risk-score-vrops-design.md.
+ */
+export const VROPS_RISK_THRESHOLDS = {
+  ramAssignedHigh: SITE_FAILOVER_THRESHOLDS.ramAssignedHigh,
+  cpuOvercommit: { warn: 4, danger: 5 },
+  cpuUsageHigh: { warn: 40, danger: 50 },
+  ramUsageHigh: { warn: 80, danger: 90 },
+  clusterRamAssigned: { warn: 80, danger: 90 },
+  clusterCpuUsage: { warn: 75, danger: 85 },
+  avgVmsPerHost: { warn: 25, danger: 40 },
+} as const;
+
 /**
  * Bewertet, ob die HIGH-RP-VMs (produktive/wichtige VMs) im Worst-Case — ein kompletter
  * Standort fällt aus, es bleiben nur noch ~50 % der Cluster-Hosts — auf den verbleibenden
@@ -206,7 +233,14 @@ function round(value: number, decimals: number): number {
 
 export function metricsFromAggregate(
   agg: ClusterAggregate,
-  opts: { clusterName: string; clusterRef?: NormalizedCluster | null; projected: boolean; incompleteVmCount?: number },
+  opts: {
+    clusterName: string;
+    clusterRef?: NormalizedCluster | null;
+    projected: boolean;
+    incompleteVmCount?: number;
+    /** vROps-Ausfallskonzept-Werte, `null`/weggelassen ohne vROps-Import für den Cluster. */
+    vrops?: VropsRiskInput | null;
+  },
 ): ClusterMetrics {
   const cpuUsagePct = pct(agg.cpuUsedCoreEquiv, agg.totalCores);
   const memoryUsagePct = pct(agg.memConsumedMiB, agg.totalMemoryMiB);
@@ -241,7 +275,44 @@ export function metricsFromAggregate(
   if (clusterHostDelta !== null && clusterHostDelta !== 0) riskScore += 3;
   if (clusterMemoryDeltaPct !== null && Math.abs(clusterMemoryDeltaPct) > 5) riskScore += 3;
 
-  const risk: ClusterMetrics["risk"] = riskScore >= 60 ? "hoch" : riskScore >= 30 ? "mittel" : "niedrig";
+  const vrops = opts.vrops ?? null;
+  if (vrops) {
+    const t = VROPS_RISK_THRESHOLDS;
+    if (vrops.ramAssignedHighPct !== null) {
+      if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) riskScore += 35;
+      else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) riskScore += 18;
+    }
+    if (vrops.cpuOvercommitRatio !== null) {
+      if (vrops.cpuOvercommitRatio > t.cpuOvercommit.danger) riskScore += 20;
+      else if (vrops.cpuOvercommitRatio > t.cpuOvercommit.warn) riskScore += 10;
+    }
+    if (vrops.cpuUsageHighPct !== null) {
+      if (vrops.cpuUsageHighPct > t.cpuUsageHigh.danger) riskScore += 18;
+      else if (vrops.cpuUsageHighPct > t.cpuUsageHigh.warn) riskScore += 9;
+    }
+    if (vrops.ramUsageHighPct !== null) {
+      if (vrops.ramUsageHighPct > t.ramUsageHigh.danger) riskScore += 10;
+      else if (vrops.ramUsageHighPct > t.ramUsageHigh.warn) riskScore += 5;
+    }
+    if (vrops.clusterRamAssignedPct !== null) {
+      if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.danger) riskScore += 8;
+      else if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.warn) riskScore += 4;
+    }
+    if (vrops.clusterCpuUsagePct !== null) {
+      if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.danger) riskScore += 8;
+      else if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.warn) riskScore += 4;
+    }
+    if (vrops.avgVmsPerHost !== null) {
+      if (vrops.avgVmsPerHost > t.avgVmsPerHost.danger) riskScore += 5;
+      else if (vrops.avgVmsPerHost > t.avgVmsPerHost.warn) riskScore += 2;
+    }
+  }
+
+  let risk: ClusterMetrics["risk"] = riskScore >= 60 ? "hoch" : riskScore >= 30 ? "mittel" : "niedrig";
+  // Site-Failover-Risiko ist binär, kein Gradient: reicht die HIGH-RP-RAM-Zuweisung im
+  // Standortausfall nicht, können HIGH-RP-VMs nicht starten — das erzwingt "hoch" unabhängig
+  // vom Summen-Score (siehe Design-Spec).
+  if (computeSiteFailoverRisk(vrops?.ramAssignedHighPct ?? null) === "crit") risk = "hoch";
 
   return {
     clusterName: opts.clusterName,
