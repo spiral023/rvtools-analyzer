@@ -304,8 +304,8 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   risk: {
     term: "Risiko",
     description:
-      "Gesamteinstufung (hoch/mittel/niedrig) mit Score in Klammern. Fasst CPU-/RAM-Auslastung, Overcommit, Swap/Balloon und HA-Reserve zu einer Ampel zusammen.",
-    source: "berechnet · vHost + vCluster",
+      "Gesamteinstufung (hoch/mittel/niedrig) mit Score in Klammern. Fasst CPU-/RAM-Auslastung, Overcommit, Swap/Balloon und HA-Reserve zu einer Ampel zusammen. Bei vorhandenem vROps-Import fließen zusätzlich HIGH-RP-RAM/-CPU-Nutzung, CPU-Overcommit (Ist) und weitere Ausfallskonzept-Werte gewichtet ein; ein kritisches Site-Failover-Risiko erzwingt „hoch“. „vROps fehlt“ markiert Cluster, für die diese Faktoren nicht bewertet werden konnten.",
+    source: "berechnet · vHost + vCluster + vROps-Dashboard-Export",
   },
   hosts: {
     term: "Hosts",
@@ -399,6 +399,18 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
     description:
       "Tragfähigkeit im Worst-Case: fällt ein ganzer Standort (50 % der Hosts) aus, sollen HIGH-RP-VMs weiterlaufen, STD-VMs werden per Resource-Pool-Shares zurückgedrängt. Die Ampel zeigt, ob die HIGH-RP-RAM-Zuweisung in die halbierte Cluster-Kapazität passt. „—“ ohne vROps-Import.",
     source: "berechnet · vROps-Dashboard-Export",
+  },
+  vropsCpuUsageHighPct: {
+    term: "HIGH-RP CPU %",
+    description:
+      "CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Kapazität. Analog zu HIGH-RP RAM %: da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 40 % (gelb) bzw. 50 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
+    source: "vROps-Dashboard-Export · Panel 4",
+  },
+  vropsRamUsageHighPct: {
+    term: "HIGH-RP RAM-Nutzung %",
+    description:
+      "RAM-Nutzung der HIGH-RP-VMs relativ zu ihrem eigenen Resource-Pool-Kontingent. Ab 80 % (gelb) bzw. 90 % (rot) ist der HIGH-Pool selbst unter Druck — unabhängig vom Standort-Ausfallszenario.",
+    source: "vROps-Dashboard-Export · Panel 1",
   },
 };
 
