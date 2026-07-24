@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { HostDetailDialog } from "@/pages/Hardware";
 import { useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { buildHostDetails, type HostDetail } from "@/lib/conversion";
 
 function getHostName(row: unknown): string {
@@ -12,6 +13,7 @@ function getHostName(row: unknown): string {
 export function useHostDetailDialog() {
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
   const { allVms } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { data: rawVHost = [] } = useRawSheet("vHost");
   const { data: rawHBA = [] } = useRawSheet("vHBA");
   const { data: rawNIC = [] } = useRawSheet("vNIC");
@@ -36,14 +38,21 @@ export function useHostDetailDialog() {
   );
 
   const hostDetailDialog = (
-    <HostDetailDialog
-      host={selectedHost}
-      hbaRows={rawHBA}
-      nicRows={rawNIC}
-      vmRows={allVms}
-      open={!!selectedHost}
-      onClose={() => setSelectedHost(null)}
-    />
+    <>
+      <HostDetailDialog
+        host={selectedHost}
+        hbaRows={rawHBA}
+        nicRows={rawNIC}
+        vmRows={allVms}
+        open={!!selectedHost}
+        onClose={() => setSelectedHost(null)}
+        onVmClick={(vm) => {
+          setSelectedHost(null);
+          openVmDetail(vm);
+        }}
+      />
+      {vmDetailDialog}
+    </>
   );
 
   return { openHostDetail, selectedHost, hostDetailDialog };

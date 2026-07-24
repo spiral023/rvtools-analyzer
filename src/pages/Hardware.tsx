@@ -39,6 +39,7 @@ import {
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { HARDWARE_KPI, HARDWARE_SECTIONS, HARDWARE_VARIANT_COLUMNS } from "@/lib/glossaries/hardware";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export type { HostDetail } from "@/lib/conversion";
@@ -580,6 +581,7 @@ export function HostDetailDialog({
   vmRows,
   open,
   onClose,
+  onVmClick,
 }: {
   host: HostDetail | null;
   hbaRows: SheetRow[];
@@ -587,6 +589,7 @@ export function HostDetailDialog({
   vmRows: NormalizedVm[];
   open: boolean;
   onClose: () => void;
+  onVmClick?: (vm: NormalizedVm) => void;
 }) {
   if (!host) return null;
 
@@ -807,7 +810,18 @@ export function HostDetailDialog({
                     </thead>
                     <tbody>
                       {runningVms.map((vm) => (
-                        <tr key={`${vm.vmKey}::${vm.snapshotId}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                        <tr
+                          key={`${vm.vmKey}::${vm.snapshotId}`}
+                          tabIndex={onVmClick ? 0 : undefined}
+                          className={`border-b border-border/40 transition-colors hover:bg-muted/30 ${onVmClick ? "cursor-pointer focus-visible:outline-none focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" : ""}`}
+                          onClick={onVmClick ? () => onVmClick(vm) : undefined}
+                          onKeyDown={onVmClick ? (e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              onVmClick(vm);
+                            }
+                          } : undefined}
+                        >
                           <td className="py-2 pr-3 font-mono-data font-semibold">{vm.vmName}</td>
                           <td className="py-2 pr-3">
                             <Badge variant="secondary" className="text-[10px]">PoweredOn</Badge>
@@ -843,6 +857,7 @@ export default function Hardware() {
   const { data: normalizedHosts = [] } = useHosts();
   const { data: datastores = [] } = useDatastores();
   const { allVms = [] } = useVms();
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
   const [selectedHost, setSelectedHost] = useState<HostDetail | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<HardwareModelGroup | null>(null);
@@ -1085,7 +1100,12 @@ export default function Hardware() {
         vmRows={allVms}
         open={!!selectedHost}
         onClose={() => setSelectedHost(null)}
+        onVmClick={(vm) => {
+          setSelectedHost(null);
+          openVmDetail(vm);
+        }}
       />
+      {vmDetailDialog}
     </div>
   );
 }

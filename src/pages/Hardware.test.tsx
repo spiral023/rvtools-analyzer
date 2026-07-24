@@ -3,6 +3,8 @@ import type { ComponentType } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { HardwareModelGroup } from "@/lib/hardwareVariants";
 import type { HostDetail } from "@/lib/conversion";
+import type { NormalizedVm } from "@/domain/models/types";
+import { HostDetailDialog } from "./Hardware";
 import * as HardwareModule from "./Hardware";
 
 type VariantDetailDialogProps = {
@@ -76,5 +78,35 @@ describe("VariantDetailDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cluster Production öffnen" }));
 
     expect(onSelectCluster).toHaveBeenCalledWith(clusterHost);
+  });
+});
+
+describe("HostDetailDialog", () => {
+  const runningVm: NormalizedVm = {
+    snapshotId: "snap-1", vcenterId: "vc-1", vmKey: "vm-1", vmUuid: "uuid-1", vmName: "APP-01",
+    cluster: "Production", host: "esx01.lab.local", powerState: "poweredOn", cpuCount: 4, memoryMiB: 8192,
+    provisionedMiB: null, inUseMiB: null, configStatus: null, connectionState: null, consolidationNeeded: null,
+    osConfig: null, osTools: null, hwVersion: null, toolsStatus: null, toolsVersion: null, datacenter: null,
+    folder: null, resourcePool: null, annotation: null, cpuReady: null, firmware: null, efiSecureBoot: null, cbt: null,
+  };
+
+  it("ruft onVmClick beim Klick auf eine VM-Zeile in der Host-Detailansicht auf", () => {
+    const onVmClick = vi.fn();
+
+    render(
+      <HostDetailDialog
+        host={clusterHost}
+        hbaRows={[]}
+        nicRows={[]}
+        vmRows={[runningVm]}
+        open
+        onClose={vi.fn()}
+        onVmClick={onVmClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("APP-01"));
+
+    expect(onVmClick).toHaveBeenCalledWith(runningVm);
   });
 });
