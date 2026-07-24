@@ -12,6 +12,7 @@ import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/li
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
   capacityRows: ClusterCapacityRow[];
@@ -27,38 +28,10 @@ const vcenterColumns = [
   { accessorKey: "datacenter", header: "Datacenter" },
 ] as const;
 
-/** Ampel-Farbe ab den übergebenen Schwellwerten (inklusive, "ab X"). */
-function thresholdClass(value: number, warn: number, danger: number): string {
-  if (value >= danger) return "text-destructive font-semibold";
-  if (value >= warn) return "text-warning font-semibold";
-  return "";
-}
-
-function coloredPct(value: number | null, warn: number, danger: number, decimals = 1): string | JSX.Element {
-  if (value === null) return "—";
-  return <span className={thresholdClass(value, warn, danger)}>{value.toFixed(decimals)}%</span>;
-}
-
-function coloredNum(value: number | null, warn: number, danger: number, decimals = 2): string | JSX.Element {
-  if (value === null) return "—";
-  return <span className={thresholdClass(value, warn, danger)}>{value.toFixed(decimals)}</span>;
-}
-
-function coloredRatio(value: number | null, warn: number, danger: number, decimals = 2): string | JSX.Element {
-  if (value === null) return "—";
-  return <span className={thresholdClass(value, warn, danger)}>{`${value.toFixed(decimals)}:1`}</span>;
-}
-
-function boolCell(value: boolean | null): string | JSX.Element {
-  if (value === null) return "—";
-  if (!value) return <span className="text-destructive font-semibold">Aus</span>;
-  return "An";
-}
-
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
-  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => <span className={row.original.risk === "hoch" ? "text-destructive font-semibold" : row.original.risk === "mittel" ? "text-warning font-semibold" : "text-success"}>{row.original.risk} ({row.original.riskScore})</span> },
+  { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => severityBadge(`${row.original.risk} (${row.original.riskScore})`, row.original.risk === "hoch" ? "crit" : row.original.risk === "mittel" ? "warn" : "ok") },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
   { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
   { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },
@@ -76,13 +49,7 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
   { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
   { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
-  { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => {
-    const v = getValue() as "ok" | "warn" | "crit" | null;
-    if (v === null) return "—";
-    const className = v === "crit" ? "text-destructive font-semibold" : v === "warn" ? "text-warning font-semibold" : "text-success";
-    const label = v === "crit" ? "kritisch" : v === "warn" ? "knapp" : "ok";
-    return <span className={className}>{label}</span>;
-  } },
+  { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => siteFailoverBadge(getValue() as "ok" | "warn" | "crit" | null) },
 ];
 
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [

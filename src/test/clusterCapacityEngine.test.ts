@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateCluster,
   applyVmMoves,
+  classifyVmFailoverGroup,
+  computeSiteFailoverRisk,
   estimateVmLoad,
   emptyAggregate,
   groupVHostRowsByCluster,
@@ -236,5 +238,28 @@ describe("clusterCapacityEngine – Lastschätzung & Verschiebung (Nachher)", ()
     expect(targetAfter.vmActiveMiB).toBeCloseTo(10000, 3);
     expect(targetAfter.cpuUsedCoreEquiv).toBeCloseTo(1, 3);
     expect(targetAfter.totalVms).toBe(1);
+  });
+});
+
+describe("classifyVmFailoverGroup", () => {
+  it("erkennt HIGH- und STD-Pools am letzten Pfadsegment, unabhängig vom Cluster-Präfix", () => {
+    expect(classifyVmFailoverGroup("/LNZ9910/CL_LNZ_SRV_9910_Linux02/Resources/HIGH")).toBe("high");
+    expect(classifyVmFailoverGroup("/LNZ9910/CL_LNZ_SRV_9910_Linux02/Resources/STD")).toBe("std");
+    expect(classifyVmFailoverGroup("high")).toBe("high");
+  });
+
+  it("stuft VMs außerhalb von HIGH/STD sowie fehlende Werte als unknown ein", () => {
+    expect(classifyVmFailoverGroup("/LNZ9910/CL_LNZ_SRV_9910_Linux02/Resources")).toBe("unknown");
+    expect(classifyVmFailoverGroup(null)).toBe("unknown");
+    expect(classifyVmFailoverGroup("")).toBe("unknown");
+  });
+});
+
+describe("computeSiteFailoverRisk", () => {
+  it("bewertet ok/warn/crit an den 45%/50%-Schwellen und null ohne vROps-Daten", () => {
+    expect(computeSiteFailoverRisk(null)).toBeNull();
+    expect(computeSiteFailoverRisk(30)).toBe("ok");
+    expect(computeSiteFailoverRisk(46)).toBe("warn");
+    expect(computeSiteFailoverRisk(51)).toBe("crit");
   });
 });

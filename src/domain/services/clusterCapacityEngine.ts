@@ -56,6 +56,24 @@ export function computeSiteFailoverRisk(ramAssignedHighPct: number | null): Site
   return "ok";
 }
 
+export type VmFailoverGroup = "high" | "std" | "unknown";
+
+/**
+ * Erkennt die Ausfallskonzept-Gruppe einer VM anhand des VMware-Resource-Pool-Pfads
+ * (RVTools vInfo „Resource pool“, z.B. "/LNZ9910/CL_LNZ_SRV_9910_Linux02/Resources/HIGH").
+ * Nur das letzte Pfadsegment entscheidet — clusterunabhängig, daher auch für
+ * hypothetische Cluster-Wechsel in der What-If-Planung gültig ("unknown" für VMs
+ * außerhalb der HIGH/STD-Pools, z.B. direkt in "Resources").
+ */
+export function classifyVmFailoverGroup(resourcePool: string | null): VmFailoverGroup {
+  if (!resourcePool) return "unknown";
+  const segments = resourcePool.split("/").map((segment) => segment.trim()).filter(Boolean);
+  const last = segments.at(-1)?.toUpperCase();
+  if (last === "HIGH") return "high";
+  if (last === "STD") return "std";
+  return "unknown";
+}
+
 export interface ClusterMetrics {
   clusterName: string;
   hosts: number;

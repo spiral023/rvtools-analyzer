@@ -57,7 +57,7 @@ export const PLANNING_SECTIONS: Record<string, GlossaryEntry> = {
   whatIf: {
     term: "What-If Zusammenfassung",
     description:
-      "Vergleicht je Ziel-Cluster den Ist-Zustand („Vorher“) mit dem geplanten Zustand nach den Verschiebungen („Nachher“) – CPU-/RAM-Auslastung, vCPU/Core und RAM-Commit. So erkennst du Overcommit-Risiken, bevor du migrierst; die vollständige Gegenüberstellung öffnet der Button „What-If“.",
+      "Vergleicht je Ziel-Cluster den Ist-Zustand („Vorher“) mit dem geplanten Zustand nach den Verschiebungen („Nachher“) – CPU-/RAM-Auslastung, vCPU/Core, RAM-Commit sowie (bei vROps-Import) die HIGH-RP-RAM-Zuweisung und die Site-Failover-Ampel. So erkennst du Overcommit- und Ausfallskonzept-Risiken, bevor du migrierst; die vollständige Gegenüberstellung öffnet der Button „What-If“.",
   },
   vmSelection: {
     term: "VM-Auswahl",

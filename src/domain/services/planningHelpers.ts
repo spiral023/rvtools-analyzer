@@ -1,14 +1,18 @@
-import type { NormalizedCluster, NormalizedVm, Scenario, SheetRow } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedVm, Scenario, SheetRow, VropsLatest } from "@/domain/models/types";
 import { clusterScopeKey, type ClusterIdentity } from "@/lib/clusterIdentity";
+import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 import {
   aggregateCluster,
   applyVmMoves,
+  classifyVmFailoverGroup,
+  computeSiteFailoverRisk,
   emptyAggregate,
   estimateVmLoad,
   groupVHostRowsByCluster,
   metricsFromAggregate,
   type ClusterAggregate,
   type ClusterMetrics,
+  type SiteFailoverRisk,
 } from "@/domain/services/clusterCapacityEngine";
 
 export interface WhatIfClusterResult {
@@ -18,6 +22,15 @@ export interface WhatIfClusterResult {
   after: ClusterMetrics;
   incomingVmCount: number;
   outgoingVmCount: number;
+  /** Ausfallskonzept-Projektion (HIGH-RP-RAM-Zuweisung) — `null` ohne vROps-Import für den Cluster. */
+  vropsRamAssignedHighPctBefore: number | null;
+  vropsRamAssignedHighPctAfter: number | null;
+  siteFailoverRiskBefore: SiteFailoverRisk | null;
+  siteFailoverRiskAfter: SiteFailoverRisk | null;
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 export interface WhatIfResult {
@@ -48,7 +61,9 @@ export function computeWhatIf(
   rawVHostRows: SheetRow[],
   clusterRefs: NormalizedCluster[],
   vcenterBySnapshot: ReadonlyMap<string, string>,
+  vropsLatest: VropsLatest[] = [],
 ): WhatIfResult {
+  const vropsByClusterNorm = new Map(vropsLatest.map((entry) => [entry.clusterNorm, entry]));
   const vmByKey = new Map(allVms.map((vm) => [vm.vmKey, vm]));
   const clusterRefByKey = new Map(clusterRefs.map((cluster) => [cluster.clusterKey, cluster]));
   const rowsByCluster = groupVHostRowsByCluster(rawVHostRows, vcenterBySnapshot);
@@ -119,6 +134,25 @@ export function computeWhatIf(
     });
     const after = metricsFromAggregate(afterAgg, { clusterName, clusterRef, projected: true });
 
+    // Ausfallskonzept-Projektion: HIGH-RP-VMs, die in diesen Cluster wechseln bzw. ihn
+    // verlassen, verschieben die HIGH-RP-RAM-Zuweisung additiv — analog zum Prinzip der
+    // übrigen What-If-Metriken (proportionale/additive Fortschreibung des Ist-Zustands).
+    const vropsEntry = vropsByClusterNorm.get(normalizeVmNameForMatch(clusterName)) ?? null;
+    const totalMemoryMiB = clusterRef?.totalMemoryMiB ?? null;
+    const baselineHighPct = vropsEntry?.ramAssignedHighPct ?? null;
+    const baselineHighMiB = baselineHighPct !== null && totalMemoryMiB ? (baselineHighPct / 100) * totalMemoryMiB : null;
+
+    let highDeltaMiB = 0;
+    for (const vm of moves.incoming) {
+      if (classifyVmFailoverGroup(vm.resourcePool) === "high") highDeltaMiB += vm.memoryMiB ?? 0;
+    }
+    for (const vm of moves.outgoing) {
+      if (classifyVmFailoverGroup(vm.resourcePool) === "high") highDeltaMiB -= vm.memoryMiB ?? 0;
+    }
+
+    const afterHighMiB = baselineHighMiB !== null ? Math.max(0, baselineHighMiB + highDeltaMiB) : null;
+    const afterHighPct = afterHighMiB !== null && totalMemoryMiB ? (afterHighMiB / totalMemoryMiB) * 100 : null;
+
     totalMovedVms += moves.incoming.length;
     results.push({
       clusterKey,
@@ -127,6 +161,10 @@ export function computeWhatIf(
       after,
       incomingVmCount: moves.incoming.length,
       outgoingVmCount: moves.outgoing.length,
+      vropsRamAssignedHighPctBefore: baselineHighPct !== null ? round1(baselineHighPct) : null,
+      vropsRamAssignedHighPctAfter: afterHighPct !== null ? round1(afterHighPct) : null,
+      siteFailoverRiskBefore: computeSiteFailoverRisk(baselineHighPct),
+      siteFailoverRiskAfter: computeSiteFailoverRisk(afterHighPct),
     });
   }
 

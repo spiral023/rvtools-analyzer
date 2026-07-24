@@ -2,17 +2,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { WhatIfClusterResult } from "@/domain/services/planningHelpers";
+import { coloredNum, coloredPct, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
+
+const riskSeverity = (risk: "hoch" | "mittel" | "niedrig") => risk === "hoch" ? "crit" : risk === "mittel" ? "warn" : "ok";
 
 const columns: ColumnDef<WhatIfClusterResult, unknown>[] = [
   { accessorKey: "clusterName", header: "Cluster" },
-  { accessorKey: "before.cpuUsagePct", header: "CPU % (Vorher)", cell: ({ row }) => `${row.original.before.cpuUsagePct}%` },
-  { accessorKey: "after.cpuUsagePct", header: "CPU % (Nachher)", cell: ({ row }) => `${row.original.after.cpuUsagePct}%` },
-  { accessorKey: "before.memoryUsagePct", header: "RAM % (Vorher)", cell: ({ row }) => `${row.original.before.memoryUsagePct}%` },
-  { accessorKey: "after.memoryUsagePct", header: "RAM % (Nachher)", cell: ({ row }) => `${row.original.after.memoryUsagePct}%` },
-  { accessorKey: "before.vcpuPerCore", header: "vCPU/Core (Vorher)", cell: ({ row }) => row.original.before.vcpuPerCore.toFixed(2) },
-  { accessorKey: "after.vcpuPerCore", header: "vCPU/Core (Nachher)", cell: ({ row }) => row.original.after.vcpuPerCore.toFixed(2) },
-  { accessorKey: "before.riskScore", header: "Risk (Vorher)", cell: ({ row }) => row.original.before.riskScore },
-  { accessorKey: "after.riskScore", header: "Risk (Nachher)", cell: ({ row }) => row.original.after.riskScore },
+  { accessorKey: "before.cpuUsagePct", header: "CPU % (Vorher)", cell: ({ row }) => coloredPct(row.original.before.cpuUsagePct, 40, 50) },
+  { accessorKey: "after.cpuUsagePct", header: "CPU % (Nachher)", cell: ({ row }) => coloredPct(row.original.after.cpuUsagePct, 40, 50) },
+  { accessorKey: "before.memoryUsagePct", header: "RAM % (Vorher)", cell: ({ row }) => coloredPct(row.original.before.memoryUsagePct, 50, 70) },
+  { accessorKey: "after.memoryUsagePct", header: "RAM % (Nachher)", cell: ({ row }) => coloredPct(row.original.after.memoryUsagePct, 50, 70) },
+  { accessorKey: "before.vcpuPerCore", header: "vCPU/Core (Vorher)", cell: ({ row }) => coloredNum(row.original.before.vcpuPerCore, 4, 5) },
+  { accessorKey: "after.vcpuPerCore", header: "vCPU/Core (Nachher)", cell: ({ row }) => coloredNum(row.original.after.vcpuPerCore, 4, 5) },
+  { accessorKey: "before.riskScore", header: "Risk (Vorher)", cell: ({ row }) => severityBadge(String(row.original.before.riskScore), riskSeverity(row.original.before.risk)) },
+  { accessorKey: "after.riskScore", header: "Risk (Nachher)", cell: ({ row }) => severityBadge(String(row.original.after.riskScore), riskSeverity(row.original.after.risk)) },
+  { accessorKey: "vropsRamAssignedHighPctBefore", header: "HIGH-RP RAM % (Vorher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctBefore, 45, 50, 0) },
+  { accessorKey: "vropsRamAssignedHighPctAfter", header: "HIGH-RP RAM % (Nachher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctAfter, 45, 50, 0) },
+  { accessorKey: "siteFailoverRiskBefore", header: "Site-Failover (Vorher)", cell: ({ row }) => siteFailoverBadge(row.original.siteFailoverRiskBefore) },
+  { accessorKey: "siteFailoverRiskAfter", header: "Site-Failover (Nachher)", cell: ({ row }) => siteFailoverBadge(row.original.siteFailoverRiskAfter) },
   { accessorKey: "incomingVmCount", header: "Eingehend" },
   { accessorKey: "outgoingVmCount", header: "Ausgehend" },
 ];
