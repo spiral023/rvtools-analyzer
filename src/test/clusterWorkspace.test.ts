@@ -142,7 +142,7 @@ describe("clusterWorkspace", () => {
   });
 
   it("verknüpft Cluster ohne Datacenter-Angabe mit einem eindeutigen Datacenter der Host- und VM-Daten", () => {
-    const missingDatacenterCluster = {
+    const missingDatacenterCluster: NormalizedCluster = {
       ...cluster(),
       datacenter: null,
       clusterKey: clusterScopeKey("vc-a", null, "Production"),
@@ -165,7 +165,7 @@ describe("clusterWorkspace", () => {
   });
 
   it("baut auch Kapazitäts- und Hostdichte-Metriken für einen Cluster mit nachträglich aufgelöstem Datacenter", () => {
-    const missingDatacenterCluster = {
+    const missingDatacenterCluster: NormalizedCluster = {
       ...cluster(),
       datacenter: null,
       clusterKey: clusterScopeKey("vc-a", null, "Production"),

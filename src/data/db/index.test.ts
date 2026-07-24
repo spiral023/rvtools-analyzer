@@ -78,9 +78,10 @@ describe("IndexedDB-Migration", () => {
     const db = await getDb();
 
     expect(db.version).toBe(26);
-    expect(db.objectStoreNames.contains("switch_imports")).toBe(false);
-    expect(db.objectStoreNames.contains("switch_rows")).toBe(false);
-    expect(db.objectStoreNames.contains("switch_latest")).toBe(false);
+    const storeNames = Array.from(db.objectStoreNames) as string[];
+    expect(storeNames.includes("switch_imports")).toBe(false);
+    expect(storeNames.includes("switch_rows")).toBe(false);
+    expect(storeNames.includes("switch_latest")).toBe(false);
   });
 
   it("clears RVTools stores and drops legacy raw-sheet stores while preserving CDP data when upgrading from a v18 database", async () => {

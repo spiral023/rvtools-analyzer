@@ -439,8 +439,12 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
         }
         // v25: Cisco-TXT-Import wird vollständig durch Eramon-Exporte ersetzt.
         if (oldVersion < 25) {
+          // Legacy-Stores existieren nicht mehr im aktuellen Schema-Typ, daher `any`-Cast für
+          // deleteObjectStore/contains — zur Laufzeit sind sie in älteren DBs vorhanden.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- s.o.
+          const anyDb = db as any;
           for (const storeName of ["switch_imports", "switch_rows", "switch_latest"]) {
-            if (db.objectStoreNames.contains(storeName)) db.deleteObjectStore(storeName);
+            if (anyDb.objectStoreNames.contains(storeName)) anyDb.deleteObjectStore(storeName);
           }
         }
       },
