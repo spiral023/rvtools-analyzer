@@ -189,7 +189,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
     clusterDensity.push({
       clusterKey, vcenterDisplayName, datacenter, cluster: cluster.name, hosts: hostRows.length,
       vmsPerHost: hostRows.length > 0 ? vmRows.length / hostRows.length : 0,
-      vcpuPerCore: cluster.numCpuThreads ? vCpuSum / cluster.numCpuThreads : 0,
+      vcpuPerCore: cores > 0 ? vCpuSum / cores : 0,
       ramUtilPct: ramTotalMiB > 0 ? (ramAllocMiB / ramTotalMiB) * 100 : 0,
       vropsAvgVmsPerHost: vrops?.avgVmsPerHost ?? null,
     });

@@ -156,7 +156,7 @@ export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
   vcpuPerCore: {
     term: "vCPU/Core",
     description:
-      "vCPU-Overcommit: zugewiesene vCPUs eingeschalteter VMs je physischem CPU-Thread. Ab 4:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Ready-Zeiten.",
+      "vCPU-Overcommit: zugewiesene vCPUs eingeschalteter VMs je physischem Core. Ab 4:1 (gelb) bzw. 5:1 (rot) steigt das Risiko von CPU-Ready-Zeiten.",
   },
   ramUtilPct: {
     term: "RAM Util %",
