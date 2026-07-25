@@ -11,7 +11,9 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
+import { RELATED_TOOLS } from "@/lib/relatedTools";
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { cn } from "@/lib/utils";
 import {
@@ -129,6 +131,39 @@ function NavSection({
   );
 }
 
+function RelatedToolsNav() {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+        Weitere Tools
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <div className="grid grid-cols-4 gap-1 px-1">
+          {RELATED_TOOLS.map((tool) => (
+            <Tooltip key={tool.href}>
+              <TooltipTrigger asChild>
+                <a
+                  href={tool.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={tool.name}
+                  className="flex h-9 w-9 items-center justify-center justify-self-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <tool.icon className="h-4 w-4" aria-hidden="true" />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="center" className="max-w-[220px]">
+                <p className="text-xs font-semibold">{tool.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{tool.description}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function AppSidebar() {
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -149,6 +184,7 @@ export function AppSidebar() {
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
         <NavSection label="Info" items={infoNav} />
+        <RelatedToolsNav />
       </SidebarContent>
     </Sidebar>
   );
