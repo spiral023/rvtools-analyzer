@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
   DialogContent,
@@ -139,6 +140,28 @@ function statusColor(status: string): string {
   if (normalized === "online" || normalized === "active") return "text-emerald-400";
   if (normalized === "unknown") return "text-yellow-400";
   return "text-red-400";
+}
+
+type HardwareBarMetric = "count" | "cores" | "ghz" | "ram";
+
+const HARDWARE_BAR_METRIC_LABELS: Record<HardwareBarMetric, string> = {
+  count: "Anzahl",
+  cores: "Cores gesamt",
+  ghz: "GHz gesamt",
+  ram: "RAM gesamt",
+};
+
+function formatHardwareBarMetricValue(metric: HardwareBarMetric, value: number): string {
+  switch (metric) {
+    case "count":
+      return String(value);
+    case "cores":
+      return String(value);
+    case "ghz":
+      return formatGhzCapacity(value);
+    case "ram":
+      return formatMemory(value);
+  }
 }
 
 // Herstellernamen für die Anzeige im Kuchendiagramm kürzen.
@@ -430,11 +453,13 @@ export function VariantDetailDialog({
   open,
   onClose,
   onSelectHost,
+  onSelectCluster,
 }: {
   group: HardwareModelGroup | null;
   open: boolean;
   onClose: () => void;
   onSelectHost: (h: HostDetail) => void;
+  onSelectCluster: (h: HostDetail) => void;
 }) {
   if (!group) return null;
 
@@ -442,6 +467,7 @@ export function VariantDetailDialog({
   const sortedHosts = [...group.hosts].sort((a, b) =>
     a.host.localeCompare(b.host, "de-DE", { numeric: true, sensitivity: "base" }),
   );
+  const hostByCluster = new Map(group.hosts.filter((h) => h.cluster).map((h) => [h.cluster, h]));
 
   const kpis: Array<[string, string]> = [
     ["Hosts", String(group.count)],
@@ -523,15 +549,29 @@ export function VariantDetailDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {summary.clusterBreakdown.map((c) => (
-                      <tr key={c.cluster} className="border-b border-border/40">
-                        <td className="py-2 pr-3">{c.cluster}</td>
-                        <td className="py-2 pr-3 text-right font-mono-data">{c.hosts}</td>
-                        <td className="py-2 pr-3 text-right font-mono-data">{c.cores}</td>
-                        <td className="py-2 pr-3 text-right font-mono-data">{formatMemory(c.ramMiB)}</td>
-                        <td className="py-2 pr-3 text-right font-mono-data">{c.vms}</td>
-                      </tr>
-                    ))}
+                    {summary.clusterBreakdown.map((c) => {
+                      const host = hostByCluster.get(c.cluster);
+                      return (
+                        <tr
+                          key={c.cluster}
+                          tabIndex={host ? 0 : undefined}
+                          className={`border-b border-border/40 transition-colors ${host ? "cursor-pointer hover:bg-muted/30 focus-visible:outline-none focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" : ""}`}
+                          onClick={host ? () => onSelectCluster(host) : undefined}
+                          onKeyDown={host ? (e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              onSelectCluster(host);
+                            }
+                          } : undefined}
+                        >
+                          <td className="py-2 pr-3">{c.cluster}</td>
+                          <td className="py-2 pr-3 text-right font-mono-data">{c.hosts}</td>
+                          <td className="py-2 pr-3 text-right font-mono-data">{c.cores}</td>
+                          <td className="py-2 pr-3 text-right font-mono-data">{formatMemory(c.ramMiB)}</td>
+                          <td className="py-2 pr-3 text-right font-mono-data">{c.vms}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -863,6 +903,7 @@ export default function Hardware() {
   const [selectedVariant, setSelectedVariant] = useState<HardwareModelGroup | null>(null);
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const [countRamAsVariant, setCountRamAsVariant] = useState(false);
+  const [barMetric, setBarMetric] = useState<HardwareBarMetric>("count");
 
   const hosts = useMemo(() => buildHostDetails(hostRows), [hostRows]);
   const filteredHosts = useMemo(() => {
@@ -905,11 +946,19 @@ export default function Hardware() {
   // Model bar chart
   const modelBarData = useMemo(
     () =>
-      modelGroups.map((g) => ({
-        name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${formatMemorySummary(g.memoryValuesMiB, g.memoryMiB)}`,
-        count: g.count,
-      })),
-    [modelGroups]
+      modelGroups.map((g) => {
+        const summary = buildVariantSummary(g);
+        const value =
+          barMetric === "count" ? g.count
+          : barMetric === "cores" ? summary.totalCores
+          : barMetric === "ghz" ? summary.totalGhz
+          : summary.totalRamMiB;
+        return {
+          name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${formatMemorySummary(g.memoryValuesMiB, g.memoryMiB)}`,
+          value,
+        };
+      }),
+    [modelGroups, barMetric]
   );
 
   const uniqueModels = modelGroups.length;
@@ -986,23 +1035,47 @@ export default function Hardware() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Model distribution bar */}
         <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <InfoTooltip entry={HARDWARE_SECTIONS.modelDistribution} side="bottom">
               <CardTitle className="w-fit cursor-help text-sm font-semibold">Host-Modellvarianten Verteilung</CardTitle>
             </InfoTooltip>
+            <ToggleGroup
+              type="single"
+              value={barMetric}
+              onValueChange={(value) => {
+                if (value) setBarMetric(value as HardwareBarMetric);
+              }}
+              size="sm"
+              variant="outline"
+              className="justify-start"
+            >
+              <ToggleGroupItem value="count" aria-label="Anzahl anzeigen">Anzahl</ToggleGroupItem>
+              <ToggleGroupItem value="cores" aria-label="Cores gesamt anzeigen">Cores</ToggleGroupItem>
+              <ToggleGroupItem value="ghz" aria-label="GHz gesamt anzeigen">GHz</ToggleGroupItem>
+              <ToggleGroupItem value="ram" aria-label="RAM gesamt anzeigen">RAM</ToggleGroupItem>
+            </ToggleGroup>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={Math.max(200, modelBarData.length * 38)}>
               <BarChart data={modelBarData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <XAxis type="number" tick={CHART_AXIS_STYLE} />
+                <XAxis
+                  type="number"
+                  tick={CHART_AXIS_STYLE}
+                  tickFormatter={(value: number) => formatHardwareBarMetricValue(barMetric, value)}
+                />
                 <YAxis
                   type="category"
                   dataKey="name"
                   width={280}
                   tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }}
                 />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                <Tooltip
+                  contentStyle={CHART_TOOLTIP_STYLE}
+                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                  formatter={(value: number) => [formatHardwareBarMetricValue(barMetric, value), HARDWARE_BAR_METRIC_LABELS[barMetric]]}
+                />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24}>
                   {modelBarData.map((entry, index) => (
                     <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />
                   ))}
@@ -1077,6 +1150,10 @@ export default function Hardware() {
         onSelectHost={(h) => {
           setSelectedVariant(null);
           setSelectedHost(h);
+        }}
+        onSelectCluster={(h) => {
+          setSelectedVariant(null);
+          openClusterDetail(h);
         }}
       />
 

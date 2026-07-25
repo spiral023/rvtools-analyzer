@@ -12,6 +12,7 @@ type VariantDetailDialogProps = {
   open: boolean;
   onClose: () => void;
   onSelectHost: () => void;
+  onSelectCluster: (host: HostDetail) => void;
 };
 
 type ModelCardProps = {
@@ -58,10 +59,35 @@ describe("VariantDetailDialog", () => {
         open
         onClose={vi.fn()}
         onSelectHost={vi.fn()}
+        onSelectCluster={vi.fn()}
       />,
     );
 
     expect(screen.getByRole("button", { name: "Varianten-Details als Markdown kopieren" })).toBeInTheDocument();
+  });
+
+  it("öffnet die Cluster-Detailansicht beim Klick auf eine Cluster-Zeile in der Varianten-Detailansicht", () => {
+    const VariantDetailDialog = (HardwareModule as unknown as {
+      VariantDetailDialog?: ComponentType<VariantDetailDialogProps>;
+    }).VariantDetailDialog;
+
+    expect(VariantDetailDialog).toBeDefined();
+    if (!VariantDetailDialog) return;
+
+    const onSelectCluster = vi.fn();
+    render(
+      <VariantDetailDialog
+        group={group}
+        open
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onSelectCluster={onSelectCluster}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByText("Production")[0]);
+
+    expect(onSelectCluster).toHaveBeenCalledWith(clusterHost);
   });
 
   it("öffnet die Cluster-Detailansicht über einen Cluster-Chip", () => {

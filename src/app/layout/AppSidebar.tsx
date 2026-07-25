@@ -31,7 +31,6 @@ import {
   Server,
   ClipboardList,
   CalendarRange,
-  Info,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,10 +63,6 @@ const analysisNav: NavItem[] = [
 
 const toolsNav = [
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
-];
-
-const infoNav = [
-  { title: "Impressum", url: "/impressum", icon: Info },
 ];
 
 function NavSection({
@@ -183,7 +178,6 @@ export function AppSidebar() {
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
-        <NavSection label="Info" items={infoNav} />
         <RelatedToolsNav />
       </SidebarContent>
     </Sidebar>

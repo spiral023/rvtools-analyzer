@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { useTheme } from "./ThemeProvider";
-import { Moon, Settings, Sun } from "lucide-react";
+import { Info, Moon, Settings, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalFilterControl } from "@/components/global-filter/GlobalFilterControl";
 import { Link } from "react-router-dom";
@@ -34,6 +34,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
               >
                 <Link to="/settings">
                   <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                aria-label="Impressum öffnen"
+                title="Impressum"
+              >
+                <Link to="/impressum">
+                  <Info className="h-4 w-4" />
                 </Link>
               </Button>
               <Button
