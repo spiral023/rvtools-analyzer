@@ -3,6 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -178,8 +179,10 @@ export function AppSidebar() {
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
-        <RelatedToolsNav />
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border p-0">
+        <RelatedToolsNav />
+      </SidebarFooter>
     </Sidebar>
   );
 }
