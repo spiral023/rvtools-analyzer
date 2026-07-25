@@ -12,6 +12,7 @@
     "cf:pages:deploy": "npm run build && wrangler pages deploy dist --project-name=rvtools",
     "cf:pages:deploy:preview": "npm run build && wrangler pages deploy dist --project-name=rvtools --branch preview",
     "lint": "eslint .",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
