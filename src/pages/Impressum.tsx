@@ -1,15 +1,24 @@
 import {
+  CalendarRange,
   CircleUserRound,
   Database,
+  FileText,
+  Lightbulb,
+  Link2,
   Mail,
   MapPin,
+  PartyPopper,
   RotateCcw,
   ShieldCheck,
+  Terminal,
+  Timer,
+  Waypoints,
   Workflow,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOnboarding } from "@/hooks/useOnboarding";
 
 const privacyFacts = [
@@ -30,6 +39,58 @@ const privacyFacts = [
     title: "Kein eigenes Daten-Backend",
     description:
       "Die Anwendung überträgt importierte RVTools-Inhalte nicht an ein eigenes Backend. Sie können die Daten jederzeit in der App oder über die Website-Einstellungen des Browsers löschen.",
+  },
+];
+
+const relatedTools = [
+  {
+    name: "Zeitanalyse",
+    href: "https://ze-helper.sp23.online/",
+    icon: Timer,
+    description: "Webdesk Zeitanalyse – Arbeitszeiten auswerten und visualisieren",
+  },
+  {
+    name: "Markdown Editor",
+    href: "https://markdown.sp23.online/",
+    icon: FileText,
+    description: "Einfacher Markdown-Editor mit verschiedenen Exportformaten",
+  },
+  {
+    name: "Mermaid Editor",
+    href: "https://mermaid.sp23.online/",
+    icon: Waypoints,
+    description: "Einfacher Editor für Mermaid-Diagramme",
+  },
+  {
+    name: "Linkliste",
+    href: "https://linkliste.sp23.online/",
+    icon: Link2,
+    description: "Linkliste, um im Team Links zu Anwendungen als Bookmarks zu verteilen",
+  },
+  {
+    name: "Produktvision",
+    href: "https://idea.sp23.online/",
+    icon: Lightbulb,
+    description: "Formular, um eine Produktvision zu erfassen",
+  },
+  {
+    name: "Systemprompt",
+    href: "https://systemprompt.sp23.online/",
+    icon: Terminal,
+    description: "Prompte deine IT-Landschaft: Betriebshandbuch erstellen, Architekturvisualisierungen und mehr",
+  },
+  {
+    name: "Event Horizon",
+    href: "https://event-horizon.sp23.online/",
+    icon: PartyPopper,
+    description: "Teamevents in Linz planen",
+  },
+  {
+    name: "Fenstertage",
+    href: "https://fenstertage.com",
+    icon: CalendarRange,
+    description:
+      "Fenstertage 2026 in Deutschland, Österreich und der Schweiz finden – auch bekannt als Brückentage oder Zwickeltage",
   },
 ];
 
@@ -135,6 +196,43 @@ export default function Impressum() {
             </address>
           </CardContent>
         </Card>
+      </section>
+
+      <section aria-labelledby="related-tools-heading" className="pb-4">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Weitere Tools</p>
+          <h2 id="related-tools-heading" className="mt-2 text-balance text-2xl font-semibold tracking-tight">
+            Weitere Anwendungen von Philipp Asanger
+          </h2>
+          <p className="mt-2 text-pretty leading-7 text-muted-foreground">
+            Kleine, fokussierte Tools für den Arbeitsalltag – ebenfalls unabhängig nutzbar und ohne Schnickschnack.
+          </p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-4 gap-2 sm:gap-4">
+          {relatedTools.map((tool) => (
+            <Tooltip key={tool.href}>
+              <TooltipTrigger asChild>
+                <a
+                  href={tool.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-2 rounded-xl border border-transparent p-2 text-center transition-colors hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:p-4"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <tool.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="text-[11px] font-medium leading-tight text-foreground sm:text-sm">
+                    {tool.name}
+                  </span>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-center">
+                {tool.description}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
       </section>
     </div>
   );
