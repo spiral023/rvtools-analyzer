@@ -377,10 +377,11 @@ export function metricsFromAggregate(
       if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.danger} %)`, 35);
       else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.warn} %)`, 18);
     }
-    if (vrops.cpuOvercommitRatio !== null) {
-      if (vrops.cpuOvercommitRatio > t.cpuOvercommit.danger) addRiskFactor(`CPU-Overcommit (vROps Ist) ${round(vrops.cpuOvercommitRatio, 2)}:1 (> ${t.cpuOvercommit.danger}:1)`, 20);
-      else if (vrops.cpuOvercommitRatio > t.cpuOvercommit.warn) addRiskFactor(`CPU-Overcommit (vROps Ist) ${round(vrops.cpuOvercommitRatio, 2)}:1 (> ${t.cpuOvercommit.warn}:1)`, 10);
-    }
+    // CPU-Overcommit (vROps Ist) fließt bewusst NICHT in den Score ein: es bildet dieselbe
+    // Kennzahl wie „vCPU/Core" (Σ vCPU / Σ Cores) nur mit einer anderen Datenquelle ab — beide
+    // gleichzeitig zu werten würde denselben Risikofaktor doppelt bestrafen. Der vROps-Ist-Wert
+    // bleibt als reiner Vergleichswert in der Overcommit-Tabelle sichtbar (siehe
+    // ClusterOvercommitRow.vropsCpuOvercommitRatio), ohne den Risk-Score zu beeinflussen.
     if (vrops.cpuUsageHighPct !== null) {
       if (vrops.cpuUsageHighPct > t.cpuUsageHigh.danger) addRiskFactor(`HIGH-RP CPU % ${round(vrops.cpuUsageHighPct, 1)} % (> ${t.cpuUsageHigh.danger} %)`, 18);
       else if (vrops.cpuUsageHighPct > t.cpuUsageHigh.warn) addRiskFactor(`HIGH-RP CPU % ${round(vrops.cpuUsageHighPct, 1)} % (> ${t.cpuUsageHigh.warn} %)`, 9);

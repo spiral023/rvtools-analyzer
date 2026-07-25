@@ -391,18 +391,19 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     ]);
   });
 
-  it("CPU-Overcommit Ist: warn +10, danger +20", () => {
+  it("CPU-Overcommit (vROps Ist) beeinflusst den Score nicht — dieselbe Kennzahl wie vCPU/Core, nur mit anderer Datenquelle", () => {
+    const withoutOvercommit = metricsFromAggregate(lowRiskAgg(), { clusterName: "A", projected: false, vrops: vropsRisk() });
     const warn = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({ cpuOvercommitRatio: VROPS_RISK_THRESHOLDS.cpuOvercommit.warn + 0.5 }),
     });
-    expect(warn.riskScore).toBe(10);
-
     const danger = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({ cpuOvercommitRatio: VROPS_RISK_THRESHOLDS.cpuOvercommit.danger + 0.5 }),
     });
-    expect(danger.riskScore).toBe(20);
+    expect(warn.riskScore).toBe(withoutOvercommit.riskScore);
+    expect(danger.riskScore).toBe(withoutOvercommit.riskScore);
+    expect(danger.riskFactors).toEqual([]);
     expect(danger.risk).toBe("niedrig");
   });
 
@@ -476,8 +477,9 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(danger.riskScore).toBe(5);
   });
 
-  it("summiert mehrere Danger-Faktoren zu risk=hoch über die normale 60er-Schwelle, auch ohne HIGH-RP-RAM-Override", () => {
-    // 20 (CPU-Overcommit) + 18 (HIGH-RP CPU) + 10 (HIGH-RP RAM-Nutzung) + 8 (Cluster-RAM) + 8 (Cluster-CPU) + 5 (VMs/Host) = 69
+  it("summiert mehrere Danger-Faktoren (CPU-Overcommit zählt bewusst nicht mit, siehe oben)", () => {
+    // 18 (HIGH-RP CPU) + 10 (HIGH-RP RAM-Nutzung) + 8 (Cluster-RAM) + 8 (Cluster-CPU) + 5 (VMs/Host) = 49
+    // cpuOvercommitRatio wird trotzdem mitgegeben, um zu belegen, dass es die Summe nicht verändert.
     const m = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({
@@ -490,8 +492,8 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
         avgVmsPerHost: VROPS_RISK_THRESHOLDS.avgVmsPerHost.danger + 1,
       }),
     });
-    expect(m.riskScore).toBe(69);
-    expect(m.risk).toBe("hoch");
+    expect(m.riskScore).toBe(49);
+    expect(m.risk).toBe("mittel");
   });
 
   it("erzwingt risk=hoch NICHT bei Site-Failover-Warn (nur bei crit)", () => {

@@ -351,7 +351,7 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   risk: {
     term: "Risiko",
     description:
-      "Gesamteinstufung (hoch/mittel/niedrig) mit Score in Klammern. Fasst CPU-/RAM-Auslastung, Overcommit, Swap/Balloon und HA-Reserve zu einer Ampel zusammen. Bei vorhandenem vROps-Import fließen zusätzlich HIGH-RP-RAM/-CPU-Nutzung, CPU-Overcommit (Ist) und weitere Ausfallskonzept-Werte gewichtet ein; ein kritisches Site-Failover-Risiko erzwingt „hoch“. „vROps fehlt“ markiert Cluster, für die diese Faktoren nicht bewertet werden konnten.",
+      "Gesamteinstufung (hoch/mittel/niedrig) mit Score in Klammern. Fasst CPU-/RAM-Auslastung, vCPU/Core-Overcommit, Swap/Balloon und HA-Reserve zu einer Ampel zusammen. Bei vorhandenem vROps-Import fließen zusätzlich HIGH-RP-RAM/-CPU-Nutzung und weitere Ausfallskonzept-Werte gewichtet ein; ein kritisches Site-Failover-Risiko erzwingt „hoch“. Das CPU-Overcommit (vROps Ist) bildet dieselbe Kennzahl wie vCPU/Core nur mit Live-Daten ab und fließt daher nicht zusätzlich in den Score ein — es bleibt als Vergleichswert in der Overcommit-Tabelle sichtbar. „vROps fehlt“ markiert Cluster, für die die vROps-Faktoren nicht bewertet werden konnten.",
     source: "berechnet · vHost + vCluster + vROps-Dashboard-Export",
   },
   hosts: {

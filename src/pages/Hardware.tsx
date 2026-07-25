@@ -135,6 +135,20 @@ function formatCpuClock(mhz: number): string {
   return `${mhz} MHz`;
 }
 
+/**
+ * Recharts wrapt lange Y-Achsen-Labels automatisch auf mehrere Zeilen, sobald der Achse ein
+ * `width` mitgegeben wird (die Wrap-Berechnung in `Text.js` greift bei jedem gesetzten `width`-Prop,
+ * unabhängig davon, ob der Text tatsächlich passt). Ein eigener Tick-Renderer umgeht das: Er reicht
+ * kein `width` an `<text>` weiter, wodurch die Variantenbeschriftung immer einzeilig bleibt.
+ */
+function ModelVariantAxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value?: string } }) {
+  return (
+    <text x={x} y={y} dy="0.32em" textAnchor="end" fontSize={10} fill="hsl(var(--muted-foreground))">
+      {payload?.value}
+    </text>
+  );
+}
+
 function statusColor(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "online" || normalized === "active") return "text-emerald-400";
@@ -1083,7 +1097,7 @@ export default function Hardware() {
                   type="category"
                   dataKey="name"
                   width={336}
-                  tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }}
+                  tick={ModelVariantAxisTick}
                 />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}

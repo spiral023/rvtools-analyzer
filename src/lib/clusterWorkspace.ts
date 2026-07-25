@@ -268,7 +268,8 @@ export function buildClusterDensityChart(rows: ClusterOverviewRow[]): ClusterDen
 
 export function buildRiskChart(rows: ClusterOverviewRow[]): ClusterRiskPoint[] {
   return rows
-    .map((row) => ({ ...chartBase(row), riskScore: row.riskScore, risk: row.risk }))
+    // Achsen-Label zeigt nur den Cluster-Namen (ohne vCenter/Datacenter) — kompakter für die Y-Achse.
+    .map((row) => ({ ...chartBase(row), name: row.cluster, riskScore: row.riskScore, risk: row.risk }))
     .sort((left, right) => right.riskScore - left.riskScore || left.name.localeCompare(right.name));
 }
 

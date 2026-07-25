@@ -242,8 +242,8 @@ describe("clusterWorkspace", () => {
       expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, vcpuPerCore: 3, runningVms: 1 }),
     ]);
     expect(buildRiskChart(rows).map((point) => point.name)).toEqual([
-      "vcsa-a · DC1 · No hosts",
-      "vcsa-a · DC1 · Production",
+      "No hosts",
+      "Production",
     ]);
     expect(buildVmDistributionChart(rows)).toEqual([
       expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, maxVmsPerHost: 3 }),

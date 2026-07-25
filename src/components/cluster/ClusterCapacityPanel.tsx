@@ -188,7 +188,7 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
     [hostDensity, onlyNotableHosts, selectedVcenter],
   );
   const riskChart = useMemo(
-    () => capacityRows.filter((row) => selectedVcenter === "all" || row.vcenterDisplayName === selectedVcenter).slice(0, 12).map((row) => ({ ...row, name: `${row.vcenterDisplayName} · ${row.cluster}` })),
+    () => capacityRows.filter((row) => selectedVcenter === "all" || row.vcenterDisplayName === selectedVcenter).slice(0, 12).map((row) => ({ ...row, name: row.cluster })),
     [capacityRows, selectedVcenter],
   );
 
