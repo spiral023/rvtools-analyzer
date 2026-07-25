@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useRawSheet, useVms, useDatastores } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -8,7 +8,7 @@ import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Key, AlertTriangle, CheckCircle2, Power, Database, Gauge } from "lucide-react";
+import { Key, AlertTriangle, CheckCircle2, Power, Gauge } from "lucide-react";
 import { formatNum, formatPct, formatBytes } from "@/lib/xlsx/parseHelpers";
 import { formatRvtoolsDate } from "@/lib/vmDetail";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -16,14 +16,12 @@ import {
   LICENSING_KPI,
   LICENSING_COLUMNS,
   IDLE_COLUMNS,
-  DS_EFFICIENCY_COLUMNS,
   LICENSING_SECTIONS,
 } from "@/lib/glossaries/licensing";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface LicenseRow { name: string; key: string; costUnit: string; total: number; used: number; usedPct: number; expiration: string; features: string }
 interface IdleRow { snapshotId: string; vm: string; powerState: string; cpuCount: number; memoryMiB: number; cluster: string; reason: string }
-interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 
 const licColumns: ColumnDef<LicenseRow, unknown>[] = [
   { accessorKey: "name", header: "Lizenz", meta: { info: LICENSING_COLUMNS.name } },
@@ -45,21 +43,12 @@ const idleColumns: ColumnDef<IdleRow, unknown>[] = [
   { accessorKey: "reason", header: "Grund", meta: { info: IDLE_COLUMNS.reason }, cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
 ];
 
-const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
-  { accessorKey: "datastore", header: "Datastore", meta: { info: DS_EFFICIENCY_COLUMNS.datastore } },
-  { accessorKey: "provisionedMiB", header: "Provisioned", meta: { info: DS_EFFICIENCY_COLUMNS.provisionedMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "inUseMiB", header: "In Use", meta: { info: DS_EFFICIENCY_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "freeMiB", header: "Frei", meta: { info: DS_EFFICIENCY_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
-  { accessorKey: "efficiency", header: "Effizienz %", meta: { info: DS_EFFICIENCY_COLUMNS.efficiency }, cell: ({ getValue }) => { const v = getValue() as number; return `${v.toFixed(0)}%`; }},
-];
-
 export default function Licensing() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: rawLicense = [], isLoading: rawLicenseLoading } = useRawSheet("vLicense");
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
-  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
-  const dataLoading = snapshotsLoading || rawLicenseLoading || vmsLoading || datastoresLoading;
+  const dataLoading = snapshotsLoading || rawLicenseLoading || vmsLoading;
 
   const licenses = useMemo<LicenseRow[]>(() =>
     rawLicense.map((r) => { const total = Number(r.data["Total"] || 0); const used = Number(r.data["Used"] || 0); return { name: String(r.data["Name"] || ""), key: String(r.data["Key"] || ""), costUnit: String(r.data["Cost Unit"] || ""), total, used, usedPct: total > 0 ? (used / total) * 100 : 0, expiration: formatRvtoolsDate(r.data["Expiration Date"]), features: String(r.data["Features"] || "") }; }), [rawLicense]);
@@ -88,15 +77,6 @@ export default function Licensing() {
   const idleCpus = idleCandidates.reduce((s, v) => s + v.cpuCount, 0);
   const idleRamGiB = idleCandidates.reduce((s, v) => s + v.memoryMiB, 0) / 1024;
 
-  // Datastore Efficiency
-  const dsEfficiency = useMemo<DsEffRow[]>(() => {
-    return datastores.map((ds) => {
-      const prov = ds.capacityMiB || 0;
-      const inUse = ds.inUseMiB || 0;
-      return { datastore: ds.name, provisionedMiB: prov, inUseMiB: inUse, freeMiB: ds.freeMiB || 0, efficiency: prov > 0 ? (inUse / prov) * 100 : 0 };
-    }).sort((a, b) => b.efficiency - a.efficiency);
-  }, [datastores]);
-
   if (dataLoading) return <PageLoadingState title="Licensing & Effizienz" />;
 
   if (snapshots.length === 0) {
@@ -107,14 +87,13 @@ export default function Licensing() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Licensing & Effizienz">
       </PageHeader>
-      <GlobalFilterScopeHint text="Idle-VM-Kandidaten folgen dem globalen Filter; Lizenz-, Cluster- und Datastore-Übersichten bleiben unverändert." />
+      <GlobalFilterScopeHint text="Idle-VM-Kandidaten folgen dem globalen Filter; Lizenz- und Cluster-Übersichten bleiben unverändert." />
       <KpiGrid>
         <KpiCard title="Lizenzen" value={formatNum(totalLicenses)} icon={<Key className="h-4 w-4" />} info={LICENSING_KPI.totalLicenses} />
         <KpiCard title="Hoch (>85%)" value={formatNum(highUtil)} severity={highUtil > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={LICENSING_KPI.highUtil} />
         <KpiCard title="Kritisch (>95%)" value={formatNum(critUtil)} severity={critUtil > 0 ? "crit" : "ok"} info={LICENSING_KPI.critUtil} />
         <KpiCard title="Mit Ablaufdatum" value={formatNum(expiring)} severity={expiring > 0 ? "warn" : "ok"} icon={<CheckCircle2 className="h-4 w-4" />} info={LICENSING_KPI.expiring} />
         <KpiCard title="Idle VMs" value={formatNum(idleCandidates.length)} subtitle={`${idleCpus} vCPU · ${idleRamGiB.toFixed(0)} GiB`} icon={<Power className="h-4 w-4" />} info={LICENSING_KPI.idleVms} />
-        <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} info={LICENSING_KPI.datastores} />
       </KpiGrid>
 
       {utilizationLicenses.length > 0 && (
@@ -147,7 +126,6 @@ export default function Licensing() {
 
       {idleCandidates.length > 0 && (<div><InfoTooltip entry={LICENSING_SECTIONS.idleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Idle / Stilllegungskandidaten ({idleCandidates.length})</h3></InfoTooltip><VirtualTable data={idleCandidates} columns={idleColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
 
-      <div><InfoTooltip entry={LICENSING_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
       {vmDetailDialog}
     </div>
   );

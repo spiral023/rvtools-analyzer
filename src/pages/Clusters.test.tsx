@@ -126,6 +126,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   }),
   useAllVropsLatest: () => ({ data: [] as never[], isLoading: false }),
   useTechInfoLatestByVmNames: () => ({ data: [] as never[], isLoading: false }),
+  useTechInfoClientLatestByClientNames: () => ({ data: [] as never[], isFetching: false }),
 }));
 
 vi.mock("@/hooks/useMaintenance", () => ({

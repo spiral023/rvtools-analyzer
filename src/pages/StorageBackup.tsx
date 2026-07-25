@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useDatastores, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -25,6 +25,7 @@ import {
   STORAGE_BACKUP_COLUMNS,
   STORAGE_SCSI_COLUMNS,
   STORAGE_DSLIFECYCLE_COLUMNS,
+  STORAGE_DS_EFFICIENCY_COLUMNS,
   STORAGE_SECTIONS,
 } from "@/lib/glossaries/storageBackup";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -36,6 +37,7 @@ interface DiskRow { snapshotId: string; vm: string; disk: string; diskPath: stri
 interface BackupRow { snapshotId: string; vm: string; backupStatus: string; lastBackup: string; ageDays: number; risk: string }
 interface ScsiRow { snapshotId: string; vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
+interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
   { accessorKey: "vm", header: "VM", meta: { info: STORAGE_PARTITION_COLUMNS.vm } },
@@ -110,6 +112,14 @@ const dsLifeColumns: ColumnDef<DsLifecycleRow, unknown>[] = [
   { accessorKey: "freePct", header: "Frei %", meta: { info: STORAGE_DSLIFECYCLE_COLUMNS.freePct }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v < 10 ? "text-destructive" : v < 20 ? "text-warning" : ""}>{formatPct(v)}</span>; }},
 ];
 
+const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
+  { accessorKey: "datastore", header: "Datastore", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.datastore } },
+  { accessorKey: "provisionedMiB", header: "Provisioned", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.provisionedMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "inUseMiB", header: "In Use", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "freeMiB", header: "Frei", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
+  { accessorKey: "efficiency", header: "Effizienz %", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.efficiency }, cell: ({ getValue }) => { const v = getValue() as number; return `${v.toFixed(0)}%`; }},
+];
+
 export default function StorageBackup() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { allVms, isLoading: vmsLoading } = useVms();
@@ -122,6 +132,7 @@ export default function StorageBackup() {
   const { data: rawVInfo = [], isLoading: rawVInfoLoading } = useRawSheet("vInfo");
   const { data: rawDatastore = [], isLoading: rawDatastoreLoading } = useRawSheet("vDatastore");
   const { data: vmSnapshots = [], isLoading: vmSnapshotsLoading } = useVmSnapshots();
+  const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const filteredRawPartitions = useMemo(() => filterVmRows(rawPartitions), [filterVmRows, rawPartitions]);
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
@@ -201,6 +212,15 @@ export default function StorageBackup() {
 
   const upgradeableDs = dsLifecycle.filter((d) => d.upgradeable.toLowerCase() === "true").length;
 
+  // Datastore Efficiency
+  const dsEfficiency = useMemo<DsEffRow[]>(() => {
+    return datastores.map((ds) => {
+      const prov = ds.capacityMiB || 0;
+      const inUse = ds.inUseMiB || 0;
+      return { datastore: ds.name, provisionedMiB: prov, inUseMiB: inUse, freeMiB: ds.freeMiB || 0, efficiency: prov > 0 ? (inUse / prov) * 100 : 0 };
+    }).sort((a, b) => b.efficiency - a.efficiency);
+  }, [datastores]);
+
   // Snapshot + Backup Conflict
   const snapshotBackupConflicts = useMemo(() => {
     const snapVms = new Set(filteredVmSnapshots.map((s) => s.vmName));
@@ -211,7 +231,7 @@ export default function StorageBackup() {
     partitions.filter((p) => p.freePct < 30).slice(0, 15).map((p) => ({ name: `${p.vm}:${p.disk}`.slice(0, 25), freePct: Math.round(p.freePct * 10) / 10 })), [partitions]);
 
   const dataLoading = snapshotsLoading || vmsLoading || rawPartitionsLoading || rawMultiPathLoading
-    || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading;
+    || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading || datastoresLoading;
   if (dataLoading) return <PageLoadingState title="Storage / Backup" />;
 
   if (snapshots.length === 0) {
@@ -233,6 +253,7 @@ export default function StorageBackup() {
         <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
         <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.thinDisks} />
         <KpiCard title="RDM / VMFS Upg." value={`${formatNum(rdmDisks)} / ${formatNum(upgradeableDs)}`} icon={<Layers className="h-4 w-4" />} info={STORAGE_KPI.rdmUpgradeable} />
+        <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.datastores} />
       </KpiGrid>
 
       {partChart.length > 0 && (
@@ -281,6 +302,7 @@ export default function StorageBackup() {
       {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
       {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
       {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
+      <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
       {vmDetailDialog}
       {hostDetailDialog}
     </div>

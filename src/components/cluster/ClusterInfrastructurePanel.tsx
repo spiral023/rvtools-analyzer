@@ -5,6 +5,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import type { NormalizedCluster, NormalizedHost, SheetRow } from "@/domain/models/types";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { DRIVER_COLUMNS, HOST_COLUMNS, INFRASTRUCTURE_KPI, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
@@ -75,6 +76,7 @@ function matchesSearch(search: string, values: Array<string | null | undefined>)
 }
 
 export function ClusterInfrastructurePanel({ hosts, clusters, rawHbaRows, rawNicRows, search }: ClusterInfrastructurePanelProps) {
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const query = normalized(search);
   const associationIdentities = useMemo<ClusterIdentity[]>(() => [
     ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),
@@ -161,13 +163,14 @@ export function ClusterInfrastructurePanel({ hosts, clusters, rawHbaRows, rawNic
 
       <section>
         <InfoTooltip entry={COMPLIANCE_SECTIONS.hostInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Inventar ({filteredHosts.length})</h3></InfoTooltip>
-        <VirtualTable data={filteredHosts} columns={hostColumns} globalFilter={search} height={350} />
+        <VirtualTable data={filteredHosts} columns={hostColumns} globalFilter={search} height={350} onRowClick={openHostDetail} />
       </section>
 
       <section>
         <InfoTooltip entry={COMPLIANCE_SECTIONS.driverInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverRows.length})</h3></InfoTooltip>
         <VirtualTable data={driverRows} columns={driverColumns} globalFilter={search} height={350} />
       </section>
+      {hostDetailDialog}
     </div>
   );
 }

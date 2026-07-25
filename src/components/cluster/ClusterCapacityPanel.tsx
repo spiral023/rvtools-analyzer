@@ -11,10 +11,10 @@ import { CHART_AXIS_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYL
 import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
 import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/licensing";
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
-import type { HostFailureBreach, RiskFactor } from "@/domain/services/clusterCapacityEngine";
+import { SITE_FAILOVER_THRESHOLDS, type HostFailureBreach, type RiskFactor } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
+import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge, siteFailoverLabel, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
   capacityRows: ClusterCapacityRow[];
@@ -27,7 +27,6 @@ interface ClusterCapacityPanelProps {
 
 const vcenterColumns = [
   { accessorKey: "vcenterDisplayName", header: "vCenter" },
-  { accessorKey: "datacenter", header: "Datacenter" },
 ] as const;
 
 function hostFailureTooltipText(hosts: number, maxHostFailures: number, breaches: HostFailureBreach[]): string {
@@ -43,6 +42,14 @@ function hostFailureTooltipText(hosts: number, maxHostFailures: number, breaches
     })
     .join(" und ");
   return `Bei ${maxHostFailures + 1} gleichzeitigen Host-Ausfällen kippt ${breachText} ins Rote.`;
+}
+
+function siteFailoverTooltipText(risk: "ok" | "warn" | "crit" | null, ramAssignedHighPct: number | null): string {
+  if (risk === null || ramAssignedHighPct === null) {
+    return "Kein vROps-Import für diesen Cluster — Site-Failover-Risiko konnte nicht bewertet werden.";
+  }
+  const t = SITE_FAILOVER_THRESHOLDS.ramAssignedHigh;
+  return `HIGH-RP RAM % liegt bei ${ramAssignedHighPct.toFixed(1)} % der Cluster-Kapazität. Fällt ein Standort aus (≈50 % der Hosts), müssen die HIGH-RP-VMs auf der halbierten Kapazität weiterlaufen: ab ${t.warn} % wird es knapp, ab ${t.danger} % reicht der Platz nicht mehr — aktuell „${siteFailoverLabel(risk)}".`;
 }
 
 function RiskTooltipContent({ riskScore, risk, riskFactors, siteFailoverOverride }: { riskScore: number; risk: "hoch" | "mittel" | "niedrig"; riskFactors: RiskFactor[]; siteFailoverOverride: boolean }) {
@@ -111,7 +118,6 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   { accessorKey: "memoryUsagePct", header: "RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.memoryUsagePct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
   { accessorKey: "vcpuPerCore", header: "vCPU/Core", meta: { info: CAPACITY_HEALTH_COLUMNS.vcpuPerCore }, cell: ({ getValue }) => coloredNum(getValue() as number, 4, 5) },
   { accessorKey: "ramCommitPct", header: "RAM Commit %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramCommitPct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
-  { accessorKey: "ramActivePct", header: "RAM Active %", meta: { info: CAPACITY_HEALTH_COLUMNS.ramActivePct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(1)}%` },
   { accessorKey: "swapBalloonPct", header: "Swap+Balloon %", meta: { info: CAPACITY_HEALTH_COLUMNS.swapBalloonPct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(2)}%` },
   { accessorKey: "hotHosts", header: "Hot Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hotHosts }, cell: ({ row }) => {
     const severity = getHotHostSeverity(row.original.hotHosts, row.original.hosts);
@@ -121,7 +127,18 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   { accessorKey: "drsEnabled", header: "DRS", meta: { info: CAPACITY_HEALTH_COLUMNS.drsEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
   { accessorKey: "haEnabled", header: "HA", meta: { info: CAPACITY_HEALTH_COLUMNS.haEnabled }, cell: ({ getValue }) => boolCell(getValue() as boolean | null) },
   { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
-  { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ getValue }) => siteFailoverBadge(getValue() as "ok" | "warn" | "crit" | null) },
+  { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ row }) => (
+    <UiTooltip delayDuration={250}>
+      <UiTooltipTrigger asChild>
+        <span className="cursor-help underline decoration-dotted underline-offset-4">
+          {siteFailoverBadge(row.original.siteFailoverRisk)}
+        </span>
+      </UiTooltipTrigger>
+      <UiTooltipContent side="top" className="max-w-[20rem] whitespace-normal text-xs">
+        {siteFailoverTooltipText(row.original.siteFailoverRisk, row.original.vropsRamAssignedHighPct)}
+      </UiTooltipContent>
+    </UiTooltip>
+  ) },
   { accessorKey: "vropsCpuUsageHighPct", header: "HIGH-RP CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsCpuUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 40, 50, 0) },
   { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM-Nutzung %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 80, 90, 0) },
 ];

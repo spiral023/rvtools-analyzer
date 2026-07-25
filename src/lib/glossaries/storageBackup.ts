@@ -67,6 +67,11 @@ export const STORAGE_KPI: Record<string, GlossaryEntry> = {
       "Raw Device Mappings und auf ältere VMFS-Version laufende, upgrade-fähige Datastores. RDMs schränken vMotion/Snapshots ein; upgrade-fähige VMFS-Volumes sind Lifecycle-Kandidaten.",
     source: `${RV} · vDisk · „Raw“ / vDatastore · „VMFS Upgradeable“`,
   },
+  datastores: {
+    term: "Datastores",
+    description: "Anzahl der Datastores in der Effizienzbetrachtung.",
+    source: `${RV} · vDatastore`,
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -340,6 +345,37 @@ export const STORAGE_DSLIFECYCLE_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Tabelle „Datastore Effizienz“                                     */
+/* ------------------------------------------------------------------ */
+export const STORAGE_DS_EFFICIENCY_COLUMNS: Record<string, GlossaryEntry> = {
+  datastore: {
+    term: "Datastore",
+    description: "Name des Datastores.",
+    source: `${RV} · vDatastore · „Name“`,
+  },
+  provisionedMiB: {
+    term: "Provisioned",
+    description: "Kapazität des Datastores. Bezugsgröße für die Effizienzberechnung.",
+    source: `${RV} · vDatastore · „Capacity“`,
+  },
+  inUseMiB: {
+    term: "In Use",
+    description: "Tatsächlich belegter Speicher auf dem Datastore.",
+    source: `${RV} · vDatastore · „In Use“`,
+  },
+  freeMiB: {
+    term: "Frei",
+    description: "Freier Speicher auf dem Datastore. Zu wenig freier Platz gefährdet Snapshots und Thin-Provisioning-Wachstum.",
+    source: `${RV} · vDatastore · „Free“`,
+  },
+  efficiency: {
+    term: "Effizienz %",
+    description:
+      "Belegter Anteil an der Kapazität (In Use / Provisioned). Niedrige Werte deuten auf überdimensionierte oder untergenutzte Datastores.",
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                     */
 /* ------------------------------------------------------------------ */
 export const STORAGE_SECTIONS: Record<string, GlossaryEntry> = {
@@ -387,5 +423,10 @@ export const STORAGE_SECTIONS: Record<string, GlossaryEntry> = {
     term: "MHA / VMFS Lifecycle",
     description:
       "Datastores mit VMFS-Version, Upgrade-Fähigkeit und Multi-Host-Access. Grundlage für die Lifecycle-Planung: upgrade-fähige und einzeln angebundene Datastores identifizieren.",
+  },
+  dsEfficiency: {
+    term: "Datastore Effizienz",
+    description:
+      "Belegung im Verhältnis zur Kapazität je Datastore. Niedrige Effizienz weist auf überdimensionierten oder schlecht genutzten Speicher hin; die Übersicht hilft, Datastores zu konsolidieren und teuren Storage effizienter zu nutzen.",
   },
 };

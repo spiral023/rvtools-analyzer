@@ -45,11 +45,6 @@ export const LICENSING_KPI: Record<string, GlossaryEntry> = {
     description: "Anzahl der Cluster in der Dichte-/Effizienzbetrachtung.",
     source: `${RV} · vCluster`,
   },
-  datastores: {
-    term: "Datastores",
-    description: "Anzahl der Datastores in der Effizienzbetrachtung.",
-    source: `${RV} · vDatastore`,
-  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -172,37 +167,6 @@ export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Tabelle „Datastore Effizienz“                                     */
-/* ------------------------------------------------------------------ */
-export const DS_EFFICIENCY_COLUMNS: Record<string, GlossaryEntry> = {
-  datastore: {
-    term: "Datastore",
-    description: "Name des Datastores.",
-    source: `${RV} · vDatastore · „Name“`,
-  },
-  provisionedMiB: {
-    term: "Provisioned",
-    description: "Kapazität des Datastores. Bezugsgröße für die Effizienzberechnung.",
-    source: `${RV} · vDatastore · „Capacity“`,
-  },
-  inUseMiB: {
-    term: "In Use",
-    description: "Tatsächlich belegter Speicher auf dem Datastore.",
-    source: `${RV} · vDatastore · „In Use“`,
-  },
-  freeMiB: {
-    term: "Frei",
-    description: "Freier Speicher auf dem Datastore. Zu wenig freier Platz gefährdet Snapshots und Thin-Provisioning-Wachstum.",
-    source: `${RV} · vDatastore · „Free“`,
-  },
-  efficiency: {
-    term: "Effizienz %",
-    description:
-      "Belegter Anteil an der Kapazität (In Use / Provisioned). Niedrige Werte deuten auf überdimensionierte oder untergenutzte Datastores.",
-  },
-};
-
-/* ------------------------------------------------------------------ */
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                    */
 /* ------------------------------------------------------------------ */
 export const LICENSING_SECTIONS: Record<string, GlossaryEntry> = {
@@ -225,10 +189,5 @@ export const LICENSING_SECTIONS: Record<string, GlossaryEntry> = {
     term: "Cluster Dichte & Effizienz",
     description:
       "Konsolidierungsgrad je Cluster: VMs pro Host, vCPU-Overcommit und RAM-Auslastung. Nutze die Kennzahlen, um über- und unterausgelastete Cluster zu erkennen und Workloads oder Lizenzen gezielt auszubalancieren – hohe Overcommit-Werte gegen CPU-Ready-/RAM-Reserven abwägen.",
-  },
-  dsEfficiency: {
-    term: "Datastore Effizienz",
-    description:
-      "Belegung im Verhältnis zur Kapazität je Datastore. Niedrige Effizienz weist auf überdimensionierten oder schlecht genutzten Speicher hin; die Übersicht hilft, Datastores zu konsolidieren und teuren Storage effizienter zu nutzen.",
   },
 };
