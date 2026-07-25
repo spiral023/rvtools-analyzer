@@ -3,6 +3,7 @@ import {
   aggregateCluster,
   applyVmMoves,
   classifyVmFailoverGroup,
+  computeHostFailureCapacity,
   computeMaxHostFailures,
   computeSiteFailoverRisk,
   estimateVmLoad,
@@ -290,6 +291,39 @@ describe("computeMaxHostFailures", () => {
       cpuUsedCoreEquiv: 1, memConsumedMiB: 1000, vcpus: 10, vRamMiB: 10000,
     };
     expect(computeMaxHostFailures(agg)).toBe(2);
+  });
+});
+
+describe("computeHostFailureCapacity", () => {
+  it("nennt die auslösende Metrik samt Wert und Rot-Grenze für den nächsten Host-Ausfall", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 4, totalCores: 40, totalMemoryMiB: 400000,
+      cpuUsedCoreEquiv: 4, memConsumedMiB: 40000, vcpus: 32, vRamMiB: 80000,
+    };
+    const result = computeHostFailureCapacity(agg);
+    expect(result.maxHostFailures).toBe(2);
+    expect(result.breaches).toEqual([
+      { metric: "ramCommit", label: "RAM Commit %", value: 80, danger: 70 },
+    ]);
+  });
+
+  it("liefert eine leere breaches-Liste, wenn keine Metrik kippt", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 3, totalCores: 300, totalMemoryMiB: 3_000_000,
+      cpuUsedCoreEquiv: 1, memConsumedMiB: 1000, vcpus: 10, vRamMiB: 10000,
+    };
+    expect(computeHostFailureCapacity(agg).breaches).toEqual([]);
+  });
+
+  it("nennt mehrere Metriken, wenn sie beim selben Ausfall gemeinsam kippen", () => {
+    // 2 Hosts, CPU 50 %/RAM 60 % Ist-Auslastung → nach 1 Ausfall CPU 100 %, RAM 120 %, RAM Commit 160 %.
+    const rows: SheetRow[] = [hostRow({ Host: "esx-1" }), hostRow({ Host: "esx-2" })];
+    const agg = aggregateCluster("A", rows);
+    const result = computeHostFailureCapacity(agg);
+    expect(result.maxHostFailures).toBe(0);
+    expect(result.breaches.map((b) => b.metric).sort()).toEqual(["cpuUsage", "memoryUsage", "ramCommit"]);
   });
 });
 

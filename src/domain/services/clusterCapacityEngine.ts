@@ -129,8 +129,10 @@ export interface ClusterMetrics {
   swapBalloonPct: number;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
-  /** Siehe {@link computeMaxHostFailures}. */
+  /** Siehe {@link computeHostFailureCapacity}. */
   maxHostFailures: number;
+  /** Metrik(en), die beim nächsten Host-Ausfall (maxHostFailures + 1) ins Rote kippen würden. */
+  hostFailureBreaches: HostFailureBreach[];
   projected: boolean;
   incompleteVmCount: number;
 }
@@ -245,36 +247,70 @@ function round(value: number, decimals: number): number {
   return Math.round(value * f) / f;
 }
 
+export type HealthColumnMetric = "cpuUsage" | "memoryUsage" | "vcpuPerCore" | "ramCommit";
+
+const HEALTH_COLUMN_LABELS: Record<HealthColumnMetric, string> = {
+  cpuUsage: "CPU %",
+  memoryUsage: "RAM %",
+  vcpuPerCore: "vCPU/Core",
+  ramCommit: "RAM Commit %",
+};
+
+/** Eine Health-Tabellen-Metrik, die beim nächsten Host-Ausfall ihre Rot-Grenze überschreiten würde. */
+export interface HostFailureBreach {
+  metric: HealthColumnMetric;
+  label: string;
+  /** Wert der Metrik bei genau `maxHostFailures + 1` gleichzeitigen Host-Ausfällen. */
+  value: number;
+  /** Rot-Grenze der Metrik, siehe {@link HEALTH_COLUMN_THRESHOLDS}. */
+  danger: number;
+}
+
+export interface HostFailureCapacity {
+  /** Größte Anzahl gleichzeitiger Host-Ausfälle, die der Cluster verkraftet, ohne dass eine Metrik auf Rot springt. */
+  maxHostFailures: number;
+  /** Metriken, die beim ersten überschreitenden Ausfall (`maxHostFailures + 1`) ins Rote kippen; leer, wenn selbst hosts-1 Ausfälle grün bleiben. */
+  breaches: HostFailureBreach[];
+}
+
 /**
  * Simuliert den gleichzeitigen Ausfall von 1..hosts-1 ESXi-Hosts: die Ist-Last (genutzte
  * Cores, belegtes RAM, vCPUs, zugewiesenes RAM) bleibt konstant und verteilt sich auf die
  * verbleibenden Hosts (HA-Restart), während sich die Kapazität (Cores/RAM) proportional zur
  * Hostzahl reduziert (Annahme: homogene Hosts). Ergebnis: die größte Anzahl gleichzeitiger
  * Host-Ausfälle, die der Cluster verkraftet, bevor CPU %, RAM %, vCPU/Core oder RAM Commit %
- * in der Health-Tabelle auf Rot springen ({@link HEALTH_COLUMN_THRESHOLDS}).
+ * in der Health-Tabelle auf Rot springen ({@link HEALTH_COLUMN_THRESHOLDS}), plus die Metrik(en),
+ * die den Ausschlag geben würde(n).
  */
-export function computeMaxHostFailures(agg: ClusterAggregate): number {
+export function computeHostFailureCapacity(agg: ClusterAggregate): HostFailureCapacity {
   const hosts = agg.hosts;
-  if (hosts <= 1) return 0;
+  if (hosts <= 1) return { maxHostFailures: 0, breaches: [] };
   const t = HEALTH_COLUMN_THRESHOLDS;
   for (let failed = 1; failed < hosts; failed++) {
     const factor = (hosts - failed) / hosts;
     const remainingCores = agg.totalCores * factor;
     const remainingMemoryMiB = agg.totalMemoryMiB * factor;
-    const cpuUsagePct = pct(agg.cpuUsedCoreEquiv, remainingCores);
-    const memoryUsagePct = pct(agg.memConsumedMiB, remainingMemoryMiB);
-    const vcpuPerCore = remainingCores > 0 ? agg.vcpus / remainingCores : Number.POSITIVE_INFINITY;
-    const ramCommitPct = pct(agg.vRamMiB, remainingMemoryMiB);
-    if (
-      cpuUsagePct >= t.cpuUsage.danger
-      || memoryUsagePct >= t.memoryUsage.danger
-      || vcpuPerCore >= t.vcpuPerCore.danger
-      || ramCommitPct >= t.ramCommit.danger
-    ) {
-      return failed - 1;
-    }
+    const values: Record<HealthColumnMetric, number> = {
+      cpuUsage: pct(agg.cpuUsedCoreEquiv, remainingCores),
+      memoryUsage: pct(agg.memConsumedMiB, remainingMemoryMiB),
+      vcpuPerCore: remainingCores > 0 ? agg.vcpus / remainingCores : Number.POSITIVE_INFINITY,
+      ramCommit: pct(agg.vRamMiB, remainingMemoryMiB),
+    };
+    const breaches = (Object.keys(values) as HealthColumnMetric[])
+      .filter((metric) => values[metric] >= t[metric].danger)
+      .map((metric) => ({
+        metric,
+        label: HEALTH_COLUMN_LABELS[metric],
+        value: round(values[metric], metric === "vcpuPerCore" ? 2 : 1),
+        danger: t[metric].danger,
+      }));
+    if (breaches.length > 0) return { maxHostFailures: failed - 1, breaches };
   }
-  return hosts - 1;
+  return { maxHostFailures: hosts - 1, breaches: [] };
+}
+
+export function computeMaxHostFailures(agg: ClusterAggregate): number {
+  return computeHostFailureCapacity(agg).maxHostFailures;
 }
 
 export function metricsFromAggregate(
@@ -294,6 +330,7 @@ export function metricsFromAggregate(
   const ramCommitPct = pct(agg.vRamMiB, agg.totalMemoryMiB);
   const ramActivePct = pct(agg.vmActiveMiB, agg.totalMemoryMiB);
   const swapBalloonPct = pct(agg.swapBalloonMiB, agg.totalMemoryMiB);
+  const hostFailureCapacity = computeHostFailureCapacity(agg);
 
   const cpuSpread = Number.isFinite(agg.cpuMin) && Number.isFinite(agg.cpuMax) ? agg.cpuMax - agg.cpuMin : 0;
   const memSpread = Number.isFinite(agg.memMin) && Number.isFinite(agg.memMax) ? agg.memMax - agg.memMin : 0;
@@ -376,7 +413,8 @@ export function metricsFromAggregate(
     swapBalloonPct: round(swapBalloonPct, 2),
     riskScore,
     risk,
-    maxHostFailures: computeMaxHostFailures(agg),
+    maxHostFailures: hostFailureCapacity.maxHostFailures,
+    hostFailureBreaches: hostFailureCapacity.breaches,
     projected: opts.projected,
     incompleteVmCount: opts.incompleteVmCount ?? 0,
   };

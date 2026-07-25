@@ -3,6 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +11,7 @@ import { CHART_AXIS_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYL
 import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
 import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/licensing";
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
+import type { HostFailureBreach } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
@@ -28,6 +30,21 @@ const vcenterColumns = [
   { accessorKey: "datacenter", header: "Datacenter" },
 ] as const;
 
+function hostFailureTooltipText(hosts: number, maxHostFailures: number, breaches: HostFailureBreach[]): string {
+  if (hosts <= 1) return "Nur 1 Host im Cluster — kein Host-Ausfall ohne Totalausfall möglich.";
+  if (breaches.length === 0) {
+    return `Auch bei ${hosts - 1} von ${hosts} gleichzeitig ausgefallenen Hosts bleiben CPU %, RAM %, vCPU/Core und RAM Commit % im grünen Bereich.`;
+  }
+  const breachText = breaches
+    .map((b) => {
+      const decimals = b.metric === "vcpuPerCore" ? 2 : 1;
+      const suffix = b.metric === "vcpuPerCore" ? "" : "%";
+      return `${b.label} auf ${b.value.toFixed(decimals)}${suffix} (Grenze ${b.danger}${suffix})`;
+    })
+    .join(" und ");
+  return `Bei ${maxHostFailures + 1} gleichzeitigen Host-Ausfällen kippt ${breachText} ins Rote.`;
+}
+
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
@@ -39,9 +56,18 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ) },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
   { accessorKey: "maxHostFailures", header: "Ausfallskapazität", meta: { info: CAPACITY_HEALTH_COLUMNS.maxHostFailures }, cell: ({ row }) => {
-    const { maxHostFailures, hosts } = row.original;
+    const { maxHostFailures, hosts, hostFailureBreaches } = row.original;
     const className = maxHostFailures <= 0 ? "text-destructive font-semibold" : maxHostFailures === 1 ? "text-warning font-semibold" : "text-success font-semibold";
-    return <span className={className}>{maxHostFailures} von {hosts}</span>;
+    return (
+      <UiTooltip delayDuration={250}>
+        <UiTooltipTrigger asChild>
+          <span className={`${className} cursor-help underline decoration-dotted underline-offset-4`}>{maxHostFailures} von {hosts}</span>
+        </UiTooltipTrigger>
+        <UiTooltipContent side="top" className="max-w-[20rem] whitespace-normal text-xs">
+          {hostFailureTooltipText(hosts, maxHostFailures, hostFailureBreaches)}
+        </UiTooltipContent>
+      </UiTooltip>
+    );
   } },
   { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
   { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },

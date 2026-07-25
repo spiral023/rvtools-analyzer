@@ -1,5 +1,5 @@
 import type { NormalizedCluster, NormalizedHost, NormalizedVm, SheetRow, SnapshotMeta, VropsLatest } from "@/domain/models/types";
-import { aggregateCluster, computeSiteFailoverRisk, groupVHostRowsByCluster, metricsFromAggregate, type SiteFailoverRisk } from "@/domain/services/clusterCapacityEngine";
+import { aggregateCluster, computeSiteFailoverRisk, groupVHostRowsByCluster, metricsFromAggregate, type HostFailureBreach, type SiteFailoverRisk } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 
@@ -26,6 +26,8 @@ export interface ClusterCapacityRow {
   risk: "hoch" | "mittel" | "niedrig";
   /** Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core oder RAM Commit % auf Rot springen. */
   maxHostFailures: number;
+  /** Metrik(en), die beim nächsten Host-Ausfall (maxHostFailures + 1) ins Rote kippen würden — für den Tooltip der Ausfallskapazitäts-Spalte. */
+  hostFailureBreaches: HostFailureBreach[];
   /** vROps-Ist-Werte des Ausfallskonzepts (HIGH_RP/STD, Standort 50/50) — `null` ohne vROps-Import. */
   vropsRamAssignedHighPct: number | null;
   vropsRamUsageHighPct: number | null;
@@ -190,6 +192,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
       clusterHostDelta: cluster.numHosts != null ? aggregate.hosts - cluster.numHosts : null,
       clusterMemoryDeltaPct: cluster.totalMemoryMiB ? round(((aggregate.totalMemoryMiB - cluster.totalMemoryMiB) / cluster.totalMemoryMiB) * 100, 1) : null,
       riskScore: metrics.riskScore, risk: metrics.risk, maxHostFailures: metrics.maxHostFailures,
+      hostFailureBreaches: metrics.hostFailureBreaches,
       vropsRamAssignedHighPct: vrops?.ramAssignedHighPct ?? null,
       vropsRamUsageHighPct: vrops?.ramUsageHighPct ?? null,
       vropsCpuUsageHighPct: vrops?.cpuUsageHighPct ?? null,
