@@ -22,12 +22,17 @@ export function useImportedDataPreload(preload: ImportedDataPreloadRunner = prel
   const [status, setStatus] = useState<PreloadStatus>("idle");
   const [progress, setProgress] = useState<PreloadProgress>(INITIAL_PROGRESS);
   const [error, setError] = useState<string | null>(null);
+  // Spiegelt, ob der aktuelle Query-Cache-Stand vom letzten erfolgreichen Vorladen stammt –
+  // steuert die grün/rot-Färbung des Vorlade-Icons. Wird bei jedem neuen Lauf (auch dem
+  // automatisch nach einem Upload ausgelösten) zunächst zurückgesetzt.
+  const [isPreloaded, setIsPreloaded] = useState(false);
 
   const start = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
     setStatus("running");
     setError(null);
+    setIsPreloaded(false);
     setProgress(INITIAL_PROGRESS);
 
     try {
@@ -36,6 +41,7 @@ export function useImportedDataPreload(preload: ImportedDataPreloadRunner = prel
         `${result.processedRecords.toLocaleString("de-DE")} Datensätze sind für bis zu eine Stunde vorgeladen.`,
       );
       setStatus("idle");
+      setIsPreloaded(true);
     } catch (preloadError) {
       const message = preloadError instanceof Error ? preloadError.message : String(preloadError);
       setError(message);
@@ -58,5 +64,6 @@ export function useImportedDataPreload(preload: ImportedDataPreloadRunner = prel
     start,
     dismissError,
     isRunning: status === "running",
+    isPreloaded,
   };
 }

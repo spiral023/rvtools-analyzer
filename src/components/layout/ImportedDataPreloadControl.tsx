@@ -20,6 +20,7 @@ import {
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { preloadImportedData } from "@/lib/preloadImportedData";
 import { QUERY_CACHE_DURATION_MS } from "@/lib/queryCache";
+import { cn } from "@/lib/utils";
 
 interface ImportedDataPreloadControlProps {
   preload?: ImportedDataPreloadRunner;
@@ -35,7 +36,7 @@ export function ImportedDataPreloadControl({
     queryFn: hasData,
     staleTime: QUERY_CACHE_DURATION_MS,
   });
-  const { status, progress, error, start, dismissError, isRunning } = useImportedDataPreload(preload);
+  const { status, progress, error, start, dismissError, isRunning, isPreloaded } = useImportedDataPreload(preload);
   const dialogOpen = status !== "idle";
 
   // Nach einem erfolgreichen Datei-Upload automatisch alle Daten vorladen.
@@ -61,7 +62,14 @@ export function ImportedDataPreloadControl({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className={cn(
+              "h-8 w-8 transition-colors",
+              !dataAvailable
+                ? "text-muted-foreground hover:text-foreground"
+                : isPreloaded
+                  ? "text-success hover:text-success/80"
+                  : "text-destructive hover:text-destructive/80",
+            )}
             aria-label="Alle importierten Daten vorladen"
             disabled={availabilityPending || !dataAvailable || isRunning}
             onClick={() => void start()}
@@ -70,7 +78,11 @@ export function ImportedDataPreloadControl({
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {dataAvailable ? "Alle importierten Daten vorladen" : "Keine importierten Daten vorhanden"}
+          {!dataAvailable
+            ? "Keine importierten Daten vorhanden"
+            : isPreloaded
+              ? "Alle importierten Daten sind vorgeladen"
+              : "Daten noch nicht vorgeladen – klicken zum Vorladen"}
         </TooltipContent>
       </Tooltip>
 

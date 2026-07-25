@@ -101,6 +101,24 @@ describe("ImportedDataPreloadControl", () => {
     expect(await screen.findByRole("button", { name: "Alle importierten Daten vorladen" })).toBeDisabled();
   });
 
+  it("zeigt das Icon rot, solange die Daten noch nicht vorgeladen sind, und grün nach erfolgreichem Vorladen", async () => {
+    let finish!: () => void;
+    const preload = vi.fn<ImportedDataPreloadRunner>(() => new Promise((resolve) => {
+      finish = () => resolve({ processedRecords: 5, totalSteps: 1 });
+    }));
+    renderControl(preload);
+    const button = await screen.findByRole("button", { name: "Alle importierten Daten vorladen" });
+
+    expect(button).toHaveClass("text-destructive");
+    expect(button).not.toHaveClass("text-success");
+
+    fireEvent.click(button);
+    await act(async () => finish());
+
+    await waitFor(() => expect(button).toHaveClass("text-success"));
+    expect(button).not.toHaveClass("text-destructive");
+  });
+
   it("startet das Vorladen automatisch nach einem erfolgreichen Datei-Upload", async () => {
     mockedImport.mockResolvedValue({ success: true, fileKind: "rvtools", warnings: [], errors: [] });
     const preload = vi.fn<ImportedDataPreloadRunner>().mockResolvedValue({ processedRecords: 5, totalSteps: 1 });
