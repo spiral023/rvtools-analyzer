@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows } from "@/data/db";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
+import { VCenterDetailDialog } from "@/components/fleet/VCenterDetailDialog";
 import { GitCompare, Server, Cpu, AlertTriangle, ShieldAlert } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "@/components/charts/recharts";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
@@ -17,8 +18,8 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { FLEET_KPI, FLEET_COLUMNS, FLEET_SECTIONS } from "@/lib/glossaries/fleetCompare";
 import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
 
-interface VCenterSummary {
-  vcenterId: string; displayName: string; vmCount: number; poweredOn: number;
+export interface VCenterSummary {
+  vcenterId: string; snapshotId: string; displayName: string; vmCount: number; poweredOn: number;
   hostCount: number; clusterCount: number; totalCpuThreads: number; totalRamGiB: number;
   datastoreCount: number; avgDsFree: number; healthIssues: number; cpuOvercommit: number;
   snapshotCount: number; securityDrift: number; riskScore: number;
@@ -40,6 +41,7 @@ const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
 ];
 
 export default function FleetCompare() {
+  const [selectedVcenterId, setSelectedVcenterId] = useState<string | null>(null);
   const { data: snapshots = [], isPending: snapshotsLoading } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
 
   const latestSnapshots = useMemo(() => {
@@ -90,7 +92,7 @@ export default function FleetCompare() {
       else if (cpuOc > 3) riskScore += 5;
 
       return {
-        vcenterId: snap.vcenterId, displayName: snap.vcenterDisplayName,
+        vcenterId: snap.vcenterId, snapshotId: snap.snapshotId, displayName: snap.vcenterDisplayName,
         vmCount: vms.length, poweredOn: poweredOn.length, hostCount: hosts.length,
         clusterCount: clusters.length, totalCpuThreads: totalThreads,
         totalRamGiB: totalRamMiB / 1024, datastoreCount: ds.length,
@@ -115,6 +117,20 @@ export default function FleetCompare() {
     </KpiGrid>
   );
 
+  const selectedSummary = summaries.find((s) => s.vcenterId === selectedVcenterId) ?? null;
+  const selectedSnapshot = latestSnapshots.find((s) => s.vcenterId === selectedVcenterId) ?? null;
+  const vcenterDetailDialog = (
+    <VCenterDetailDialog
+      summary={selectedSummary}
+      snapshot={selectedSnapshot}
+      open={!!selectedSummary}
+      onClose={() => setSelectedVcenterId(null)}
+      clusters={allClusters}
+      datastores={allDatastores}
+      health={allHealth}
+    />
+  );
+
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || clustersLoading
     || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading;
   if (dataLoading) return <PageLoadingState title="vCenter" />;
@@ -129,7 +145,8 @@ export default function FleetCompare() {
         <PageHeader title="vCenter" />
         {kpis}
         <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
-        {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>)}
+        {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>)}
+        {vcenterDetailDialog}
       </div>
     );
   }
@@ -148,7 +165,8 @@ export default function FleetCompare() {
         </ResponsiveContainer>
       </div>
 
-      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} /></div>
+      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>
+      {vcenterDetailDialog}
     </div>
   );
 }

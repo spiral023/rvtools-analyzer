@@ -1,9 +1,11 @@
 import type {
   NormalizedCluster,
   NormalizedDatastore,
+  NormalizedHealth,
   NormalizedHost,
   NormalizedVm,
   SheetRow,
+  SnapshotMeta,
   TechInfoClientLatest,
 } from "@/domain/models/types";
 import type { HostDetail } from "@/lib/conversion";
@@ -62,6 +64,28 @@ interface ClusterMarkdownScope {
   vcenterDisplayName: string;
   maxVmsPerHost: number | null;
   maxVmsHost: string | null;
+}
+
+interface VCenterMarkdownSummary {
+  displayName: string;
+  vmCount: number;
+  poweredOn: number;
+  hostCount: number;
+  clusterCount: number;
+  datastoreCount: number;
+  totalRamGiB: number;
+  avgDsFree: number;
+  cpuOvercommit: number;
+  snapshotCount: number;
+  securityDrift: number;
+  healthIssues: number;
+  riskScore: number;
+}
+
+interface VCenterMarkdownData {
+  clusters: NormalizedCluster[];
+  datastores: NormalizedDatastore[];
+  health: NormalizedHealth[];
 }
 
 interface ClusterOsMarkdownData {
@@ -432,6 +456,61 @@ export function buildClusterDetailMarkdown(
         vm.configStatus,
         vm.osConfig || vm.osTools,
       ]),
+    ),
+  ].join("\n");
+}
+
+export function buildVCenterDetailMarkdown(
+  summary: VCenterMarkdownSummary,
+  snapshot: SnapshotMeta | null,
+  data: VCenterMarkdownData,
+): string {
+  return [
+    `# vCenter ${summary.displayName}`,
+    "",
+    section("Übersicht", [
+      ["Export", snapshot ? formatIsoDateTime(snapshot.exportTs) : "—"],
+      ["Import", snapshot ? formatIsoDateTime(snapshot.importedAt) : "—"],
+      ["VMs", summary.vmCount],
+      ["Powered On", summary.poweredOn],
+      ["Hosts", summary.hostCount],
+      ["Cluster", summary.clusterCount],
+      ["Datastores", summary.datastoreCount],
+      ["Total RAM", `${summary.totalRamGiB.toFixed(0)} GiB`],
+      ["Ø DS Frei", formatPct(summary.avgDsFree)],
+      ["CPU Overcommit", `${summary.cpuOvercommit.toFixed(1)}:1`],
+      ["VM-Snapshots", summary.snapshotCount],
+      ["Security Drift", summary.securityDrift],
+      ["Health Issues", summary.healthIssues],
+      ["Risiko Score", summary.riskScore],
+    ]),
+    "## Cluster",
+    "",
+    markdownTable(
+      ["Cluster", "Datacenter", "Hosts", "HA", "DRS", "CPU Cores", "RAM"],
+      sortByName(data.clusters, (cluster) => cluster.name).map((cluster) => [
+        cluster.name,
+        cluster.datacenter,
+        cluster.numHosts,
+        bool(cluster.haEnabled),
+        bool(cluster.drsEnabled),
+        cluster.numCpuCores,
+        formatBytes(cluster.totalMemoryMiB),
+      ]),
+    ),
+    "## Datastores",
+    "",
+    markdownTable(
+      ["Datastore", "Cluster", "Typ", "Kapazität", "Frei", "Frei %"],
+      [...data.datastores]
+        .sort((a, b) => (a.freePct ?? Number.POSITIVE_INFINITY) - (b.freePct ?? Number.POSITIVE_INFINITY))
+        .map((ds) => [ds.name, ds.clusterName, ds.type, formatBytes(ds.capacityMiB), formatBytes(ds.freeMiB), formatPct(ds.freePct)]),
+    ),
+    "## Health-Events",
+    "",
+    markdownTable(
+      ["Entity", "Typ", "Meldung"],
+      data.health.map((event) => [event.entity, event.messageType, event.message]),
     ),
   ].join("\n");
 }
