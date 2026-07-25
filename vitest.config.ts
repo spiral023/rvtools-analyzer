@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { VitePWA } from "vite-plugin-pwa";
+import { pwaOptions } from "./pwa.config";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), VitePWA(pwaOptions)],
   test: {
     environment: "jsdom",
     globals: true,
