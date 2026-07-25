@@ -20,7 +20,7 @@ import { useWhatIf } from "@/hooks/useWhatIf";
 import { PLANNING_COLUMNS, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
 import { getScenarioTargetDisplay } from "@/lib/scenarioTargets";
 import { getRangeKeys } from "@/lib/selectionRange";
-import { coloredNum, coloredPct, siteFailoverBadge } from "@/lib/metricColor";
+import { coloredNum, coloredPct, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { id: "__selection", header: "", enableSorting: false, size: 40 },
@@ -105,9 +105,12 @@ export function ClusterPlanningPanel() {
             {whatIfResult && whatIfResult.clusters.length > 0 && <div className="space-y-2"><InfoTooltip entry={PLANNING_SECTIONS.whatIf} side="bottom"><h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">What-If Zusammenfassung</h3></InfoTooltip><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{whatIfResult.clusters.slice(0, 4).map((cluster) => <Card key={cluster.clusterKey} className="space-y-1 p-3">
               <p className="truncate text-xs font-medium">{cluster.clusterName}</p>
               <p className="text-xs text-muted-foreground">CPU-Auslastung: {coloredPct(cluster.before.cpuUsagePct, 40, 50)} → {coloredPct(cluster.after.cpuUsagePct, 40, 50)}</p>
+              <p className="text-xs text-muted-foreground">RAM-Auslastung: {coloredPct(cluster.before.memoryUsagePct, 50, 70)} → {coloredPct(cluster.after.memoryUsagePct, 50, 70)}</p>
               <p className="text-xs text-muted-foreground">vCPU/Core: {coloredNum(cluster.before.vcpuPerCore, 4, 5)} → {coloredNum(cluster.after.vcpuPerCore, 4, 5)}</p>
               <p className="text-xs text-muted-foreground">RAM-Commit: {coloredPct(cluster.before.ramCommitPct, 50, 70)} → {coloredPct(cluster.after.ramCommitPct, 50, 70)}</p>
-              {cluster.vropsRamAssignedHighPctBefore !== null && <p className="text-xs text-muted-foreground">HIGH-RP RAM: {coloredPct(cluster.vropsRamAssignedHighPctBefore, 45, 50, 0)} → {coloredPct(cluster.vropsRamAssignedHighPctAfter, 45, 50, 0)} · {siteFailoverBadge(cluster.siteFailoverRiskAfter)}</p>}
+              <p className="text-xs text-muted-foreground">Risiko: {severityBadge(String(cluster.before.riskScore), riskSeverity(cluster.before.risk))} → {severityBadge(String(cluster.after.riskScore), riskSeverity(cluster.after.risk))}</p>
+              <p className="text-xs text-muted-foreground">Ausfallskapazität: <span className={maxHostFailuresClassName(cluster.before.maxHostFailures)}>{cluster.before.maxHostFailures}</span> → <span className={maxHostFailuresClassName(cluster.after.maxHostFailures)}>{cluster.after.maxHostFailures}</span> von {cluster.after.hosts}</p>
+              {cluster.vropsRamAssignedHighPctBefore !== null && <p className="text-xs text-muted-foreground">HIGH-RP RAM: {coloredPct(cluster.vropsRamAssignedHighPctBefore, 45, 50, 0)} → {coloredPct(cluster.vropsRamAssignedHighPctAfter, 45, 50, 0)} · {siteFailoverBadge(cluster.siteFailoverRiskBefore)} → {siteFailoverBadge(cluster.siteFailoverRiskAfter)}</p>}
             </Card>)}</div></div>}
           </> : <Card className="p-8 text-center text-sm text-muted-foreground">Wählen Sie ein Szenario aus oder erstellen Sie ein neues, um zu beginnen.</Card>}
           <div><InfoTooltip entry={PLANNING_SECTIONS.vmSelection} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Auswahl</h3></InfoTooltip><VirtualTable data={vms} columns={vmColumns} selectionEnabled getRowId={(vm) => vm.vmKey} selectedKeys={selectedVmKeys} onToggleRow={(vmKey, shiftKey, sortedKeys, index) => { if (shiftKey && anchorIndexRef.current >= 0) { const keys = getRangeKeys(sortedKeys, anchorIndexRef.current, index); if (keys.every((key) => selectedVmKeys.has(key))) deselectMany(keys); else selectMany(keys); } else { toggleVm(vmKey); anchorIndexRef.current = index; } }} onToggleAll={(selectAll) => { if (selectAll) selectMany(allVmKeys); else clear(); }} height={500} /></div>

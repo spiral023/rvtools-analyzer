@@ -90,6 +90,32 @@ describe("VariantDetailDialog", () => {
     expect(onSelectCluster).toHaveBeenCalledWith(clusterHost);
   });
 
+  it("öffnet die Cluster-Detailansicht beim Klick auf das Cluster-Label eines Hosts (statt die Host-Ansicht)", () => {
+    const VariantDetailDialog = (HardwareModule as unknown as {
+      VariantDetailDialog?: ComponentType<VariantDetailDialogProps>;
+    }).VariantDetailDialog;
+
+    expect(VariantDetailDialog).toBeDefined();
+    if (!VariantDetailDialog) return;
+
+    const onSelectCluster = vi.fn();
+    const onSelectHost = vi.fn();
+    render(
+      <VariantDetailDialog
+        group={group}
+        open
+        onClose={vi.fn()}
+        onSelectHost={onSelectHost}
+        onSelectCluster={onSelectCluster}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cluster Production öffnen" }));
+
+    expect(onSelectCluster).toHaveBeenCalledWith(clusterHost);
+    expect(onSelectHost).not.toHaveBeenCalled();
+  });
+
   it("öffnet die Cluster-Detailansicht über einen Cluster-Chip", () => {
     const ModelCard = (HardwareModule as unknown as {
       ModelCard?: ComponentType<ModelCardProps>;

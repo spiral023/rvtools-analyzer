@@ -46,7 +46,6 @@ interface ClusterInfrastructurePanelProps {
 
 const hostColumns: ColumnDef<InfrastructureHostRow, unknown>[] = [
   { accessorKey: "vcenterId", header: "vCenter" },
-  { accessorKey: "datacenter", header: "Datacenter" },
   { accessorKey: "host", header: "Host", meta: { info: HOST_COLUMNS.host } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: HOST_COLUMNS.cluster } },
   { accessorKey: "version", header: "ESXi Version", meta: { info: HOST_COLUMNS.version } },
@@ -59,7 +58,6 @@ const hostColumns: ColumnDef<InfrastructureHostRow, unknown>[] = [
 
 const driverColumns: ColumnDef<DriverRow, unknown>[] = [
   { accessorKey: "vcenterId", header: "vCenter" },
-  { accessorKey: "datacenter", header: "Datacenter" },
   { accessorKey: "host", header: "Host", meta: { info: DRIVER_COLUMNS.host } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: DRIVER_COLUMNS.cluster } },
   { accessorKey: "device", header: "Device", meta: { info: DRIVER_COLUMNS.device } },

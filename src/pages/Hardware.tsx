@@ -586,20 +586,36 @@ export function VariantDetailDialog({
               </h4>
               <div className="space-y-1">
                 {sortedHosts.map((h) => (
-                  <button
-                    type="button"
+                  <div
                     key={h.host}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelectHost(h)}
-                    className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent/60 transition-colors group/row"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); onSelectHost(h); }
+                    }}
+                    className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent/60 transition-colors group/row focus-visible:outline-none focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   >
                     <span className="font-mono-data text-xs truncate">{h.host}</span>
                     <span className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                      <span>{h.cluster || NO_CLUSTER_LABEL}</span>
+                      {h.cluster ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onSelectCluster(h); }}
+                          className="rounded px-1 -mx-1 hover:bg-muted hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`Cluster ${h.cluster} öffnen`}
+                          title="Cluster-Details öffnen"
+                        >
+                          {h.cluster}
+                        </button>
+                      ) : (
+                        <span>{NO_CLUSTER_LABEL}</span>
+                      )}
                       <span className="font-mono-data">{formatMemory(h.memoryMiB)}</span>
                       <span className="font-mono-data">{h.vmCount} VMs</span>
                       <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover/row:opacity-100 transition-opacity" />
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </section>
@@ -954,7 +970,7 @@ export default function Hardware() {
           : barMetric === "ghz" ? summary.totalGhz
           : summary.totalRamMiB;
         return {
-          name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${formatMemorySummary(g.memoryValuesMiB, g.memoryMiB)}`,
+          name: `${g.modelLabel || "Unknown"} · ${g.totalCores || 0}C · ${formatCpuClock(g.speedMHz)} · ${formatMemorySummary(g.memoryValuesMiB, g.memoryMiB)}`,
           value,
         };
       }),
@@ -1066,7 +1082,7 @@ export default function Hardware() {
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={280}
+                  width={336}
                   tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }}
                 />
                 <Tooltip

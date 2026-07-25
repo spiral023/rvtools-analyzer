@@ -8,7 +8,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { buildClusterDensityChart, buildClusterOverviewKpis, buildRiskChart, buildTopChartRows, buildVmDistributionChart, type ClusterOverviewRow } from "@/lib/clusterWorkspace";
+import { buildClusterDensityChart, buildClusterOverviewKpis, buildRiskChart, buildTopChartRows, buildVmDistributionChart, type ClusterDensityPoint, type ClusterOverviewRow } from "@/lib/clusterWorkspace";
 import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
 import type { ClusterOsDistributionRow, VmOsSource } from "@/lib/vmOsDistribution";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
@@ -97,6 +97,29 @@ function osColumns(vcenterDisplayNames: Map<string, string>, source: VmOsSource)
   ];
 }
 
+function ClusterDensityTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: ClusterDensityPoint }>;
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-mono-data font-semibold text-popover-foreground">{point.cluster}</p>
+      <p className="mt-0.5 text-muted-foreground">{point.vcenterDisplayName} · {point.datacenter}</p>
+      <div className="mt-2 grid grid-cols-3 gap-x-3 text-muted-foreground">
+        <span>Ø VMs/Host: <strong className="text-popover-foreground">{formatNum(point.avgVmsPerHost)}</strong></span>
+        <span>vCPU/Core: <strong className="text-popover-foreground">{point.vcpuPerCore.toFixed(2)}</strong></span>
+        <span>Laufende VMs: <strong className="text-popover-foreground">{formatNum(point.runningVms)}</strong></span>
+      </div>
+    </div>
+  );
+}
+
 function ChartCard({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -167,10 +190,10 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
               <XAxis type="number" dataKey="avgVmsPerHost" name="Ø VMs/Host" tick={CHART_AXIS_STYLE} label={{ value: "Ø VMs je Host", position: "insideBottom", offset: -8, ...CHART_AXIS_STYLE }} />
               <YAxis type="number" dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", ...CHART_AXIS_STYLE }} />
               <ZAxis type="number" dataKey="runningVms" range={[80, 420]} name="Laufende VMs" />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} cursor={{ strokeDasharray: "3 3" }} formatter={(value: number, name: string) => [formatNum(value), name]} labelFormatter={(_, payload) => {
-                const point = payload[0]?.payload;
-                return point ? `Cluster: ${point.cluster} · ${point.vcenterDisplayName} · ${point.datacenter}` : "";
-              }} />
+              <Tooltip
+                cursor={{ strokeDasharray: "3 3" }}
+                content={(props) => <ClusterDensityTooltip active={props.active} payload={props.payload as Array<{ payload?: ClusterDensityPoint }> | undefined} />}
+              />
               <Scatter data={density} name="Cluster">
                 {density.map((point) => <Cell key={point.clusterKey} fill={riskColor(point.risk)} />)}
               </Scatter>
