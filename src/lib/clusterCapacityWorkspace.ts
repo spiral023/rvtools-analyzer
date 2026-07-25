@@ -24,6 +24,8 @@ export interface ClusterCapacityRow {
   clusterMemoryDeltaPct: number | null;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
+  /** Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core oder RAM Commit % auf Rot springen. */
+  maxHostFailures: number;
   /** vROps-Ist-Werte des Ausfallskonzepts (HIGH_RP/STD, Standort 50/50) — `null` ohne vROps-Import. */
   vropsRamAssignedHighPct: number | null;
   vropsRamUsageHighPct: number | null;
@@ -187,7 +189,7 @@ export function buildClusterCapacityWorkspace(input: ClusterCapacityWorkspaceInp
       hotHosts: aggregate.hotHosts, drsEnabled: cluster.drsEnabled, haEnabled: cluster.haEnabled,
       clusterHostDelta: cluster.numHosts != null ? aggregate.hosts - cluster.numHosts : null,
       clusterMemoryDeltaPct: cluster.totalMemoryMiB ? round(((aggregate.totalMemoryMiB - cluster.totalMemoryMiB) / cluster.totalMemoryMiB) * 100, 1) : null,
-      riskScore: metrics.riskScore, risk: metrics.risk,
+      riskScore: metrics.riskScore, risk: metrics.risk, maxHostFailures: metrics.maxHostFailures,
       vropsRamAssignedHighPct: vrops?.ramAssignedHighPct ?? null,
       vropsRamUsageHighPct: vrops?.ramUsageHighPct ?? null,
       vropsCpuUsageHighPct: vrops?.cpuUsageHighPct ?? null,

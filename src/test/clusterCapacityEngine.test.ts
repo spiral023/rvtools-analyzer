@@ -3,6 +3,7 @@ import {
   aggregateCluster,
   applyVmMoves,
   classifyVmFailoverGroup,
+  computeMaxHostFailures,
   computeSiteFailoverRisk,
   estimateVmLoad,
   emptyAggregate,
@@ -254,6 +255,41 @@ describe("classifyVmFailoverGroup", () => {
     expect(classifyVmFailoverGroup("/LNZ9910/CL_LNZ_SRV_9910_Linux02/Resources")).toBe("unknown");
     expect(classifyVmFailoverGroup(null)).toBe("unknown");
     expect(classifyVmFailoverGroup("")).toBe("unknown");
+  });
+});
+
+describe("computeMaxHostFailures", () => {
+  it("liefert 0 ohne bzw. mit nur einem Host", () => {
+    expect(computeMaxHostFailures({ ...emptyAggregate(), hosts: 0 })).toBe(0);
+    expect(computeMaxHostFailures({ ...emptyAggregate(), hosts: 1, totalCores: 10, totalMemoryMiB: 100000 })).toBe(0);
+  });
+
+  it("liefert 0, wenn schon ein einzelner Host-Ausfall CPU % über die 50%-Rot-Grenze treibt", () => {
+    // 2 Hosts × 10 Cores/100000 MiB, CPU 50 %/RAM 60 % Ist-Auslastung → nach 1 Ausfall CPU 100 %.
+    const rows: SheetRow[] = [hostRow({ Host: "esx-1" }), hostRow({ Host: "esx-2" })];
+    const agg = aggregateCluster("A", rows);
+    expect(computeMaxHostFailures(agg)).toBe(0);
+  });
+
+  it("findet die Metrik, die zuerst über ihre Rot-Grenze kippt (hier RAM Commit % bei 3 von 4 Ausfällen)", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 4, totalCores: 40, totalMemoryMiB: 400000,
+      cpuUsedCoreEquiv: 4, memConsumedMiB: 40000, vcpus: 32, vRamMiB: 80000,
+    };
+    // 1 Ausfall: CPU 13,3 %, RAM 13,3 %, vCPU/Core 1,07, RAM Commit 26,7 % — alle grün.
+    // 2 Ausfälle: CPU 20 %, RAM 20 %, vCPU/Core 1,6, RAM Commit 40 % — alle grün.
+    // 3 Ausfälle: RAM Commit 80 % ≥ 70 % Rot-Grenze → maximal 2 Ausfälle verkraftbar.
+    expect(computeMaxHostFailures(agg)).toBe(2);
+  });
+
+  it("liefert hosts - 1, wenn selbst der Ausfall aller bis auf einen Host grün bleibt", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 3, totalCores: 300, totalMemoryMiB: 3_000_000,
+      cpuUsedCoreEquiv: 1, memConsumedMiB: 1000, vcpus: 10, vRamMiB: 10000,
+    };
+    expect(computeMaxHostFailures(agg)).toBe(2);
   });
 });
 

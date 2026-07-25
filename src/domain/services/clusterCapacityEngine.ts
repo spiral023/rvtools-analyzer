@@ -12,6 +12,18 @@ export const CAPACITY_THRESHOLDS = {
   swapBalloon: { warn: 2, danger: 5 },
 } as const;
 
+/**
+ * Schwellenwerte der Ampel-Spalten in der Cluster-Capacity-Health-Tabelle (CPU %, RAM %,
+ * vCPU/Core, RAM Commit %) — sichtbare Rot-Grenze je Metrik, siehe {@link CAPACITY_HEALTH_COLUMNS}
+ * in `lib/glossaries/capacity.ts`. Basis für {@link computeMaxHostFailures}.
+ */
+export const HEALTH_COLUMN_THRESHOLDS = {
+  cpuUsage: { warn: 40, danger: 50 },
+  memoryUsage: { warn: 50, danger: 70 },
+  vcpuPerCore: { warn: 4, danger: 5 },
+  ramCommit: { warn: 50, danger: 70 },
+} as const;
+
 export interface ClusterAggregate {
   hosts: number;
   totalCores: number;
@@ -117,6 +129,8 @@ export interface ClusterMetrics {
   swapBalloonPct: number;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
+  /** Siehe {@link computeMaxHostFailures}. */
+  maxHostFailures: number;
   projected: boolean;
   incompleteVmCount: number;
 }
@@ -231,6 +245,38 @@ function round(value: number, decimals: number): number {
   return Math.round(value * f) / f;
 }
 
+/**
+ * Simuliert den gleichzeitigen Ausfall von 1..hosts-1 ESXi-Hosts: die Ist-Last (genutzte
+ * Cores, belegtes RAM, vCPUs, zugewiesenes RAM) bleibt konstant und verteilt sich auf die
+ * verbleibenden Hosts (HA-Restart), während sich die Kapazität (Cores/RAM) proportional zur
+ * Hostzahl reduziert (Annahme: homogene Hosts). Ergebnis: die größte Anzahl gleichzeitiger
+ * Host-Ausfälle, die der Cluster verkraftet, bevor CPU %, RAM %, vCPU/Core oder RAM Commit %
+ * in der Health-Tabelle auf Rot springen ({@link HEALTH_COLUMN_THRESHOLDS}).
+ */
+export function computeMaxHostFailures(agg: ClusterAggregate): number {
+  const hosts = agg.hosts;
+  if (hosts <= 1) return 0;
+  const t = HEALTH_COLUMN_THRESHOLDS;
+  for (let failed = 1; failed < hosts; failed++) {
+    const factor = (hosts - failed) / hosts;
+    const remainingCores = agg.totalCores * factor;
+    const remainingMemoryMiB = agg.totalMemoryMiB * factor;
+    const cpuUsagePct = pct(agg.cpuUsedCoreEquiv, remainingCores);
+    const memoryUsagePct = pct(agg.memConsumedMiB, remainingMemoryMiB);
+    const vcpuPerCore = remainingCores > 0 ? agg.vcpus / remainingCores : Number.POSITIVE_INFINITY;
+    const ramCommitPct = pct(agg.vRamMiB, remainingMemoryMiB);
+    if (
+      cpuUsagePct >= t.cpuUsage.danger
+      || memoryUsagePct >= t.memoryUsage.danger
+      || vcpuPerCore >= t.vcpuPerCore.danger
+      || ramCommitPct >= t.ramCommit.danger
+    ) {
+      return failed - 1;
+    }
+  }
+  return hosts - 1;
+}
+
 export function metricsFromAggregate(
   agg: ClusterAggregate,
   opts: {
@@ -330,6 +376,7 @@ export function metricsFromAggregate(
     swapBalloonPct: round(swapBalloonPct, 2),
     riskScore,
     risk,
+    maxHostFailures: computeMaxHostFailures(agg),
     projected: opts.projected,
     incompleteVmCount: opts.incompleteVmCount ?? 0,
   };

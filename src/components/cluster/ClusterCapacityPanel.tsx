@@ -38,6 +38,11 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     </span>
   ) },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CAPACITY_HEALTH_COLUMNS.hosts } },
+  { accessorKey: "maxHostFailures", header: "Ausfallskapazität", meta: { info: CAPACITY_HEALTH_COLUMNS.maxHostFailures }, cell: ({ row }) => {
+    const { maxHostFailures, hosts } = row.original;
+    const className = maxHostFailures <= 0 ? "text-destructive font-semibold" : maxHostFailures === 1 ? "text-warning font-semibold" : "text-success font-semibold";
+    return <span className={className}>{maxHostFailures} von {hosts}</span>;
+  } },
   { accessorKey: "totalCores", header: "Cores", meta: { info: CAPACITY_HEALTH_COLUMNS.totalCores } },
   { accessorKey: "totalVms", header: "VMs", meta: { info: CAPACITY_HEALTH_COLUMNS.totalVms } },
   { accessorKey: "cpuUsagePct", header: "CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.cpuUsagePct }, cell: ({ getValue }) => coloredPct(getValue() as number, 40, 50) },

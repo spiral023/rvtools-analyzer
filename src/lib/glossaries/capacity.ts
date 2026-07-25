@@ -411,6 +411,12 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
       "Anzahl kritisch ausgelasteter Hosts im Verhältnis zur Gesamtzahl (z.B. 2/8). Ein hoher Anteil deutet auf schlechten Lastausgleich oder generelle Überlast hin.",
     source: "berechnet · vHost",
   },
+  maxHostFailures: {
+    term: "Ausfallskapazität",
+    description:
+      "Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core oder RAM Commit % in dieser Tabelle auf Rot springen — die Ist-Last verteilt sich dabei per HA auf die verbleibenden Hosts. 0 bedeutet: schon ein einzelner Host-Ausfall reißt eine Kennzahl ins Rote.",
+    source: "berechnet · vHost",
+  },
   drsEnabled: {
     term: "DRS",
     description:
