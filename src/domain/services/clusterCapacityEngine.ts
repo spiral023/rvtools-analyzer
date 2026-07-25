@@ -14,14 +14,17 @@ export const CAPACITY_THRESHOLDS = {
 
 /**
  * Schwellenwerte der Ampel-Spalten in der Cluster-Capacity-Health-Tabelle (CPU %, RAM %,
- * vCPU/Core, RAM Commit %) — sichtbare Rot-Grenze je Metrik, siehe {@link CAPACITY_HEALTH_COLUMNS}
- * in `lib/glossaries/capacity.ts`. Basis für {@link computeMaxHostFailures}.
+ * vCPU/Core, RAM Commit %, HIGH-RP CPU %, HIGH-RP RAM-Nutzung %) — sichtbare Rot-Grenze je
+ * Metrik, siehe {@link CAPACITY_HEALTH_COLUMNS} in `lib/glossaries/capacity.ts`. Basis für
+ * {@link computeMaxHostFailures}.
  */
 export const HEALTH_COLUMN_THRESHOLDS = {
   cpuUsage: { warn: 40, danger: 50 },
   memoryUsage: { warn: 50, danger: 70 },
   vcpuPerCore: { warn: 4, danger: 5 },
   ramCommit: { warn: 50, danger: 70 },
+  cpuUsageHigh: { warn: 35, danger: 45 },
+  ramUsageHigh: { warn: 45, danger: 50 },
 } as const;
 
 export interface ClusterAggregate {
@@ -257,14 +260,22 @@ function round(value: number, decimals: number): number {
   return Math.round(value * f) / f;
 }
 
-export type HealthColumnMetric = "cpuUsage" | "memoryUsage" | "vcpuPerCore" | "ramCommit";
+export type HealthColumnMetric = "cpuUsage" | "memoryUsage" | "vcpuPerCore" | "ramCommit" | "cpuUsageHigh" | "ramUsageHigh";
 
 const HEALTH_COLUMN_LABELS: Record<HealthColumnMetric, string> = {
   cpuUsage: "CPU %",
   memoryUsage: "RAM %",
   vcpuPerCore: "vCPU/Core",
   ramCommit: "RAM Commit %",
+  cpuUsageHigh: "HIGH-RP CPU %",
+  ramUsageHigh: "HIGH-RP RAM-Nutzung %",
 };
+
+/** vROps-Ist-Werte, die zusätzlich zur Ist-Last in die Host-Ausfall-Simulation einfließen. */
+export interface HostFailureVropsInput {
+  cpuUsageHighPct: number | null;
+  ramUsageHighPct: number | null;
+}
 
 /** Eine Health-Tabellen-Metrik, die beim nächsten Host-Ausfall ihre Rot-Grenze überschreiten würde. */
 export interface HostFailureBreach {
@@ -287,12 +298,14 @@ export interface HostFailureCapacity {
  * Simuliert den gleichzeitigen Ausfall von 1..hosts-1 ESXi-Hosts: die Ist-Last (genutzte
  * Cores, belegtes RAM, vCPUs, zugewiesenes RAM) bleibt konstant und verteilt sich auf die
  * verbleibenden Hosts (HA-Restart), während sich die Kapazität (Cores/RAM) proportional zur
- * Hostzahl reduziert (Annahme: homogene Hosts). Ergebnis: die größte Anzahl gleichzeitiger
- * Host-Ausfälle, die der Cluster verkraftet, bevor CPU %, RAM %, vCPU/Core oder RAM Commit %
- * in der Health-Tabelle auf Rot springen ({@link HEALTH_COLUMN_THRESHOLDS}), plus die Metrik(en),
- * die den Ausschlag geben würde(n).
+ * Hostzahl reduziert (Annahme: homogene Hosts). Liegen vROps-Ausfallskonzept-Werte vor, werden
+ * zusätzlich HIGH-RP CPU % und HIGH-RP RAM-Nutzung % nach demselben Prinzip hochskaliert (sie
+ * sind bereits relativ zur Gesamt-Cluster-Kapazität, daher `wert / factor`). Ergebnis: die
+ * größte Anzahl gleichzeitiger Host-Ausfälle, die der Cluster verkraftet, bevor CPU %, RAM %,
+ * vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM-Nutzung % auf Rot springen
+ * ({@link HEALTH_COLUMN_THRESHOLDS}), plus die Metrik(en), die den Ausschlag geben würde(n).
  */
-export function computeHostFailureCapacity(agg: ClusterAggregate): HostFailureCapacity {
+export function computeHostFailureCapacity(agg: ClusterAggregate, vrops?: HostFailureVropsInput | null): HostFailureCapacity {
   const hosts = agg.hosts;
   if (hosts <= 1) return { maxHostFailures: 0, breaches: [] };
   const t = HEALTH_COLUMN_THRESHOLDS;
@@ -300,18 +313,20 @@ export function computeHostFailureCapacity(agg: ClusterAggregate): HostFailureCa
     const factor = (hosts - failed) / hosts;
     const remainingCores = agg.totalCores * factor;
     const remainingMemoryMiB = agg.totalMemoryMiB * factor;
-    const values: Record<HealthColumnMetric, number> = {
+    const values: Partial<Record<HealthColumnMetric, number>> = {
       cpuUsage: pct(agg.cpuUsedCoreEquiv, remainingCores),
       memoryUsage: pct(agg.memConsumedMiB, remainingMemoryMiB),
       vcpuPerCore: remainingCores > 0 ? agg.vcpus / remainingCores : Number.POSITIVE_INFINITY,
       ramCommit: pct(agg.vRamMiB, remainingMemoryMiB),
     };
+    if (vrops?.cpuUsageHighPct != null) values.cpuUsageHigh = vrops.cpuUsageHighPct / factor;
+    if (vrops?.ramUsageHighPct != null) values.ramUsageHigh = vrops.ramUsageHighPct / factor;
     const breaches = (Object.keys(values) as HealthColumnMetric[])
-      .filter((metric) => values[metric] >= t[metric].danger)
+      .filter((metric) => values[metric]! >= t[metric].danger)
       .map((metric) => ({
         metric,
         label: HEALTH_COLUMN_LABELS[metric],
-        value: round(values[metric], metric === "vcpuPerCore" ? 2 : 1),
+        value: round(values[metric]!, metric === "vcpuPerCore" ? 2 : 1),
         danger: t[metric].danger,
       }));
     if (breaches.length > 0) return { maxHostFailures: failed - 1, breaches };
@@ -319,8 +334,8 @@ export function computeHostFailureCapacity(agg: ClusterAggregate): HostFailureCa
   return { maxHostFailures: hosts - 1, breaches: [] };
 }
 
-export function computeMaxHostFailures(agg: ClusterAggregate): number {
-  return computeHostFailureCapacity(agg).maxHostFailures;
+export function computeMaxHostFailures(agg: ClusterAggregate, vrops?: HostFailureVropsInput | null): number {
+  return computeHostFailureCapacity(agg, vrops).maxHostFailures;
 }
 
 export function metricsFromAggregate(
@@ -340,7 +355,10 @@ export function metricsFromAggregate(
   const ramCommitPct = pct(agg.vRamMiB, agg.totalMemoryMiB);
   const ramActivePct = pct(agg.vmActiveMiB, agg.totalMemoryMiB);
   const swapBalloonPct = pct(agg.swapBalloonMiB, agg.totalMemoryMiB);
-  const hostFailureCapacity = computeHostFailureCapacity(agg);
+  const hostFailureCapacity = computeHostFailureCapacity(
+    agg,
+    opts.vrops ? { cpuUsageHighPct: opts.vrops.cpuUsageHighPct, ramUsageHighPct: opts.vrops.ramUsageHighPct } : null,
+  );
 
   const cpuSpread = Number.isFinite(agg.cpuMin) && Number.isFinite(agg.cpuMax) ? agg.cpuMax - agg.cpuMin : 0;
   const memSpread = Number.isFinite(agg.memMin) && Number.isFinite(agg.memMax) ? agg.memMax - agg.memMin : 0;

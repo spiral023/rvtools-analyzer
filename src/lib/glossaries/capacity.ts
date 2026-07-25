@@ -414,8 +414,8 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   maxHostFailures: {
     term: "Ausfallskapazität",
     description:
-      "Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core oder RAM Commit % in dieser Tabelle auf Rot springen — die Ist-Last verteilt sich dabei per HA auf die verbleibenden Hosts. 0 bedeutet: schon ein einzelner Host-Ausfall reißt eine Kennzahl ins Rote.",
-    source: "berechnet · vHost",
+      "Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM-Nutzung % in dieser Tabelle auf Rot springen — die Ist-Last verteilt sich dabei per HA auf die verbleibenden Hosts. 0 bedeutet: schon ein einzelner Host-Ausfall reißt eine Kennzahl ins Rote. Die beiden HIGH-RP-Metriken fließen nur ein, wenn ein vROps-Import für den Cluster vorliegt.",
+    source: "berechnet · vHost + vROps-Dashboard-Export",
   },
   drsEnabled: {
     term: "DRS",
@@ -456,13 +456,13 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   vropsCpuUsageHighPct: {
     term: "HIGH-RP CPU %",
     description:
-      "CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Kapazität. Analog zu HIGH-RP RAM %: da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 40 % (gelb) bzw. 50 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
+      "CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Kapazität. Analog zu HIGH-RP RAM %: da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 35 % (gelb) bzw. 45 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs. Fließt mit denselben Schwellwerten in die Ausfallskapazität-Simulation ein.",
     source: "vROps-Dashboard-Export · Panel 4",
   },
   vropsRamUsageHighPct: {
     term: "HIGH-RP RAM-Nutzung %",
     description:
-      "RAM-Nutzung der HIGH-RP-VMs relativ zu ihrem eigenen Resource-Pool-Kontingent. Ab 80 % (gelb) bzw. 90 % (rot) ist der HIGH-Pool selbst unter Druck — unabhängig vom Standort-Ausfallszenario.",
+      "RAM-Nutzung der HIGH-RP-VMs relativ zu ihrem eigenen Resource-Pool-Kontingent. Ab 45 % (gelb) bzw. 50 % (rot) ist der HIGH-Pool selbst unter Druck. Fließt mit denselben Schwellwerten in die Ausfallskapazität-Simulation ein.",
     source: "vROps-Dashboard-Export · Panel 1",
   },
 };

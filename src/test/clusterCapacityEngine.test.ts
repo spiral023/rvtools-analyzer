@@ -325,6 +325,34 @@ describe("computeHostFailureCapacity", () => {
     expect(result.maxHostFailures).toBe(0);
     expect(result.breaches.map((b) => b.metric).sort()).toEqual(["cpuUsage", "memoryUsage", "ramCommit"]);
   });
+
+  it("berücksichtigt HIGH-RP CPU %/RAM-Nutzung % aus vROps, wenn übergeben", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 4, totalCores: 400, totalMemoryMiB: 4_000_000,
+      cpuUsedCoreEquiv: 1, memConsumedMiB: 1000, vcpus: 10, vRamMiB: 10000,
+    };
+    // Ohne vROps-Werte bleiben alle Ist-Metriken grün bis hosts-1 Ausfälle.
+    expect(computeHostFailureCapacity(agg).maxHostFailures).toBe(3);
+
+    // HIGH-RP RAM-Nutzung 26 % → bei 1 Ausfall (factor 0,75) 34,7 %, bei 2 Ausfällen (factor 0,5) 52 % ≥ 50 % Rot-Grenze.
+    const result = computeHostFailureCapacity(agg, { cpuUsageHighPct: null, ramUsageHighPct: 26 });
+    expect(result.maxHostFailures).toBe(1);
+    expect(result.breaches).toEqual([
+      { metric: "ramUsageHigh", label: "HIGH-RP RAM-Nutzung %", value: 52, danger: 50 },
+    ]);
+  });
+
+  it("ignoriert vROps-Werte, die null sind", () => {
+    const agg = {
+      ...emptyAggregate(),
+      hosts: 3, totalCores: 300, totalMemoryMiB: 3_000_000,
+      cpuUsedCoreEquiv: 1, memConsumedMiB: 1000, vcpus: 10, vRamMiB: 10000,
+    };
+    const result = computeHostFailureCapacity(agg, { cpuUsageHighPct: null, ramUsageHighPct: null });
+    expect(result.maxHostFailures).toBe(2);
+    expect(result.breaches).toEqual([]);
+  });
 });
 
 describe("computeSiteFailoverRisk", () => {

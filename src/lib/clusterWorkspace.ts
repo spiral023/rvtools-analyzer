@@ -10,6 +10,7 @@ import {
   aggregateCluster,
   groupVHostRowsByCluster,
   metricsFromAggregate,
+  type RiskFactor,
 } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
@@ -41,6 +42,12 @@ export interface ClusterOverviewRow {
   ramCommitPct: number;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
+  /** Alle ausgelösten Risk-Score-Beiträge, für den Risiko-Tooltip (identisch zur Kapazitäts-Tabelle). */
+  riskFactors: RiskFactor[];
+  /** `true`, wenn ein kritisches Site-Failover-Risiko die Einstufung auf „hoch“ erzwungen hat. */
+  siteFailoverOverride: boolean;
+  /** `true`, wenn kein vROps-Import für diesen Cluster vorliegt. */
+  vropsMissing: boolean;
 }
 
 export interface ClusterOverviewKpis {
@@ -223,6 +230,9 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
       ramCommitPct: metrics.ramCommitPct,
       riskScore: metrics.riskScore,
       risk: metrics.risk,
+      riskFactors: metrics.riskFactors,
+      siteFailoverOverride: metrics.siteFailoverOverride,
+      vropsMissing: vrops === null,
     } satisfies ClusterOverviewRow;
   }).sort((left, right) => (
     left.vcenterDisplayName.localeCompare(right.vcenterDisplayName)

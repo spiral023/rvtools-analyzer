@@ -1,4 +1,4 @@
-import type { HostFailureBreach } from "@/domain/services/clusterCapacityEngine";
+import type { HostFailureBreach, RiskFactor } from "@/domain/services/clusterCapacityEngine";
 
 /** Ampel-Farbe ab den übergebenen Schwellwerten (inklusive, "ab X"). */
 export function thresholdClass(value: number, warn: number, danger: number): string {
@@ -77,6 +77,34 @@ export function hostFailureTooltipText(hosts: number, maxHostFailures: number, b
 /** Ordnet die Gesamt-Risikoeinstufung der Ampel-Severity für Badges/Zellen zu. */
 export function riskSeverity(risk: "hoch" | "mittel" | "niedrig"): Severity {
   return risk === "hoch" ? "crit" : risk === "mittel" ? "warn" : "ok";
+}
+
+/** Aufschlüsselung des Risk-Scores in der Risiko-Tooltip — geteilt zwischen Kapazitäts- und Clusterübersicht-Tabelle, damit beide identisch dargestellt werden. */
+export function RiskTooltipContent({ riskScore, risk, riskFactors, siteFailoverOverride }: { riskScore: number; risk: "hoch" | "mittel" | "niedrig"; riskFactors: RiskFactor[]; siteFailoverOverride: boolean }) {
+  const sortedFactors = [...riskFactors].sort((a, b) => b.points - a.points);
+  return (
+    <div className="max-w-[44rem] whitespace-normal text-xs">
+      <p className="font-semibold text-popover-foreground">Score {riskScore} → {risk}</p>
+      {sortedFactors.length > 0 ? (
+        <ul className="mt-1.5 space-y-0.5">
+          {sortedFactors.map((factor) => (
+            <li key={factor.label} className="flex items-baseline justify-between gap-3">
+              <span>{factor.label}</span>
+              <span className="shrink-0 font-mono-data text-muted-foreground">+{factor.points}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-muted-foreground">Keine Risikofaktoren ausgelöst.</p>
+      )}
+      {siteFailoverOverride && (
+        <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">
+          Site-Failover-Risiko kritisch — erzwingt „hoch" unabhängig vom Score.
+        </p>
+      )}
+      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">Einstufung: ≥ 60 hoch · ≥ 30 mittel · sonst niedrig.</p>
+    </div>
+  );
 }
 
 /** Kleiner Hinweis-Badge, wenn kein vROps-Import für den Cluster vorliegt — verhindert, dass ein niedriger Risiko-Score als "Standortausfall sicher" missverstanden wird. */

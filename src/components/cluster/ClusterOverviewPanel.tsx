@@ -5,8 +5,8 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Scatter, Scatt
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
-import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { buildClusterDensityChart, buildClusterOverviewKpis, buildRiskChart, buildTopChartRows, buildVmDistributionChart, type ClusterDensityPoint, type ClusterOverviewRow } from "@/lib/clusterWorkspace";
 import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
@@ -16,6 +16,7 @@ import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CLUSTER_CHARTS, CLUSTER_KPI, CLUSTER_OS_COLUMNS, CLUSTER_OVERVIEW_COLUMNS } from "@/lib/glossaries/clusters";
+import { coloredNum, coloredPct, RiskTooltipContent, riskSeverity, severityBadge, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterOverviewPanelProps {
   rows: ClusterOverviewRow[];
@@ -63,14 +64,28 @@ const clusterColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
       return <span className={vcpuPerCoreSeverityClass(value)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}</span>;
     },
   },
-  { accessorKey: "ramCommitPct", header: "RAM Commit", meta: { info: CLUSTER_OVERVIEW_COLUMNS.ramCommitPct }, cell: ({ getValue }) => formatPct(getValue() as number) },
+  { accessorKey: "ramCommitPct", header: "RAM Commit", meta: { info: CLUSTER_OVERVIEW_COLUMNS.ramCommitPct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
   {
     accessorKey: "risk",
     header: "Risiko",
     meta: { info: CLUSTER_OVERVIEW_COLUMNS.risk },
-    cell: ({ row }) => <Badge variant={row.original.risk === "hoch" ? "destructive" : row.original.risk === "mittel" ? "secondary" : "outline"}>{row.original.risk}</Badge>,
+    cell: ({ row }) => (
+      <span className="inline-flex items-center gap-1.5">
+        <UiTooltip delayDuration={250}>
+          <UiTooltipTrigger asChild>
+            <span className="cursor-help underline decoration-dotted underline-offset-4">
+              {severityBadge(`${row.original.risk} (${row.original.riskScore})`, riskSeverity(row.original.risk))}
+            </span>
+          </UiTooltipTrigger>
+          <UiTooltipContent side="top">
+            <RiskTooltipContent riskScore={row.original.riskScore} risk={row.original.risk} riskFactors={row.original.riskFactors} siteFailoverOverride={row.original.siteFailoverOverride} />
+          </UiTooltipContent>
+        </UiTooltip>
+        {vropsMissingBadge(row.original.vropsMissing)}
+      </span>
+    ),
   },
-  { accessorKey: "riskScore", header: "Score", meta: { info: CLUSTER_OVERVIEW_COLUMNS.riskScore }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "riskScore", header: "Score", meta: { info: CLUSTER_OVERVIEW_COLUMNS.riskScore }, cell: ({ getValue }) => coloredNum(getValue() as number, 30, 60, 0) },
   {
     id: "haDrs",
     header: "HA / DRS",

@@ -54,7 +54,7 @@ describe("ImportedDataPreloadControl", () => {
 
     expect(await screen.findByRole("dialog", { name: "Importierte Daten werden vorgeladen" })).toBeInTheDocument();
     expect(document.querySelector(".backdrop-blur-md")).toBeInTheDocument();
-    expect(screen.getByText(/1–3 Minuten/)).toBeInTheDocument();
+    expect(screen.getByText(/10-30 Sekunden/)).toBeInTheDocument();
     expect(screen.getByText(/eine Stunde/)).toBeInTheDocument();
     expect(screen.getAllByText(/IndexedDB/)).toHaveLength(2);
     expect(screen.getByText("RVTools-Rohdaten: vCPU")).toBeInTheDocument();

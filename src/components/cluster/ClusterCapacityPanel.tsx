@@ -11,10 +11,10 @@ import { CHART_AXIS_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYL
 import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
 import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/licensing";
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
-import { SITE_FAILOVER_THRESHOLDS, type RiskFactor } from "@/domain/services/clusterCapacityEngine";
+import { SITE_FAILOVER_THRESHOLDS } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-import { coloredNum, coloredPct, coloredRatio, hostFailureTooltipText, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge, siteFailoverLabel, vropsMissingBadge } from "@/lib/metricColor";
+import { coloredNum, coloredPct, coloredRatio, hostFailureTooltipText, maxHostFailuresClassName, RiskTooltipContent, riskSeverity, severityBadge, siteFailoverBadge, siteFailoverLabel, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
   capacityRows: ClusterCapacityRow[];
@@ -35,33 +35,6 @@ function siteFailoverTooltipText(risk: "ok" | "warn" | "crit" | null, ramAssigne
   }
   const t = SITE_FAILOVER_THRESHOLDS.ramAssignedHigh;
   return `HIGH-RP RAM % liegt bei ${ramAssignedHighPct.toFixed(1)} % der Cluster-Kapazität. Fällt ein Standort aus (≈50 % der Hosts), müssen die HIGH-RP-VMs auf der halbierten Kapazität weiterlaufen: ab ${t.warn} % wird es knapp, ab ${t.danger} % reicht der Platz nicht mehr — aktuell „${siteFailoverLabel(risk)}".`;
-}
-
-function RiskTooltipContent({ riskScore, risk, riskFactors, siteFailoverOverride }: { riskScore: number; risk: "hoch" | "mittel" | "niedrig"; riskFactors: RiskFactor[]; siteFailoverOverride: boolean }) {
-  const sortedFactors = [...riskFactors].sort((a, b) => b.points - a.points);
-  return (
-    <div className="max-w-[44rem] whitespace-normal text-xs">
-      <p className="font-semibold text-popover-foreground">Score {riskScore} → {risk}</p>
-      {sortedFactors.length > 0 ? (
-        <ul className="mt-1.5 space-y-0.5">
-          {sortedFactors.map((factor) => (
-            <li key={factor.label} className="flex items-baseline justify-between gap-3">
-              <span>{factor.label}</span>
-              <span className="shrink-0 font-mono-data text-muted-foreground">+{factor.points}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 text-muted-foreground">Keine Risikofaktoren ausgelöst.</p>
-      )}
-      {siteFailoverOverride && (
-        <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">
-          Site-Failover-Risiko kritisch — erzwingt „hoch" unabhängig vom Score.
-        </p>
-      )}
-      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">Einstufung: ≥ 60 hoch · ≥ 30 mittel · sonst niedrig.</p>
-    </div>
-  );
 }
 
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
@@ -121,8 +94,8 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
       </UiTooltipContent>
     </UiTooltip>
   ) },
-  { accessorKey: "vropsCpuUsageHighPct", header: "HIGH-RP CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsCpuUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 40, 50, 0) },
-  { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM-Nutzung %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 80, 90, 0) },
+  { accessorKey: "vropsCpuUsageHighPct", header: "HIGH-RP CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsCpuUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 35, 45, 0) },
+  { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM-Nutzung %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
 ];
 
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [
