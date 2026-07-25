@@ -11,7 +11,7 @@ import { CHART_AXIS_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYL
 import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
 import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/licensing";
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
-import type { HostFailureBreach } from "@/domain/services/clusterCapacityEngine";
+import type { HostFailureBreach, RiskFactor } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { boolCell, coloredNum, coloredPct, coloredRatio, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
@@ -45,12 +45,48 @@ function hostFailureTooltipText(hosts: number, maxHostFailures: number, breaches
   return `Bei ${maxHostFailures + 1} gleichzeitigen Host-Ausfällen kippt ${breachText} ins Rote.`;
 }
 
+function RiskTooltipContent({ riskScore, risk, riskFactors, siteFailoverOverride }: { riskScore: number; risk: "hoch" | "mittel" | "niedrig"; riskFactors: RiskFactor[]; siteFailoverOverride: boolean }) {
+  const sortedFactors = [...riskFactors].sort((a, b) => b.points - a.points);
+  return (
+    <div className="max-w-[22rem] whitespace-normal text-xs">
+      <p className="font-semibold text-popover-foreground">Score {riskScore} → {risk}</p>
+      {sortedFactors.length > 0 ? (
+        <ul className="mt-1.5 space-y-0.5">
+          {sortedFactors.map((factor) => (
+            <li key={factor.label} className="flex items-baseline justify-between gap-3">
+              <span>{factor.label}</span>
+              <span className="shrink-0 font-mono-data text-muted-foreground">+{factor.points}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-muted-foreground">Keine Risikofaktoren ausgelöst.</p>
+      )}
+      {siteFailoverOverride && (
+        <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">
+          Site-Failover-Risiko kritisch — erzwingt „hoch" unabhängig vom Score.
+        </p>
+      )}
+      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">Einstufung: ≥ 60 hoch · ≥ 30 mittel · sonst niedrig.</p>
+    </div>
+  );
+}
+
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
   ...vcenterColumns,
   { accessorKey: "cluster", header: "Cluster", meta: { info: CAPACITY_HEALTH_COLUMNS.cluster } },
   { accessorKey: "risk", header: "Risiko", meta: { info: CAPACITY_HEALTH_COLUMNS.risk }, cell: ({ row }) => (
     <span className="inline-flex items-center gap-1.5">
-      {severityBadge(`${row.original.risk} (${row.original.riskScore})`, row.original.risk === "hoch" ? "crit" : row.original.risk === "mittel" ? "warn" : "ok")}
+      <UiTooltip delayDuration={250}>
+        <UiTooltipTrigger asChild>
+          <span className="cursor-help underline decoration-dotted underline-offset-4">
+            {severityBadge(`${row.original.risk} (${row.original.riskScore})`, row.original.risk === "hoch" ? "crit" : row.original.risk === "mittel" ? "warn" : "ok")}
+          </span>
+        </UiTooltipTrigger>
+        <UiTooltipContent side="top">
+          <RiskTooltipContent riskScore={row.original.riskScore} risk={row.original.risk} riskFactors={row.original.riskFactors} siteFailoverOverride={row.original.siteFailoverOverride} />
+        </UiTooltipContent>
+      </UiTooltip>
       {vropsMissingBadge(row.original.vropsMissing)}
     </span>
   ) },

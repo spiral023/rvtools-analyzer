@@ -113,6 +113,12 @@ export function classifyVmFailoverGroup(resourcePool: string | null): VmFailover
   return "unknown";
 }
 
+/** Ein einzelner Beitrag zum Risk-Score, mit dem konkreten Ist-Wert dieses Clusters im Label. */
+export interface RiskFactor {
+  label: string;
+  points: number;
+}
+
 export interface ClusterMetrics {
   clusterName: string;
   hosts: number;
@@ -129,6 +135,10 @@ export interface ClusterMetrics {
   swapBalloonPct: number;
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
+  /** Alle ausgelösten Risk-Score-Beiträge dieses Clusters, für die Risiko-Tooltip-Aufschlüsselung. */
+  riskFactors: RiskFactor[];
+  /** `true`, wenn ein kritisches Site-Failover-Risiko die Einstufung auf „hoch“ erzwungen hat, obwohl der Summen-Score darunter läge. */
+  siteFailoverOverride: boolean;
   /** Siehe {@link computeHostFailureCapacity}. */
   maxHostFailures: number;
   /** Metrik(en), die beim nächsten Host-Ausfall (maxHostFailures + 1) ins Rote kippen würden. */
@@ -339,63 +349,67 @@ export function metricsFromAggregate(
     ? ((agg.totalMemoryMiB - opts.clusterRef.totalMemoryMiB) / opts.clusterRef.totalMemoryMiB) * 100
     : null;
 
-  let riskScore = 0;
-  if (cpuUsagePct > CAPACITY_THRESHOLDS.cpuUsage.danger) riskScore += 25;
-  else if (cpuUsagePct > CAPACITY_THRESHOLDS.cpuUsage.warn) riskScore += 12;
-  if (memoryUsagePct > CAPACITY_THRESHOLDS.memoryUsage.danger) riskScore += 25;
-  else if (memoryUsagePct > CAPACITY_THRESHOLDS.memoryUsage.warn) riskScore += 12;
-  if (vcpuPerCore > CAPACITY_THRESHOLDS.vcpuPerCore.danger) riskScore += 20;
-  else if (vcpuPerCore > CAPACITY_THRESHOLDS.vcpuPerCore.warn) riskScore += 10;
-  if (ramCommitPct > CAPACITY_THRESHOLDS.ramCommit.danger) riskScore += 15;
-  else if (ramCommitPct > CAPACITY_THRESHOLDS.ramCommit.warn) riskScore += 8;
-  if (swapBalloonPct > CAPACITY_THRESHOLDS.swapBalloon.danger) riskScore += 20;
-  else if (swapBalloonPct > CAPACITY_THRESHOLDS.swapBalloon.warn) riskScore += 10;
+  const riskFactors: RiskFactor[] = [];
+  const addRiskFactor = (label: string, points: number) => riskFactors.push({ label, points });
+
+  if (cpuUsagePct > CAPACITY_THRESHOLDS.cpuUsage.danger) addRiskFactor(`CPU-Auslastung ${round(cpuUsagePct, 1)} % (> ${CAPACITY_THRESHOLDS.cpuUsage.danger} %)`, 25);
+  else if (cpuUsagePct > CAPACITY_THRESHOLDS.cpuUsage.warn) addRiskFactor(`CPU-Auslastung ${round(cpuUsagePct, 1)} % (> ${CAPACITY_THRESHOLDS.cpuUsage.warn} %)`, 12);
+  if (memoryUsagePct > CAPACITY_THRESHOLDS.memoryUsage.danger) addRiskFactor(`RAM-Auslastung ${round(memoryUsagePct, 1)} % (> ${CAPACITY_THRESHOLDS.memoryUsage.danger} %)`, 25);
+  else if (memoryUsagePct > CAPACITY_THRESHOLDS.memoryUsage.warn) addRiskFactor(`RAM-Auslastung ${round(memoryUsagePct, 1)} % (> ${CAPACITY_THRESHOLDS.memoryUsage.warn} %)`, 12);
+  if (vcpuPerCore > CAPACITY_THRESHOLDS.vcpuPerCore.danger) addRiskFactor(`vCPU/Core ${round(vcpuPerCore, 2)}:1 (> ${CAPACITY_THRESHOLDS.vcpuPerCore.danger}:1)`, 20);
+  else if (vcpuPerCore > CAPACITY_THRESHOLDS.vcpuPerCore.warn) addRiskFactor(`vCPU/Core ${round(vcpuPerCore, 2)}:1 (> ${CAPACITY_THRESHOLDS.vcpuPerCore.warn}:1)`, 10);
+  if (ramCommitPct > CAPACITY_THRESHOLDS.ramCommit.danger) addRiskFactor(`RAM Commit ${round(ramCommitPct, 1)} % (> ${CAPACITY_THRESHOLDS.ramCommit.danger} %)`, 15);
+  else if (ramCommitPct > CAPACITY_THRESHOLDS.ramCommit.warn) addRiskFactor(`RAM Commit ${round(ramCommitPct, 1)} % (> ${CAPACITY_THRESHOLDS.ramCommit.warn} %)`, 8);
+  if (swapBalloonPct > CAPACITY_THRESHOLDS.swapBalloon.danger) addRiskFactor(`Swap+Balloon ${round(swapBalloonPct, 2)} % (> ${CAPACITY_THRESHOLDS.swapBalloon.danger} %)`, 20);
+  else if (swapBalloonPct > CAPACITY_THRESHOLDS.swapBalloon.warn) addRiskFactor(`Swap+Balloon ${round(swapBalloonPct, 2)} % (> ${CAPACITY_THRESHOLDS.swapBalloon.warn} %)`, 10);
   const hotRatio = agg.hosts > 0 ? agg.hotHosts / agg.hosts : 0;
-  if (hotRatio > 0.5) riskScore += 10;
-  else if (hotRatio > 0.3) riskScore += 5;
-  if (opts.clusterRef?.drsEnabled === false && (cpuSpread > 30 || memSpread > 30)) riskScore += 8;
-  if (agg.htInactiveHosts > 0) riskScore += 5;
-  if (clusterHostDelta !== null && clusterHostDelta !== 0) riskScore += 3;
-  if (clusterMemoryDeltaPct !== null && Math.abs(clusterMemoryDeltaPct) > 5) riskScore += 3;
+  if (hotRatio > 0.5) addRiskFactor(`Hot Hosts ${agg.hotHosts}/${agg.hosts} (> 50 %)`, 10);
+  else if (hotRatio > 0.3) addRiskFactor(`Hot Hosts ${agg.hotHosts}/${agg.hosts} (> 30 %)`, 5);
+  if (opts.clusterRef?.drsEnabled === false && (cpuSpread > 30 || memSpread > 30)) addRiskFactor(`DRS aus bei Auslastungs-Spreizung CPU ${round(cpuSpread, 1)} pp / RAM ${round(memSpread, 1)} pp (> 30 pp)`, 8);
+  if (agg.htInactiveHosts > 0) addRiskFactor(`Hyper-Threading auf ${agg.htInactiveHosts}/${agg.hosts} Host(s) inaktiv`, 5);
+  if (clusterHostDelta !== null && clusterHostDelta !== 0) addRiskFactor(`Host-Anzahl weicht von vCluster ab (Δ ${clusterHostDelta})`, 3);
+  if (clusterMemoryDeltaPct !== null && Math.abs(clusterMemoryDeltaPct) > 5) addRiskFactor(`RAM-Summe weicht von vCluster ab (Δ ${round(clusterMemoryDeltaPct, 1)} %)`, 3);
 
   const vrops = opts.vrops ?? null;
   if (vrops) {
     const t = VROPS_RISK_THRESHOLDS;
     if (vrops.ramAssignedHighPct !== null) {
-      if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) riskScore += 35;
-      else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) riskScore += 18;
+      if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.danger} %)`, 35);
+      else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.warn} %)`, 18);
     }
     if (vrops.cpuOvercommitRatio !== null) {
-      if (vrops.cpuOvercommitRatio > t.cpuOvercommit.danger) riskScore += 20;
-      else if (vrops.cpuOvercommitRatio > t.cpuOvercommit.warn) riskScore += 10;
+      if (vrops.cpuOvercommitRatio > t.cpuOvercommit.danger) addRiskFactor(`CPU-Overcommit (vROps Ist) ${round(vrops.cpuOvercommitRatio, 2)}:1 (> ${t.cpuOvercommit.danger}:1)`, 20);
+      else if (vrops.cpuOvercommitRatio > t.cpuOvercommit.warn) addRiskFactor(`CPU-Overcommit (vROps Ist) ${round(vrops.cpuOvercommitRatio, 2)}:1 (> ${t.cpuOvercommit.warn}:1)`, 10);
     }
     if (vrops.cpuUsageHighPct !== null) {
-      if (vrops.cpuUsageHighPct > t.cpuUsageHigh.danger) riskScore += 18;
-      else if (vrops.cpuUsageHighPct > t.cpuUsageHigh.warn) riskScore += 9;
+      if (vrops.cpuUsageHighPct > t.cpuUsageHigh.danger) addRiskFactor(`HIGH-RP CPU % ${round(vrops.cpuUsageHighPct, 1)} % (> ${t.cpuUsageHigh.danger} %)`, 18);
+      else if (vrops.cpuUsageHighPct > t.cpuUsageHigh.warn) addRiskFactor(`HIGH-RP CPU % ${round(vrops.cpuUsageHighPct, 1)} % (> ${t.cpuUsageHigh.warn} %)`, 9);
     }
     if (vrops.ramUsageHighPct !== null) {
-      if (vrops.ramUsageHighPct > t.ramUsageHigh.danger) riskScore += 10;
-      else if (vrops.ramUsageHighPct > t.ramUsageHigh.warn) riskScore += 5;
+      if (vrops.ramUsageHighPct > t.ramUsageHigh.danger) addRiskFactor(`HIGH-RP RAM-Nutzung % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.danger} %)`, 10);
+      else if (vrops.ramUsageHighPct > t.ramUsageHigh.warn) addRiskFactor(`HIGH-RP RAM-Nutzung % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.warn} %)`, 5);
     }
     if (vrops.clusterRamAssignedPct !== null) {
-      if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.danger) riskScore += 8;
-      else if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.warn) riskScore += 4;
+      if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.danger) addRiskFactor(`Cluster-RAM-Zuweisung (vROps) ${round(vrops.clusterRamAssignedPct, 1)} % (> ${t.clusterRamAssigned.danger} %)`, 8);
+      else if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.warn) addRiskFactor(`Cluster-RAM-Zuweisung (vROps) ${round(vrops.clusterRamAssignedPct, 1)} % (> ${t.clusterRamAssigned.warn} %)`, 4);
     }
     if (vrops.clusterCpuUsagePct !== null) {
-      if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.danger) riskScore += 8;
-      else if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.warn) riskScore += 4;
+      if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.danger) addRiskFactor(`Cluster-CPU-Nutzung (vROps) ${round(vrops.clusterCpuUsagePct, 1)} % (> ${t.clusterCpuUsage.danger} %)`, 8);
+      else if (vrops.clusterCpuUsagePct > t.clusterCpuUsage.warn) addRiskFactor(`Cluster-CPU-Nutzung (vROps) ${round(vrops.clusterCpuUsagePct, 1)} % (> ${t.clusterCpuUsage.warn} %)`, 4);
     }
     if (vrops.avgVmsPerHost !== null) {
-      if (vrops.avgVmsPerHost > t.avgVmsPerHost.danger) riskScore += 5;
-      else if (vrops.avgVmsPerHost > t.avgVmsPerHost.warn) riskScore += 2;
+      if (vrops.avgVmsPerHost > t.avgVmsPerHost.danger) addRiskFactor(`Ø VMs/Host (vROps Ist) ${round(vrops.avgVmsPerHost, 1)} (> ${t.avgVmsPerHost.danger})`, 5);
+      else if (vrops.avgVmsPerHost > t.avgVmsPerHost.warn) addRiskFactor(`Ø VMs/Host (vROps Ist) ${round(vrops.avgVmsPerHost, 1)} (> ${t.avgVmsPerHost.warn})`, 2);
     }
   }
 
+  const riskScore = riskFactors.reduce((sum, factor) => sum + factor.points, 0);
   let risk: ClusterMetrics["risk"] = riskScore >= 60 ? "hoch" : riskScore >= 30 ? "mittel" : "niedrig";
   // Site-Failover-Risiko ist binär, kein Gradient: reicht die HIGH-RP-RAM-Zuweisung im
   // Standortausfall nicht, können HIGH-RP-VMs nicht starten — das erzwingt "hoch" unabhängig
   // vom Summen-Score (siehe Design-Spec).
-  if (computeSiteFailoverRisk(vrops?.ramAssignedHighPct ?? null) === "crit") risk = "hoch";
+  const siteFailoverOverride = computeSiteFailoverRisk(vrops?.ramAssignedHighPct ?? null) === "crit" && risk !== "hoch";
+  if (siteFailoverOverride) risk = "hoch";
 
   return {
     clusterName: opts.clusterName,
@@ -413,6 +427,8 @@ export function metricsFromAggregate(
     swapBalloonPct: round(swapBalloonPct, 2),
     riskScore,
     risk,
+    riskFactors,
+    siteFailoverOverride,
     maxHostFailures: hostFailureCapacity.maxHostFailures,
     hostFailureBreaches: hostFailureCapacity.breaches,
     projected: opts.projected,

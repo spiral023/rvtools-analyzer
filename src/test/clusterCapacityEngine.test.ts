@@ -356,6 +356,8 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     const m = metricsFromAggregate(lowRiskAgg(), { clusterName: "A", projected: false });
     expect(m.riskScore).toBe(0);
     expect(m.risk).toBe("niedrig");
+    expect(m.riskFactors).toEqual([]);
+    expect(m.siteFailoverOverride).toBe(false);
   });
 
   it("ignoriert ein vrops-Objekt, in dem alle Felder null sind", () => {
@@ -372,6 +374,10 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(warn.riskScore).toBe(18);
     expect(warn.risk).toBe("niedrig");
 
+    expect(warn.riskFactors).toEqual([
+      { label: `HIGH-RP RAM % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn} %)`, points: 18 },
+    ]);
+
     const danger = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({ ramAssignedHighPct: VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger + 1 }),
@@ -379,6 +385,10 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(danger.riskScore).toBe(35);
     // Score allein (35) läge unter der 60er-Schwelle — die Hard-Override-Regel erzwingt "hoch" trotzdem.
     expect(danger.risk).toBe("hoch");
+    expect(danger.siteFailoverOverride).toBe(true);
+    expect(danger.riskFactors).toEqual([
+      { label: `HIGH-RP RAM % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger} %)`, points: 35 },
+    ]);
   });
 
   it("CPU-Overcommit Ist: warn +10, danger +20", () => {
