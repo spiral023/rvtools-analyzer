@@ -6,6 +6,8 @@ import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedCluster, NormalizedHost, NormalizedVm, Scenario, SheetRow, SnapshotMeta } from "@/domain/models/types";
+import type { WhatIfClusterResult } from "@/domain/services/planningHelpers";
+import type { ClusterMetrics } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 
 const snapshots: SnapshotMeta[] = [
@@ -114,6 +116,33 @@ const planningScenarios: Scenario[] = [{
   notes: null,
 }];
 
+let whatIfResult: WhatIfClusterResult[] | null = null;
+
+const whatIfMetrics = (overrides: Partial<ClusterMetrics> = {}): ClusterMetrics => ({
+  clusterName: "What-If Zielcluster",
+  hosts: 2,
+  totalCores: 16,
+  totalMemoryMiB: 128_000,
+  totalVms: 10,
+  totalVcpus: 20,
+  vRamMiB: 40_000,
+  cpuUsagePct: 30,
+  memoryUsagePct: 40,
+  vcpuPerCore: 2,
+  ramCommitPct: 50,
+  ramActivePct: 20,
+  swapBalloonPct: 0,
+  riskScore: 1,
+  risk: "niedrig",
+  riskFactors: [],
+  siteFailoverOverride: false,
+  maxHostFailures: 1,
+  hostFailureBreaches: [],
+  projected: false,
+  incompleteVmCount: 0,
+  ...overrides,
+});
+
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots, activeSnapshotIds: snapshots.map((snapshot) => snapshot.snapshotId), filters: { clusters: [] as string[], search: "" }, snapshotsLoading: false }),
   useClusters: () => ({ data: clusters, isLoading: false }),
@@ -143,7 +172,7 @@ vi.mock("@/hooks/useScenarios", () => ({
 }));
 
 vi.mock("@/hooks/useWhatIf", () => ({
-  useWhatIf: (): null => null,
+  useWhatIf: () => whatIfResult ? { clusters: whatIfResult, totalMovedVms: 1, incompleteVmCount: 0 } : null,
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
@@ -188,6 +217,7 @@ function renderClusters(initialEntry = "/clusters", includeLocation = false) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  whatIfResult = null;
 });
 
 describe("Clusters", () => {
@@ -288,7 +318,20 @@ describe("Clusters", () => {
     expect(screen.getByRole("button", { name: "Mail erstellen" })).toBeInTheDocument();
   });
 
-  it("shows scenario management and What-If in the Planung tab", async () => {
+  it("shows the What-If metrics table above the summary in the Planung tab", async () => {
+    whatIfResult = [{
+      clusterKey: "cluster-a",
+      clusterName: "What-If Zielcluster",
+      before: whatIfMetrics(),
+      after: whatIfMetrics({ cpuUsagePct: 40, memoryUsagePct: 50, vcpuPerCore: 3, ramCommitPct: 60, riskScore: 2, risk: "mittel", maxHostFailures: 0, projected: true }),
+      vropsRamAssignedHighPctBefore: null,
+      vropsRamAssignedHighPctAfter: null,
+      siteFailoverRiskBefore: null,
+      siteFailoverRiskAfter: null,
+      incomingVmCount: 1,
+      outgoingVmCount: 0,
+      vropsMissing: false,
+    }];
     renderClusters();
 
     const planningTab = await screen.findByRole("tab", { name: "Planung" });
@@ -297,7 +340,11 @@ describe("Clusters", () => {
 
     expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Migration Production"));
-    expect(screen.getByRole("button", { name: "What-If" })).toBeInTheDocument();
+    const comparison = screen.getByRole("heading", { name: "What-If Vergleich" });
+    const summary = screen.getByRole("heading", { name: "What-If Zusammenfassung" });
+    expect(screen.getAllByText("What-If Zielcluster")).toHaveLength(2);
+    expect(comparison.closest(".grid")).toHaveClass("lg:grid-cols-[280px_minmax(0,1fr)]");
+    expect(comparison.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows vCenter-safe infrastructure inventory in the Infrastruktur tab", async () => {

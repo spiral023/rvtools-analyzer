@@ -1,9 +1,8 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
-import { VirtualTable } from "@/components/tables/VirtualTable";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { WhatIfClusterResult } from "@/domain/services/planningHelpers";
+import { VirtualTable } from "@/components/tables/VirtualTable";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import type { ClusterMetrics } from "@/domain/services/clusterCapacityEngine";
+import type { WhatIfClusterResult } from "@/domain/services/planningHelpers";
 import { coloredNum, coloredPct, hostFailureTooltipText, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge, vropsMissingBadge } from "@/lib/metricColor";
 
 function MaxHostFailuresCell({ metrics }: { metrics: ClusterMetrics }) {
@@ -47,23 +46,6 @@ const columns: ColumnDef<WhatIfClusterResult, unknown>[] = [
   { accessorKey: "outgoingVmCount", header: "Ausgehend" },
 ];
 
-export function WhatIfCompareDialog({
-  open,
-  onClose,
-  results,
-}: {
-  open: boolean;
-  onClose: () => void;
-  results: WhatIfClusterResult[];
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[80vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle>What-If Vergleich — Vorher/Nachher</DialogTitle>
-        </DialogHeader>
-        <VirtualTable data={results} columns={columns} height={400} />
-      </DialogContent>
-    </Dialog>
-  );
+export function WhatIfComparisonTable({ results }: { results: WhatIfClusterResult[] }) {
+  return <VirtualTable data={results} columns={columns} height={400} />;
 }
