@@ -1,3 +1,5 @@
+import { V_CENTER_RELEASES } from "@/lib/vcenterReleaseCatalog";
+
 export type ReleaseType = "vcenter" | "esxi";
 
 export interface KnownRelease {
@@ -18,42 +20,7 @@ export interface ReleaseUsageRow extends KnownRelease {
 }
 
 export const KNOWN_VMWARE_RELEASES: KnownRelease[] = [
-  {
-    type: "vcenter",
-    title: "VMware vCenter Server 8.0 Update 3j",
-    version: "8.0.3.00900",
-    releaseDateIso: "2026-05-27",
-    build: "25413364",
-    releaseNotesUrl:
-      "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/vcenter-server-update-and-patch-release-notes/vsphere-vcenter-server-80u3j-release-notes.html",
-  },
-  {
-    type: "vcenter",
-    title: "VMware vCenter Server 8.0 Update 3i",
-    version: "8.0.3.00800",
-    releaseDateIso: "2026-02-24",
-    build: "25197330",
-    releaseNotesUrl:
-      "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/vcenter-server-update-and-patch-release-notes/vsphere-vcenter-server-80u3i-release-notes.html",
-  },
-  {
-    type: "vcenter",
-    title: "VMware vCenter Server 8.0 Update 3h",
-    version: "8.0.3.00700",
-    releaseDateIso: "2025-12-15",
-    build: "25092719",
-    releaseNotesUrl:
-      "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/vcenter-server-update-and-patch-release-notes/vsphere-vcenter-server-80u3h-release-notes.html",
-  },
-  {
-    type: "vcenter",
-    title: "VMware vCenter Server 8.0 Update 3g",
-    version: "8.0.3.00600",
-    releaseDateIso: "2025-07-29",
-    build: "24853646",
-    releaseNotesUrl:
-      "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/vcenter-server-update-and-patch-release-notes/vsphere-vcenter-server-80u3g-release-notes.html",
-  },
+  ...V_CENTER_RELEASES.map((release) => ({ type: "vcenter" as const, ...release })),
   {
     type: "esxi",
     title: "VMware ESXi 8.0 Update 3j",

@@ -61,6 +61,11 @@ export const FLEET_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Anzeigename des vCenter, dessen aktueller Stand in dieser Zeile ausgewertet wird.",
     source: "berechnet",
   },
+  version: {
+    term: "Version",
+    description: "Kurzbezeichnung des erkannten vCenter-Releases, beispielsweise „8.0 U3j“. Sie wird über die Build-Nummer des vCenter zugeordnet.",
+    source: `${RV} · vSource · „Build“`,
+  },
   vmCount: {
     term: "VMs",
     description: "Anzahl aller virtuellen Maschinen in diesem vCenter.",

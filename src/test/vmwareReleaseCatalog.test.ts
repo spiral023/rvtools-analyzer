@@ -23,13 +23,22 @@ describe("VMware release catalog", () => {
     expect(latestEsxi?.releaseNotesUrl).toContain("vsphere-esxi-80u3j-release-notes");
   });
 
-  it("contains the 3g through 3j release train for both product types", () => {
+  it("enthält die zehn neuesten vCenter-8.0-Update-3-Releases", () => {
     expect(KNOWN_VMWARE_RELEASES.filter((release) => release.type === "vcenter").map((release) => release.version)).toEqual([
       "8.0.3.00900",
       "8.0.3.00800",
       "8.0.3.00700",
       "8.0.3.00600",
+      "8.0.3.00500",
+      "8.0.3.00400",
+      "8.0.3.00300",
+      "8.0.3.00200",
+      "8.0.3.00100",
+      "8.0.3.00000",
     ]);
+  });
+
+  it("contains the 3g through 3j ESXi release train", () => {
     expect(KNOWN_VMWARE_RELEASES.filter((release) => release.type === "esxi").map((release) => release.version)).toEqual([
       "ESXi 8.0.3 P09",
       "ESXi 8.0.3 P08",

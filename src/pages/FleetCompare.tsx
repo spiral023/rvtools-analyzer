@@ -21,9 +21,10 @@ import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
 import { VCenterVersionsTable } from "@/pages/VmwareVersions";
 import { LicenseDetailsTable } from "@/components/licensing/LicenseDetailsTable";
 import { getLicenseRows } from "@/lib/licenseDetails";
+import { V_CENTER_RELEASES } from "@/lib/vcenterReleaseCatalog";
 
 export interface VCenterSummary {
-  vcenterId: string; snapshotId: string; displayName: string; vmCount: number; poweredOn: number;
+  vcenterId: string; snapshotId: string; displayName: string; version: string | null; vmCount: number; poweredOn: number;
   hostCount: number; clusterCount: number; totalCpuThreads: number; totalRamGiB: number;
   datastoreCount: number; avgDsFree: number; healthIssues: number; cpuOvercommit: number;
   healthBreakdown: Array<{ type: string; count: number }>; criticalDatastores: number; snapshotCount: number; securityDrift: number; riskScore: number;
@@ -86,6 +87,7 @@ function VCenterRiskTooltipContent({ summary }: { summary: VCenterSummary }) {
 
 const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
   { accessorKey: "displayName", header: "vCenter", meta: { info: FLEET_COLUMNS.displayName } },
+  { accessorKey: "version", header: "Version", meta: { info: FLEET_COLUMNS.version }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string || "—"}</span> },
   { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.vmCount } },
   { accessorKey: "poweredOn", header: "Powered On", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.poweredOn } },
   { accessorKey: "hostCount", header: "Hosts", cell: ({ getValue }) => formatNum(getValue() as number), meta: { info: FLEET_COLUMNS.hostCount } },
@@ -104,6 +106,8 @@ const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
     return <UiTooltip delayDuration={250}><UiTooltipTrigger asChild><span className={`${riskScore > 50 ? "text-destructive font-semibold" : riskScore > 25 ? "text-warning" : "text-success"} cursor-help underline decoration-dotted underline-offset-4`}>{riskScore}</span></UiTooltipTrigger><UiTooltipContent side="top"><VCenterRiskTooltipContent summary={row.original} /></UiTooltipContent></UiTooltip>;
   }},
 ];
+
+const vcenterVersionByBuild = new Map(V_CENTER_RELEASES.map((release) => [release.build, release.shortVersion]));
 
 export default function FleetCompare() {
   const [selectedVcenterId, setSelectedVcenterId] = useState<string | null>(null);
@@ -126,8 +130,22 @@ export default function FleetCompare() {
 
   // Security drift per vcenter (check dvPort)
   const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["rawSheet", "dvPort", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
+  const { data: rawVSource = [], isLoading: rawVSourceLoading } = useQuery({ queryKey: ["rawSheet", "vSource", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "vSource"), enabled: allSnapshotIds.length > 0 });
   const { data: rawLicense = [], isLoading: rawLicenseLoading } = useQuery({ queryKey: ["rawSheet", "vLicense", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "vLicense"), enabled: allSnapshotIds.length > 0 });
   const licenses = useMemo(() => getLicenseRows(rawLicense), [rawLicense]);
+
+  const vcenterVersionBySnapshot = useMemo(() => {
+    const versions = new Map<string, string>();
+    for (const row of rawVSource) {
+      if (versions.has(row.snapshotId)) continue;
+      const build = [row.data["Build"], row.data["Fullname"], row.data["Version"]]
+        .map((value) => value === null || value === undefined ? undefined : String(value).match(/\d{7,}/g)?.at(-1))
+        .find(Boolean);
+      const version = build ? vcenterVersionByBuild.get(build) : undefined;
+      if (version) versions.set(row.snapshotId, version);
+    }
+    return versions;
+  }, [rawVSource]);
 
   const summaries = useMemo<VCenterSummary[]>(() =>
     latestSnapshots.map((snap) => {
@@ -167,6 +185,7 @@ export default function FleetCompare() {
 
       return {
         vcenterId: snap.vcenterId, snapshotId: snap.snapshotId, displayName: snap.vcenterDisplayName,
+        version: vcenterVersionBySnapshot.get(snap.snapshotId) ?? null,
         vmCount: vms.length, poweredOn: poweredOn.length, hostCount: hosts.length,
         clusterCount: clusters.length, totalCpuThreads: totalThreads,
         totalRamGiB: totalRamMiB / 1024, datastoreCount: ds.length,
@@ -175,7 +194,7 @@ export default function FleetCompare() {
         criticalDatastores: critDs, snapshotCount: snaps.length, securityDrift: secDrift,
         riskScore: Math.min(riskScore, 100),
       };
-    }).sort((a, b) => a.displayName.localeCompare(b.displayName, "de-DE", { numeric: true, sensitivity: "base" })), [latestSnapshots, allVms, allHosts, allClusters, allDatastores, allHealth, allSnaps, rawDvPort]);
+    }).sort((a, b) => a.displayName.localeCompare(b.displayName, "de-DE", { numeric: true, sensitivity: "base" })), [latestSnapshots, allVms, allHosts, allClusters, allDatastores, allHealth, allSnaps, rawDvPort, vcenterVersionBySnapshot]);
 
   const compareChart = useMemo(() => summaries.map((s) => ({ name: s.displayName.length > 15 ? s.displayName.slice(0, 12) + "…" : s.displayName, VMs: s.vmCount, Hosts: s.hostCount, Datastores: s.datastoreCount })), [summaries]);
 
@@ -206,7 +225,7 @@ export default function FleetCompare() {
   );
 
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || clustersLoading
-    || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading || rawLicenseLoading;
+    || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading || rawVSourceLoading || rawLicenseLoading;
   if (dataLoading) return <PageLoadingState title="vCenter" />;
 
   if (snapshots.length === 0) {
