@@ -105,7 +105,7 @@ vi.mock("@/components/licensing/LicenseDetailsTable", () => ({
 }));
 
 vi.mock("@/lib/licenseDetails", () => ({
-  getLicenseRows: () => [],
+  getLicenseRows: (): [] => [],
 }));
 
 const { default: FleetCompare } = await import("./FleetCompare");

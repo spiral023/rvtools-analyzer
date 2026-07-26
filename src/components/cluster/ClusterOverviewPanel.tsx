@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, Server, ShieldCheck, Users, Waypoints } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
@@ -13,8 +13,6 @@ import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
 import type { ClusterOsDistributionRow, VmOsSource } from "@/lib/vmOsDistribution";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CLUSTER_CHARTS, CLUSTER_KPI, CLUSTER_OS_COLUMNS, CLUSTER_OVERVIEW_COLUMNS } from "@/lib/glossaries/clusters";
 import { coloredNum, coloredPct, RiskTooltipContent, riskSeverity, severityBadge, vropsMissingBadge } from "@/lib/metricColor";
 
@@ -143,32 +141,23 @@ function ChartCard({ title, children }: { title: React.ReactNode; children: Reac
 }
 
 export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange, onOpenCluster, onOpenOsDetail, search }: ClusterOverviewPanelProps) {
-  const [selectedVcenter, setSelectedVcenter] = useState("all");
   const kpis = buildClusterOverviewKpis(rows);
-  const vcenters = useMemo(
-    () => [...new Set(rows.map((row) => row.vcenterDisplayName))].sort((left, right) => left.localeCompare(right, "de-DE")),
-    [rows],
-  );
-  const chartRows = useMemo(
-    () => selectedVcenter === "all" ? rows : rows.filter((row) => row.vcenterDisplayName === selectedVcenter),
-    [rows, selectedVcenter],
-  );
-  const density = useMemo(() => buildClusterDensityChart(chartRows), [chartRows]);
-  const risks = useMemo(() => buildTopChartRows(buildRiskChart(chartRows), RISK_CHART_CLUSTER_LIMIT, (remaining) => ({
+  const density = useMemo(() => buildClusterDensityChart(rows), [rows]);
+  const risks = useMemo(() => buildTopChartRows(buildRiskChart(rows), RISK_CHART_CLUSTER_LIMIT, (remaining) => ({
     ...remaining[0],
     clusterKey: "chart-rest-risk",
     name: `Weitere ${remaining.length} Cluster`,
     riskScore: remaining.reduce((total, row) => total + row.riskScore, 0) / remaining.length,
     risk: remaining.some((row) => row.risk === "hoch") ? "hoch" as const : remaining.some((row) => row.risk === "mittel") ? "mittel" as const : "niedrig" as const,
-  })), [chartRows]);
-  const vmDistribution = useMemo(() => buildTopChartRows(buildVmDistributionChart(chartRows), VM_DISTRIBUTION_CHART_CLUSTER_LIMIT, (remaining) => ({
+  })), [rows]);
+  const vmDistribution = useMemo(() => buildTopChartRows(buildVmDistributionChart(rows), VM_DISTRIBUTION_CHART_CLUSTER_LIMIT, (remaining) => ({
     ...remaining[0],
     clusterKey: "chart-rest-vm-density",
     name: `Weitere ${remaining.length} Cluster`,
     avgVmsPerHost: remaining.reduce((total, row) => total + (row.avgVmsPerHost ?? 0), 0) / remaining.length,
     maxVmsPerHost: Math.max(...remaining.map((row) => row.maxVmsPerHost ?? 0)),
     maxVmsHost: null as string | null,
-  })), [chartRows]);
+  })), [rows]);
   const vcenterDisplayNames = new Map(rows.map((row) => [row.vcenterId, row.vcenterDisplayName]));
 
   return (
@@ -181,19 +170,6 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
         <KpiCard title="Max. VMs/Host" value={formatNum(kpis.maxVmsPerHost)} info={CLUSTER_KPI.maxVmsPerHost} subtitle={kpis.maxVmsCluster ? `${kpis.maxVmsVcenterDisplayName} · ${kpis.maxVmsCluster}${kpis.maxVmsHost ? ` · ${kpis.maxVmsHost}` : ""}` : undefined} icon={<Waypoints className="h-4 w-4" />} />
         <KpiCard title="HA-/DRS-Auffälligkeiten" value={formatNum(kpis.haDrsIssues)} info={CLUSTER_KPI.haDrsIssues} severity={kpis.haDrsIssues > 0 ? "warn" : "ok"} icon={<ShieldCheck className="h-4 w-4" />} />
       </KpiGrid>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor="overview-chart-vcenter" className="text-xs text-muted-foreground">Diagramme nach vCenter</Label>
-        <Select value={selectedVcenter} onValueChange={setSelectedVcenter}>
-          <SelectTrigger id="overview-chart-vcenter" aria-label="vCenter für Diagramme" className="h-8 w-[220px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle vCenter</SelectItem>
-            {vcenters.map((vcenter) => <SelectItem key={vcenter} value={vcenter}>{vcenter}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title={<InfoTooltip entry={CLUSTER_CHARTS.density}><span className="cursor-help">Cluster-Dichtekarte</span></InfoTooltip>}>
@@ -214,7 +190,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title={<InfoTooltip entry={CLUSTER_CHARTS.risk}><span className="cursor-help">Risikoscore je Cluster{chartRows.length > RISK_CHART_CLUSTER_LIMIT ? ` · Top ${RISK_CHART_CLUSTER_LIMIT} + Rest` : ""}</span></InfoTooltip>}>
+        <ChartCard title={<InfoTooltip entry={CLUSTER_CHARTS.risk}><span className="cursor-help">Risikoscore je Cluster{rows.length > RISK_CHART_CLUSTER_LIMIT ? ` · Top ${RISK_CHART_CLUSTER_LIMIT} + Rest` : ""}</span></InfoTooltip>}>
           <ResponsiveContainer width="100%" height={Math.max(280, risks.length * 28)}>
             <BarChart data={risks} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 16 }}>
               <CartesianGrid horizontal={false} {...CHART_GRID_STYLE} />
@@ -229,7 +205,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
         </ChartCard>
       </div>
 
-      <ChartCard title={<InfoTooltip entry={CLUSTER_CHARTS.vmDistribution}><span className="cursor-help">Ø und Maximum VMs je Host{chartRows.length > VM_DISTRIBUTION_CHART_CLUSTER_LIMIT ? ` · Top ${VM_DISTRIBUTION_CHART_CLUSTER_LIMIT} + Rest` : ""}</span></InfoTooltip>}>
+      <ChartCard title={<InfoTooltip entry={CLUSTER_CHARTS.vmDistribution}><span className="cursor-help">Ø und Maximum VMs je Host{rows.length > VM_DISTRIBUTION_CHART_CLUSTER_LIMIT ? ` · Top ${VM_DISTRIBUTION_CHART_CLUSTER_LIMIT} + Rest` : ""}</span></InfoTooltip>}>
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={vmDistribution} margin={{ top: 12, right: 16, bottom: 46, left: -12 }}>
             <CartesianGrid vertical={false} {...CHART_GRID_STYLE} />

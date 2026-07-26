@@ -1,19 +1,22 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { AlertTriangle, Cpu, MemoryStick, Server } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CHART_AXIS_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
-import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
+import { CAPACITY_CLUSTER_COLUMNS, CAPACITY_HEALTH_COLUMNS, CAPACITY_RISK_KPI, CAPACITY_SECTIONS } from "@/lib/glossaries/capacity";
 import { CLUSTER_DENSITY_COLUMNS, LICENSING_SECTIONS } from "@/lib/glossaries/licensing";
 import type { ClusterCapacityRow, ClusterDensityRow, ClusterOvercommitRow, HostDensityPoint } from "@/lib/clusterCapacityWorkspace";
+import { calculateCapacityRiskKpis } from "@/lib/clusterCapacityKpis";
 import { SITE_FAILOVER_THRESHOLDS } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
-import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import { coloredNum, coloredPct, coloredRatio, hostFailureTooltipText, maxHostFailuresClassName, RiskTooltipContent, riskSeverity, severityBadge, siteFailoverBadge, siteFailoverLabel, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
@@ -150,44 +153,35 @@ export function HostDensityTooltip({
 }
 
 export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity, clusterDensity, search, onOpenCluster }: ClusterCapacityPanelProps) {
-  const [selectedVcenter, setSelectedVcenter] = useState("all");
   const [onlyNotableHosts, setOnlyNotableHosts] = useState(false);
-  const vcenters = useMemo(
-    () => [...new Set(capacityRows.map((row) => row.vcenterDisplayName))].sort((left, right) => left.localeCompare(right, "de-DE")),
-    [capacityRows],
-  );
   const visibleHostDensity = useMemo(
-    () => hostDensity.filter((row) => (selectedVcenter === "all" || row.vcenterDisplayName === selectedVcenter) && (!onlyNotableHosts || row.vcpuPerCore > 4)),
-    [hostDensity, onlyNotableHosts, selectedVcenter],
+    () => hostDensity.filter((row) => !onlyNotableHosts || row.vcpuPerCore > 4),
+    [hostDensity, onlyNotableHosts],
   );
   const riskChart = useMemo(
-    () => capacityRows.filter((row) => selectedVcenter === "all" || row.vcenterDisplayName === selectedVcenter).slice(0, 12).map((row) => ({ ...row, name: row.cluster })),
-    [capacityRows, selectedVcenter],
+    () => capacityRows.slice(0, 12).map((row) => ({ ...row, name: row.cluster })),
+    [capacityRows],
   );
+  const kpis = useMemo(() => calculateCapacityRiskKpis(capacityRows), [capacityRows]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="capacity-chart-vcenter" className="text-xs text-muted-foreground">Diagramme nach vCenter</Label>
-          <Select value={selectedVcenter} onValueChange={setSelectedVcenter}>
-            <SelectTrigger id="capacity-chart-vcenter" aria-label="vCenter für Diagramme" className="h-8 w-[220px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle vCenter</SelectItem>
-              {vcenters.map((vcenter) => <SelectItem key={vcenter} value={vcenter}>{vcenter}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox id="only-notable-hosts" checked={onlyNotableHosts} onCheckedChange={(checked) => setOnlyNotableHosts(checked === true)} />
-          <Label htmlFor="only-notable-hosts" className="text-xs text-muted-foreground">Nur auffällige Hosts (vCPU/Core &gt; 4)</Label>
-        </div>
-      </div>
+      <KpiGrid>
+        <KpiCard title="Capacity Risiken hoch" value={formatNum(kpis.criticalCapacity)} severity={kpis.criticalCapacity > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={CAPACITY_RISK_KPI.criticalCapacity} />
+        <KpiCard title="Capacity Risiken mittel" value={formatNum(kpis.mediumCapacity)} severity={kpis.mediumCapacity > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={CAPACITY_RISK_KPI.mediumCapacity} />
+        <KpiCard title="Hot Hosts" value={formatNum(kpis.hotHosts)} severity={kpis.hotHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={CAPACITY_RISK_KPI.hotHosts} />
+        <KpiCard title="Max Swap+Balloon" value={formatPct(kpis.maxSwapBalloon, 2)} severity={kpis.maxSwapBalloon !== null && kpis.maxSwapBalloon > 5 ? "crit" : kpis.maxSwapBalloon !== null && kpis.maxSwapBalloon > 2 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} info={CAPACITY_RISK_KPI.maxSwapBalloon} />
+        <KpiCard title="Ø vCPU/Core" value={kpis.avgVcpuPerCore !== null ? `${kpis.avgVcpuPerCore.toFixed(2)}:1` : "—"} severity={kpis.avgVcpuPerCore !== null && kpis.avgVcpuPerCore > 6 ? "crit" : kpis.avgVcpuPerCore !== null && kpis.avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={CAPACITY_RISK_KPI.avgVcpuPerCore} />
+      </KpiGrid>
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={CAPACITY_SECTIONS.hostDensity} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3></InfoTooltip>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <InfoTooltip entry={CAPACITY_SECTIONS.hostDensity} side="bottom"><h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Dichte (VMs vs vCPU/Core)</h3></InfoTooltip>
+            <div className="flex items-center gap-2">
+              <Checkbox id="only-notable-hosts" checked={onlyNotableHosts} onCheckedChange={(checked) => setOnlyNotableHosts(checked === true)} />
+              <Label htmlFor="only-notable-hosts" className="text-xs text-muted-foreground">Nur auffällige Hosts (vCPU/Core &gt; 4)</Label>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={300}>
             <ScatterChart>
               <CartesianGrid {...CHART_GRID_STYLE} />

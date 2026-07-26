@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { CalendarClock, Clock, Copy, FileText, Link2, Mail, Plus, Save, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -814,13 +815,6 @@ export function ClusterMaintenancePanel() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-end">
-        <Button disabled={selectedRows.length === 0} onClick={() => setMailDialogOpen(true)}>
-          <Mail className="mr-2 h-4 w-4" />
-          Mail erstellen
-        </Button>
-      </div>
-
       <div className="grid gap-4 md:grid-cols-4">
         <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} info={WARTUNG_KPI.cluster} />
         <KpiCard title="Selektiert" value={formatNum(selectedRows.length)} info={WARTUNG_KPI.selektiert} />
@@ -833,6 +827,9 @@ export function ClusterMaintenancePanel() {
           <AlertTitle>Settings unvollständig</AlertTitle>
           <AlertDescription>
             Firmen-Name fehlt. To-Adressen können erst nach Pflege der Settings vollständig abgeleitet werden.
+            <Link to="/settings" className="ml-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80">
+              Settings öffnen
+            </Link>
           </AlertDescription>
         </Alert>
       )}
@@ -861,13 +858,27 @@ export function ClusterMaintenancePanel() {
             exportFileName="rvtools-wartungsankuendigung-cluster"
           />
         </div>
-        <AssignmentPanel
-          activeRow={activeRow}
-          selectedRows={selectedRows}
-          suggestions={techContactSuggestions}
-          onSave={saveAssignments}
-          isSaving={isSaving}
-        />
+        <div className="space-y-3">
+          {selectedRows.length > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{formatNum(selectedRows.length)} Cluster ausgewählt</p>
+                <p className="text-xs text-muted-foreground">Wartungsankündigung für die Auswahl erstellen</p>
+              </div>
+              <Button size="sm" className="shrink-0" onClick={() => setMailDialogOpen(true)}>
+                <Mail className="mr-2 h-4 w-4" />
+                Mail erstellen
+              </Button>
+            </div>
+          )}
+          <AssignmentPanel
+            activeRow={activeRow}
+            selectedRows={selectedRows}
+            suggestions={techContactSuggestions}
+            onSave={saveAssignments}
+            isSaving={isSaving}
+          />
+        </div>
       </div>
 
       <MaintenanceMailDialog open={mailDialogOpen} onClose={() => setMailDialogOpen(false)} rows={selectedRows} />

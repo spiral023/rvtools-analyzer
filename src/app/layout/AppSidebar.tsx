@@ -50,10 +50,10 @@ const mainNav: NavItem[] = [
 
 const analysisNav: NavItem[] = [
   { title: "vCenter", url: "/vcenter", icon: GitCompare },
+  { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Hosts", url: "/hosts", icon: Server },
   { title: "VMs", url: "/vms", icon: Monitor },
   { title: "Daily Ops", url: "/daily-ops", icon: Activity },
-  { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Capacity", url: "/capacity", icon: HardDrive },
   { title: "Performance", url: "/performance", icon: Gauge },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },

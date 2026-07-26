@@ -10,6 +10,8 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useRawSheet: (sheet: string) => ({
     data: sheet === "vInfo"
       ? [{ snapshotId: "snap-1", sheetName: "vInfo", rowIndex: 0, data: { VM: "vm-01", "HW upgrade status": "pending", "HW version": "vmx-13", "HW upgrade policy": "manual", "HW target": "vmx-20", Cluster: "Production" } }] as SheetRow[]
+      : sheet === "vTools"
+        ? [{ snapshotId: "snap-1", sheetName: "vTools", rowIndex: 0, data: { VM: "vm-01", Cluster: "Production", Upgradeable: "yes" } }] as SheetRow[]
       : [] as SheetRow[],
     isLoading: false,
   }),
@@ -57,10 +59,11 @@ describe("ComplianceLifecycle", () => {
   });
 
   it("zeigt HW-Version-Verteilung und Upgrade-Backlog im VM-Bereich statt im Lifecycle-Bereich", () => {
-    const { unmount } = render(<ComplianceLifecycle />);
+    const { unmount } = render(<ComplianceLifecycle initialTab="operations" />);
 
     expect(screen.queryByText("HW Version Verteilung")).not.toBeInTheDocument();
     expect(screen.queryByText(/VM HW Upgrade Backlog/)).not.toBeInTheDocument();
+    expect(screen.queryByText("VMTools Upgrade Wellenplanung")).not.toBeInTheDocument();
 
     unmount();
     render(<VmComplianceDetails />);

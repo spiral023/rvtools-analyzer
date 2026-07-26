@@ -24,14 +24,12 @@ import {
   OPERATIONS_KPI,
   NTP_COLUMNS,
   HW_UPGRADE_COLUMNS,
-  TOOLS_WAVE_COLUMNS,
 } from "@/lib/glossaries/compliance";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedHost } from "@/domain/models/types";
 
 interface ComplianceVm { snapshotId: string; vmName: string; hwVersion: string | null; firmware: string | null; secureBoot: boolean | null; cbt: boolean | null; osConfig: string | null; osTools: string | null; osDrift: boolean; toolsStatus: string | null; cluster: string | null; uuidMissing: boolean; annotationEmpty: boolean; latencySensitivity: string; ftState: string; haRestart: string }
 interface NtpRow { host: string; ntpServers: string; ntpdRunning: boolean; dnsServers: string; dhcp: boolean; issues: string }
-interface ToolsWaveRow { cluster: string; upgradeableCount: number; totalVms: number; pct: number }
 interface HwUpgradeRow { snapshotId: string; vm: string; hwVersion: string; upgradeStatus: string; upgradePolicy: string; target: string; cluster: string }
 type ComplianceTab = "compliance" | "operations" | "infrastructure" | "versions";
 
@@ -108,7 +106,6 @@ function renderOperationsTabPanel({
   ntpDnsData,
   hwUpgradeBacklog,
   latencyNonNormal,
-  toolsWavePlan,
   complianceVms,
   globalFilter,
 }: {
@@ -116,7 +113,6 @@ function renderOperationsTabPanel({
   ntpDnsData: NtpRow[];
   hwUpgradeBacklog: HwUpgradeRow[];
   latencyNonNormal: number;
-  toolsWavePlan: ToolsWaveRow[];
   complianceVms: ComplianceVm[];
   globalFilter: string;
 }) {
@@ -130,8 +126,6 @@ function renderOperationsTabPanel({
       </KpiGrid>
 
       {ntpDnsData.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3></InfoTooltip><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} /></div>)}
-
-      {toolsWavePlan.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.toolsWavePlan} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3></InfoTooltip><VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={globalFilter} height={250} /></div>)}
 
       {latencyNonNormal > 0 && (
         <div className="rounded-lg border border-warning/30 bg-card/30 p-4">
@@ -205,13 +199,6 @@ const ntpColumns: ColumnDef<NtpRow, unknown>[] = [
   { accessorKey: "dnsServers", header: "DNS Server", meta: { info: NTP_COLUMNS.dnsServers } },
   { accessorKey: "dhcp", header: "DHCP", meta: { info: NTP_COLUMNS.dhcp }, cell: ({ getValue }) => getValue() ? <span className="text-warning">Ja</span> : "Nein" },
   { accessorKey: "issues", header: "Probleme", meta: { info: NTP_COLUMNS.issues }, cell: ({ getValue }) => <span className="text-warning text-xs">{getValue() as string}</span> },
-];
-
-const toolsWaveColumns: ColumnDef<ToolsWaveRow, unknown>[] = [
-  { accessorKey: "cluster", header: "Cluster", meta: { info: TOOLS_WAVE_COLUMNS.cluster } },
-  { accessorKey: "upgradeableCount", header: "Upgradeable", meta: { info: TOOLS_WAVE_COLUMNS.upgradeableCount } },
-  { accessorKey: "totalVms", header: "VMs gesamt", meta: { info: TOOLS_WAVE_COLUMNS.totalVms } },
-  { accessorKey: "pct", header: "% Upgradeable", meta: { info: TOOLS_WAVE_COLUMNS.pct }, cell: ({ getValue }) => `${(getValue() as number).toFixed(0)}%` },
 ];
 
 const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
@@ -364,25 +351,6 @@ function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnl
   // Tools upgrade candidates per cluster
   const toolsUpgradeable = filteredRawVTools.filter((r) => { const u = String(r.data["Upgradeable"] || "").toLowerCase(); return u === "yes" || u === "true"; }).length;
 
-  const toolsWavePlan = useMemo<ToolsWaveRow[]>(() => {
-    const clusterMap = new Map<string, { upgradeable: number; total: number }>();
-    for (const r of filteredRawVTools) {
-      const cluster = String(r.data["Cluster"] || "Unknown");
-      if (!clusterMap.has(cluster)) clusterMap.set(cluster, { upgradeable: 0, total: 0 });
-      const e = clusterMap.get(cluster)!;
-      e.total++;
-      const u = String(r.data["Upgradeable"] || "").toLowerCase();
-      if (u === "yes" || u === "true") e.upgradeable++;
-    }
-    const rows: ToolsWaveRow[] = [];
-    for (const [cluster, v] of clusterMap) {
-      if (v.upgradeable > 0) {
-        rows.push({ cluster, upgradeableCount: v.upgradeable, totalVms: v.total, pct: v.total > 0 ? (v.upgradeable / v.total) * 100 : 0 });
-      }
-    }
-    return rows.sort((a, b) => b.upgradeableCount - a.upgradeableCount);
-  }, [filteredRawVTools]);
-
   // vCenter Version
   const vcenterVersions = useMemo(
     () =>
@@ -503,7 +471,6 @@ function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnl
           ntpDnsData,
           hwUpgradeBacklog,
           latencyNonNormal,
-          toolsWavePlan,
           complianceVms,
           globalFilter: filters.search,
         })}

@@ -141,7 +141,7 @@ export const OPERATIONS_KPI: Record<string, GlossaryEntry> = {
   toolsUpgradeable: {
     term: "Tools Upgrade",
     description:
-      "VMs, deren VMware Tools laut vCenter aktualisierbar sind (Status „guestToolsNeedUpgrade“). Aktuelle Tools sichern Treiber, Heartbeat und saubere Gast-Shutdowns – planbar über die Wellenplanung unten.",
+      "VMs, deren VMware Tools laut vCenter aktualisierbar sind (Status „guestToolsNeedUpgrade“). Aktuelle Tools sichern Treiber, Heartbeat und saubere Gast-Shutdowns – die Wellenplanung liegt im VM-Bereich.",
     source: `${RV} · vTools · „Upgradeable“`,
   },
   ntpDnsIssues: {

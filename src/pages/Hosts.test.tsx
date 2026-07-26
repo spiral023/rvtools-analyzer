@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { NormalizedHost } from "@/domain/models/types";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { search: "" }, snapshotsLoading: false }),
-  useHosts: () => ({ data: [], isLoading: false }),
+  useHosts: () => ({ data: [] as NormalizedHost[], isLoading: false }),
 }));
 
 vi.mock("@/components/hosts/HostInventoryPanel", () => ({

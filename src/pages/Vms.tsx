@@ -10,6 +10,7 @@ import { VmInventoryTable, type OverviewVmRow } from "@/pages/Overview";
 import { VmPerformanceDetails } from "@/pages/PerformancePage";
 import { VmDailyOpsDetails } from "@/pages/DailyOps";
 import { VmComplianceDetails } from "@/pages/ComplianceLifecycle";
+import { VmToolsWavePlan } from "@/components/vm/VmToolsWavePlan";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
@@ -43,6 +44,7 @@ export default function Vms() {
       <VmInventoryTable vms={vms} globalFilter={filters.search} />
       <VmPerformanceDetails />
       <VmDailyOpsDetails />
+      <VmToolsWavePlan />
       <VmComplianceDetails />
     </div>
   );

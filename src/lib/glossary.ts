@@ -79,7 +79,7 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
   "/compliance": {
     term: "Compliance / Lifecycle",
     description:
-      "VMware-Tools-Stände, VM-Hardware-Version und Support-/EOL-Status. Zeigt Lifecycle-Rückstände und plant Upgrade-Wellen.",
+      "VM-Compliance, Infrastruktur-Hygiene und Support-/EOL-Status. Zeigt Lifecycle-Rückstände und operative Abweichungen.",
   },
   "/tech-info": {
     term: "Tech-Info",

@@ -51,6 +51,16 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "VMs" })).toHaveAttribute("href", "/vms");
   });
 
+  it("ordnet Cluster direkt unter vCenter ein", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    const vcenterLink = screen.getByRole("link", { name: "vCenter" });
+    const clusterLink = screen.getByRole("link", { name: "Cluster" });
+
+    expect(vcenterLink.compareDocumentPosition(clusterLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
     renderSidebar();

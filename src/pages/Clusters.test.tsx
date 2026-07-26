@@ -244,7 +244,7 @@ describe("Clusters", () => {
 
     expect(await screen.findByRole("heading", { name: "Cluster" })).toBeInTheDocument();
     expect(screen.queryByText(/aktive Snapshots?/)).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "vCenter für Diagramme" })).not.toBeInTheDocument();
     expect(screen.getByText("Clusterübersicht")).toBeInTheDocument();
     expect(screen.getByText(/Betriebssysteme je Cluster/)).toBeInTheDocument();
     expect(screen.queryByText("Datacenter")).not.toBeInTheDocument();
@@ -309,8 +309,9 @@ describe("Clusters", () => {
     expect(screen.getByText(/Cluster Capacity Health/)).toBeInTheDocument();
     expect(screen.getByText(/Cluster Overcommit/)).toBeInTheDocument();
     expect(screen.getByText(/Host Dichte/)).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "vCenter für Diagramme" })).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ })).toBeInTheDocument();
+    expect(screen.getByText("Host Dichte (VMs vs vCPU/Core)").closest("section")).toContainElement(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ }));
   });
 
   it("shows maintenance assignments in the Wartung tab", async () => {
@@ -321,7 +322,7 @@ describe("Clusters", () => {
     fireEvent.click(maintenanceTab);
 
     expect(screen.getByText("Cluster-Zuweisungen")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mail erstellen" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mail erstellen" })).not.toBeInTheDocument();
   });
 
   it("shows the What-If metrics table above the summary in the Planung tab", async () => {
