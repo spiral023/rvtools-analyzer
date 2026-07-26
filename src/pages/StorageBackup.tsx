@@ -10,7 +10,7 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Database, HardDrive, AlertTriangle, Clock, FileWarning, Layers } from "lucide-react";
+import { Database, AlertTriangle, Clock, FileWarning } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
@@ -40,6 +40,7 @@ interface ScsiRow { snapshotId: string; vm: string; controller: string; scsiUnit
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: number; freePct: number; risk: string }
+interface PartitionFreeDistributionRow { label: string; count: number; color: string }
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
   { accessorKey: "vm", header: "VM", meta: { info: STORAGE_PARTITION_COLUMNS.vm } },
@@ -184,9 +185,6 @@ export default function StorageBackup() {
   const disks = useMemo<DiskRow[]>(() =>
     filteredRawDisks.map((r) => ({ snapshotId: r.snapshotId, vm: String(r.data["VM"] || ""), disk: String(r.data["Disk"] || ""), diskPath: String(r.data["Disk Path"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), thin: String(r.data["Thin"] || "").toLowerCase() === "true", mode: String(r.data["Disk Mode"] || ""), raw: String(r.data["Raw"] || "").toLowerCase() === "true", controller: String(r.data["Controller"] || ""), scsiUnit: String(r.data["SCSI Unit #"] || "") })), [filteredRawDisks]);
 
-  const thinDisks = disks.filter((d) => d.thin).length;
-  const rdmDisks = disks.filter((d) => d.raw).length;
-
   // Backup Freshness/Coverage
   const backupData = useMemo<BackupRow[]>(() => {
     const now = Date.now();
@@ -220,8 +218,6 @@ export default function StorageBackup() {
   const dsLifecycle = useMemo<DsLifecycleRow[]>(() =>
     rawDatastore.map((r) => ({ name: String(r.data["Name"] || ""), type: String(r.data["Type"] || ""), version: String(r.data["Version"] || ""), upgradeable: String(r.data["VMFS Upgradeable"] || ""), mha: String(r.data["MHA"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), freePct: Number(r.data["Free %"] || 0) })), [rawDatastore]);
 
-  const upgradeableDs = dsLifecycle.filter((d) => d.upgradeable.toLowerCase() === "true").length;
-
   // Datastore Efficiency
   const dsEfficiency = useMemo<DsEffRow[]>(() => {
     return datastores.map((ds) => {
@@ -250,8 +246,26 @@ export default function StorageBackup() {
     return backupData.filter((b) => snapVms.has(b.vm) && b.risk !== "niedrig");
   }, [filteredVmSnapshots, backupData]);
 
-  const partChart = useMemo(() =>
-    partitions.filter((p) => p.freePct < 30).slice(0, 15).map((p) => ({ name: `${p.vm}:${p.disk}`.slice(0, 25), freePct: Math.round(p.freePct * 10) / 10 })), [partitions]);
+  const partitionFreeDistribution = useMemo<PartitionFreeDistributionRow[]>(() => {
+    const buckets = Array.from({ length: 10 }, (_, index) => {
+      const lower = index * 5;
+      const upper = lower + 5;
+      return {
+        label: `${lower}–${upper} %`,
+        count: 0,
+        color: upper <= 10 ? CHART_COLORS.danger : upper <= 20 ? CHART_COLORS.warning : CHART_COLORS.success,
+      };
+    });
+    buckets.push({ label: ">50 %", count: 0, color: CHART_COLORS.success });
+
+    for (const partition of partitions) {
+      const freePct = Math.max(partition.freePct, 0);
+      const bucketIndex = freePct > 50 ? 10 : Math.min(Math.floor(freePct / 5), 9);
+      buckets[bucketIndex].count += 1;
+    }
+
+    return buckets;
+  }, [partitions]);
 
   const dataLoading = snapshotsLoading || vmsLoading || rawPartitionsLoading || rawMultiPathLoading
     || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading || datastoresLoading;
@@ -267,30 +281,26 @@ export default function StorageBackup() {
       </PageHeader>
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
       <KpiGrid>
-        <KpiCard title="Partitionen" value={formatNum(partitions.length)} icon={<HardDrive className="h-4 w-4" />} info={STORAGE_KPI.partitions} />
         <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} info={STORAGE_KPI.critical} />
         <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} info={STORAGE_KPI.warning} />
         <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.multipathIssues} />
         <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" info={STORAGE_KPI.deadPaths} />
         <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} info={STORAGE_KPI.noBackup} />
         <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
-        <KpiCard title="Thin Disks" value={formatNum(thinDisks)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.thinDisks} />
-        <KpiCard title="RDM / VMFS Upg." value={`${formatNum(rdmDisks)} / ${formatNum(upgradeableDs)}`} icon={<Layers className="h-4 w-4" />} info={STORAGE_KPI.rdmUpgradeable} />
-        <KpiCard title="Datastores" value={formatNum(dsEfficiency.length)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.datastores} />
       </KpiGrid>
 
-      {partChart.length > 0 && (
+      {partitions.length > 0 && (
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <InfoTooltip entry={STORAGE_SECTIONS.partitionChart} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen mit wenig Platz</h3>
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen nach freiem Speicher</h3>
           </InfoTooltip>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={partChart} layout="vertical">
-              <XAxis type="number" domain={[0, 30]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={180} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={partitionFreeDistribution} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
+              <XAxis dataKey="label" interval={0} angle={-35} textAnchor="end" height={64} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
-                {partChart.map((entry) => <Cell key={entry.name} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
+              <Bar dataKey="count" name="Partitionen" radius={[4, 4, 0, 0]}>
+                {partitionFreeDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

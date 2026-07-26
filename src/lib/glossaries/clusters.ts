@@ -44,5 +44,4 @@ export const CLUSTER_TABS: Record<string, GlossaryEntry> = {
   capacity: { term: "Kapazität", description: "Clusterbezogene Capacity Health, Overcommit und Hostdichte für die aktive Auswahl." },
   maintenance: { term: "Wartung", description: "Cluster-Zuweisungen, Wartungsfenster und die Vorbereitung von Wartungsankündigungen." },
   planning: { term: "Planung", description: "Szenarien und What-if-Betrachtungen vor geplanten VM-Verschiebungen." },
-  infrastructure: { term: "Infrastruktur", description: "CPU-, ESXi- sowie HBA-/NIC-Treiberinventar der ausgewählten Cluster." },
 };

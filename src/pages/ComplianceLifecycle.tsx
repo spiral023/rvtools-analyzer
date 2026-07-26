@@ -52,7 +52,6 @@ function ComplianceTabPanel({
   annotationEmpty,
   complianceVms,
   vcenterVersions,
-  hwVersionChart,
 }: {
   noSecureBoot: number;
   biosVms: number;
@@ -62,7 +61,6 @@ function ComplianceTabPanel({
   annotationEmpty: number;
   complianceVms: ComplianceVm[];
   vcenterVersions: Array<{ name: string; fullname: string; version: string; build: string; apiVersion: string }>;
-  hwVersionChart: Array<{ name: string; value: number }>;
 }) {
   return (
     <TabsContent value="compliance" className="space-y-4">
@@ -101,14 +99,6 @@ function ComplianceTabPanel({
         </div>
       )}
 
-      <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-        <InfoTooltip entry={COMPLIANCE_SECTIONS.hwVersionDistribution} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">HW Version Verteilung</h3>
-        </InfoTooltip>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={hwVersionChart}><XAxis dataKey="name" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="value" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /></BarChart>
-        </ResponsiveContainer>
-      </div>
     </TabsContent>
   );
 }
@@ -121,7 +111,6 @@ function renderOperationsTabPanel({
   toolsWavePlan,
   complianceVms,
   globalFilter,
-  onOpenVmDetail,
 }: {
   toolsUpgradeable: number;
   ntpDnsData: NtpRow[];
@@ -130,7 +119,6 @@ function renderOperationsTabPanel({
   toolsWavePlan: ToolsWaveRow[];
   complianceVms: ComplianceVm[];
   globalFilter: string;
-  onOpenVmDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="operations" className="space-y-4">
@@ -142,8 +130,6 @@ function renderOperationsTabPanel({
       </KpiGrid>
 
       {ntpDnsData.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({ntpDnsData.length})</h3></InfoTooltip><VirtualTable data={ntpDnsData} columns={ntpColumns} globalFilter={globalFilter} height={300} /></div>)}
-
-      {hwUpgradeBacklog.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.hwUpgradeBacklog} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3></InfoTooltip><VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} /></div>)}
 
       {toolsWavePlan.length > 0 && (<div><InfoTooltip entry={COMPLIANCE_SECTIONS.toolsWavePlan} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3></InfoTooltip><VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={globalFilter} height={250} /></div>)}
 
@@ -236,6 +222,40 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
   { accessorKey: "target", header: "Ziel", meta: { info: HW_UPGRADE_COLUMNS.target } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: HW_UPGRADE_COLUMNS.cluster } },
 ];
+
+function VmHardwareLifecycleDetails({
+  hwVersionChart,
+  hwUpgradeBacklog,
+  globalFilter,
+  onOpenVmDetail,
+}: {
+  hwVersionChart: Array<{ name: string; value: number }>;
+  hwUpgradeBacklog: HwUpgradeRow[];
+  globalFilter: string;
+  onOpenVmDetail: (row: unknown) => void;
+}) {
+  return (
+    <>
+      <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.hwVersionDistribution} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">HW Version Verteilung</h3>
+        </InfoTooltip>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={hwVersionChart}><XAxis dataKey="name" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="value" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /></BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {hwUpgradeBacklog.length > 0 && (
+        <div>
+          <InfoTooltip entry={COMPLIANCE_SECTIONS.hwUpgradeBacklog} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM HW Upgrade Backlog ({hwUpgradeBacklog.length})</h3>
+          </InfoTooltip>
+          <VirtualTable data={hwUpgradeBacklog} columns={hwUpgradeColumns} globalFilter={globalFilter} height={300} onRowClick={onOpenVmDetail} />
+        </div>
+      )}
+    </>
+  );
+}
 
 function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnly = false }: { initialTab?: ComplianceTab; vmComplianceOnly?: boolean }) {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
@@ -428,6 +448,12 @@ function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnl
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3>
         </InfoTooltip>
         <VirtualTable data={complianceVms} columns={compColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
+        <VmHardwareLifecycleDetails
+          hwVersionChart={hwVersionChart}
+          hwUpgradeBacklog={hwUpgradeBacklog}
+          globalFilter={filters.search}
+          onOpenVmDetail={openVmDetail}
+        />
         {vmDetailDialog}
       </div>
     );
@@ -470,7 +496,6 @@ function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnl
           annotationEmpty={annotationEmpty}
           complianceVms={complianceVms}
           vcenterVersions={vcenterVersions}
-          hwVersionChart={hwVersionChart}
         />
 
         {renderOperationsTabPanel({
@@ -481,7 +506,6 @@ function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnl
           toolsWavePlan,
           complianceVms,
           globalFilter: filters.search,
-          onOpenVmDetail: openVmDetail,
         })}
 
         {renderInfrastructureVersionPanel(buildChart)}

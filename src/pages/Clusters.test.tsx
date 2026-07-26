@@ -353,41 +353,12 @@ describe("Clusters", () => {
     expect(comparison.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("shows vCenter-safe infrastructure inventory in the Infrastruktur tab", async () => {
+  it("entfernt den Infrastruktur-Tab samt CPU- und Treiberinventar", async () => {
     renderClusters();
 
-    const infrastructureTab = await screen.findByRole("tab", { name: "Infrastruktur" });
-    fireEvent.mouseDown(infrastructureTab);
-    fireEvent.click(infrastructureTab);
-
-    expect(screen.getByText("CPU-Generationen Mix je Cluster")).toBeInTheDocument();
-    expect(screen.queryByText(/Host Inventar/)).not.toBeInTheDocument();
-    expect(screen.getByText(/HBA\/NIC Treiberinventar/)).toBeInTheDocument();
-    expect(screen.getAllByText("vc-a").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("vc-b").length).toBeGreaterThan(0);
-    expect(screen.getByText("lpfc-0")).toBeInTheDocument();
-    expect(screen.getByText("lpfc-2")).toBeInTheDocument();
-  });
-
-  it("keeps infrastructure inventory when the cluster record has no datacenter", async () => {
-    const originalDatacenter = clusters[0]!.datacenter;
-    const originalKey = clusters[0]!.clusterKey;
-    clusters[0]!.datacenter = null;
-    clusters[0]!.clusterKey = clusterScopeKey("vc-a", null, "Production");
-
-    try {
-      renderClusters();
-
-      const infrastructureTab = await screen.findByRole("tab", { name: "Infrastruktur" });
-      fireEvent.mouseDown(infrastructureTab);
-      fireEvent.click(infrastructureTab);
-
-      expect(screen.getAllByText("esx-11").length).toBeGreaterThan(0);
-      expect(screen.getByText("lpfc-0")).toBeInTheDocument();
-    } finally {
-      clusters[0]!.datacenter = originalDatacenter;
-      clusters[0]!.clusterKey = originalKey;
-    }
+    expect(screen.queryByRole("tab", { name: "Infrastruktur" })).not.toBeInTheDocument();
+    expect(screen.queryByText("CPU-Generationen Mix je Cluster")).not.toBeInTheDocument();
+    expect(screen.queryByText(/HBA\/NIC Treiberinventar/)).not.toBeInTheDocument();
   });
 
   it("redirects the legacy maintenance URL to the maintenance tab", async () => {

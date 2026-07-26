@@ -1,13 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import ComplianceLifecycle from "@/pages/ComplianceLifecycle";
+import ComplianceLifecycle, { VmComplianceDetails } from "@/pages/ComplianceLifecycle";
 import type { NormalizedVm, NormalizedHost, SheetRow } from "@/domain/models/types";
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { search: "" }, snapshotsLoading: false }),
   useVms: () => ({ vms: [] as NormalizedVm[], allVms: [] as NormalizedVm[], isLoading: false }),
   useHosts: () => ({ data: [] as NormalizedHost[], isLoading: false }),
-  useRawSheet: () => ({ data: [] as SheetRow[], isLoading: false }),
+  useRawSheet: (sheet: string) => ({
+    data: sheet === "vInfo"
+      ? [{ snapshotId: "snap-1", sheetName: "vInfo", rowIndex: 0, data: { VM: "vm-01", "HW upgrade status": "pending", "HW version": "vmx-13", "HW upgrade policy": "manual", "HW target": "vmx-20", Cluster: "Production" } }] as SheetRow[]
+      : [] as SheetRow[],
+    isLoading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useGlobalVmFilter", () => ({
@@ -49,5 +54,18 @@ describe("ComplianceLifecycle", () => {
     expect(screen.queryByText(/CPU-Generationen Mix je Cluster/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Host Inventar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/HBA\/NIC Treiberinventar/)).not.toBeInTheDocument();
+  });
+
+  it("zeigt HW-Version-Verteilung und Upgrade-Backlog im VM-Bereich statt im Lifecycle-Bereich", () => {
+    const { unmount } = render(<ComplianceLifecycle />);
+
+    expect(screen.queryByText("HW Version Verteilung")).not.toBeInTheDocument();
+    expect(screen.queryByText(/VM HW Upgrade Backlog/)).not.toBeInTheDocument();
+
+    unmount();
+    render(<VmComplianceDetails />);
+
+    expect(screen.getByText("HW Version Verteilung")).toBeInTheDocument();
+    expect(screen.getByText("VM HW Upgrade Backlog (1)")).toBeInTheDocument();
   });
 });

@@ -3,7 +3,6 @@ import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterOsDetailDialog } from "@/components/cluster/ClusterOsDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
-import { ClusterInfrastructurePanel } from "@/components/cluster/ClusterInfrastructurePanel";
 import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
 import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
@@ -17,14 +16,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
-import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
-type ClusterTab = "overview" | "capacity" | "maintenance" | "planning" | "infrastructure";
+type ClusterTab = "overview" | "capacity" | "maintenance" | "planning";
 
 function isClusterTab(value: string | null): value is ClusterTab {
-  return value === "overview" || value === "capacity" || value === "maintenance" || value === "planning" || value === "infrastructure";
+  return value === "overview" || value === "capacity" || value === "maintenance" || value === "planning";
 }
 
 export default function Clusters() {
@@ -37,8 +35,6 @@ export default function Clusters() {
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { vms = [], isLoading: vmsLoading } = useVms();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
-  const { data: rawHbaRows = [], isLoading: rawHbaLoading } = useRawSheet("vHBA", tab === "infrastructure");
-  const { data: rawNicRows = [], isLoading: rawNicLoading } = useRawSheet("vNIC", tab === "infrastructure");
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const [selectedOsCluster, setSelectedOsCluster] = useState<ClusterOsDistributionRow | null>(null);
@@ -59,27 +55,6 @@ export default function Clusters() {
     });
   }, [clusters, filters.clusters, filters.search, hosts, rawVHostRows, scopedSnapshots, vms, vropsLatest]);
   const scopedClusterKeys = useMemo(() => new Set(filteredRows.map((row) => row.clusterKey)), [filteredRows]);
-  const infrastructureAssociationIdentities = useMemo<ClusterIdentity[]>(() => [
-    ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),
-    ...hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
-    ...vms.map((vm) => ({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster })),
-  ], [clusters, hosts, vms]);
-  const infrastructureClusters = useMemo(
-    () => clusters.filter((cluster) => {
-      if (!activeSnapshotSet.has(cluster.snapshotId)) return false;
-      const identity = resolveClusterIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name }, infrastructureAssociationIdentities);
-      return scopedClusterKeys.has(clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName));
-    }),
-    [activeSnapshotSet, clusters, infrastructureAssociationIdentities, scopedClusterKeys],
-  );
-  const infrastructureHosts = useMemo(
-    () => hosts.filter((host) => {
-      if (!activeSnapshotSet.has(host.snapshotId)) return false;
-      const identity = resolveClusterIdentity({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster }, infrastructureAssociationIdentities);
-      return scopedClusterKeys.has(clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName));
-    }),
-    [activeSnapshotSet, hosts, infrastructureAssociationIdentities, scopedClusterKeys],
-  );
   const osRows = useMemo(
     () => buildClusterOsDistributionRows(vms, osSource).filter((row) => scopedClusterKeys.has(row.clusterKey)),
     [osSource, scopedClusterKeys, vms],
@@ -106,7 +81,7 @@ export default function Clusters() {
     });
   };
 
-  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading || rawHbaLoading || rawNicLoading;
+  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading;
   if (dataLoading) return <PageLoadingState title="Cluster" />;
   if (snapshots.length === 0) {
     return <EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten vorhanden" description="Laden Sie einen RVTools XLSX-Export hoch, um Ihre Cluster zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />;
@@ -122,7 +97,6 @@ export default function Clusters() {
           <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.maintenance}><TabsTrigger value="maintenance">Wartung</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.planning}><TabsTrigger value="planning">Planung</TabsTrigger></InfoTooltip>
-          <InfoTooltip entry={CLUSTER_TABS.infrastructure}><TabsTrigger value="infrastructure">Infrastruktur</TabsTrigger></InfoTooltip>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <ClusterOverviewPanel
@@ -150,15 +124,6 @@ export default function Clusters() {
         </TabsContent>
         <TabsContent value="planning" className="mt-6">
           <ClusterPlanningPanel />
-        </TabsContent>
-        <TabsContent value="infrastructure" className="mt-6">
-          <ClusterInfrastructurePanel
-            clusters={infrastructureClusters}
-            hosts={infrastructureHosts}
-            rawHbaRows={rawHbaRows}
-            rawNicRows={rawNicRows}
-            search={filters.search}
-          />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog
