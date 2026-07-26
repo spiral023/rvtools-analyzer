@@ -3,7 +3,8 @@ import type { ComponentType } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { HardwareModelGroup } from "@/lib/hardwareVariants";
 import type { HostDetail } from "@/lib/conversion";
-import type { NormalizedVm } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
+import { findClusterForHost } from "@/lib/hardwareClusterSelection";
 import { HostDetailDialog } from "./Hardware";
 import * as HardwareModule from "./Hardware";
 
@@ -130,6 +131,26 @@ describe("VariantDetailDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cluster Production öffnen" }));
 
     expect(onSelectCluster).toHaveBeenCalledWith(clusterHost);
+  });
+});
+
+describe("findClusterForHost", () => {
+  it("öffnet den Cluster auch wenn sein vCluster-Datensatz kein Datacenter enthält", () => {
+    const normalizedHost: NormalizedHost = {
+      snapshotId: "snap-1", vcenterId: "vc-1", hostKey: "host-1", host: clusterHost.host,
+      cluster: clusterHost.cluster, datacenter: "DC1", cpuModel: null, cpuTotalMHz: null,
+      cpuCores: null, cpuThreads: null, memoryTotalMiB: null, version: null, build: null,
+      vendor: null, model: null, connectionState: null, powerState: null, maintenanceMode: null,
+      vmCount: null,
+    };
+    const cluster: NormalizedCluster = {
+      snapshotId: "snap-1", vcenterId: "vc-1", clusterKey: "vc-1\\u0000\\u0000Production",
+      name: "Production", datacenter: null, haEnabled: null, drsEnabled: null, numHosts: null,
+      numCpuCores: null, numCpuThreads: null, totalMemoryMiB: null, totalCpuMHz: null,
+      numEffectiveHosts: null,
+    };
+
+    expect(findClusterForHost(clusterHost, [normalizedHost], [cluster])).toBe(cluster);
   });
 });
 

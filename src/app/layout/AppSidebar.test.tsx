@@ -37,6 +37,20 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("Uploads & Snapshots")).not.toBeInTheDocument();
   });
 
+  it("verlinkt den neuen Hosts-Bereich", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.getByRole("link", { name: "Hosts" })).toHaveAttribute("href", "/hosts");
+  });
+
+  it("verlinkt den neuen VMs-Bereich", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.getByRole("link", { name: "VMs" })).toHaveAttribute("href", "/vms");
+  });
+
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
     renderSidebar();

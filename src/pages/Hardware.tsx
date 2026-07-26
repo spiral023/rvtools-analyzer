@@ -41,6 +41,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { HARDWARE_KPI, HARDWARE_SECTIONS, HARDWARE_VARIANT_COLUMNS } from "@/lib/glossaries/hardware";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
+import { findClusterForHost } from "@/lib/hardwareClusterSelection";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export type { HostDetail } from "@/lib/conversion";
@@ -998,16 +999,7 @@ export default function Hardware() {
   const selectedCluster = clusters.find((cluster) => cluster.clusterKey === selectedClusterKey) ?? null;
 
   const openClusterDetail = (host: HostDetail) => {
-    const normalizedHost = normalizedHosts.find((candidate) =>
-      candidate.host === host.host
-      && candidate.cluster === host.cluster
-      && candidate.datacenter === host.datacenter,
-    );
-    const cluster = clusters.find((candidate) =>
-      candidate.name === host.cluster
-      && candidate.datacenter === host.datacenter
-      && (!normalizedHost || candidate.vcenterId === normalizedHost.vcenterId),
-    );
+    const cluster = findClusterForHost(host, normalizedHosts, clusters);
     if (cluster) setSelectedClusterKey(cluster.clusterKey);
   };
 

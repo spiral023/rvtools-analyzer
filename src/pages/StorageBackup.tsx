@@ -26,6 +26,7 @@ import {
   STORAGE_SCSI_COLUMNS,
   STORAGE_DSLIFECYCLE_COLUMNS,
   STORAGE_DS_EFFICIENCY_COLUMNS,
+  STORAGE_SIOC_COLUMNS,
   STORAGE_SECTIONS,
 } from "@/lib/glossaries/storageBackup";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -38,6 +39,7 @@ interface BackupRow { snapshotId: string; vm: string; backupStatus: string; last
 interface ScsiRow { snapshotId: string; vm: string; controller: string; scsiUnit: string; disk: string; capacityMiB: number; mode: string }
 interface DsLifecycleRow { name: string; type: string; version: string; upgradeable: string; mha: string; capacityMiB: number; freePct: number }
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
+interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: number; freePct: number; risk: string }
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
   { accessorKey: "vm", header: "VM", meta: { info: STORAGE_PARTITION_COLUMNS.vm } },
@@ -118,6 +120,14 @@ const dsEffColumns: ColumnDef<DsEffRow, unknown>[] = [
   { accessorKey: "inUseMiB", header: "In Use", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "freeMiB", header: "Frei", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number) },
   { accessorKey: "efficiency", header: "Effizienz %", meta: { info: STORAGE_DS_EFFICIENCY_COLUMNS.efficiency }, cell: ({ getValue }) => { const v = getValue() as number; return `${v.toFixed(0)}%`; }},
+];
+
+const siocColumns: ColumnDef<SiocRow, unknown>[] = [
+  { accessorKey: "datastore", header: "Datastore", meta: { info: STORAGE_SIOC_COLUMNS.datastore } },
+  { accessorKey: "siocEnabled", header: "SIOC", meta: { info: STORAGE_SIOC_COLUMNS.siocEnabled }, cell: ({ getValue }) => getValue() ? <span className="text-success">An</span> : <span className="text-muted-foreground">Aus</span> },
+  { accessorKey: "siocThreshold", header: "Threshold (ms)", meta: { info: STORAGE_SIOC_COLUMNS.siocThreshold } },
+  { accessorKey: "freePct", header: "Frei %", meta: { info: STORAGE_SIOC_COLUMNS.freePct }, cell: ({ getValue }) => { const value = getValue() as number; return <span className={value < 10 ? "text-destructive" : value < 20 ? "text-warning" : ""}>{value.toFixed(1)}%</span>; }},
+  { accessorKey: "risk", header: "Risiko", meta: { info: STORAGE_SIOC_COLUMNS.risk }, cell: ({ getValue }) => { const value = getValue() as string; return <span className={value === "hoch" ? "text-destructive font-semibold" : value === "mittel" ? "text-warning" : ""}>{value}</span>; }},
 ];
 
 export default function StorageBackup() {
@@ -221,6 +231,19 @@ export default function StorageBackup() {
     }).sort((a, b) => b.efficiency - a.efficiency);
   }, [datastores]);
 
+  const siocData = useMemo<SiocRow[]>(() => {
+    const rows: SiocRow[] = [];
+    for (const datastore of datastores) {
+      const siocEnabled = datastore.siocEnabled === true;
+      const freePct = datastore.freePct ?? 100;
+      let risk = "niedrig";
+      if (freePct < 20 && !siocEnabled) risk = "mittel";
+      if (freePct < 10) risk = "hoch";
+      if (risk !== "niedrig" || siocEnabled) rows.push({ datastore: datastore.name, siocEnabled, siocThreshold: 30, freePct, risk });
+    }
+    return rows.sort((left, right) => left.freePct - right.freePct);
+  }, [datastores]);
+
   // Snapshot + Backup Conflict
   const snapshotBackupConflicts = useMemo(() => {
     const snapVms = new Set(filteredVmSnapshots.map((s) => s.vmName));
@@ -299,6 +322,7 @@ export default function StorageBackup() {
       )}
 
       {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+      {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
       {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
       {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
       {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}

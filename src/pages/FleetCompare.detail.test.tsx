@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   NormalizedCluster,
   NormalizedDatastore,
@@ -49,14 +50,33 @@ const healthEvent: NormalizedHealth = {
 };
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({ data, onRowClick }: { data: { displayName: string }[]; onRowClick?: (row: unknown) => void }) => (
-    <div>
-      {data.map((row) => (
-        <button key={row.displayName} type="button" onClick={() => onRowClick?.(row)}>
-          {row.displayName}
-        </button>
-      ))}
-    </div>
+  VirtualTable: ({
+    data,
+    columns,
+    onRowClick,
+  }: {
+    data: Array<Record<string, unknown> & { displayName: string }>;
+    columns: Array<{
+      accessorKey?: string;
+      cell?: (args: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => ReactNode;
+    }>;
+    onRowClick?: (row: unknown) => void;
+  }) => (
+    <table>
+      <tbody>
+        {data.map((row) => (
+          <tr key={row.displayName} onClick={() => onRowClick?.(row)}>
+            {columns.map((column, index) => (
+              <td key={column.accessorKey ?? index} data-testid={`cell-${column.accessorKey ?? index}`}>
+                {column.cell
+                  ? column.cell({ getValue: () => row[column.accessorKey ?? ""], row: { original: row } })
+                  : String(row[column.accessorKey ?? ""] ?? "")}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   ),
 }));
 
@@ -76,7 +96,21 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 
+vi.mock("@/pages/VmwareVersions", () => ({
+  VCenterVersionsTable: (): null => null,
+}));
+
+vi.mock("@/components/licensing/LicenseDetailsTable", () => ({
+  LicenseDetailsTable: (): null => null,
+}));
+
+vi.mock("@/lib/licenseDetails", () => ({
+  getLicenseRows: () => [],
+}));
+
 const { default: FleetCompare } = await import("./FleetCompare");
+
+afterEach(() => cleanup());
 
 function renderPage() {
   render(
@@ -97,6 +131,25 @@ describe("FleetCompare – vCenter-Detailansicht", () => {
     expect(screen.getByText("DS01")).toBeInTheDocument();
     expect(screen.getByText("Uplink redundancy lost")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "vCenter-Details als Markdown kopieren" })).toBeInTheDocument();
+  });
+
+  it("erklärt Health und Risiko Score per Tooltip", async () => {
+    renderPage();
+
+    const healthValue = (await screen.findByTestId("cell-healthIssues")).querySelector("span");
+    expect(healthValue).not.toBeNull();
+    fireEvent.pointerMove(healthValue);
+
+    expect((await screen.findAllByText("1 von vCenter gemeldete Health- und Konfigurationswarnung.")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Warning").length).toBeGreaterThan(0);
+
+    const riskValue = screen.getByTestId("cell-riskScore").querySelector("span");
+    expect(riskValue).not.toBeNull();
+    fireEvent.pointerMove(riskValue);
+
+    expect((await screen.findAllByText("Score 12 von maximal 100")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Health-Warnungen (1 × 2)").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Kritische Datastores (1 × 10)").length).toBeGreaterThan(0);
   });
 
   it("schließt die Detailansicht wieder", async () => {

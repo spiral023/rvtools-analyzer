@@ -1,51 +1,8 @@
 import type { GlossaryEntry } from "@/lib/glossary";
 
-/**
- * Glossar für die Seite „Licensing & Effizienz“. Zielgruppe: VMware-Administrator:innen.
- */
+/** Glossar für Lizenzdetails im vCenter-Bereich und die Cluster-Dichte. */
 
 const RV = "RVTools";
-
-/* ------------------------------------------------------------------ */
-/*  KPIs                                                              */
-/* ------------------------------------------------------------------ */
-export const LICENSING_KPI: Record<string, GlossaryEntry> = {
-  totalLicenses: {
-    term: "Lizenzen",
-    description:
-      "Anzahl der von vCenter erfassten Lizenzeinträge (vSphere, vCenter, ergänzende Produkte). Basis der Auslastungs- und Ablaufbetrachtung.",
-    source: `${RV} · vLicense`,
-  },
-  highUtil: {
-    term: "Hoch (>85%)",
-    description:
-      "Lizenzen mit über 85 % Auslastung. Wenig Puffer bis zur Grenze – bei Wachstum oder neuen Hosts frühzeitig nachbestellen.",
-    source: `${RV} · vLicense · „Used“ / „Total“`,
-  },
-  critUtil: {
-    term: "Kritisch (>95%)",
-    description:
-      "Lizenzen über 95 % Auslastung. Akut knapp – ein weiterer Host oder eine CPU kann bereits eine Lizenzverletzung auslösen.",
-    source: `${RV} · vLicense · „Used“ / „Total“`,
-  },
-  expiring: {
-    term: "Mit Ablaufdatum",
-    description:
-      "Lizenzen mit gesetztem Ablaufdatum (nicht „Never“). Typisch für Evaluierungs- oder Term-Lizenzen – rechtzeitig verlängern, bevor Funktionen ausfallen.",
-    source: `${RV} · vLicense · „Expiration Date“`,
-  },
-  idleVms: {
-    term: "Idle VMs",
-    description:
-      "Ausgeschaltete VMs als Stilllegungskandidaten. Der Untertitel summiert die gebundenen vCPU und den RAM – Rückgewinnungspotenzial für Konsolidierung und Lizenzentlastung.",
-    source: `${RV} · vInfo · „Powerstate“`,
-  },
-  clusters: {
-    term: "Clusters",
-    description: "Anzahl der Cluster in der Dichte-/Effizienzbetrachtung.",
-    source: `${RV} · vCluster`,
-  },
-};
 
 /* ------------------------------------------------------------------ */
 /*  Tabelle „Lizenz Details“                                          */
@@ -95,41 +52,6 @@ export const LICENSING_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Tabelle „Idle / Stilllegungskandidaten“                           */
-/* ------------------------------------------------------------------ */
-export const IDLE_COLUMNS: Record<string, GlossaryEntry> = {
-  vm: {
-    term: "VM",
-    description: "Anzeigename der ausgeschalteten VM.",
-    source: `${RV} · vInfo · „VM“`,
-  },
-  powerState: {
-    term: "Power",
-    description: "Energiezustand – hier ausschließlich „poweredOff“, der Grund für die Einstufung als Kandidat.",
-    source: `${RV} · vInfo · „Powerstate“`,
-  },
-  cpuCount: {
-    term: "vCPU",
-    description: "Zugewiesene virtuelle CPUs, die bei Stilllegung frei würden.",
-    source: `${RV} · vInfo · „CPUs“`,
-  },
-  memoryMiB: {
-    term: "RAM",
-    description: "Konfigurierter Arbeitsspeicher, der bei Stilllegung frei würde.",
-    source: `${RV} · vInfo · „Memory“`,
-  },
-  cluster: {
-    term: "Cluster",
-    description: "Cluster, in dem die VM registriert ist.",
-    source: `${RV} · vInfo · „Cluster“`,
-  },
-  reason: {
-    term: "Grund",
-    description: "Warum die VM als Kandidat gilt (z.B. „Powered Off“). Vor dem Löschen fachliche Notwendigkeit prüfen.",
-  },
-};
-
-/* ------------------------------------------------------------------ */
 /*  Tabelle „Cluster Dichte & Effizienz“                              */
 /* ------------------------------------------------------------------ */
 export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
@@ -170,20 +92,10 @@ export const CLUSTER_DENSITY_COLUMNS: Record<string, GlossaryEntry> = {
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                    */
 /* ------------------------------------------------------------------ */
 export const LICENSING_SECTIONS: Record<string, GlossaryEntry> = {
-  utilizationChart: {
-    term: "Lizenzauslastung",
-    description:
-      "Auslastung je Lizenz als Balken (grün/gelb/rot nach Schwellwerten). Nutze die Ansicht, um Engpässe vor einer Cluster-Erweiterung zu erkennen – rote Balken zuerst adressieren, da hier bereits ein zusätzlicher Host eine Verletzung auslösen kann.",
-  },
   licenseTable: {
     term: "Lizenz Details",
     description:
       "Vollständige Lizenzliste mit Einheit, Belegung, Ablauf und Features. Prüfe Einheit und Auslastung gemeinsam, um kern- vs. sockelbasierte Lizenzierung korrekt zu bewerten, und behalte Ablaufdaten für die Verlängerungsplanung im Blick.",
-  },
-  idleTable: {
-    term: "Idle / Stilllegungskandidaten",
-    description:
-      "Ausgeschaltete VMs, die weiterhin Storage und ggf. Lizenzbezug binden. Arbeite die Liste als Aufräumaktion ab: fachliche Notwendigkeit klären, dann archivieren oder löschen, um vCPU, RAM und Speicher zurückzugewinnen. Ein Klick öffnet die VM-Details.",
   },
   clusterDensity: {
     term: "Cluster Dichte & Effizienz",

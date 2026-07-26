@@ -176,8 +176,13 @@ vi.mock("@/hooks/useWhatIf", () => ({
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({ data, onRowClick }: { data: Array<Record<string, unknown>>; onRowClick?: (row: Record<string, unknown>) => void }) => (
+  VirtualTable: ({ data, columns = [], onRowClick }: {
+    data: Array<Record<string, unknown>>;
+    columns?: Array<{ id?: string; accessorKey?: string; header?: string }>;
+    onRowClick?: (row: Record<string, unknown>) => void;
+  }) => (
     <div>
+      {columns.map((column) => typeof column.header === "string" && <span key={column.id ?? column.accessorKey ?? column.header}>{column.header}</span>)}
       {data.map((row, index) => (
         <div key={index}>
           {Object.values(row).map((value, valueIndex) => <span key={valueIndex}>{String(value)}</span>)}
@@ -242,6 +247,7 @@ describe("Clusters", () => {
     expect(screen.getByRole("combobox", { name: "vCenter für Diagramme" })).toBeInTheDocument();
     expect(screen.getByText("Clusterübersicht")).toBeInTheDocument();
     expect(screen.getByText(/Betriebssysteme je Cluster/)).toBeInTheDocument();
+    expect(screen.queryByText("Datacenter")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "According to VMware Tools" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Configuration file" })).not.toBeChecked();
     expect(screen.getAllByText("vcsa-a").length).toBeGreaterThan(0);
@@ -355,7 +361,7 @@ describe("Clusters", () => {
     fireEvent.click(infrastructureTab);
 
     expect(screen.getByText("CPU-Generationen Mix je Cluster")).toBeInTheDocument();
-    expect(screen.getByText(/Host Inventar/)).toBeInTheDocument();
+    expect(screen.queryByText(/Host Inventar/)).not.toBeInTheDocument();
     expect(screen.getByText(/HBA\/NIC Treiberinventar/)).toBeInTheDocument();
     expect(screen.getAllByText("vc-a").length).toBeGreaterThan(0);
     expect(screen.getAllByText("vc-b").length).toBeGreaterThan(0);

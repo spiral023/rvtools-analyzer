@@ -35,7 +35,7 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 | Welche Portgroups, VLANs, dvSwitches und Security-Settings sind auffällig? | **Network / Security** |
 | Welche Host-Uplinks, VMkernel-Adapter und pNICs sind relevant? | **Host-Netzwerk** |
 | Welche ESXi-/vCenter-Versionen und Lifecycle-Themen sind sichtbar? | **Compliance / Lifecycle**, **VMware Versions** |
-| Wie unterscheiden sich meine vCenter-Umgebungen? | **Fleet Compare** |
+| Wie unterscheiden sich meine vCenter-Umgebungen? | **vCenter** |
 
 ## Highlights
 
@@ -44,7 +44,7 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 | **RVTools-Import** | Upload von `.xlsx`/`.xls`, Fortschritt, Duplikaterkennung per SHA-256 und Verwaltung der importierten Stände |
 | **Local-first** | Analyse ohne Backend; Daten liegen lokal in IndexedDB pro Browser-Origin |
 | **Mehrere vCenter** | Je vCenter wird ein aktueller Stand verwaltet und gefiltert; verschiedene vCenter sind vergleichbar. Ein neuer Export ersetzt den bisherigen Stand desselben vCenters |
-| **Admin-Dashboards** | Fokus auf Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware, Lifecycle und Licensing |
+| **Admin-Dashboards** | Fokus auf Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware und Lifecycle |
 | **Globale VM-Filter** | Feldbasierte Filter und Textsuche über den importierten Stand je vCenter |
 | **Große Exporte** | XLSX-Parsing im Web Worker und virtuelle Tabellen für große RVTools-Dateien |
 | **Tech-Info-Erweiterung** | Optionale Zuordnung zusätzlicher CMDB-/Betriebsdaten wie Wartungsfenster, SysV, Standort und Backup-Flag |
@@ -66,7 +66,7 @@ flowchart LR
 3. Optional weitere vCenter importieren. Ein erneuter Export desselben vCenters ersetzt dessen bisherigen Stand.
 4. Über globale Filter den Scope eingrenzen, z. B. Cluster, OS, Power-State oder VM-Name.
 5. Dashboards für Betrieb, Kapazität, Performance und Lifecycle prüfen.
-6. Bei Bedarf mehrere vCenter im **Fleet Compare** gegenüberstellen.
+6. Bei Bedarf mehrere vCenter im Bereich **vCenter** gegenüberstellen.
 
 ## Schnellstart
 
@@ -119,10 +119,11 @@ http://localhost:5173
 | `/host-network` | Host-Netzwerk | pNICs, vSwitches, VMkernel, dvSwitch-/dvPort-Sicht |
 | `/hardware` | Hardware | Host-Hardware, Modelle, CPU-/RAM-Profile und Standardisierung |
 | `/compliance` | Compliance / Lifecycle | Secure Boot, CBT, OS Drift, Tools Upgrade, ESXi Build Drift, NTP/DNS |
-| `/licensing` | Licensing | Lizenznutzung, Editionen und Effizienzsicht |
 | `/tech-info` | Tech-Info | Betriebsdaten je VM, z. B. Servertyp, Wartungsfenster, SysV und Backup-Flag |
 | `/vmware-versions` | VMware Versions | Erkannte vCenter-/ESXi-Builds und Abdeckung bekannter Releases |
-| `/fleet-compare` | Fleet Compare | Vergleich mehrerer vCenter-Umgebungen |
+| `/vcenter` | vCenter | Vergleich mehrerer vCenter-Umgebungen |
+| `/hosts` | Hosts | Host-Inventar und erkannte ESXi-Releases |
+| `/vms` | VMs | VM-Inventar sowie Performance-, Snapshot-, Health- und Compliance-Details |
 
 ## Unterstützte Daten
 

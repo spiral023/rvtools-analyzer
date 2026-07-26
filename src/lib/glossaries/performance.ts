@@ -47,12 +47,6 @@ export const PERFORMANCE_KPI: Record<string, GlossaryEntry> = {
       "Speicherpfade mit nicht-ok Betriebszustand oder toten (dead) Pfaden. Reduziert Redundanz und Durchsatz zum Storage – kann Latenzspitzen verursachen.",
     source: `${RV} · vMultiPath · „Oper. State“ / „Path n state“`,
   },
-  nicQuality: {
-    term: "NIC Qualität",
-    description:
-      "Host-Uplinks mit auffälliger Verbindung: Speed unter 10 Gbit/s oder Half Duplex. Kann Netzengpässe und Paketverluste verursachen.",
-    source: `${RV} · vNIC · „Speed“ / „Duplex“`,
-  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -272,73 +266,6 @@ export const PERFORMANCE_VMNET_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Performance – SIOC-Tabelle                                         */
-/* ------------------------------------------------------------------ */
-export const PERFORMANCE_SIOC_COLUMNS: Record<string, GlossaryEntry> = {
-  datastore: {
-    term: "Datastore",
-    description: "Name des Datastores.",
-    source: `${RV} · vDatastore · „Name“`,
-  },
-  siocEnabled: {
-    term: "SIOC",
-    description:
-      "Ob Storage I/O Control aktiv ist. SIOC priorisiert I/O bei Überlast fair zwischen VMs – ohne SIOC kann eine VM den Datastore dominieren.",
-    source: `${RV} · vDatastore · „SIOC enabled“`,
-  },
-  siocThreshold: {
-    term: "Threshold (ms)",
-    description:
-      "Latenzschwelle, ab der SIOC eingreift (Standard 30 ms). Wird sie überschritten, beginnt die I/O-Drosselung.",
-  },
-  freePct: {
-    term: "Frei %",
-    description:
-      "Freier Speicher des Datastores. Unter 20 % (gelb) bzw. 10 % (rot) steigt neben dem Platz- auch das Latenzrisiko.",
-    source: `${RV} · vDatastore · „Free %“`,
-  },
-  risk: {
-    term: "Risiko",
-    description:
-      "Abgeleitete Einstufung: „hoch“ unter 10 % frei, „mittel“ bei <20 % frei ohne aktives SIOC.",
-    source: "berechnet",
-  },
-};
-
-/* ------------------------------------------------------------------ */
-/*  Performance – Host-NIC-Qualität-Tabelle                            */
-/* ------------------------------------------------------------------ */
-export const PERFORMANCE_NIC_COLUMNS: Record<string, GlossaryEntry> = {
-  host: {
-    term: "Host",
-    description: "ESXi-Host, zu dem der Uplink gehört.",
-    source: `${RV} · vNIC · „Host“`,
-  },
-  device: {
-    term: "NIC",
-    description: "Bezeichnung des physischen Netzwerkadapters, z.B. „vmnic0“.",
-    source: `${RV} · vNIC · „Network Device“`,
-  },
-  speed: {
-    term: "Speed (Mbps)",
-    description:
-      "Ausgehandelte Verbindungsgeschwindigkeit in Mbit/s. Unter 10.000 (10 Gbit/s) gilt der Uplink hier als auffällig langsam.",
-    source: `${RV} · vNIC · „Speed“`,
-  },
-  duplex: {
-    term: "Full Duplex",
-    description:
-      "Ob die Verbindung im Vollduplex läuft. „Nein“ (Half Duplex) deutet auf eine fehlerhafte Aushandlung hin und kostet Durchsatz.",
-    source: `${RV} · vNIC · „Duplex“`,
-  },
-  issue: {
-    term: "Problem",
-    description: "Erkannte Auffälligkeit: niedrige Geschwindigkeit und/oder Half Duplex.",
-    source: "berechnet",
-  },
-};
-
-/* ------------------------------------------------------------------ */
 /*  Performance – Abschnitts-Überschriften                             */
 /* ------------------------------------------------------------------ */
 export const PERFORMANCE_SECTIONS: Record<string, GlossaryEntry> = {
@@ -371,15 +298,5 @@ export const PERFORMANCE_SECTIONS: Record<string, GlossaryEntry> = {
     term: "VM Netzwerkanomalien",
     description:
       "Eingeschaltete VMs mit getrennter NIC oder fehlender IPv4-Adresse. Häufige Ursache für nicht erreichbare Dienste – hier findest du sie, bevor Nutzer sie melden.",
-  },
-  sioc: {
-    term: "Storage Congestion / SIOC",
-    description:
-      "Datastores mit SIOC-Status und freiem Speicher. Zeigt, wo I/O-Contention droht und ob SIOC als Schutz aktiv ist. Bei knappen Datastores ohne SIOC steigt das Risiko dominierender „Noisy Neighbors“.",
-  },
-  nicQuality: {
-    term: "Host NIC Link Qualität",
-    description:
-      "Host-Uplinks mit niedriger Geschwindigkeit oder Half Duplex. Klick auf eine Zeile öffnet die Host-Detailansicht. Solche Links sind oft Fehlaushandlungen und begrenzen den Netzdurchsatz des Hosts.",
   },
 };

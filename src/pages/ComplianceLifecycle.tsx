@@ -53,8 +53,6 @@ function ComplianceTabPanel({
   complianceVms,
   vcenterVersions,
   hwVersionChart,
-  globalFilter,
-  onOpenVmDetail,
 }: {
   noSecureBoot: number;
   biosVms: number;
@@ -65,8 +63,6 @@ function ComplianceTabPanel({
   complianceVms: ComplianceVm[];
   vcenterVersions: Array<{ name: string; fullname: string; version: string; build: string; apiVersion: string }>;
   hwVersionChart: Array<{ name: string; value: number }>;
-  globalFilter: string;
-  onOpenVmDetail: (row: unknown) => void;
 }) {
   return (
     <TabsContent value="compliance" className="space-y-4">
@@ -113,8 +109,6 @@ function ComplianceTabPanel({
           <BarChart data={hwVersionChart}><XAxis dataKey="name" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="value" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /></BarChart>
         </ResponsiveContainer>
       </div>
-
-      <div><InfoTooltip entry={COMPLIANCE_SECTIONS.complianceTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3></InfoTooltip><VirtualTable data={complianceVms} columns={compColumns} globalFilter={globalFilter} onRowClick={onOpenVmDetail} /></div>
     </TabsContent>
   );
 }
@@ -243,7 +237,7 @@ const hwUpgradeColumns: ColumnDef<HwUpgradeRow, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster", meta: { info: HW_UPGRADE_COLUMNS.cluster } },
 ];
 
-function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?: ComplianceTab }) {
+function useComplianceLifecycleView({ initialTab = "compliance", vmComplianceOnly = false }: { initialTab?: ComplianceTab; vmComplianceOnly?: boolean }) {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -427,6 +421,18 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Compliance / Lifecycle</h1><EmptyState icon={<Shield className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
+  if (vmComplianceOnly) {
+    return (
+      <div>
+        <InfoTooltip entry={COMPLIANCE_SECTIONS.complianceTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Compliance ({complianceVms.length})</h3>
+        </InfoTooltip>
+        <VirtualTable data={complianceVms} columns={compColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
+        {vmDetailDialog}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <Tabs
@@ -465,8 +471,6 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
           complianceVms={complianceVms}
           vcenterVersions={vcenterVersions}
           hwVersionChart={hwVersionChart}
-          globalFilter={filters.search}
-          onOpenVmDetail={openVmDetail}
         />
 
         {renderOperationsTabPanel({
@@ -493,4 +497,8 @@ function useComplianceLifecycleView({ initialTab = "compliance" }: { initialTab?
 
 export default function ComplianceLifecycle(props: { initialTab?: ComplianceTab }) {
   return useComplianceLifecycleView(props);
+}
+
+export function VmComplianceDetails() {
+  return useComplianceLifecycleView({ vmComplianceOnly: true });
 }

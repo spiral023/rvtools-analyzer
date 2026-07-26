@@ -19,7 +19,7 @@ import { buildVmJoinKey, filterRowsByMatchingVmJoinKeys } from "@/lib/globalFilt
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
 
-interface OverviewVmRow extends NormalizedVm {
+export interface OverviewVmRow extends NormalizedVm {
   sysv: string | null;
 }
 
@@ -40,6 +40,17 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
   }},
   { accessorKey: "osConfig", header: "OS", meta: { info: OVERVIEW_VM_COLUMNS.osConfig } },
 ];
+
+export function VmInventoryTable({ vms, globalFilter, onRowClick }: { vms: OverviewVmRow[]; globalFilter: string; onRowClick?: (vm: OverviewVmRow) => void }) {
+  return (
+    <div>
+      <InfoTooltip entry={OVERVIEW_SECTIONS.vmTable} side="bottom">
+        <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({vms.length})</h3>
+      </InfoTooltip>
+      <VirtualTable data={vms} columns={vmColumns} globalFilter={globalFilter} height={400} onRowClick={onRowClick} />
+    </div>
+  );
+}
 
 export default function Overview() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
@@ -127,18 +138,7 @@ export default function Overview() {
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
       <AverageVmPanel avg={averageVm} />
-      <div>
-        <InfoTooltip entry={OVERVIEW_SECTIONS.vmTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({filteredVms.length})</h3>
-        </InfoTooltip>
-        <VirtualTable
-          data={vmsForTable}
-          columns={vmColumns}
-          globalFilter={filters.search}
-          height={400}
-          onRowClick={setSelectedVm}
-        />
-      </div>
+      <VmInventoryTable vms={vmsForTable} globalFilter={filters.search} onRowClick={setSelectedVm} />
       <VmDetailDialog
         vm={selectedVm}
         open={!!selectedVm}

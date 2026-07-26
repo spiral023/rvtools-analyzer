@@ -37,7 +37,6 @@ const VM_DISTRIBUTION_CHART_CLUSTER_LIMIT = 20;
 
 const clusterColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
   { accessorKey: "vcenterDisplayName", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName } },
-  { accessorKey: "datacenter", header: "Datacenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.datacenter } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_OVERVIEW_COLUMNS.cluster } },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_OVERVIEW_COLUMNS.hosts }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "runningVms", header: "Laufende VMs", meta: { info: CLUSTER_OVERVIEW_COLUMNS.runningVms }, cell: ({ getValue }) => formatNum(getValue() as number) },
@@ -104,7 +103,6 @@ function osColumns(vcenterDisplayNames: Map<string, string>, source: VmOsSource)
     };
   return [
     { accessorKey: "vcenterId", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName }, cell: ({ getValue }) => vcenterDisplayNames.get(getValue() as string) ?? getValue() as string },
-    { accessorKey: "datacenter", header: "Datacenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.datacenter }, cell: ({ getValue }) => getValue() || "—" },
     { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_OVERVIEW_COLUMNS.cluster } },
     { accessorKey: "operatingSystem", header: "Betriebssystem", meta: { info: operatingSystemInfo }, cell: ({ getValue }) => getValue() || "—" },
     { accessorKey: "vmCount", header: "VMs", meta: { info: CLUSTER_OS_COLUMNS.vmCount }, cell: ({ getValue }) => formatNum(getValue() as number) },

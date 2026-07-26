@@ -375,6 +375,33 @@ export const STORAGE_DS_EFFICIENCY_COLUMNS: Record<string, GlossaryEntry> = {
   },
 };
 
+export const STORAGE_SIOC_COLUMNS: Record<string, GlossaryEntry> = {
+  datastore: {
+    term: "Datastore",
+    description: "Name des Datastores.",
+    source: `${RV} · vDatastore · „Name“`,
+  },
+  siocEnabled: {
+    term: "SIOC",
+    description: "Ob Storage I/O Control aktiv ist. SIOC priorisiert I/O bei Überlast fair zwischen VMs.",
+    source: `${RV} · vDatastore · „SIOC enabled“`,
+  },
+  siocThreshold: {
+    term: "Threshold (ms)",
+    description: "Latenzschwelle, ab der SIOC eingreift (Standard 30 ms).",
+  },
+  freePct: {
+    term: "Frei %",
+    description: "Freier Speicher des Datastores. Unter 20 % steigt das Latenz- und Platzrisiko.",
+    source: `${RV} · vDatastore · „Free %“`,
+  },
+  risk: {
+    term: "Risiko",
+    description: "Abgeleitete Einstufung: hoch unter 10 % frei, mittel bei unter 20 % frei ohne aktives SIOC.",
+    source: "berechnet",
+  },
+};
+
 /* ------------------------------------------------------------------ */
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                     */
 /* ------------------------------------------------------------------ */
@@ -428,5 +455,10 @@ export const STORAGE_SECTIONS: Record<string, GlossaryEntry> = {
     term: "Datastore Effizienz",
     description:
       "Belegung im Verhältnis zur Kapazität je Datastore. Niedrige Effizienz weist auf überdimensionierten oder schlecht genutzten Speicher hin; die Übersicht hilft, Datastores zu konsolidieren und teuren Storage effizienter zu nutzen.",
+  },
+  sioc: {
+    term: "Storage Congestion / SIOC",
+    description:
+      "Datastores mit SIOC-Status und freiem Speicher. Zeigt, wo I/O-Contention droht und ob SIOC als Schutz aktiv ist.",
   },
 };

@@ -27,9 +27,9 @@ import {
   Database,
   Network,
   Shield,
-  Key,
   GitCompare,
   Server,
+  Monitor,
   ClipboardList,
   CalendarRange,
   type LucideIcon,
@@ -49,7 +49,9 @@ const mainNav: NavItem[] = [
 ];
 
 const analysisNav: NavItem[] = [
-  { title: "vCenter", url: "/fleet-compare", icon: GitCompare },
+  { title: "vCenter", url: "/vcenter", icon: GitCompare },
+  { title: "Hosts", url: "/hosts", icon: Server },
+  { title: "VMs", url: "/vms", icon: Monitor },
   { title: "Daily Ops", url: "/daily-ops", icon: Activity },
   { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Capacity", url: "/capacity", icon: HardDrive },
@@ -58,7 +60,6 @@ const analysisNav: NavItem[] = [
   { title: "Netzwerk", url: "/network-security", icon: Network },
   { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Compliance / Lifecycle", url: "/compliance", icon: Shield },
-  { title: "Licensing", url: "/licensing", icon: Key },
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 

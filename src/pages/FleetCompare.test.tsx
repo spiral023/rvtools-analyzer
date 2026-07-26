@@ -26,6 +26,18 @@ vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: () => <div data-testid="virtual-table" />,
 }));
 
+vi.mock("@/pages/VmwareVersions", () => ({
+  VCenterVersionsTable: () => <div>Neueste vCenter Versionen</div>,
+}));
+
+vi.mock("@/components/licensing/LicenseDetailsTable", () => ({
+  LicenseDetailsTable: () => <div>Lizenz Details</div>,
+}));
+
+vi.mock("@/lib/licenseDetails", () => ({
+  getLicenseRows: () => [],
+}));
+
 const { default: FleetCompare } = await import("./FleetCompare");
 
 describe("FleetCompare", () => {
@@ -44,6 +56,8 @@ describe("FleetCompare", () => {
     expect(screen.getByText("VMs Gesamt")).toBeInTheDocument();
     expect(screen.getByText("Hosts Gesamt")).toBeInTheDocument();
     expect(screen.getByText("Risiko Total")).toBeInTheDocument();
+    expect(screen.getByText("Neueste vCenter Versionen")).toBeInTheDocument();
+    expect(screen.getByText("Lizenz Details")).toBeInTheDocument();
     expect(screen.queryByText("Fleet Compare")).not.toBeInTheDocument();
   });
 });

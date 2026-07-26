@@ -25,8 +25,9 @@ const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
 const Networking = lazy(() => import("@/pages/Networking"));
 const ComplianceLifecycle = lazy(() => import("@/pages/ComplianceLifecycle"));
-const Licensing = lazy(() => import("@/pages/Licensing"));
-const FleetCompare = lazy(() => import("@/pages/FleetCompare"));
+const VCenter = lazy(() => import("@/pages/FleetCompare"));
+const Hosts = lazy(() => import("@/pages/Hosts"));
+const Vms = lazy(() => import("@/pages/Vms"));
 const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
@@ -84,14 +85,16 @@ const router = createBrowserRouter([
       { path: "host-network", element: <Networking initialTab="host" /> },
       { path: "compliance", element: <ComplianceLifecycle /> },
       { path: "hardware", element: <Hardware /> },
-      { path: "licensing", element: <Licensing /> },
       { path: "tech-info", element: <TechInfo /> },
       { path: "vmware-versions", element: <ComplianceLifecycle initialTab="versions" /> },
       { path: "wartungsfenster", element: <MaintenanceWindows /> },
       { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
       { path: "planning", element: <Planning /> },
       { path: "settings", element: <Settings /> },
-      { path: "fleet-compare", element: <FleetCompare /> },
+      { path: "vcenter", element: <VCenter /> },
+      { path: "hosts", element: <Hosts /> },
+      { path: "vms", element: <Vms /> },
+      { path: "fleet-compare", element: <Navigate to="/vcenter" replace /> },
       { path: "impressum", element: <Impressum /> },
       { path: "*", element: <NotFound /> },
     ],

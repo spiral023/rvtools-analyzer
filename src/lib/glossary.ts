@@ -81,20 +81,25 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     description:
       "VMware-Tools-Stände, VM-Hardware-Version und Support-/EOL-Status. Zeigt Lifecycle-Rückstände und plant Upgrade-Wellen.",
   },
-  "/licensing": {
-    term: "Licensing",
-    description:
-      "Lizenzrelevante Kennzahlen wie vCPU-/Core-Zählung und Idle-/Stilllegungskandidaten. Unterstützt kern- und sockelbasierte Lizenzbetrachtung.",
-  },
   "/tech-info": {
     term: "Tech-Info",
     description:
       "Ergänzende Betriebs-/CMDB-Daten je Server und Client (z.B. Pool, User, Standort, Verantwortliche), verknüpft mit den RVTools-Systemen.",
   },
-  "/fleet-compare": {
-    term: "Fleet Compare",
+  "/vcenter": {
+    term: "vCenter",
     description:
       "Zwei Snapshots oder vCenter gegenüberstellen: Was ist neu, entfallen oder verändert? Für Drift-Erkennung und Vorher/Nachher-Vergleiche.",
+  },
+  "/hosts": {
+    term: "Hosts",
+    description:
+      "Inventar aller ESXi-Hosts und ihre Verteilung auf aktuelle ESXi-Releases.",
+  },
+  "/vms": {
+    term: "VMs",
+    description:
+      "Virtuelle Maschinen mit Inventar sowie Performance-, Snapshot-, Health- und Compliance-Details.",
   },
   "/wartungsankuendigung": {
     term: "Wartungsankündigung",

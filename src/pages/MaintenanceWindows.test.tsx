@@ -313,7 +313,8 @@ describe("MaintenanceWindows", () => {
 
     const analysisGroup = screen.getByText("Analyse").closest('[data-sidebar="group"]');
     expect(analysisGroup).not.toBeNull();
-    expect(within(analysisGroup as HTMLElement).getByRole("link", { name: "vCenter" })).toHaveAttribute("href", "/fleet-compare");
+    expect(within(analysisGroup as HTMLElement).getByRole("link", { name: "vCenter" })).toHaveAttribute("href", "/vcenter");
+    expect(within(analysisGroup as HTMLElement).queryByRole("link", { name: "Licensing" })).not.toBeInTheDocument();
     expect(screen.queryByText("Vergleich")).not.toBeInTheDocument();
   });
 

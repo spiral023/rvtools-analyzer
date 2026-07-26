@@ -218,6 +218,129 @@ function ReleaseUsageDialog({
   );
 }
 
+export function VCenterVersionsTable() {
+  const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
+  const { data: rawVSource = [] } = useRawSheet("vSource");
+  const [selectedRelease, setSelectedRelease] = useState<ReleaseUsageRow | null>(null);
+
+  const activeSnapshots = useMemo(() => {
+    const activeSnapshotIdSet = new Set(activeSnapshotIds);
+    return snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId));
+  }, [snapshots, activeSnapshotIds]);
+
+  const vcentersByBuild = useMemo(() => {
+    const sourceBySnapshot = new Map<string, string>();
+    for (const row of rawVSource) {
+      if (sourceBySnapshot.has(row.snapshotId)) continue;
+      const build = extractBuild(row.data["Build"]) || extractBuild(row.data["Fullname"]) || extractBuild(row.data["Version"]);
+      if (build) sourceBySnapshot.set(row.snapshotId, build);
+    }
+
+    const snapshotByVcenter = new Map<string, SnapshotMeta>();
+    for (const snapshot of activeSnapshots) {
+      if (sourceBySnapshot.has(snapshot.snapshotId)) snapshotByVcenter.set(snapshot.vcenterId, snapshot);
+    }
+
+    const map = new Map<string, SnapshotMeta[]>();
+    for (const snapshot of snapshotByVcenter.values()) {
+      const build = sourceBySnapshot.get(snapshot.snapshotId);
+      if (!build) continue;
+      const entries = map.get(build) ?? [];
+      entries.push(snapshot);
+      map.set(build, entries);
+    }
+    return map;
+  }, [rawVSource, activeSnapshots]);
+
+  const rows = useMemo(() => buildReleaseUsageRows(
+    "vcenter",
+    new Map([...vcentersByBuild].map(([build, snapshotsForBuild]) => [build, snapshotsForBuild.length])),
+    new Set(activeSnapshots.map((snapshot) => snapshot.vcenterId)).size,
+  ), [vcentersByBuild, activeSnapshots]);
+  const columns = useMemo(() => buildReleaseColumns(setSelectedRelease), []);
+  const entries = useMemo<ReleaseUsageEntry[]>(() => {
+    if (!selectedRelease) return [];
+    return (vcentersByBuild.get(selectedRelease.build) ?? [])
+      .map((snapshot) => ({
+        key: snapshot.vcenterId,
+        primary: snapshot.vcenterDisplayName || snapshot.vcenterId,
+        secondary: snapshot.vcenterId,
+        tertiary: `Export: ${new Date(snapshot.exportTs).toLocaleDateString("de-DE")}`,
+      }))
+      .sort((left, right) => left.primary.localeCompare(right.primary, "de-DE"));
+  }, [selectedRelease, vcentersByBuild]);
+
+  return (
+    <div>
+      <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterVersionsTable} side="bottom">
+        <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+          Neueste vCenter Versionen
+        </h3>
+      </InfoTooltip>
+      <VirtualTable data={rows} columns={columns} height={260} />
+      <ReleaseUsageDialog
+        release={selectedRelease}
+        entityLabel="vCenter"
+        entries={entries}
+        open={selectedRelease !== null}
+        onClose={() => setSelectedRelease(null)}
+      />
+    </div>
+  );
+}
+
+export function EsxiVersionsTable() {
+  const { data: hosts = [] } = useHosts();
+  const [selectedRelease, setSelectedRelease] = useState<ReleaseUsageRow | null>(null);
+  const hostsByBuild = useMemo(() => {
+    const map = new Map<string, NormalizedHost[]>();
+    for (const host of hosts) {
+      const build = extractBuild(host.build) || extractBuild(host.version);
+      if (!build) continue;
+      const entries = map.get(build) ?? [];
+      entries.push(host);
+      map.set(build, entries);
+    }
+    return map;
+  }, [hosts]);
+  const rows = useMemo(() => buildReleaseUsageRows(
+    "esxi",
+    new Map([...hostsByBuild].map(([build, hostsForBuild]) => [build, hostsForBuild.length])),
+    hosts.length,
+  ), [hosts, hostsByBuild]);
+  const columns = useMemo(() => buildReleaseColumns(setSelectedRelease), []);
+  const entries = useMemo<ReleaseUsageEntry[]>(() => {
+    if (!selectedRelease) return [];
+    return (hostsByBuild.get(selectedRelease.build) ?? [])
+      .map((host) => ({
+        key: host.hostKey,
+        primary: host.host,
+        secondary: host.cluster || "Kein Cluster",
+        tertiary: host.datacenter || undefined,
+        meta: host.vmCount != null ? `${formatNum(host.vmCount)} VMs` : undefined,
+      }))
+      .sort((left, right) => left.primary.localeCompare(right.primary, "de-DE", { numeric: true }));
+  }, [hostsByBuild, selectedRelease]);
+
+  return (
+    <div>
+      <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiVersionsTable} side="bottom">
+        <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+          Neueste ESXi Versionen
+        </h3>
+      </InfoTooltip>
+      <VirtualTable data={rows} columns={columns} height={260} />
+      <ReleaseUsageDialog
+        release={selectedRelease}
+        entityLabel="ESXi Host"
+        entries={entries}
+        open={selectedRelease !== null}
+        onClose={() => setSelectedRelease(null)}
+      />
+    </div>
+  );
+}
+
 export function VmwareVersionsPanel() {
   const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
   const { data: hosts = [] } = useHosts();
@@ -310,32 +433,6 @@ export function VmwareVersionsPanel() {
     usage: row.usageCount,
   }));
 
-  const [selectedRelease, setSelectedRelease] = useState<ReleaseUsageRow | null>(null);
-  const releaseColumns = useMemo(() => buildReleaseColumns(setSelectedRelease), []);
-  const releaseEntityLabel = selectedRelease?.type === "vcenter" ? "vCenter" : "ESXi Host";
-  const releaseUsageEntries = useMemo<ReleaseUsageEntry[]>(() => {
-    if (!selectedRelease) return [];
-    if (selectedRelease.type === "vcenter") {
-      return (vcentersByBuild.get(selectedRelease.build) ?? [])
-        .map((snapshot) => ({
-          key: snapshot.vcenterId,
-          primary: snapshot.vcenterDisplayName || snapshot.vcenterId,
-          secondary: snapshot.vcenterId,
-          tertiary: `Export: ${new Date(snapshot.exportTs).toLocaleDateString("de-DE")}`,
-        }))
-        .sort((a, b) => a.primary.localeCompare(b.primary, "de-DE"));
-    }
-    return (hostsByBuild.get(selectedRelease.build) ?? [])
-      .map((host) => ({
-        key: host.hostKey,
-        primary: host.host,
-        secondary: host.cluster || "Kein Cluster",
-        tertiary: host.datacenter || undefined,
-        meta: host.vmCount != null ? `${formatNum(host.vmCount)} VMs` : undefined,
-      }))
-      .sort((a, b) => a.primary.localeCompare(b.primary, "de-DE", { numeric: true }));
-  }, [selectedRelease, vcentersByBuild, hostsByBuild]);
-
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
@@ -421,31 +518,6 @@ export function VmwareVersionsPanel() {
         </Card>
       </div>
 
-      <div>
-        <InfoTooltip entry={COMPLIANCE_SECTIONS.vcenterVersionsTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
-            Neueste vCenter Versionen
-          </h3>
-        </InfoTooltip>
-        <VirtualTable data={vcenterRows} columns={releaseColumns} height={260} />
-      </div>
-
-      <div>
-        <InfoTooltip entry={COMPLIANCE_SECTIONS.esxiVersionsTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
-            Neueste ESXi Versionen
-          </h3>
-        </InfoTooltip>
-        <VirtualTable data={esxiRows} columns={releaseColumns} height={260} />
-      </div>
-
-      <ReleaseUsageDialog
-        release={selectedRelease}
-        entityLabel={releaseEntityLabel}
-        entries={releaseUsageEntries}
-        open={selectedRelease !== null}
-        onClose={() => setSelectedRelease(null)}
-      />
     </div>
   );
 }

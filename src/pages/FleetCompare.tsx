@@ -15,14 +15,73 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYL
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NormalizedVm, NormalizedHost, NormalizedCluster, NormalizedDatastore, NormalizedHealth, NormalizedSnapshot as NormSnap, SnapshotMeta } from "@/domain/models/types";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { FLEET_KPI, FLEET_COLUMNS, FLEET_SECTIONS } from "@/lib/glossaries/fleetCompare";
 import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
+import { VCenterVersionsTable } from "@/pages/VmwareVersions";
+import { LicenseDetailsTable } from "@/components/licensing/LicenseDetailsTable";
+import { getLicenseRows } from "@/lib/licenseDetails";
 
 export interface VCenterSummary {
   vcenterId: string; snapshotId: string; displayName: string; vmCount: number; poweredOn: number;
   hostCount: number; clusterCount: number; totalCpuThreads: number; totalRamGiB: number;
   datastoreCount: number; avgDsFree: number; healthIssues: number; cpuOvercommit: number;
-  snapshotCount: number; securityDrift: number; riskScore: number;
+  healthBreakdown: Array<{ type: string; count: number }>; criticalDatastores: number; snapshotCount: number; securityDrift: number; riskScore: number;
+}
+
+function HealthTooltipContent({ healthIssues, healthBreakdown }: Pick<VCenterSummary, "healthIssues" | "healthBreakdown">) {
+  const label = healthIssues === 1 ? "Health- und Konfigurationswarnung" : "Health- und Konfigurationswarnungen";
+  return (
+    <div className="max-w-[20rem] whitespace-normal text-xs">
+      <p>{formatNum(healthIssues)} von vCenter gemeldete {label}.</p>
+      {healthBreakdown.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5">
+          {healthBreakdown.map((entry) => (
+            <li key={entry.type} className="flex items-baseline justify-between gap-3">
+              <span>{entry.type}</span>
+              <span className="shrink-0 font-mono-data text-muted-foreground">{formatNum(entry.count)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-1 text-muted-foreground">Details zu den einzelnen Meldungen finden Sie in der vCenter-Detailansicht.</p>
+    </div>
+  );
+}
+
+function VCenterRiskTooltipContent({ summary }: { summary: VCenterSummary }) {
+  const factors = [
+    { label: `Health-Warnungen (${summary.healthIssues} × 2)`, points: summary.healthIssues * 2 },
+    { label: `Kritische Datastores (${summary.criticalDatastores} × 10)`, points: summary.criticalDatastores * 10 },
+    { label: `Offene VM-Snapshots (${summary.snapshotCount} × 3)`, points: summary.snapshotCount * 3 },
+    { label: `Security Drift (${summary.securityDrift} × 5)`, points: summary.securityDrift * 5 },
+    ...(summary.cpuOvercommit > 5
+      ? [{ label: `CPU Overcommit (${summary.cpuOvercommit.toFixed(1)}:1 > 5:1)`, points: 15 }]
+      : summary.cpuOvercommit > 3
+        ? [{ label: `CPU Overcommit (${summary.cpuOvercommit.toFixed(1)}:1 > 3:1)`, points: 5 }]
+        : []),
+  ].filter((factor) => factor.points > 0);
+  const unboundedScore = factors.reduce((score, factor) => score + factor.points, 0);
+
+  return (
+    <div className="max-w-[22rem] whitespace-normal text-xs">
+      <p className="font-semibold text-popover-foreground">Score {summary.riskScore} von maximal 100</p>
+      {factors.length > 0 ? (
+        <ul className="mt-1.5 space-y-0.5">
+          {factors.map((factor) => (
+            <li key={factor.label} className="flex items-baseline justify-between gap-3">
+              <span>{factor.label}</span>
+              <span className="shrink-0 font-mono-data text-muted-foreground">+{factor.points}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-muted-foreground">Keine Risikofaktoren ausgelöst.</p>
+      )}
+      {unboundedScore > 100 && <p className="mt-1 text-muted-foreground">Der Rohwert von {unboundedScore} wird auf 100 begrenzt.</p>}
+      <p className="mt-1.5 border-t border-border/60 pt-1.5 text-muted-foreground">Ampel: rot &gt; 50 · gelb &gt; 25 · sonst grün.</p>
+    </div>
+  );
 }
 
 const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
@@ -36,8 +95,14 @@ const fleetColumns: ColumnDef<VCenterSummary, unknown>[] = [
   { accessorKey: "cpuOvercommit", header: "CPU OC", meta: { info: FLEET_COLUMNS.cpuOvercommit }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 5 ? "text-destructive" : v > 3 ? "text-warning" : ""}>{v.toFixed(1)}:1</span>; }},
   { accessorKey: "snapshotCount", header: "Snapshots", meta: { info: FLEET_COLUMNS.snapshotCount } },
   { accessorKey: "securityDrift", header: "Sec. Drift", meta: { info: FLEET_COLUMNS.securityDrift } },
-  { accessorKey: "healthIssues", header: "Health", meta: { info: FLEET_COLUMNS.healthIssues }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 0 ? "text-warning" : "text-success"}>{formatNum(v)}</span>; }},
-  { accessorKey: "riskScore", header: "Risiko Score", meta: { info: FLEET_COLUMNS.riskScore }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v > 50 ? "text-destructive font-semibold" : v > 25 ? "text-warning" : "text-success"}>{v}</span>; }},
+  { accessorKey: "healthIssues", header: "Health", meta: { info: FLEET_COLUMNS.healthIssues }, cell: ({ row }) => {
+    const { healthIssues, healthBreakdown } = row.original;
+    return <UiTooltip delayDuration={250}><UiTooltipTrigger asChild><span className={`${healthIssues > 0 ? "text-warning" : "text-success"} cursor-help underline decoration-dotted underline-offset-4`}>{formatNum(healthIssues)}</span></UiTooltipTrigger><UiTooltipContent side="top"><HealthTooltipContent healthIssues={healthIssues} healthBreakdown={healthBreakdown} /></UiTooltipContent></UiTooltip>;
+  }},
+  { accessorKey: "riskScore", header: "Risiko Score", meta: { info: FLEET_COLUMNS.riskScore }, cell: ({ row }) => {
+    const { riskScore } = row.original;
+    return <UiTooltip delayDuration={250}><UiTooltipTrigger asChild><span className={`${riskScore > 50 ? "text-destructive font-semibold" : riskScore > 25 ? "text-warning" : "text-success"} cursor-help underline decoration-dotted underline-offset-4`}>{riskScore}</span></UiTooltipTrigger><UiTooltipContent side="top"><VCenterRiskTooltipContent summary={row.original} /></UiTooltipContent></UiTooltip>;
+  }},
 ];
 
 export default function FleetCompare() {
@@ -61,6 +126,8 @@ export default function FleetCompare() {
 
   // Security drift per vcenter (check dvPort)
   const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["rawSheet", "dvPort", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
+  const { data: rawLicense = [], isLoading: rawLicenseLoading } = useQuery({ queryKey: ["rawSheet", "vLicense", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "vLicense"), enabled: allSnapshotIds.length > 0 });
+  const licenses = useMemo(() => getLicenseRows(rawLicense), [rawLicense]);
 
   const summaries = useMemo<VCenterSummary[]>(() =>
     latestSnapshots.map((snap) => {
@@ -69,6 +136,13 @@ export default function FleetCompare() {
       const clusters = allClusters.filter((c) => c.snapshotId === snap.snapshotId);
       const ds = allDatastores.filter((d) => d.snapshotId === snap.snapshotId);
       const health = allHealth.filter((h) => h.snapshotId === snap.snapshotId);
+      const healthBreakdown = [...health.reduce((counts, event) => {
+        const type = event.messageType || "Ohne Typ";
+        counts.set(type, (counts.get(type) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>())]
+        .map(([type, count]) => ({ type, count }))
+        .sort((left, right) => right.count - left.count || left.type.localeCompare(right.type, "de-DE"));
       const snaps = allSnaps.filter((s) => s.snapshotId === snap.snapshotId);
       const dvPorts = rawDvPort.filter((r) => r.snapshotId === snap.snapshotId);
 
@@ -96,9 +170,9 @@ export default function FleetCompare() {
         vmCount: vms.length, poweredOn: poweredOn.length, hostCount: hosts.length,
         clusterCount: clusters.length, totalCpuThreads: totalThreads,
         totalRamGiB: totalRamMiB / 1024, datastoreCount: ds.length,
-        avgDsFree: Math.round(avgDsFree * 10) / 10, healthIssues: health.length,
+        avgDsFree: Math.round(avgDsFree * 10) / 10, healthIssues: health.length, healthBreakdown,
         cpuOvercommit: totalThreads ? Math.round((totalVcpu / totalThreads) * 100) / 100 : 0,
-        snapshotCount: snaps.length, securityDrift: secDrift,
+        criticalDatastores: critDs, snapshotCount: snaps.length, securityDrift: secDrift,
         riskScore: Math.min(riskScore, 100),
       };
     }).sort((a, b) => a.displayName.localeCompare(b.displayName, "de-DE", { numeric: true, sensitivity: "base" })), [latestSnapshots, allVms, allHosts, allClusters, allDatastores, allHealth, allSnaps, rawDvPort]);
@@ -132,7 +206,7 @@ export default function FleetCompare() {
   );
 
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || clustersLoading
-    || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading;
+    || datastoresLoading || healthLoading || snapsLoading || rawDvPortLoading || rawLicenseLoading;
   if (dataLoading) return <PageLoadingState title="vCenter" />;
 
   if (snapshots.length === 0) {
@@ -146,6 +220,8 @@ export default function FleetCompare() {
         {kpis}
         <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
         {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>)}
+        <VCenterVersionsTable />
+        <LicenseDetailsTable licenses={licenses} />
         {vcenterDetailDialog}
       </div>
     );
@@ -166,6 +242,8 @@ export default function FleetCompare() {
       </div>
 
       <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>
+      <VCenterVersionsTable />
+      <LicenseDetailsTable licenses={licenses} />
       {vcenterDetailDialog}
     </div>
   );

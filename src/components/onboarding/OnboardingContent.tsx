@@ -179,7 +179,7 @@ export function FeaturesPage() {
       </div>
       <p className="mt-6 font-mono text-xs leading-6 text-muted-foreground">
         AUCH DABEI · DAILY OPS · CAPACITY · PERFORMANCE · STORAGE/BACKUP · LIFECYCLE ·
-        FLEET COMPARE · PLANUNG
+        VCENTER · PLANUNG
       </p>
       <ImportRecovery />
     </section>

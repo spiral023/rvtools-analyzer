@@ -9,7 +9,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
-import { Activity, AlertTriangle, Camera, Wrench, Unplug, Disc } from "lucide-react";
+import { Activity, Unplug, Disc } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "@/components/charts/recharts";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
@@ -108,7 +108,7 @@ const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
   { accessorKey: "quiesced", header: "Quiesced", meta: { info: DAILY_OPS_COLUMNS.quiesced }, cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
 ];
 
-export default function DailyOps() {
+function DailyOps({ vmDetailsOnly = false }: { vmDetailsOnly?: boolean }) {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -170,35 +170,38 @@ export default function DailyOps() {
     return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Daily Ops</h1><EmptyState icon={<Activity className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
+  if (vmDetailsOnly) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <InfoTooltip entry={DAILY_OPS_SECTIONS.healthByType} side="bottom">
+            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health Events nach Typ</h3>
+          </InfoTooltip>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={healthByType} layout="vertical"><XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="name" width={140} interval={0} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} /></BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div><InfoTooltip entry={DAILY_OPS_SECTIONS.configIssuesTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3></InfoTooltip><VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+        {filteredVmSnapshots.length > 0 && (<div><InfoTooltip entry={DAILY_OPS_SECTIONS.snapshotsTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3></InfoTooltip><VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>)}
+        {healthEvents.length > 0 && (<div><InfoTooltip entry={DAILY_OPS_SECTIONS.healthTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3></InfoTooltip><VirtualTable data={healthEvents} columns={healthColumns} globalFilter={filters.search} /></div>)}
+        {vmDetailDialog}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Daily Ops">
       </PageHeader>
       <GlobalFilterScopeHint text="Snapshots, Tools, CD/USB und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter." />
       <KpiGrid>
-        <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={DAILY_OPS_KPI.healthEvents} />
-        <KpiCard title="Config Issues" value={formatNum(configIssues.length)} severity={configIssues.length > 0 ? "warn" : "ok"} icon={<Wrench className="h-4 w-4" />} info={DAILY_OPS_KPI.configIssues} />
         <KpiCard title="Consolidation" value={formatNum(consolidationNeeded.length)} severity={consolidationNeeded.length > 0 ? "warn" : "ok"} info={DAILY_OPS_KPI.consolidation} />
         <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} info={DAILY_OPS_KPI.disconnected} />
-        <KpiCard title="VM Snapshots" value={formatNum(filteredVmSnapshots.length)} severity={filteredVmSnapshots.length > 20 ? "warn" : "ok"} icon={<Camera className="h-4 w-4" />} info={DAILY_OPS_KPI.vmSnapshots} />
         <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} info={DAILY_OPS_KPI.toolsIssues} />
         <KpiCard title="CD/USB verbunden" value={formatNum(connectedCD + connectedUSB)} severity={connectedCD + connectedUSB > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} info={DAILY_OPS_KPI.cdUsb} />
       </KpiGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={DAILY_OPS_SECTIONS.healthByType} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health Events nach Typ</h3>
-          </InfoTooltip>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={healthByType} layout="vertical">
-              <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={140} interval={0} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="count" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <InfoTooltip entry={DAILY_OPS_SECTIONS.powerState} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Power State</h3>
@@ -215,30 +218,13 @@ export default function DailyOps() {
         </div>
       </div>
 
-      <div>
-        <InfoTooltip entry={DAILY_OPS_SECTIONS.configIssuesTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3>
-        </InfoTooltip>
-        <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
-      </div>
-
-      {filteredVmSnapshots.length > 0 && (
-        <div>
-          <InfoTooltip entry={DAILY_OPS_SECTIONS.snapshotsTable} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredVmSnapshots.length})</h3>
-          </InfoTooltip>
-          <VirtualTable data={filteredVmSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
-        </div>
-      )}
-      {healthEvents.length > 0 && (
-        <div>
-          <InfoTooltip entry={DAILY_OPS_SECTIONS.healthTable} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3>
-          </InfoTooltip>
-          <VirtualTable data={healthEvents} columns={healthColumns} globalFilter={filters.search} />
-        </div>
-      )}
       {vmDetailDialog}
     </div>
   );
 }
+
+export function VmDailyOpsDetails() {
+  return <DailyOps vmDetailsOnly />;
+}
+
+export default DailyOps;
