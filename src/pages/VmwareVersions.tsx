@@ -246,7 +246,7 @@ export function VmwareVersionsPanel() {
     }
 
     const map = new Map<string, SnapshotMeta[]>();
-    for (const [vcenterId, snapshot] of snapshotByVcenter) {
+    for (const snapshot of snapshotByVcenter.values()) {
       const build = sourceBySnapshot.get(snapshot.snapshotId);
       if (!build) continue;
       const list = map.get(build) ?? [];
