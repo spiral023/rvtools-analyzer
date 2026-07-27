@@ -5,6 +5,19 @@ import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import { pwaOptions } from "./pwa.config";
 
+const excludeViteEntryFromRocketLoader = {
+  name: "exclude-vite-entry-from-rocket-loader",
+  transformIndexHtml: {
+    order: "post" as const,
+    handler(html: string) {
+      return html.replace(
+        /<script type="module" crossorigin src="(\/assets\/[^"]+\.js)"><\/script>/,
+        '<script type="module" crossorigin data-cfasync="false" src="$1"></script>',
+      );
+    },
+  },
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -14,7 +27,7 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger(), VitePWA(pwaOptions)].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger(), VitePWA(pwaOptions), excludeViteEntryFromRocketLoader].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
