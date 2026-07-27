@@ -38,8 +38,8 @@ const columns: ColumnDef<WhatIfClusterResult, unknown>[] = [
     </span>
   ) },
   { accessorKey: "after.riskScore", header: "Risk (Nachher)", cell: ({ row }) => severityBadge(String(row.original.after.riskScore), riskSeverity(row.original.after.risk)) },
-  { accessorKey: "vropsRamAssignedHighPctBefore", header: "HIGH-RP RAM % (Vorher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctBefore, 45, 50, 0) },
-  { accessorKey: "vropsRamAssignedHighPctAfter", header: "HIGH-RP RAM % (Nachher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctAfter, 45, 50, 0) },
+  { accessorKey: "vropsRamAssignedHighPctBefore", header: "HIGH-RP RAM zugewiesen % (Cluster, vorher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctBefore, 45, 50, 0) },
+  { accessorKey: "vropsRamAssignedHighPctAfter", header: "HIGH-RP RAM zugewiesen % (Cluster, nachher)", cell: ({ row }) => coloredPct(row.original.vropsRamAssignedHighPctAfter, 45, 50, 0) },
   { accessorKey: "siteFailoverRiskBefore", header: "Site-Failover (Vorher)", cell: ({ row }) => siteFailoverBadge(row.original.siteFailoverRiskBefore) },
   { accessorKey: "siteFailoverRiskAfter", header: "Site-Failover (Nachher)", cell: ({ row }) => siteFailoverBadge(row.original.siteFailoverRiskAfter) },
   { accessorKey: "incomingVmCount", header: "Eingehend" },

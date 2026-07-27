@@ -14,7 +14,7 @@ export const CAPACITY_THRESHOLDS = {
 
 /**
  * Schwellenwerte der Ampel-Spalten in der Cluster-Capacity-Health-Tabelle (CPU %, RAM %,
- * vCPU/Core, RAM Commit %, HIGH-RP CPU %, HIGH-RP RAM-Nutzung %) — sichtbare Rot-Grenze je
+ * vCPU/Core, RAM Commit %, HIGH-RP CPU %, HIGH-RP RAM genutzt %) — sichtbare Rot-Grenze je
  * Metrik, siehe {@link CAPACITY_HEALTH_COLUMNS} in `lib/glossaries/capacity.ts`. Basis für
  * {@link computeMaxHostFailures}.
  */
@@ -268,7 +268,7 @@ const HEALTH_COLUMN_LABELS: Record<HealthColumnMetric, string> = {
   vcpuPerCore: "vCPU/Core",
   ramCommit: "RAM Commit %",
   cpuUsageHigh: "HIGH-RP CPU %",
-  ramUsageHigh: "HIGH-RP RAM-Nutzung %",
+  ramUsageHigh: "HIGH-RP RAM genutzt % (RP)",
 };
 
 /** vROps-Ist-Werte, die zusätzlich zur Ist-Last in die Host-Ausfall-Simulation einfließen. */
@@ -299,10 +299,10 @@ export interface HostFailureCapacity {
  * Cores, belegtes RAM, vCPUs, zugewiesenes RAM) bleibt konstant und verteilt sich auf die
  * verbleibenden Hosts (HA-Restart), während sich die Kapazität (Cores/RAM) proportional zur
  * Hostzahl reduziert (Annahme: homogene Hosts). Liegen vROps-Ausfallskonzept-Werte vor, werden
- * zusätzlich HIGH-RP CPU % und HIGH-RP RAM-Nutzung % nach demselben Prinzip hochskaliert (sie
+ * zusätzlich HIGH-RP CPU % und HIGH-RP RAM genutzt % nach demselben Prinzip hochskaliert (sie
  * sind bereits relativ zur Gesamt-Cluster-Kapazität, daher `wert / factor`). Ergebnis: die
  * größte Anzahl gleichzeitiger Host-Ausfälle, die der Cluster verkraftet, bevor CPU %, RAM %,
- * vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM-Nutzung % auf Rot springen
+ * vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM genutzt % auf Rot springen
  * ({@link HEALTH_COLUMN_THRESHOLDS}), plus die Metrik(en), die den Ausschlag geben würde(n).
  */
 export function computeHostFailureCapacity(agg: ClusterAggregate, vrops?: HostFailureVropsInput | null): HostFailureCapacity {
@@ -392,8 +392,8 @@ export function metricsFromAggregate(
   if (vrops) {
     const t = VROPS_RISK_THRESHOLDS;
     if (vrops.ramAssignedHighPct !== null) {
-      if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.danger} %)`, 35);
-      else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) addRiskFactor(`HIGH-RP RAM % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.warn} %)`, 18);
+      if (vrops.ramAssignedHighPct > t.ramAssignedHigh.danger) addRiskFactor(`HIGH-RP RAM zugewiesen % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.danger} %)`, 35);
+      else if (vrops.ramAssignedHighPct > t.ramAssignedHigh.warn) addRiskFactor(`HIGH-RP RAM zugewiesen % ${round(vrops.ramAssignedHighPct, 1)} % (> ${t.ramAssignedHigh.warn} %)`, 18);
     }
     // CPU-Overcommit (vROps Ist) fließt bewusst NICHT in den Score ein: es bildet dieselbe
     // Kennzahl wie „vCPU/Core" (Σ vCPU / Σ Cores) nur mit einer anderen Datenquelle ab — beide
@@ -405,8 +405,8 @@ export function metricsFromAggregate(
       else if (vrops.cpuUsageHighPct > t.cpuUsageHigh.warn) addRiskFactor(`HIGH-RP CPU % ${round(vrops.cpuUsageHighPct, 1)} % (> ${t.cpuUsageHigh.warn} %)`, 9);
     }
     if (vrops.ramUsageHighPct !== null) {
-      if (vrops.ramUsageHighPct > t.ramUsageHigh.danger) addRiskFactor(`HIGH-RP RAM-Nutzung % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.danger} %)`, 10);
-      else if (vrops.ramUsageHighPct > t.ramUsageHigh.warn) addRiskFactor(`HIGH-RP RAM-Nutzung % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.warn} %)`, 5);
+      if (vrops.ramUsageHighPct > t.ramUsageHigh.danger) addRiskFactor(`HIGH-RP RAM genutzt % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.danger} %)`, 10);
+      else if (vrops.ramUsageHighPct > t.ramUsageHigh.warn) addRiskFactor(`HIGH-RP RAM genutzt % ${round(vrops.ramUsageHighPct, 1)} % (> ${t.ramUsageHigh.warn} %)`, 5);
     }
     if (vrops.clusterRamAssignedPct !== null) {
       if (vrops.clusterRamAssignedPct > t.clusterRamAssigned.danger) addRiskFactor(`Cluster-RAM-Zuweisung (vROps) ${round(vrops.clusterRamAssignedPct, 1)} % (> ${t.clusterRamAssigned.danger} %)`, 8);

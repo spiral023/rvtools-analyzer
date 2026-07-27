@@ -41,7 +41,10 @@ function siteFailoverTooltipText(risk: "ok" | "warn" | "crit" | null, ramAssigne
     return "Kein vROps-Import für diesen Cluster — Site-Failover-Risiko konnte nicht bewertet werden.";
   }
   const t = SITE_FAILOVER_THRESHOLDS.ramAssignedHigh;
-  return `HIGH-RP RAM % liegt bei ${ramAssignedHighPct.toFixed(1)} % der Cluster-Kapazität. Fällt ein Standort aus (≈50 % der Hosts), müssen die HIGH-RP-VMs auf der halbierten Kapazität weiterlaufen: ab ${t.warn} % wird es knapp, ab ${t.danger} % reicht der Platz nicht mehr — aktuell „${siteFailoverLabel(risk)}".`;
+  const remainingCapacityPct = 50;
+  const projectedAssignedPct = ramAssignedHighPct / (remainingCapacityPct / 100);
+  const projectedHeadroomPct = 100 - projectedAssignedPct;
+  return `Aktuell: HIGH-RP RAM zugewiesen ${ramAssignedHighPct.toFixed(1)} % der gesamten Cluster-Kapazität. Prognose bei Ausfall von ${100 - remainingCapacityPct} % der Hosts: ${remainingCapacityPct} % Cluster-Kapazität bleiben verfügbar; die HIGH-RP-Zuweisung belegt davon ${projectedAssignedPct.toFixed(1)} % (${projectedHeadroomPct.toFixed(1)} % Puffer). Ab ${t.warn} % Zuweisung wird es knapp, ab ${t.danger} % reicht die Restkapazität nicht mehr — aktuell „${siteFailoverLabel(risk)}".`;
 }
 
 const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
@@ -88,7 +91,7 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     const className = severity === "crit" ? "text-destructive font-semibold" : severity === "warn" ? "text-warning font-semibold" : "text-success font-semibold";
     return <span className={className}>{row.original.hotHosts}/{row.original.hosts}</span>;
   } },
-  { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
+  { accessorKey: "vropsRamAssignedHighPct", header: "HIGH-RP RAM zugewiesen % (Cluster)", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamAssignedHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
   { accessorKey: "siteFailoverRisk", header: "Site-Failover", meta: { info: CAPACITY_HEALTH_COLUMNS.siteFailoverRisk }, cell: ({ row }) => (
     <UiTooltip delayDuration={250}>
       <UiTooltipTrigger asChild>
@@ -102,7 +105,7 @@ const capacityColumns: ColumnDef<ClusterCapacityRow, unknown>[] = [
     </UiTooltip>
   ) },
   { accessorKey: "vropsCpuUsageHighPct", header: "HIGH-RP CPU %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsCpuUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 35, 45, 0) },
-  { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM-Nutzung %", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
+  { accessorKey: "vropsRamUsageHighPct", header: "HIGH-RP RAM genutzt % (RP)", meta: { info: CAPACITY_HEALTH_COLUMNS.vropsRamUsageHighPct }, cell: ({ getValue }) => coloredPct(getValue() as number | null, 45, 50, 0) },
 ];
 
 const overcommitColumns: ColumnDef<ClusterOvercommitRow, unknown>[] = [

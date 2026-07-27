@@ -335,11 +335,11 @@ describe("computeHostFailureCapacity", () => {
     // Ohne vROps-Werte bleiben alle Ist-Metriken grün bis hosts-1 Ausfälle.
     expect(computeHostFailureCapacity(agg).maxHostFailures).toBe(3);
 
-    // HIGH-RP RAM-Nutzung 26 % → bei 1 Ausfall (factor 0,75) 34,7 %, bei 2 Ausfällen (factor 0,5) 52 % ≥ 50 % Rot-Grenze.
+    // HIGH-RP RAM genutzt 26 % → bei 1 Ausfall (factor 0,75) 34,7 %, bei 2 Ausfällen (factor 0,5) 52 % ≥ 50 % Rot-Grenze.
     const result = computeHostFailureCapacity(agg, { cpuUsageHighPct: null, ramUsageHighPct: 26 });
     expect(result.maxHostFailures).toBe(1);
     expect(result.breaches).toEqual([
-      { metric: "ramUsageHigh", label: "HIGH-RP RAM-Nutzung %", value: 52, danger: 50 },
+      { metric: "ramUsageHigh", label: "HIGH-RP RAM genutzt % (RP)", value: 52, danger: 50 },
     ]);
   });
 
@@ -394,7 +394,7 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(m.risk).toBe("niedrig");
   });
 
-  it("HIGH-RP RAM %: warn +18, danger +35, danger erzwingt zusätzlich risk=hoch (Hard-Override)", () => {
+  it("HIGH-RP RAM zugewiesen %: warn +18, danger +35, danger erzwingt zusätzlich risk=hoch (Hard-Override)", () => {
     const warn = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({ ramAssignedHighPct: VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1 }),
@@ -403,7 +403,7 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(warn.risk).toBe("niedrig");
 
     expect(warn.riskFactors).toEqual([
-      { label: `HIGH-RP RAM % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn} %)`, points: 18 },
+      { label: `HIGH-RP RAM zugewiesen % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.warn} %)`, points: 18 },
     ]);
 
     const danger = metricsFromAggregate(lowRiskAgg(), {
@@ -415,7 +415,7 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(danger.risk).toBe("hoch");
     expect(danger.siteFailoverOverride).toBe(true);
     expect(danger.riskFactors).toEqual([
-      { label: `HIGH-RP RAM % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger} %)`, points: 35 },
+      { label: `HIGH-RP RAM zugewiesen % ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger + 1} % (> ${VROPS_RISK_THRESHOLDS.ramAssignedHigh.danger} %)`, points: 35 },
     ]);
   });
 
@@ -449,7 +449,7 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
     expect(danger.riskScore).toBe(18);
   });
 
-  it("HIGH-RP RAM-Nutzung im eigenen RP: warn +5, danger +10", () => {
+  it("HIGH-RP RAM genutzt im eigenen RP: warn +5, danger +10", () => {
     const warn = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,
       vrops: vropsRisk({ ramUsageHighPct: VROPS_RISK_THRESHOLDS.ramUsageHigh.warn + 5 }),
@@ -506,7 +506,7 @@ describe("metricsFromAggregate – vROps-Gewichtung", () => {
   });
 
   it("summiert mehrere Danger-Faktoren (CPU-Overcommit zählt bewusst nicht mit, siehe oben)", () => {
-    // 18 (HIGH-RP CPU) + 10 (HIGH-RP RAM-Nutzung) + 8 (Cluster-RAM) + 8 (Cluster-CPU) + 5 (VMs/Host) = 49
+    // 18 (HIGH-RP CPU) + 10 (HIGH-RP RAM genutzt) + 8 (Cluster-RAM) + 8 (Cluster-CPU) + 5 (VMs/Host) = 49
     // cpuOvercommitRatio wird trotzdem mitgegeben, um zu belegen, dass es die Summe nicht verändert.
     const m = metricsFromAggregate(lowRiskAgg(), {
       clusterName: "A", projected: false,

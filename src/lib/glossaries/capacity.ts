@@ -414,7 +414,7 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   maxHostFailures: {
     term: "Ausfallskapazität",
     description:
-      "Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM-Nutzung % in dieser Tabelle auf Rot springen — die Ist-Last verteilt sich dabei per HA auf die verbleibenden Hosts. 0 bedeutet: schon ein einzelner Host-Ausfall reißt eine Kennzahl ins Rote. Die beiden HIGH-RP-Metriken fließen nur ein, wenn ein vROps-Import für den Cluster vorliegt.",
+      "Anzahl ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU %, RAM %, vCPU/Core, RAM Commit %, HIGH-RP CPU % oder HIGH-RP RAM genutzt % in dieser Tabelle auf Rot springen — die Ist-Last verteilt sich dabei per HA auf die verbleibenden Hosts. 0 bedeutet: schon ein einzelner Host-Ausfall reißt eine Kennzahl ins Rote. Die beiden HIGH-RP-Nutzungsmetriken fließen nur ein, wenn ein vROps-Import für den Cluster vorliegt; die HIGH-RP-RAM-Zuweisung wird ausschließlich für Site-Failover bewertet.",
     source: "berechnet · vHost + vROps-Dashboard-Export",
   },
   drsEnabled: {
@@ -442,7 +442,7 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
     source: "berechnet · vHost vs. vCluster",
   },
   vropsRamAssignedHighPct: {
-    term: "HIGH-RP RAM %",
+    term: "HIGH-RP RAM zugewiesen % (Cluster)",
     description:
       "Dem HIGH-Resource-Pool (produktive/wichtige VMs) zugewiesenes RAM im Verhältnis zur gesamten Cluster-Kapazität. Da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 45 % (gelb) bzw. ab 50 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs.",
     source: "vROps-Dashboard-Export · Panel 2",
@@ -450,17 +450,17 @@ export const CAPACITY_HEALTH_COLUMNS: Record<string, GlossaryEntry> = {
   siteFailoverRisk: {
     term: "Site-Failover",
     description:
-      "Tragfähigkeit im Worst-Case: fällt ein ganzer Standort (50 % der Hosts) aus, sollen HIGH-RP-VMs weiterlaufen, STD-VMs werden per Resource-Pool-Shares zurückgedrängt. Die Ampel zeigt, ob die HIGH-RP-RAM-Zuweisung in die halbierte Cluster-Kapazität passt. „—“ ohne vROps-Import.",
+      "Tragfähigkeit im Worst-Case: fällt ein ganzer Standort (50 % der Hosts) aus, sollen HIGH-RP-VMs weiterlaufen, STD-VMs werden per Resource-Pool-Shares zurückgedrängt. Die Ampel zeigt, ob die HIGH-RP-RAM-Zuweisung in die halbierte Cluster-Kapazität passt; ihr Tooltip zeigt die daraus resultierende Belegung und den Puffer der Restkapazität. „—“ ohne vROps-Import.",
     source: "berechnet · vROps-Dashboard-Export",
   },
   vropsCpuUsageHighPct: {
     term: "HIGH-RP CPU %",
     description:
-      "CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Kapazität. Analog zu HIGH-RP RAM %: da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 35 % (gelb) bzw. 45 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs. Fließt mit denselben Schwellwerten in die Ausfallskapazität-Simulation ein.",
+      "CPU-Nutzung der HIGH-RP-VMs relativ zur Gesamt-Cluster-CPU-Kapazität. Analog zu HIGH-RP RAM zugewiesen % (Cluster): da bei Standortausfall nur ~50 % der Hosts überleben, wird es ab 35 % (gelb) bzw. 45 % (rot) eng für den Weiterbetrieb der HIGH-RP-VMs. Fließt mit denselben Schwellwerten in die Ausfallskapazität-Simulation ein.",
     source: "vROps-Dashboard-Export · Panel 4",
   },
   vropsRamUsageHighPct: {
-    term: "HIGH-RP RAM-Nutzung %",
+    term: "HIGH-RP RAM genutzt % (RP)",
     description:
       "RAM-Nutzung der HIGH-RP-VMs relativ zu ihrem eigenen Resource-Pool-Kontingent. Ab 45 % (gelb) bzw. 50 % (rot) ist der HIGH-Pool selbst unter Druck. Fließt mit denselben Schwellwerten in die Ausfallskapazität-Simulation ein.",
     source: "vROps-Dashboard-Export · Panel 1",

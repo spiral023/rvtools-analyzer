@@ -120,7 +120,7 @@ export function ClusterPlanningPanel() {
               <p className="text-xs text-muted-foreground">RAM-Commit: {coloredPct(cluster.before.ramCommitPct, 50, 70)} → {coloredPct(cluster.after.ramCommitPct, 50, 70)}</p>
               <p className="text-xs text-muted-foreground">Risiko: {severityBadge(String(cluster.before.riskScore), riskSeverity(cluster.before.risk))} → {severityBadge(String(cluster.after.riskScore), riskSeverity(cluster.after.risk))}</p>
               <p className="text-xs text-muted-foreground">Ausfallskapazität: <span className={maxHostFailuresClassName(cluster.before.maxHostFailures)}>{cluster.before.maxHostFailures}</span> → <span className={maxHostFailuresClassName(cluster.after.maxHostFailures)}>{cluster.after.maxHostFailures}</span> von {cluster.after.hosts}</p>
-              {cluster.vropsRamAssignedHighPctBefore !== null && <p className="text-xs text-muted-foreground">HIGH-RP RAM: {coloredPct(cluster.vropsRamAssignedHighPctBefore, 45, 50, 0)} → {coloredPct(cluster.vropsRamAssignedHighPctAfter, 45, 50, 0)} · {siteFailoverBadge(cluster.siteFailoverRiskBefore)} → {siteFailoverBadge(cluster.siteFailoverRiskAfter)}</p>}
+              {cluster.vropsRamAssignedHighPctBefore !== null && <p className="text-xs text-muted-foreground">HIGH-RP RAM zugewiesen (Cluster): {coloredPct(cluster.vropsRamAssignedHighPctBefore, 45, 50, 0)} → {coloredPct(cluster.vropsRamAssignedHighPctAfter, 45, 50, 0)} · {siteFailoverBadge(cluster.siteFailoverRiskBefore)} → {siteFailoverBadge(cluster.siteFailoverRiskAfter)}</p>}
             </Card>)}</div></div>
             </div>}
           </> : <Card className="p-8 text-center text-sm text-muted-foreground">Wählen Sie ein Szenario aus oder erstellen Sie ein neues, um zu beginnen.</Card>}
