@@ -85,6 +85,32 @@ export function buildMarkdownTable(data: TableExportData): string {
   return [headerLine, separatorLine, ...rowLines].join("\n");
 }
 
+function escapeConfluenceWikiCell(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\|/g, "&#124;")
+    .replace(/\r?\n/g, "\\\\");
+}
+
+export function buildConfluenceWikiTable(data: TableExportData): string {
+  const headerLine = `||${data.headers.map(escapeConfluenceWikiCell).join("||")}||`;
+  const rowLines = data.rows.map(
+    (row) => `|${data.headers.map((header) => escapeConfluenceWikiCell(row[header] ?? "")).join("|")}|`,
+  );
+
+  return [headerLine, ...rowLines].join("\n");
+}
+
+export async function copyConfluenceWikiTable(data: TableExportData): Promise<void> {
+  if (!navigator.clipboard?.writeText) {
+    throw new Error("Die Zwischenablage ist in diesem Browser nicht verfügbar.");
+  }
+
+  await navigator.clipboard.writeText(buildConfluenceWikiTable(data));
+}
+
 export function downloadTextFile(content: string, filename: string, type: string): void {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);

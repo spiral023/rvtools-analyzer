@@ -19,10 +19,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   buildExportData,
+  copyConfluenceWikiTable,
   exportExcelTable,
   exportMarkdownTable,
 } from "@/lib/export/tableExport";
-import { ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, ClipboardCopy, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 
@@ -103,7 +104,7 @@ export function VirtualTable<T, TColumn = T>({
     ? sortedRowIds.some((id) => selectedKeys?.has(id)) && !allSelected
     : false;
 
-  const handleExport = async (format: "excel" | "markdown") => {
+  const handleExport = async (format: "excel" | "markdown" | "confluence") => {
     const exportData = buildExportData(
       table.getVisibleLeafColumns().map((column) => ({
         id: column.id,
@@ -120,6 +121,12 @@ export function VirtualTable<T, TColumn = T>({
       if (format === "excel") {
         await exportExcelTable(exportData, filename);
         toast.success("Tabelle als Excel-Datei exportiert.");
+        return;
+      }
+
+      if (format === "confluence") {
+        await copyConfluenceWikiTable(exportData);
+        toast.success("Confluence-Wiki-Markup in die Zwischenablage kopiert.");
         return;
       }
 
@@ -352,6 +359,10 @@ export function VirtualTable<T, TColumn = T>({
             <DropdownMenuItem onClick={() => void handleExport("markdown")}>
               <FileText className="mr-2 h-4 w-4" />
               Markdown
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("confluence")}>
+              <ClipboardCopy className="mr-2 h-4 w-4" />
+              Confluence Wiki-Markup kopieren
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
