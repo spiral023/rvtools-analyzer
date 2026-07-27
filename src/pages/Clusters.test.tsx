@@ -355,6 +355,8 @@ describe("Clusters", () => {
     renderToolPage(<Planning />);
 
     expect(await screen.findByRole("heading", { name: "Planung" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "What-if" })).toHaveAttribute("data-state", "active");
+    expect(screen.getByRole("tab", { name: "Fill up" })).toBeInTheDocument();
     expect(screen.getAllByText("Szenarien").length).toBeGreaterThan(0);
     expect(screen.getByText("Migrationsgruppen")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
@@ -364,6 +366,12 @@ describe("Clusters", () => {
     expect(screen.getAllByText("What-If Zielcluster")).toHaveLength(2);
     expect(comparison.closest(".grid")).toHaveClass("lg:grid-cols-[280px_minmax(0,1fr)]");
     expect(comparison.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const fillUpTab = screen.getByRole("tab", { name: "Fill up" });
+    fireEvent.mouseDown(fillUpTab);
+    fireEvent.click(fillUpTab);
+    expect(screen.getByRole("tab", { name: "Fill up" })).toHaveAttribute("data-state", "active");
+    expect(screen.queryByText("Migrationsgruppen")).not.toBeInTheDocument();
   });
 
   it("entfernt den Infrastruktur-Tab samt CPU- und Treiberinventar", async () => {
