@@ -24,8 +24,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div id="app-header-slot" className="flex min-w-0 flex-1 flex-wrap items-center gap-2" />
             <div className="flex items-center gap-2">
               <PwaUpdateWarning />
-              <GlobalFilterControl />
               <ImportedDataPreloadControl />
+              <GlobalFilterControl />
               <Button
                 asChild
                 variant="ghost"
