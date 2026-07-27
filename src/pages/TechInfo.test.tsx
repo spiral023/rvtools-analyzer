@@ -80,4 +80,11 @@ describe("TechInfo", () => {
       expect(cell).toHaveClass("bg-destructive");
     }
   });
+
+  it("zeigt die eindeutigen SysV und die durchschnittlichen Systeme je SysV", () => {
+    render(<TechInfo />);
+
+    expect(screen.getByText("Eindeutige SysV").parentElement?.parentElement).toHaveTextContent("2");
+    expect(screen.getByText("Systeme/SysV").parentElement?.parentElement).toHaveTextContent("1,0");
+  });
 });

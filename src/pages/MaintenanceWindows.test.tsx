@@ -302,23 +302,23 @@ describe("MaintenanceWindows", () => {
     expect(screen.getByText("APP-UNKNOWN")).toBeInTheDocument();
   });
 
-  it("verlinkt die Werkzeuge-Navigation auf Wartungsfenster", () => {
+  it("verlinkt die Betrieb-Navigation auf Wartungsfenster", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
     expect(screen.getByRole("link", { name: "Wartungsfenster" })).toHaveAttribute("href", "/wartungsfenster");
   });
 
-  it("ordnet vCenter im Analysebereich ein", () => {
+  it("ordnet vCenter im Infrastrukturbereich ein", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
-    const analysisGroup = screen.getByText("Analyse").closest('[data-sidebar="group"]');
-    expect(analysisGroup).not.toBeNull();
-    expect(within(analysisGroup as HTMLElement).getByRole("link", { name: "vCenter" })).toHaveAttribute("href", "/vcenter");
-    expect(within(analysisGroup as HTMLElement).queryByRole("link", { name: "Licensing" })).not.toBeInTheDocument();
+    const infrastructureGroup = screen.getByText("Infrastruktur").closest('[data-sidebar="group"]');
+    expect(infrastructureGroup).not.toBeNull();
+    expect(within(infrastructureGroup as HTMLElement).getByRole("link", { name: "vCenter" })).toHaveAttribute("href", "/vcenter");
+    expect(within(infrastructureGroup as HTMLElement).queryByRole("link", { name: "Licensing" })).not.toBeInTheDocument();
     expect(screen.queryByText("Vergleich")).not.toBeInTheDocument();
   });
 
-  it("zeigt Wartungsankündigung und Planung nicht in der Tools-Navigation", () => {
+  it("zeigt Wartungsankündigung und Planung nicht in der Betrieb-Navigation", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
     expect(screen.queryByRole("link", { name: "Wartungsankündigung" })).not.toBeInTheDocument();

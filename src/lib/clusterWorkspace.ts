@@ -10,6 +10,7 @@ import {
   aggregateCluster,
   groupVHostRowsByCluster,
   metricsFromAggregate,
+  type HostFailureBreach,
   type RiskFactor,
 } from "@/domain/services/clusterCapacityEngine";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
@@ -40,6 +41,9 @@ export interface ClusterOverviewRow {
   maxVmsHost: string | null;
   vcpuPerCore: number;
   ramCommitPct: number;
+  /** Anzahl der ESXi-Hosts, die ausfallen dürfen, bevor eine Kapazitätskennzahl rot wird. */
+  maxHostFailures: number;
+  hostFailureBreaches: HostFailureBreach[];
   riskScore: number;
   risk: "hoch" | "mittel" | "niedrig";
   /** Alle ausgelösten Risk-Score-Beiträge, für den Risiko-Tooltip (identisch zur Kapazitäts-Tabelle). */
@@ -228,6 +232,8 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
       ...maxLoad,
       vcpuPerCore: metrics.vcpuPerCore,
       ramCommitPct: metrics.ramCommitPct,
+      maxHostFailures: metrics.maxHostFailures,
+      hostFailureBreaches: metrics.hostFailureBreaches,
       riskScore: metrics.riskScore,
       risk: metrics.risk,
       riskFactors: metrics.riskFactors,

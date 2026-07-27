@@ -42,7 +42,7 @@ interface DsLifecycleRow { name: string; type: string; version: string; upgradea
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: number; freePct: number; risk: string }
 interface PartitionFreeDistributionRow { label: string; count: number; color: string }
-interface DatastoreCapacityChartRow { datastore: string; freePct: number; usedPct: number }
+interface DatastoreCapacityChartRow { datastore: string; freePct: number }
 interface BackupRiskDistributionRow { label: string; count: number; color: string }
 type BackupRisk = "kein Backup" | "hoch" | "mittel" | "niedrig";
 
@@ -256,11 +256,11 @@ export default function StorageBackup() {
 
   const datastoreCapacityChart = useMemo<DatastoreCapacityChartRow[]>(() =>
     datastores
-      .map((datastore) => {
-        const capacity = datastore.capacityMiB || 0;
-        const freePct = Math.max(0, Math.min(100, datastore.freePct ?? (capacity > 0 ? ((datastore.freeMiB || 0) / capacity) * 100 : 100)));
-        return { datastore: datastore.name, freePct, usedPct: 100 - freePct };
-      })
+      .filter((datastore) => datastore.freePct !== null)
+      .map((datastore) => ({
+        datastore: datastore.name.length > 20 ? `${datastore.name.slice(0, 18)}…` : datastore.name,
+        freePct: Math.round(datastore.freePct! * 10) / 10,
+      }))
       .sort((left, right) => left.freePct - right.freePct)
       .slice(0, 12),
     [datastores],
@@ -363,15 +363,15 @@ export default function StorageBackup() {
               <InfoTooltip entry={STORAGE_SECTIONS.datastoreChart} side="bottom">
                 <h3 className="mb-1 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastores mit niedrigstem freien Anteil</h3>
               </InfoTooltip>
-              <p className="mb-3 text-xs text-muted-foreground">Die 12 knappsten Datastores; der Balken zeigt den relativen Belegungsgrad.</p>
-              <ResponsiveContainer width="100%" height={Math.max(220, datastoreCapacityChart.length * 30)}>
-                <BarChart data={datastoreCapacityChart} layout="vertical" margin={{ top: 4, right: 16, left: 12, bottom: 4 }}>
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                  <XAxis type="number" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="datastore" width={120} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name === "freePct" ? "Frei" : "Belegt"]} contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                  <Bar dataKey="freePct" name="Frei" stackId="capacity" fill={CHART_COLORS.success} />
-                  <Bar dataKey="usedPct" name="Belegt" stackId="capacity" fill={CHART_COLORS.secondary} radius={[0, 4, 4, 0]} />
+              <p className="mb-3 text-xs text-muted-foreground">Die 12 knappsten Datastores, sortiert nach freiem Anteil.</p>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={datastoreCapacityChart} layout="vertical">
+                  <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="datastore" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                  <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
+                    {datastoreCapacityChart.map((entry) => <Cell key={entry.datastore} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

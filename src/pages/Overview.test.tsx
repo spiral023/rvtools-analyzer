@@ -51,7 +51,7 @@ beforeEach(async () => {
 });
 
 describe("Overview", () => {
-  it("zeigt VM-KPIs und -Tabelle, aber keine übernommenen Clusterbereiche", async () => {
+  it("zeigt VM-KPIs und -Tabelle sowie die neuen Übersichtsbereiche", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

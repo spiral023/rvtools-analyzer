@@ -35,7 +35,7 @@ export function HealthEventsPanel() {
 
   return (
     <section className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+      <div className="space-y-4">
         <div className="rounded-lg border border-border/50 bg-card/30 p-4">
           <InfoTooltip entry={DAILY_OPS_SECTIONS.healthByType} side="bottom">
             <h3 className="mb-3 flex w-fit cursor-help items-center gap-2 text-sm font-semibold text-muted-foreground">

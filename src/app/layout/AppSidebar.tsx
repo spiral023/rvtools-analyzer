@@ -41,23 +41,26 @@ interface NavItem {
 }
 
 const mainNav: NavItem[] = [
-  { title: "Overview", url: "/overview", icon: LayoutDashboard },
+  { title: "Übersicht", url: "/overview", icon: LayoutDashboard },
   { title: "Uploads", url: "/upload", icon: Upload, dropzone: true },
 ];
 
-const analysisNav: NavItem[] = [
+const infrastructureNav: NavItem[] = [
   { title: "vCenter", url: "/vcenter", icon: GitCompare },
   { title: "Cluster", url: "/clusters", icon: Server },
   { title: "Hosts", url: "/hosts", icon: Server },
   { title: "VMs", url: "/vms", icon: Monitor },
-  { title: "Capacity", url: "/capacity", icon: HardDrive },
+];
+
+const analysisNav: NavItem[] = [
+  { title: "Kapazität", url: "/capacity", icon: HardDrive },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
   { title: "Netzwerk", url: "/network-security", icon: Network },
   { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 
-const toolsNav = [
+const operationsNav = [
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
 
@@ -172,8 +175,9 @@ export function AppSidebar() {
       </div>
       <SidebarContent className="py-2">
         <NavSection label="Dashboard" items={mainNav} />
+        <NavSection label="Infrastruktur" items={infrastructureNav} />
         <NavSection label="Analyse" items={analysisNav} />
-        <NavSection label="Tools" items={toolsNav} />
+        <NavSection label="Betrieb" items={operationsNav} />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-0">
         <RelatedToolsNav />

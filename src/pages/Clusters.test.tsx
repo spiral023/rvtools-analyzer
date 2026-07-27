@@ -246,6 +246,7 @@ describe("Clusters", () => {
     expect(screen.queryByText(/aktive Snapshots?/)).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "vCenter für Diagramme" })).not.toBeInTheDocument();
     expect(screen.getByText("Clusterübersicht")).toBeInTheDocument();
+    expect(screen.getByText("Ausfallskapazität")).toBeInTheDocument();
     expect(screen.getByText(/Betriebssysteme je Cluster/)).toBeInTheDocument();
     expect(screen.queryByText("Datacenter")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "According to VMware Tools" })).toBeChecked();

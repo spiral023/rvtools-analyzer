@@ -71,6 +71,17 @@ describe("AppSidebar", () => {
     expect(vcenterLink.compareDocumentPosition(clusterLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("gliedert die Navigation in Hierarchie, Analyse und Betrieb", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.getByText("Infrastruktur")).toBeInTheDocument();
+    expect(screen.getByText("Analyse")).toBeInTheDocument();
+    expect(screen.getByText("Betrieb")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Übersicht" })).toHaveAttribute("href", "/overview");
+    expect(screen.getByRole("link", { name: "Kapazität" })).toHaveAttribute("href", "/capacity");
+  });
+
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
     renderSidebar();
@@ -89,7 +100,7 @@ describe("AppSidebar", () => {
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
     renderSidebar();
 
-    const overviewLink = screen.getByRole("link", { name: "Overview" });
+    const overviewLink = screen.getByRole("link", { name: "Übersicht" });
     const file = new File(["a"], "a.xlsx");
 
     fireEvent.drop(overviewLink, { dataTransfer: { files: [file] } });

@@ -6,15 +6,13 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { buildClusterDensityChart, buildClusterOverviewKpis, buildRiskChart, buildTopChartRows, buildVmDistributionChart, type ClusterDensityPoint, type ClusterOverviewRow } from "@/lib/clusterWorkspace";
-import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
+import { clusterOverviewColumns } from "@/components/cluster/clusterOverviewColumns";
 import type { ClusterOsDistributionRow, VmOsSource } from "@/lib/vmOsDistribution";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import { CLUSTER_CHARTS, CLUSTER_KPI, CLUSTER_OS_COLUMNS, CLUSTER_OVERVIEW_COLUMNS } from "@/lib/glossaries/clusters";
-import { coloredNum, coloredPct, RiskTooltipContent, riskSeverity, severityBadge, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterOverviewPanelProps {
   rows: ClusterOverviewRow[];
@@ -32,64 +30,6 @@ const riskColor = (risk: ClusterOverviewRow["risk"]) => (
 
 export const RISK_CHART_CLUSTER_LIMIT = 10;
 const VM_DISTRIBUTION_CHART_CLUSTER_LIMIT = 20;
-
-const clusterColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
-  { accessorKey: "vcenterDisplayName", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName } },
-  { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_OVERVIEW_COLUMNS.cluster } },
-  { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_OVERVIEW_COLUMNS.hosts }, cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "runningVms", header: "Laufende VMs", meta: { info: CLUSTER_OVERVIEW_COLUMNS.runningVms }, cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "avgVmsPerHost", header: "Ø VMs/Host", meta: { info: CLUSTER_OVERVIEW_COLUMNS.avgVmsPerHost }, cell: ({ getValue }) => {
-    const value = getValue() as number | null;
-    return value === null ? "—" : value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  } },
-  {
-    accessorKey: "maxVmsPerHost",
-    header: "Max. VMs/Host",
-    meta: { info: CLUSTER_OVERVIEW_COLUMNS.maxVmsPerHost },
-    cell: ({ row, getValue }) => {
-      const host = row.original.maxVmsHost;
-      const count = formatNum(getValue() as number | null);
-      return host ? `${count} (${host})` : count;
-    },
-  },
-  {
-    accessorKey: "vcpuPerCore",
-    header: "vCPU/Core",
-    meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcpuPerCore },
-    cell: ({ getValue }) => {
-      const value = getValue() as number;
-      return <span className={vcpuPerCoreSeverityClass(value)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}</span>;
-    },
-  },
-  { accessorKey: "ramCommitPct", header: "RAM Commit", meta: { info: CLUSTER_OVERVIEW_COLUMNS.ramCommitPct }, cell: ({ getValue }) => coloredPct(getValue() as number, 50, 70) },
-  {
-    accessorKey: "risk",
-    header: "Risiko",
-    meta: { info: CLUSTER_OVERVIEW_COLUMNS.risk },
-    cell: ({ row }) => (
-      <span className="inline-flex items-center gap-1.5">
-        <UiTooltip delayDuration={250}>
-          <UiTooltipTrigger asChild>
-            <span className="cursor-help underline decoration-dotted underline-offset-4">
-              {severityBadge(`${row.original.risk} (${row.original.riskScore})`, riskSeverity(row.original.risk))}
-            </span>
-          </UiTooltipTrigger>
-          <UiTooltipContent side="top">
-            <RiskTooltipContent riskScore={row.original.riskScore} risk={row.original.risk} riskFactors={row.original.riskFactors} siteFailoverOverride={row.original.siteFailoverOverride} />
-          </UiTooltipContent>
-        </UiTooltip>
-        {vropsMissingBadge(row.original.vropsMissing)}
-      </span>
-    ),
-  },
-  { accessorKey: "riskScore", header: "Score", meta: { info: CLUSTER_OVERVIEW_COLUMNS.riskScore }, cell: ({ getValue }) => coloredNum(getValue() as number, 30, 60, 0) },
-  {
-    id: "haDrs",
-    header: "HA / DRS",
-    meta: { info: CLUSTER_OVERVIEW_COLUMNS.haDrs },
-    accessorFn: (row) => `${row.haEnabled === true ? "Aktiv" : "Aus/—"} / ${row.drsEnabled === true ? "Aktiv" : "Aus/—"}`,
-  },
-];
 
 function osColumns(vcenterDisplayNames: Map<string, string>, source: VmOsSource): ColumnDef<ClusterOsDistributionRow, unknown>[] {
   const operatingSystemInfo = source === "tools"
@@ -223,7 +163,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
           <h3 className="text-sm font-semibold text-muted-foreground">Clusterübersicht</h3>
           <span className="text-xs text-muted-foreground">({formatNum(rows.length)})</span>
         </div>
-        <VirtualTable data={rows} columns={clusterColumns} globalFilter={search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="rvtools-cluster-uebersicht" onRowClick={(row) => onOpenCluster(row.clusterKey)} />
+        <VirtualTable data={rows} columns={clusterOverviewColumns} globalFilter={search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="rvtools-cluster-uebersicht" onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
 
       <section>

@@ -20,6 +20,7 @@ export const CLUSTER_OVERVIEW_COLUMNS: Record<string, GlossaryEntry> = {
   runningVms: { term: "Laufende VMs", description: "Anzahl eingeschalteter VMs im Cluster.", source: `${RV} · vInfo · „Powerstate“` },
   avgVmsPerHost: { term: "Ø VMs/Host", description: "Durchschnittlich laufende VMs je Host; ein Maß für den Konsolidierungsgrad.", source: "berechnet" },
   maxVmsPerHost: { term: "Max. VMs/Host", description: "Höchster vHost-Wert inklusive betroffenem Host; macht Lastspitzen sichtbar.", source: `${RV} · vHost · „# VMs“` },
+  maxHostFailures: { term: "Ausfallskapazität", description: "Anzahl der ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU, RAM, vCPU/Core oder RAM Commit rot werden.", source: "berechnet · vHost + vInfo" },
   vcpuPerCore: { term: "vCPU/Core", description: "Zugewiesene vCPUs je physischem CPU-Core. Höhere Werte erhöhen das Risiko von CPU-Contention.", source: "berechnet · Σ vCPU / Σ Cores" },
   ramCommitPct: { term: "RAM Commit", description: "Zugesagter VM-RAM im Verhältnis zum physischen Cluster-RAM.", source: "berechnet" },
   risk: { term: "Risiko", description: "Abgeleitete Stufe aus Dichte, Overcommit, Auslastung und Verfügbarkeitskonfiguration.", source: "berechnet" },

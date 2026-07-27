@@ -36,6 +36,18 @@ export const TECHINFO_KPI: Record<string, GlossaryEntry> = {
       "Anzahl der Systeme, bei denen Systemverantwortliche:r und Stellvertretung identisch sind. Das weist auf eine fehlende echte Vertretung hin.",
     source: TECH,
   },
+  uniqueSysv: {
+    term: "Eindeutige SysV",
+    description:
+      "Anzahl der unterschiedlichen Systemverantwortlichen in den zugeordneten Tech-Info-Servern. Schreibweisen werden für die Zählung ohne Beachtung von Groß-/Kleinschreibung und Mehrfachleerzeichen zusammengeführt.",
+    source: TECH,
+  },
+  systemsPerSysv: {
+    term: "Systeme/SysV",
+    description:
+      "Durchschnittliche Anzahl der Tech-Info-Server mit eingetragener Verantwortlichkeit je eindeutiger Systemverantwortlicher. Nicht zugeordnete Systeme fließen nicht in den Durchschnitt ein.",
+    source: TECH,
+  },
 };
 
 /* ------------------------------------------------------------------ */
