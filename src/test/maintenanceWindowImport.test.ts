@@ -83,6 +83,19 @@ describe("parseMaintenanceWindowText", () => {
     expect(result.entries[0].definition.weeklySlots.map(slotsToExternalMask)).toEqual(masks);
   });
 
+  it("ignores tab-only visual spacer lines between RVTools header cells", () => {
+    const header = ["AbkÃ¼rzung", "Details", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+    const text = [
+      header.join("\r\n\t\r\n"),
+      ...block("SRV1", "Montag 01:30 - 03:00"),
+    ].join("\r\n");
+
+    const result = parseMaintenanceWindowText(text);
+
+    expect(result.entries.map((entry) => entry.definition.abbreviation)).toEqual(["SRV1"]);
+    expect(result.errors).toEqual([]);
+  });
+
   it("removes the proper known header only at the file start", () => {
     const text = [
       "Abkürzung",

@@ -161,7 +161,7 @@ function SectionHeading({
   );
 }
 
-function AssignmentPanel({
+export function AssignmentPanel({
   activeRow,
   selectedRows,
   suggestions,
@@ -227,7 +227,19 @@ function AssignmentPanel({
 
   const save = async () => {
     if (targetRows.length === 0) return;
-    await onSave(targetRows, draft);
+    const pendingWindowLabel = windowText.trim();
+    const draftToSave = pendingWindowLabel
+      ? {
+        ...draft,
+        windows: [...draft.windows, { id: makeId("window"), label: pendingWindowLabel }],
+      }
+      : draft;
+
+    await onSave(targetRows, draftToSave);
+    if (pendingWindowLabel) {
+      setDraft(draftToSave);
+      setWindowText("");
+    }
   };
   const contactEntries = draft.contacts.map((contact, index) => ({
     contact,

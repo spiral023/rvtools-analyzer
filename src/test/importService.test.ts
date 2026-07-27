@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import * as XLSX from "@e965/xlsx";
-import { persistRawSheetBlobs, normalizeSnapshots } from "@/domain/services/importService";
+import { importMaintenanceWindowsTxt, persistRawSheetBlobs, normalizeSnapshots } from "@/domain/services/importService";
 import { gunzipJson } from "@/lib/compression";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { parseWorkbookBuffer } from "@/workers/parser.worker";
@@ -392,5 +392,32 @@ describe("importRvtoolsXlsx", () => {
     expect(result.errors).toContainEqual(expect.stringContaining("IndexedDB quota exceeded"));
     expect(await db.getSnapshots()).toEqual([]);
     expect(await (await db.getDb()).getAll("rawSheetBlobs")).toEqual([]);
+  });
+});
+
+describe("importMaintenanceWindowsTxt", () => {
+  it("speichert eine RVTools-Wartungsfensterdatei und überspringt unveränderte Re-Imports", async () => {
+    const masks = Array(7).fill("1".repeat(48));
+    const headers = ["AbkÃ¼rzung", "Details", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+    const text = [
+      headers.join("\r\n\t\r\n"),
+      ["SRV1", "Montag 01:30 - 03:00", ...masks].join("\t"),
+    ].join("\r\n");
+    const file = Object.assign(
+      new File(["placeholder"], "SRV Wartungsfenster Tech-Info Server.txt", { type: "text/plain" }),
+      { text: async () => text },
+    );
+
+    const first = await importMaintenanceWindowsTxt(file);
+    const { getMaintenanceWindows } = await import("@/data/db");
+
+    expect(first).toMatchObject({ success: true, fileKind: "maintenance-windows", errors: [] });
+    expect(await getMaintenanceWindows()).toMatchObject([{ abbreviation: "SRV1" }]);
+
+    const second = await importMaintenanceWindowsTxt(file);
+
+    expect(second).toMatchObject({ success: true, fileKind: "maintenance-windows", errors: [] });
+    expect(second.warnings).toContain("1 Wartungsfenster waren bereits unverändert.");
+    expect(await getMaintenanceWindows()).toHaveLength(1);
   });
 });

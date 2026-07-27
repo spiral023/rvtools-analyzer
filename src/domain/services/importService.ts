@@ -40,6 +40,8 @@ import {
   batchPutVropsRows,
   batchPutVropsLatest,
   getVropsLatestByClusterNorms,
+  getMaintenanceWindows,
+  upsertMaintenanceWindows,
 } from "@/data/db";
 import {
   computeChecksum,
@@ -76,6 +78,7 @@ import {
 import { gzipJson } from "@/lib/compression";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { shortId } from "@/lib/shortId";
+import { buildMaintenanceImportPreview, parseMaintenanceWindowText } from "@/lib/maintenanceWindowImport";
 import type {
   ImportResult,
   SnapshotMeta,
@@ -114,6 +117,55 @@ export interface ImportProgress {
 }
 
 export type ProgressCallback = (p: ImportProgress) => void;
+
+function formatMaintenanceImportIssue(issue: { block: number; field?: string; message: string }): string {
+  return `Block ${issue.block}${issue.field ? `, Feld ${issue.field}` : ""}: ${issue.message}`;
+}
+
+/** Importiert eine tab-getrennte RVTools-Wartungsfenster-Textdatei in den lokalen Katalog. */
+export async function importMaintenanceWindowsTxt(
+  file: File,
+  onProgress?: ProgressCallback,
+): Promise<ImportResult> {
+  const report = (step: string, percent: number, detail?: string) => onProgress?.({ step, percent, detail });
+  report("Textdatei lesen", 10, file.name);
+  const text = await file.text();
+
+  report("Wartungsfenster prüfen", 35);
+  const parsed = parseMaintenanceWindowText(text);
+  const warnings = parsed.warnings.map(formatMaintenanceImportIssue);
+  if (parsed.errors.length > 0) {
+    return {
+      success: false,
+      fileKind: "maintenance-windows",
+      warnings,
+      errors: parsed.errors.map(formatMaintenanceImportIssue),
+    };
+  }
+
+  if (parsed.entries.length === 0) {
+    return {
+      success: false,
+      fileKind: "maintenance-windows",
+      warnings,
+      errors: ["Die Textdatei enthält keine Wartungsfenster."],
+    };
+  }
+
+  report("Vorhandene Wartungsfenster abgleichen", 55);
+  const preview = buildMaintenanceImportPreview(parsed.entries, await getMaintenanceWindows());
+  const changes = preview.filter((row) => row.status !== "unchanged" && !row.issues.some((issue) => issue.severity === "error"));
+
+  if (changes.length > 0) {
+    report("Wartungsfenster speichern", 75, `${changes.length.toLocaleString("de-DE")} Änderungen`);
+    await upsertMaintenanceWindows(changes.map((row) => row.definition));
+  }
+
+  const unchangedCount = preview.length - changes.length;
+  if (unchangedCount > 0) warnings.push(`${unchangedCount.toLocaleString("de-DE")} Wartungsfenster waren bereits unverändert.`);
+  report("Abgeschlossen", 100, `${changes.length.toLocaleString("de-DE")} Wartungsfenster importiert`);
+  return { success: true, fileKind: "maintenance-windows", warnings, errors: [] };
+}
 
 /* ---------- worker ---------- */
 

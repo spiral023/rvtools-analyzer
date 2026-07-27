@@ -2,15 +2,16 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { importRvtoolsXlsx } from "@/domain/services/importService";
+import { importMaintenanceWindowsTxt, importRvtoolsXlsx } from "@/domain/services/importService";
 import { ImportProvider, useImportController } from "@/hooks/useImportController";
 
-vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn() }));
+vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn(), importMaintenanceWindowsTxt: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 const mockedImport = vi.mocked(importRvtoolsXlsx);
+const mockedMaintenanceImport = vi.mocked(importMaintenanceWindowsTxt);
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -69,5 +70,18 @@ describe("ImportProvider", () => {
     ]);
     expect(result.current.items.map((item) => item.status)).toEqual(["success", "warning"]);
     expect(result.current.importing).toBe(false);
+  });
+
+  it("leitet Textdateien an den Wartungsfenster-Import weiter", async () => {
+    mockedMaintenanceImport.mockResolvedValue({ success: true, fileKind: "maintenance-windows", warnings: [], errors: [] });
+    const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
+
+    await act(() => result.current.importFiles([
+      new File(["Wartungsfenster"], "SRV Wartungsfenster Tech-Info Server.txt", { type: "text/plain" }),
+    ]));
+
+    expect(mockedMaintenanceImport).toHaveBeenCalledTimes(1);
+    expect(mockedImport).not.toHaveBeenCalled();
+    expect(result.current.items[0]).toMatchObject({ status: "success", fileKind: "maintenance-windows" });
   });
 });

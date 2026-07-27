@@ -91,7 +91,9 @@ export function MaintenanceWindowImportDialog({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importError, setImportError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const wasOpen = useRef(open);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isBusy = isImporting || isSubmitting;
   const selectedRows = (preview ?? []).filter((row) => selectedIds.has(row.definition.id) && isValidChanged(row));
@@ -103,6 +105,7 @@ export function MaintenanceWindowImportDialog({
     setSelectedIds(new Set());
     setImportError(null);
     setIsSubmitting(false);
+    setUploadedFileName(null);
   };
 
   useEffect(() => {
@@ -119,16 +122,16 @@ export function MaintenanceWindowImportDialog({
 
   const handleTextChange = (nextText: string) => {
     setText(nextText);
+    setUploadedFileName(null);
     if (preview !== null || standaloneIssues.length > 0 || selectedIds.size > 0 || importError !== null) {
       clearPreview();
     }
   };
 
-  const handleCheck = () => {
-    if (isBusy) return;
+  const createPreview = (textToCheck: string) => {
     setImportError(null);
     try {
-      const parsed = parseMaintenanceWindowText(text);
+      const parsed = parseMaintenanceWindowText(textToCheck);
       const nextPreview = buildMaintenanceImportPreview(parsed.entries, existing);
       setPreview(nextPreview);
       setStandaloneIssues(parsed.errors.filter((issue) => !nextPreview.some((row) => row.sourceBlock === issue.block)));
@@ -138,6 +141,37 @@ export function MaintenanceWindowImportDialog({
       setStandaloneIssues([]);
       setSelectedIds(new Set());
       setImportError(error instanceof Error ? error.message : "Der Text konnte nicht geprüft werden.");
+    }
+  };
+
+  const handleCheck = () => {
+    if (isBusy) return;
+    createPreview(text);
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isBusy) return;
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLocaleLowerCase("de-DE").endsWith(".txt")) {
+      setUploadedFileName(null);
+      setImportError("Bitte eine Textdatei im Format .txt auswählen.");
+      input.value = "";
+      return;
+    }
+
+    try {
+      const fileText = await file.text();
+      setText(fileText);
+      setUploadedFileName(file.name);
+      createPreview(fileText);
+    } catch (error) {
+      setUploadedFileName(null);
+      setImportError(error instanceof Error ? error.message : "Die Textdatei konnte nicht gelesen werden.");
+    } finally {
+      input.value = "";
     }
   };
 
@@ -181,11 +215,28 @@ export function MaintenanceWindowImportDialog({
         <DialogHeader>
           <DialogTitle>Wartungsfenster importieren</DialogTitle>
           <DialogDescription>
-            Text aus der RVTools-Wartungsfensterübersicht einfügen, prüfen und gezielt übernehmen.
+            Text aus der RVTools-Wartungsfensterübersicht einfügen oder als Textdatei hochladen, prüfen und gezielt übernehmen.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileInputRef}
+              id="maintenance-window-import-file"
+              type="file"
+              accept=".txt,text/plain"
+              className="sr-only"
+              aria-label="Wartungsfenster-Textdatei auswählen"
+              disabled={isBusy}
+              onChange={(event) => { void handleFileChange(event); }}
+            />
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isBusy}>
+              Textdatei auswählen
+            </Button>
+            <span className="text-xs text-muted-foreground">.txt, tab-getrennt aus RVTools</span>
+          </div>
+          {uploadedFileName ? <p className="text-xs text-muted-foreground">Geladen: {uploadedFileName}</p> : null}
           <Label htmlFor="maintenance-window-import-text">Wartungsfenster-Text</Label>
           <Textarea
             id="maintenance-window-import-text"

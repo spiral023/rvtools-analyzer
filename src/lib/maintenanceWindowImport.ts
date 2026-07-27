@@ -144,6 +144,10 @@ function tokenizeMaintenanceText(text: string): string[] {
   const normalizedText = text.replace(/\r\n?/g, "\n");
   const tokens: string[] = [];
   for (const line of normalizedText.split("\n")) {
+    // Beim Kopieren aus RVTools können optisch leere Zeilen einen Tabulator
+    // enthalten. Sie sind keine Tabellenzellen und dürfen die Kopfzeile nicht
+    // verschieben.
+    if (!line.trim()) continue;
     if (line.includes("\t")) {
       tokens.push(...line.split("\t").map((cell) => cell.trim()));
       continue;

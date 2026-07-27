@@ -414,9 +414,9 @@ function useUploadSnapshotsView() {
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
       >
-        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple disabled={importing} className="hidden" aria-label="RVTools, Tech-Info, CDP-, IPAM-, Eramon- oder vROps-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.txt,text/plain" multiple disabled={importing} className="hidden" aria-label="RVTools-, Tech-Info-, Netzwerk-, vROps- oder Wartungsfenster-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), CDP-/IPAM-/Eramon-/vROps-CSV hierher ziehen oder klicken"}</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), Netzwerk/vROps (CSV) oder Wartungsfenster (TXT) hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
         </label>
 

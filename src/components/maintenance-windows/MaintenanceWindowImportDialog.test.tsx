@@ -121,6 +121,18 @@ describe("MaintenanceWindowImportDialog", () => {
     expect(screen.getByRole("button", { name: "Auswahl importieren" })).toBeDisabled();
   });
 
+  it("liest eine hochgeladene Textdatei ein und zeigt sofort ihre Importvorschau", async () => {
+    renderDialog();
+    const file = new File(["Platzhalter"], "SRV Wartungsfenster Tech-Info Server.txt", { type: "text/plain" });
+    Object.defineProperty(file, "text", { value: vi.fn().mockResolvedValue(importBlock("SRV1", "Montag 01:30 - 03:00")) });
+
+    fireEvent.change(screen.getByLabelText("Wartungsfenster-Textdatei auswählen"), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText("Neu: 1")).toBeInTheDocument());
+    expect(screen.getByText("Geladen: SRV Wartungsfenster Tech-Info Server.txt")).toBeInTheDocument();
+    expect(screen.getByLabelText("SRV1 auswählen")).toBeChecked();
+  });
+
   it("behält Text, Vorschau und Auswahl bei harmlosen Parent-Rerenders geöffnet", () => {
     const { rerender, onOpenChange, onImport } = renderDialog();
     const importedText = importBlock("NEU", "Neue Regel");

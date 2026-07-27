@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  importMaintenanceWindowsTxt,
   importRvtoolsXlsx,
   type ImportProgress,
 } from "@/domain/services/importService";
@@ -44,6 +45,7 @@ export function isSupportedImportFile(file: File): boolean {
     name.endsWith(".xlsx") ||
     name.endsWith(".xls") ||
     name.endsWith(".csv") ||
+    name.endsWith(".txt") ||
     file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     file.type === "text/csv"
   );
@@ -57,6 +59,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "eramon-iface") return "Eramon Switch-Ports";
   if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
   if (kind === "vrops") return "vROps-Kapazitätsmetriken";
+  if (kind === "maintenance-windows") return "Wartungsfenster";
   return "RVTools";
 }
 
@@ -119,9 +122,13 @@ export function ImportProvider({ children }: { children: ReactNode }) {
           });
 
           try {
-            const result = await importRvtoolsXlsx(file, (progress) => {
-              patchItem(item.id, { progress });
-            });
+            const result = await (file.name.toLocaleLowerCase("de-DE").endsWith(".txt")
+              ? importMaintenanceWindowsTxt(file, (progress) => {
+                patchItem(item.id, { progress });
+              })
+              : importRvtoolsXlsx(file, (progress) => {
+                patchItem(item.id, { progress });
+              }));
             const status: ImportItemStatus = result.success
               ? result.warnings.length > 0
                 ? "warning"
