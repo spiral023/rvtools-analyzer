@@ -40,6 +40,13 @@ describe("UploadSnapshots", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
+
+    expect(screen.getByRole("heading", { name: "Uploads" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Uploads" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Diagnose" })).toBeInTheDocument();
+    expect(screen.getByText("Gespeichert")).toBeInTheDocument();
+    expect(screen.getByText("RVTools-Snapshots")).toBeInTheDocument();
+
     const input = screen.getByLabelText(
       /RVTools, Tech-Info, CDP-, IPAM-, Eramon- oder vROps-Datei/i,
     );

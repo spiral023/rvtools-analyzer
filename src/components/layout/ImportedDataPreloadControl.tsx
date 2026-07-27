@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useImportedDataPreload,
   type ImportedDataPreloadRunner,
@@ -20,7 +19,6 @@ import {
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { preloadImportedData } from "@/lib/preloadImportedData";
 import { QUERY_CACHE_DURATION_MS } from "@/lib/queryCache";
-import { cn } from "@/lib/utils";
 
 interface ImportedDataPreloadControlProps {
   preload?: ImportedDataPreloadRunner;
@@ -57,34 +55,19 @@ export function ImportedDataPreloadControl({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "h-8 w-8 transition-colors",
-              !dataAvailable
-                ? "text-muted-foreground hover:text-foreground"
-                : isPreloaded
-                  ? "text-success hover:text-success/80"
-                  : "text-destructive hover:text-destructive/80",
-            )}
-            aria-label="Alle importierten Daten vorladen"
-            disabled={availabilityPending || !dataAvailable || isRunning}
-            onClick={() => void start()}
-          >
-            {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <DatabaseZap className="h-4 w-4" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          {!dataAvailable
-            ? "Keine importierten Daten vorhanden"
-            : isPreloaded
-              ? "Alle importierten Daten sind vorgeladen"
-              : "Daten noch nicht vorgeladen – klicken zum Vorladen"}
-        </TooltipContent>
-      </Tooltip>
+      {dataAvailable && !availabilityPending && !isPreloaded && (
+        <Button
+          variant="destructive"
+          size="sm"
+          className="h-8 gap-1.5 px-2.5 text-xs"
+          aria-label="Alle importierten Daten vorladen"
+          disabled={isRunning}
+          onClick={() => void start()}
+        >
+          {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+          {isRunning ? "Vorladen läuft…" : "Daten vorladen"}
+        </Button>
+      )}
 
       <Dialog
         open={dialogOpen}

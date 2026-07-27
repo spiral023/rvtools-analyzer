@@ -720,6 +720,7 @@ async function importTechInfoXlsx(
     importedAt,
     fileName: file.name,
     fileChecksum: checksum,
+    fileSizeBytes: file.size,
     sheetName: techSheet.sheetName,
     rowCount: techSheet.rows.length,
     columnCount: techSheet.headers.length,
@@ -823,6 +824,7 @@ async function importTechInfoClientXlsx(
     importedAt,
     fileName: file.name,
     fileChecksum: checksum,
+    fileSizeBytes: file.size,
     sheetName: clientSheet.sheetName,
     rowCount: clientSheet.rows.length,
     columnCount: clientSheet.headers.length,
@@ -938,6 +940,7 @@ export async function importCdpCsv(
     importedAt,
     fileName: file.name,
     fileChecksum: checksum,
+    fileSizeBytes: file.size,
     rowCount: cdpSheet.rows.length,
     columnCount: cdpSheet.headers.length,
   });
@@ -1070,6 +1073,7 @@ export async function importEramonIfaceCsv(
 
   await putEramonIfaceImport({
     ifaceImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size,
     rowCount: sheet.rows.length, switchCount: switchNames.size,
   });
   await batchPutEramonIfaceRows(fullRows, 5000);
@@ -1156,6 +1160,7 @@ export async function importEramonL2Csv(
   report("Eramon Metadaten speichern", 60);
   await putEramonL2Import({
     l2ImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size,
     rowCount: sheet.rows.length, switchCount: switchNames.size,
   });
   await batchPutEramonL2Rows(fullRows, 5000);
@@ -1235,6 +1240,7 @@ export async function importIpamCsv(
     importedAt,
     fileName: file.name,
     fileChecksum: checksum,
+    fileSizeBytes: file.size,
     rowCount: ipamSheet.rows.length,
     columnCount: ipamSheet.headers.length,
   });
@@ -1385,6 +1391,7 @@ export async function importVropsCsv(
     importedAt,
     fileName: file.name,
     fileChecksum: checksum,
+    fileSizeBytes: file.size,
     rowCount: sheet.rows.length,
     columnCount: sheet.headers.length,
     capturedAt,

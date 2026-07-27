@@ -96,12 +96,12 @@ describe("ImportedDataPreloadControl", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("deaktiviert die Aktion ohne importierte Daten", async () => {
+  it("zeigt keinen Hinweis ohne importierte Daten", async () => {
     renderControl(vi.fn<ImportedDataPreloadRunner>(), async () => false);
-    expect(await screen.findByRole("button", { name: "Alle importierten Daten vorladen" })).toBeDisabled();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Alle importierten Daten vorladen" })).not.toBeInTheDocument());
   });
 
-  it("zeigt das Icon rot, solange die Daten noch nicht vorgeladen sind, und grün nach erfolgreichem Vorladen", async () => {
+  it("zeigt den roten Vorlade-Hinweis und blendet ihn nach Erfolg aus", async () => {
     let finish!: () => void;
     const preload = vi.fn<ImportedDataPreloadRunner>(() => new Promise((resolve) => {
       finish = () => resolve({ processedRecords: 5, totalSteps: 1 });
@@ -109,14 +109,13 @@ describe("ImportedDataPreloadControl", () => {
     renderControl(preload);
     const button = await screen.findByRole("button", { name: "Alle importierten Daten vorladen" });
 
-    expect(button).toHaveClass("text-destructive");
-    expect(button).not.toHaveClass("text-success");
+    expect(button).toHaveTextContent("Daten vorladen");
+    expect(button).toHaveClass("bg-destructive");
 
     fireEvent.click(button);
     await act(async () => finish());
 
-    await waitFor(() => expect(button).toHaveClass("text-success"));
-    expect(button).not.toHaveClass("text-destructive");
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Alle importierten Daten vorladen" })).not.toBeInTheDocument());
   });
 
   it("startet das Vorladen automatisch nach einem erfolgreichen Datei-Upload", async () => {

@@ -1,16 +1,7 @@
-import {
-  AlertOctagon,
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ListChecks,
-} from "lucide-react";
+import { ArrowRight, ListChecks } from "lucide-react";
 import { AuditCheckCard } from "@/components/network/AuditCheckCard";
 import { AuditSourceStatus } from "@/components/network/AuditSourceStatus";
-import { KpiCard } from "@/components/dashboard/KpiCard";
-import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { Button } from "@/components/ui/button";
-import { NET_AUDIT_KPI } from "@/lib/glossaries/networking";
 import type {
   NetworkAuditCheckId,
   NetworkAuditScope,
@@ -82,30 +73,6 @@ export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOve
       <AuditSourceStatus sources={viewModel.sources} />
 
       <section aria-label="Prüfergebnisse" className="space-y-3">
-        <KpiGrid className="grid-cols-1 sm:grid-cols-3 md:grid-cols-3">
-          <KpiCard
-            title="Kritisch"
-            value={viewModel.totals.critical.toLocaleString("de-DE")}
-            severity={viewModel.totals.critical > 0 ? "crit" : "ok"}
-            icon={<AlertOctagon aria-hidden="true" className="h-4 w-4" />}
-            info={NET_AUDIT_KPI.critical}
-          />
-          <KpiCard
-            title="Prüfen"
-            value={viewModel.totals.review.toLocaleString("de-DE")}
-            severity={viewModel.totals.review > 0 ? "warn" : "ok"}
-            icon={<AlertTriangle aria-hidden="true" className="h-4 w-4" />}
-            info={NET_AUDIT_KPI.review}
-          />
-          <KpiCard
-            title="Bestanden"
-            value={viewModel.totals.passed.toLocaleString("de-DE")}
-            severity="ok"
-            icon={<CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
-            info={NET_AUDIT_KPI.passed}
-          />
-        </KpiGrid>
-
         <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <ListChecks aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

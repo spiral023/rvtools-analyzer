@@ -67,6 +67,8 @@ export interface TechInfoImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   sheetName: string;
   rowCount: number;
   columnCount: number;
@@ -130,6 +132,8 @@ export interface TechInfoClientImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   sheetName: string;
   rowCount: number;
   columnCount: number;
@@ -176,6 +180,8 @@ export interface CdpImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   rowCount: number;
   columnCount: number;
 }
@@ -222,6 +228,8 @@ export interface EramonIfaceImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   rowCount: number;
   switchCount: number;
 }
@@ -257,6 +265,8 @@ export interface EramonL2ImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   rowCount: number;
   switchCount: number;
 }
@@ -296,6 +306,8 @@ export interface IpamImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   rowCount: number;
   columnCount: number;
 }
@@ -336,6 +348,8 @@ export interface VropsImportMeta {
   importedAt: string;
   fileName: string;
   fileChecksum: string;
+  /** Originalgröße der importierten Datei in Bytes. Fehlt bei älteren Imports. */
+  fileSizeBytes?: number;
   rowCount: number;
   columnCount: number;
   /** Zeitstempel der vROps-Erfassung aus der Quelldatei ("Erfasst am"), informativ. */

@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertOctagon, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   HostDataAuditDetail,
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNetworkAudit } from "@/hooks/useActiveSnapshots";
 import { useFilterState } from "@/hooks/useFilterState";
+import { NET_AUDIT_KPI } from "@/lib/glossaries/networking";
 import {
   parseNetworkAuditLocation,
   updateNetworkAuditSearch,
@@ -23,7 +26,9 @@ import {
 import {
   buildNetworkAuditViewModel,
   type NetworkAuditCheckRoute,
+  type NetworkAuditCounts,
   type NetworkAuditScope,
+  type NetworkAuditViewModel,
 } from "@/lib/networkAuditViewModel";
 
 const AUDIT_SECTIONS = [
@@ -45,6 +50,86 @@ function isNetworkAuditCheckRoute(value: string): value is NetworkAuditCheckRout
 }
 
 type NetworkAuditResult = ReturnType<typeof useNetworkAudit>;
+
+function countLabel(count: number, singular: string, plural = singular) {
+  return `${count.toLocaleString("de-DE")} ${count === 1 ? singular : plural}`;
+}
+
+function NetworkAuditKpiGrid({
+  audit,
+  check,
+  viewModel,
+}: {
+  audit: NetworkAuditResult;
+  check: NetworkAuditCheckRoute;
+  viewModel: NetworkAuditViewModel;
+}) {
+  if (check === "help") return null;
+
+  const counts: NetworkAuditCounts = check === "overview"
+    ? viewModel.totals
+    : viewModel.checks[check].counts;
+  const subtitles = check === "overview"
+    ? [
+        "Konflikte zwischen den Quellen",
+        "Datenlücken und offene Zuordnungen",
+        "Bestätigte oder unauffällige Elemente",
+      ]
+    : check === "ports"
+      ? [
+          `${countLabel(audit.rows.filter((row) => row.labelConflict).length, "Beschriftungskonflikt", "Beschriftungskonflikte")} · ${countLabel(audit.rows.filter((row) => row.statusConflict).length, "Statuskonflikt", "Statuskonflikte")}`,
+          `${countLabel(audit.rows.filter((row) => row.matchStatus === "text-match").length, "RVTools-Treffer")} · ${countLabel(audit.rows.filter((row) => row.matchStatus === "documented-only").length, "nur dokumentiert")} · ${countLabel(audit.rows.filter((row) => row.matchStatus === "unknown").length, "unbekannt")}`,
+          `${countLabel(audit.rows.filter((row) => row.matchStatus === "confirmed-cdp").length, "CDP-bestätigt")} · ${countLabel(audit.rows.filter((row) => row.matchStatus === "no-target").length, "ohne Ziel")}`,
+        ]
+      : check === "hosts"
+        ? [
+            "Für den Host-Abgleich nicht separat bewertet",
+            `${countLabel([...audit.hostQuality.rvtoolsRows, ...audit.hostQuality.techInfoRows].filter((row) => row.finding !== null).length, "Datenlücke", "Datenlücken")}`,
+            `${countLabel([...audit.hostQuality.rvtoolsRows, ...audit.hostQuality.techInfoRows].filter((row) => row.finding === null).length, "vollständig abgeglichen")}`,
+          ]
+        : check === "mac"
+          ? [
+              `${countLabel(audit.cdpMacRows.filter((row) => row.topologyMismatch).length, "Topologieabweichung", "Topologieabweichungen")}`,
+              `${countLabel(audit.cdpMacRows.filter((row) => !row.inL2).length, "MAC nicht in L2")}`,
+              `${countLabel(audit.cdpMacRows.filter((row) => row.inL2 && !row.topologyMismatch).length, "MAC korrekt verortet")}`,
+            ]
+          : [
+              "Für Discovery nicht separat bewertet",
+              `${countLabel(audit.l2DiscoveryRows.filter((row) => row.classification === "unknown").length, "unbekanntes Gerät", "unbekannte Geräte")}`,
+              `${countLabel(audit.l2DiscoveryRows.filter((row) => row.classification !== "unknown").length, "zugeordnetes Gerät", "zugeordnete Geräte")}`,
+            ];
+
+  return (
+    <section aria-label="Prüfergebnisse" className="space-y-3">
+      <KpiGrid className="grid-cols-1 sm:grid-cols-3 md:grid-cols-3">
+        <KpiCard
+          title="Kritisch"
+          value={counts.critical.toLocaleString("de-DE")}
+          subtitle={subtitles[0]}
+          severity={counts.critical > 0 ? "crit" : "ok"}
+          icon={<AlertOctagon aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.critical}
+        />
+        <KpiCard
+          title="Prüfen"
+          value={counts.review.toLocaleString("de-DE")}
+          subtitle={subtitles[1]}
+          severity={counts.review > 0 ? "warn" : "ok"}
+          icon={<AlertTriangle aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.review}
+        />
+        <KpiCard
+          title="Bestanden"
+          value={counts.passed.toLocaleString("de-DE")}
+          subtitle={subtitles[2]}
+          severity="ok"
+          icon={<CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.passed}
+        />
+      </KpiGrid>
+    </section>
+  );
+}
 
 function NetworkAuditSuccess({
   audit,
@@ -92,7 +177,6 @@ function NetworkAuditSuccess({
       >
         <PageHeader
           title="Netzwerk-Kontrolle"
-          subtitle="Prüfen Sie Datenqualität, physische Zuordnungen und unbekannte Geräte."
         >
           <div className="w-full overflow-x-auto pb-1">
             <TabsList
@@ -111,6 +195,8 @@ function NetworkAuditSuccess({
             </TabsList>
           </div>
         </PageHeader>
+
+        <NetworkAuditKpiGrid audit={audit} check={check} viewModel={viewModel} />
 
         <TabsContent value="overview">
           <NetworkAuditOverview

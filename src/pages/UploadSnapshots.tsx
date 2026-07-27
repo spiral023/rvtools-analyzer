@@ -1,5 +1,6 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback, useMemo, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport,
   getTechInfoClientImports, deleteTechInfoClientImport,
@@ -19,10 +20,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, Activity } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta, VropsImportMeta } from "@/domain/models/types";
+import { DiagnosticsPanel } from "@/components/uploads/DiagnosticsPanel";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { VirtualTable } from "@/components/tables/VirtualTable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Database, FileCheck2, HardDrive, Layers3 } from "lucide-react";
+import { formatIsoDateTime } from "@/lib/clientDetail";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
@@ -33,6 +42,53 @@ type StoredUpload =
   | { kind: "eramon-iface"; id: string; importedAt: string; eramonIface: EramonIfaceImportMeta }
   | { kind: "eramon-l2"; id: string; importedAt: string; eramonL2: EramonL2ImportMeta }
   | { kind: "vrops"; id: string; importedAt: string; vrops: VropsImportMeta };
+
+interface UploadTableRow {
+  id: string;
+  kind: StoredUpload["kind"];
+  type: string;
+  fileName: string;
+  fileSizeBytes: number | null;
+  fileSizeEstimated: boolean;
+  importedAt: string;
+  sheets: number;
+  rows: number;
+}
+
+function uploadTableRow(upload: StoredUpload, estimatedSizeBytes?: number): UploadTableRow {
+  switch (upload.kind) {
+    case "rvtools":
+      return {
+        id: upload.id,
+        kind: upload.kind,
+        type: fileKindLabel(upload.kind),
+        fileName: upload.snapshot.fileName,
+        fileSizeBytes: upload.snapshot.fileSizeBytes ?? estimatedSizeBytes ?? null,
+        fileSizeEstimated: upload.snapshot.fileSizeBytes === undefined,
+        importedAt: upload.importedAt,
+        sheets: Object.keys(upload.snapshot.sheetStats).length,
+        rows: Object.values(upload.snapshot.sheetStats).reduce((sum, sheet) => sum + sheet.rowCount, 0),
+      };
+    case "tech-info":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.techInfo.fileName, fileSizeBytes: upload.techInfo.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.techInfo.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.techInfo.rowCount };
+    case "tech-info-client":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.techInfoClient.fileName, fileSizeBytes: upload.techInfoClient.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.techInfoClient.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.techInfoClient.rowCount };
+    case "cdp":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.cdp.fileName, fileSizeBytes: upload.cdp.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.cdp.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.cdp.rowCount };
+    case "ipam":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.ipam.fileName, fileSizeBytes: upload.ipam.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.ipam.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.ipam.rowCount };
+    case "eramon-iface":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.eramonIface.fileName, fileSizeBytes: upload.eramonIface.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.eramonIface.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.eramonIface.rowCount };
+    case "eramon-l2":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.eramonL2.fileName, fileSizeBytes: upload.eramonL2.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.eramonL2.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.eramonL2.rowCount };
+    case "vrops":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.vrops.fileName, fileSizeBytes: upload.vrops.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.vrops.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.vrops.rowCount };
+  }
+}
+
+function uploadDeleteLabel(kind: StoredUpload["kind"]): string {
+  return kind === "rvtools" ? "Snapshot löschen" : `${fileKindLabel(kind)} löschen`;
+}
 
 type UploadState = {
   dragOver: boolean;
@@ -227,16 +283,91 @@ function useUploadSnapshotsView() {
     await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
   }, [runDelete]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "diagnostics" ? "diagnostics" : "uploads";
+  const uploadRows = useMemo(
+    () => uploads.map((upload) => uploadTableRow(upload, uploadSizes?.[upload.kind]?.[upload.id])),
+    [uploadSizes, uploads],
+  );
+  const uploadColumns = useMemo<ColumnDef<UploadTableRow, unknown>[]>(() => [
+    {
+      accessorKey: "type",
+      header: "Typ",
+      cell: ({ getValue }) => <span className="whitespace-nowrap font-medium">{getValue() as string}</span>,
+    },
+    {
+      accessorKey: "fileName",
+      header: "Dateiname",
+      cell: ({ getValue }) => <span className="block max-w-[300px] truncate font-medium" title={getValue() as string}>{getValue() as string}</span>,
+    },
+    {
+      accessorKey: "fileSizeBytes",
+      header: "Dateigröße",
+      cell: ({ getValue, row }) => {
+        const value = getValue() as number | null;
+        if (value === null) return "k. A.";
+        return <span className="whitespace-nowrap font-mono-data">{row.original.fileSizeEstimated ? "≈ " : ""}{formatBytes(value)}</span>;
+      },
+    },
+    {
+      accessorKey: "importedAt",
+      header: "Import-Datum",
+      cell: ({ getValue }) => <span className="whitespace-nowrap tabular-nums">{formatIsoDateTime(getValue() as string)}</span>,
+    },
+    {
+      accessorKey: "sheets",
+      header: "Sheets",
+      cell: ({ getValue }) => <span className="font-mono-data">{(getValue() as number).toLocaleString("de-DE")}</span>,
+    },
+    {
+      accessorKey: "rows",
+      header: "Zeilen",
+      cell: ({ getValue }) => <span className="font-mono-data">{(getValue() as number).toLocaleString("de-DE")}</span>,
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-muted-foreground/60 transition-colors hover:text-destructive focus-visible:text-destructive active:scale-[0.96]"
+          disabled={deleting || importing}
+          onClick={() => {
+            const { kind, id } = row.original;
+            if (kind === "tech-info") void handleDeleteTechInfoImport(id);
+            else if (kind === "tech-info-client") void handleDeleteTechInfoClientImport(id);
+            else if (kind === "cdp") void handleDeleteCdpImport(id);
+            else if (kind === "ipam") void handleDeleteIpamImport(id);
+            else if (kind === "eramon-iface") void handleDeleteEramonIfaceImport(id);
+            else if (kind === "eramon-l2") void handleDeleteEramonL2Import(id);
+            else if (kind === "vrops") void handleDeleteVropsImport(id);
+            else void handleDeleteSnapshot(id);
+          }}
+          aria-label={uploadDeleteLabel(row.original.kind)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    },
+  ], [deleting, handleDeleteCdpImport, handleDeleteEramonIfaceImport, handleDeleteEramonL2Import, handleDeleteIpamImport, handleDeleteSnapshot, handleDeleteTechInfoClientImport, handleDeleteTechInfoImport, handleDeleteVropsImport, importing]);
+
+  const totalRows = uploadRows.reduce((sum, row) => sum + row.rows, 0);
+  const totalSheets = uploadRows.reduce((sum, row) => sum + row.sheets, 0);
+  const snapshotCount = uploadRows.filter((row) => row.kind === "rvtools").length;
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Uploads & Snapshots</h1>
-        <div className="flex items-center gap-2">
-          <Link to="/upload/diagnostics">
-            <Button variant="ghost" size="sm">
-              <Activity className="mr-1 h-4 w-4" />Diagnose
-            </Button>
-          </Link>
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => {
+        setSearchParams(value === "diagnostics" ? { tab: "diagnostics" } : {});
+      }}
+      className="space-y-4 animate-fade-in"
+    >
+      <PageHeader
+        title="Uploads"
+        meta={(
           <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
@@ -254,12 +385,31 @@ function useUploadSnapshotsView() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        )}
+      >
+        <div className="w-full overflow-x-auto pb-1">
+          <TabsList aria-label="Bereich der Uploads" className="h-auto w-full min-w-max justify-start gap-1 p-1">
+            <TabsTrigger value="uploads" className="min-h-11 min-w-11">Uploads</TabsTrigger>
+            <TabsTrigger value="diagnostics" className="min-h-11 min-w-11">Diagnose</TabsTrigger>
+          </TabsList>
         </div>
-      </div>
+      </PageHeader>
 
-      <label
+      {activeTab === "uploads" && (
+        <section aria-label="Upload-Kennzahlen">
+          <KpiGrid className="grid-cols-2 sm:grid-cols-4 md:grid-cols-4">
+            <KpiCard title="Gespeichert" value={uploads.length.toLocaleString("de-DE")} subtitle="Importe in IndexedDB" icon={<Database aria-hidden="true" className="h-4 w-4" />} severity={uploads.length > 0 ? "ok" : undefined} />
+            <KpiCard title="RVTools-Snapshots" value={snapshotCount.toLocaleString("de-DE")} subtitle="vCenter-Exporte" icon={<FileCheck2 aria-hidden="true" className="h-4 w-4" />} severity={snapshotCount > 0 ? "ok" : undefined} />
+            <KpiCard title="Datenzeilen" value={totalRows.toLocaleString("de-DE")} subtitle={`${totalSheets.toLocaleString("de-DE")} Sheets erfasst`} icon={<Layers3 aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Speicherbedarf" value={totalSizeBytes === null ? "—" : formatBytes(totalSizeBytes)} subtitle="geschätzt in IndexedDB" icon={<HardDrive aria-hidden="true" className="h-4 w-4" />} />
+          </KpiGrid>
+        </section>
+      )}
+
+      <TabsContent value="uploads" className="space-y-6">
+        <label
         htmlFor={fileInputId}
-        className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 transition-colors cursor-pointer ${dragOver ? "border-primary bg-primary/5" : "border-border/60 bg-card/30 hover:border-primary/40"}`}
+        className={`relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 shadow-sm transition-[border-color,background-color,box-shadow] ${dragOver ? "border-primary bg-primary/5 shadow-md" : "border-border/60 bg-card/30 hover:border-primary/40 hover:shadow-md"}`}
         onDragOver={(e) => { e.preventDefault(); dispatch({ type: "set-drag-over", value: true }); }}
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
@@ -268,7 +418,7 @@ function useUploadSnapshotsView() {
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), CDP-/IPAM-/Eramon-/vROps-CSV hierher ziehen oder klicken"}</p>
         <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
-      </label>
+        </label>
 
       {/* Progress bar during deletion */}
       {deleting && deleteProgress && (
@@ -334,101 +484,26 @@ function useUploadSnapshotsView() {
         </Card>
       )}
 
-      <div>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gespeicherte Uploads ({uploads.length})</h2>
-          {totalSizeBytes !== null && uploads.length > 0 && (
-            <span className="text-xs text-muted-foreground tabular-nums">≈ {formatBytes(totalSizeBytes)} Daten in IndexedDB (geschätzt)</span>
-          )}
+      <section aria-labelledby="stored-uploads-heading" className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="stored-uploads-heading" className="text-lg font-semibold tracking-tight">Gespeicherte Uploads</h2>
+            <p className="text-sm text-muted-foreground">Alle lokal gespeicherten Importdateien mit ihren Importmetriken.</p>
+          </div>
+          {totalSizeBytes !== null && uploads.length > 0 && <span className="text-xs text-muted-foreground tabular-nums">≈ {formatBytes(totalSizeBytes)} IndexedDB</span>}
         </div>
         {uploads.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine RVTools-, Tech-Info-, CDP-, IPAM-, Eramon- oder vROps-Dateien importiert.</p>
+          <Card><CardContent className="py-10 text-center"><FileSpreadsheet className="mx-auto h-8 w-8 text-muted-foreground/50" /><p className="mt-3 text-sm font-medium">Noch keine Uploads gespeichert</p><p className="mt-1 text-sm text-muted-foreground">Ziehe oben eine Datei hierher, um den ersten Import zu starten.</p></CardContent></Card>
         ) : (
-          <div className="space-y-2">
-            {uploads.map((upload) => {
-              const isRvtools = upload.kind === "rvtools";
-              const title = upload.kind === "rvtools" ? upload.snapshot.fileName
-                : upload.kind === "tech-info" ? upload.techInfo.fileName
-                : upload.kind === "tech-info-client" ? upload.techInfoClient.fileName
-                : upload.kind === "cdp" ? upload.cdp.fileName
-                : upload.kind === "ipam" ? upload.ipam.fileName
-                : upload.kind === "eramon-iface" ? upload.eramonIface.fileName
-                : upload.kind === "eramon-l2" ? upload.eramonL2.fileName
-                : upload.vrops.fileName;
-              const rowCount = upload.kind === "rvtools"
-                ? Object.values(upload.snapshot.sheetStats).reduce((sum, v) => sum + v.rowCount, 0)
-                : upload.kind === "tech-info" ? upload.techInfo.rowCount
-                : upload.kind === "tech-info-client" ? upload.techInfoClient.rowCount
-                : upload.kind === "cdp" ? upload.cdp.rowCount
-                : upload.kind === "ipam" ? upload.ipam.rowCount
-                : upload.kind === "eramon-iface" ? upload.eramonIface.rowCount
-                : upload.kind === "eramon-l2" ? upload.eramonL2.rowCount
-                : upload.vrops.rowCount;
-              const sheetCount = isRvtools ? Object.keys(upload.snapshot.sheetStats).length : 1;
-              const sizeBytes = uploadSizes?.[upload.kind]?.[upload.id];
-
-              return (
-                <Card key={`${upload.kind}-${upload.id}`} className="group">
-                  <CardContent className="flex items-center justify-between p-3">
-                    <div className="flex items-center gap-3">
-                      <FileSpreadsheet className={`h-5 w-5 ${isRvtools ? "text-primary" : "text-info"}`} />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-medium">{title}</p>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            {fileKindLabel(upload.kind)}
-                          </span>
-                        </div>
-                        {upload.kind === "rvtools" ? (
-                          <p className="text-xs text-muted-foreground">
-                            vCenter: {upload.snapshot.vcenterDisplayName} · Export: {new Date(upload.snapshot.exportTs).toLocaleString("de-DE")} · Import: {new Date(upload.snapshot.importedAt).toLocaleString("de-DE")}
-                          </p>
-                        ) : upload.kind === "eramon-iface" || upload.kind === "eramon-l2" ? (
-                          <p className="text-xs text-muted-foreground">
-                            Import: {new Date(upload.importedAt).toLocaleString("de-DE")} · {(upload.kind === "eramon-iface" ? upload.eramonIface.switchCount : upload.eramonL2.switchCount).toLocaleString("de-DE")} {(upload.kind === "eramon-iface" ? upload.eramonIface.switchCount : upload.eramonL2.switchCount) === 1 ? "Switch" : "Switches"}
-                          </p>
-                        ) : upload.kind === "cdp" || upload.kind === "ipam" || upload.kind === "vrops" ? (
-                          <p className="text-xs text-muted-foreground">
-                            Import: {new Date(upload.importedAt).toLocaleString("de-DE")}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            Sheet: {upload.kind === "tech-info" ? upload.techInfo.sheetName : upload.techInfoClient.sheetName} · Import: {new Date(upload.importedAt).toLocaleString("de-DE")}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {sheetCount.toLocaleString("de-DE")} {sheetCount === 1 ? "Sheet" : "Sheets"}, {rowCount.toLocaleString("de-DE")} Zeilen
-                          {sizeBytes !== undefined && <> · ≈ {formatBytes(sizeBytes)} in IndexedDB</>}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground/60 hover:text-destructive focus-visible:text-destructive transition-colors"
-                      disabled={deleting || importing}
-                      onClick={() => {
-                        if (upload.kind === "tech-info") void handleDeleteTechInfoImport(upload.id);
-                        else if (upload.kind === "tech-info-client") void handleDeleteTechInfoClientImport(upload.id);
-                        else if (upload.kind === "cdp") void handleDeleteCdpImport(upload.id);
-                        else if (upload.kind === "ipam") void handleDeleteIpamImport(upload.id);
-                        else if (upload.kind === "eramon-iface") void handleDeleteEramonIfaceImport(upload.id);
-                        else if (upload.kind === "eramon-l2") void handleDeleteEramonL2Import(upload.id);
-                        else if (upload.kind === "vrops") void handleDeleteVropsImport(upload.id);
-                        else void handleDeleteSnapshot(upload.id);
-                      }}
-                      aria-label={isRvtools ? "Snapshot löschen" : `${fileKindLabel(upload.kind)} löschen`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <VirtualTable data={uploadRows} columns={uploadColumns} height={560} getRowId={(row) => `${row.kind}:${row.id}`} exportFileName="rvtools-uploads" emptyTitle="Keine Uploads" />
         )}
-      </div>
-    </div>
+      </section>
+      </TabsContent>
+
+      <TabsContent value="diagnostics">
+        <DiagnosticsPanel />
+      </TabsContent>
+    </Tabs>
   );
 }
 

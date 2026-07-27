@@ -17,6 +17,19 @@ const columns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 describe("VirtualTable", () => {
+  it("versteckt den vertikalen Overflow bei einer kurzen Tabelle", () => {
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={columns}
+      />,
+    );
+
+    const scrollContainer = screen.getByRole("table").parentElement;
+    expect(scrollContainer).toHaveClass("overflow-x-auto", "overflow-y-hidden");
+    expect(scrollContainer).not.toHaveClass("overflow-auto");
+  });
+
   it("zeigt benutzerdefinierte Empty-State-Texte nach einer Filterung ohne Treffer", () => {
     render(
       <VirtualTable

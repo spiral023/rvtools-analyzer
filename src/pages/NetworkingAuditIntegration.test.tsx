@@ -128,6 +128,10 @@ describe("NetworkAuditPanel integration", () => {
       screen.getByRole("tablist", { name: "Bereich der Netzwerk-Kontrolle" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Netzwerk-Kontrolle" })).toBeInTheDocument();
+    expect(screen.queryByText("Prüfen Sie Datenqualität, physische Zuordnungen und unbekannte Geräte.")).not.toBeInTheDocument();
+    expect(screen.getByText("Kritisch")).toBeInTheDocument();
+    expect(screen.getByText("Prüfen")).toBeInTheDocument();
+    expect(screen.getAllByText("Bestanden").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("heading", { name: "Datenbasis" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Übersicht" })).toHaveAttribute("data-state", "active");
   });
@@ -139,6 +143,7 @@ describe("NetworkAuditPanel integration", () => {
 
     selectTab("MAC-Abgleich");
     expect(screen.getByRole("heading", { name: "ESXi-MAC-Abgleich" })).toBeInTheDocument();
+    expect(screen.getByText("0 MAC nicht in L2")).toBeInTheDocument();
     expectLocation(
       "/network-audit?check=mac&scope=attention&foo=bar",
     );

@@ -171,7 +171,7 @@ describe("NetworkAuditOverview", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nächsten Befund prüfen" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Nicht ausführbar")).toHaveLength(4);
-    expect(screen.getAllByText("Bestanden")).toHaveLength(1);
+    expect(screen.queryByText("Bestanden")).not.toBeInTheDocument();
   });
 });
 

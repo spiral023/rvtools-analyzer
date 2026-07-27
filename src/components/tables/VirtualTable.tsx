@@ -140,6 +140,7 @@ export function VirtualTable<T, TColumn = T>({
   // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
   const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT + (hasFooter ? ROW_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
   const effectiveHeight = Math.min(height, contentHeight);
+  const needsVerticalScroll = contentHeight > height;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start ?? 0 : 0;
@@ -152,7 +153,7 @@ export function VirtualTable<T, TColumn = T>({
     <div className={cn("rounded-md border border-border/50 bg-card/30", className)}>
       <div
         ref={parentRef}
-        className="overflow-auto"
+        className={needsVerticalScroll ? "overflow-auto" : "overflow-x-auto overflow-y-hidden"}
         style={{ height: `${effectiveHeight}px` }}
       >
         <table className="w-full text-sm">

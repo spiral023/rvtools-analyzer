@@ -17,7 +17,6 @@ import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
 const Overview = lazy(() => import("@/pages/Overview"));
 const UploadSnapshots = lazy(() => import("@/pages/UploadSnapshots"));
-const Diagnostics = lazy(() => import("@/pages/Diagnostics"));
 const Clusters = lazy(() => import("@/pages/Clusters"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
@@ -90,7 +89,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/overview" replace /> },
       { path: "overview", element: <Overview /> },
       { path: "upload", element: <UploadSnapshots /> },
-      { path: "upload/diagnostics", element: <Diagnostics /> },
+      { path: "upload/diagnostics", element: <Navigate to="/upload?tab=diagnostics" replace /> },
       { path: "clusters", element: <Clusters /> },
       { path: "capacity", element: <Capacity /> },
       { path: "storage-backup", element: <StorageBackup /> },
