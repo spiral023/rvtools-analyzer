@@ -21,7 +21,6 @@ import {
   LayoutDashboard,
   Upload,
   Loader2,
-  HardDrive,
   Database,
   Network,
   GitCompare,
@@ -54,7 +53,6 @@ const infrastructureNav: NavItem[] = [
 ];
 
 const analysisNav: NavItem[] = [
-  { title: "Kapazität", url: "/capacity", icon: HardDrive },
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
   { title: "Netzwerk", url: "/network-security", icon: Network },
   { title: "Hardware", url: "/hardware", icon: Server },
@@ -63,6 +61,8 @@ const analysisNav: NavItem[] = [
 
 const toolsNav: NavItem[] = [
   { title: "Netzwerk-Kontrolle", url: "/network-audit", icon: ListChecks },
+  { title: "Wartung", url: "/wartungsankuendigung", icon: CalendarRange },
+  { title: "Planung", url: "/planning", icon: GitCompare },
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
 

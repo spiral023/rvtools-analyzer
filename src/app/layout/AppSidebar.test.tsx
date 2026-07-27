@@ -79,8 +79,10 @@ describe("AppSidebar", () => {
     expect(screen.getByText("Analyse")).toBeInTheDocument();
     expect(screen.getByText("Tools")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Übersicht" })).toHaveAttribute("href", "/overview");
-    expect(screen.getByRole("link", { name: "Kapazität" })).toHaveAttribute("href", "/capacity");
+    expect(screen.queryByRole("link", { name: "Kapazität" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Netzwerk-Kontrolle" })).toHaveAttribute("href", "/network-audit");
+    expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
+    expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {

@@ -3,10 +3,8 @@ import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterOsDetailDialog } from "@/components/cluster/ClusterOsDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
-import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
-import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
@@ -19,15 +17,16 @@ import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
-type ClusterTab = "overview" | "capacity" | "maintenance" | "planning";
+type ClusterTab = "overview" | "capacity";
 
 function isClusterTab(value: string | null): value is ClusterTab {
-  return value === "overview" || value === "capacity" || value === "maintenance" || value === "planning";
+  return value === "overview" || value === "capacity";
 }
 
 export default function Clusters() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryTab = searchParams.get("tab");
+  const legacyTarget = queryTab === "maintenance" ? "/wartungsankuendigung" : queryTab === "planning" ? "/planning" : null;
   const tab: ClusterTab = isClusterTab(queryTab) ? queryTab : "overview";
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
@@ -35,6 +34,7 @@ export default function Clusters() {
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { vms = [], isLoading: vmsLoading } = useVms();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
+  const { data: rawResourcePools = [], isLoading: rawResourcePoolsLoading } = useRawSheet("vRP");
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const [selectedOsCluster, setSelectedOsCluster] = useState<ClusterOsDistributionRow | null>(null);
@@ -81,7 +81,14 @@ export default function Clusters() {
     });
   };
 
-  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading;
+  if (legacyTarget) {
+    const params = new URLSearchParams(searchParams);
+    params.delete("tab");
+    const search = params.toString();
+    return <Navigate to={`${legacyTarget}${search ? `?${search}` : ""}`} replace />;
+  }
+
+  const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading || rawResourcePoolsLoading;
   if (dataLoading) return <PageLoadingState title="Cluster" />;
   if (snapshots.length === 0) {
     return <EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten vorhanden" description="Laden Sie einen RVTools XLSX-Export hoch, um Ihre Cluster zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />;
@@ -90,13 +97,11 @@ export default function Clusters() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Cluster" />
-      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für die gesamte Seite: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf alle Cluster-Tabs angewendet." />
+      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für Übersicht und Kapazität: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf beide Ansichten angewendet." />
       <Tabs value={tab} onValueChange={selectTab}>
         <TabsList className="h-auto w-full justify-start gap-1 p-1">
           <InfoTooltip entry={CLUSTER_TABS.overview}><TabsTrigger value="overview">Übersicht</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
-          <InfoTooltip entry={CLUSTER_TABS.maintenance}><TabsTrigger value="maintenance">Wartung</TabsTrigger></InfoTooltip>
-          <InfoTooltip entry={CLUSTER_TABS.planning}><TabsTrigger value="planning">Planung</TabsTrigger></InfoTooltip>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <ClusterOverviewPanel
@@ -115,15 +120,10 @@ export default function Clusters() {
             overcommitRows={capacityData.overcommitRows.filter((row) => scopedClusterKeys.has(row.clusterKey))}
             hostDensity={capacityData.hostDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
             clusterDensity={capacityData.clusterDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
+            rawResourcePools={rawResourcePools}
             search={filters.search}
             onOpenCluster={setSelectedClusterKey}
           />
-        </TabsContent>
-        <TabsContent value="maintenance" className="mt-6">
-          <ClusterMaintenancePanel />
-        </TabsContent>
-        <TabsContent value="planning" className="mt-6">
-          <ClusterPlanningPanel />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog

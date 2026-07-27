@@ -4,6 +4,8 @@ import { AlertTriangle, Cpu, MemoryStick, Server } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { ResourcePoolPressurePanel } from "@/components/cluster/ResourcePoolPressurePanel";
+import { buildResourcePoolPressureRows } from "@/lib/resourcePoolPressure";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
@@ -17,6 +19,7 @@ import { calculateCapacityRiskKpis } from "@/lib/clusterCapacityKpis";
 import { SITE_FAILOVER_THRESHOLDS } from "@/domain/services/clusterCapacityEngine";
 import { getHotHostSeverity } from "@/lib/hotHostSeverity";
 import { formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
+import type { SheetRow } from "@/domain/models/types";
 import { coloredNum, coloredPct, coloredRatio, hostFailureTooltipText, maxHostFailuresClassName, RiskTooltipContent, riskSeverity, severityBadge, siteFailoverBadge, siteFailoverLabel, vropsMissingBadge } from "@/lib/metricColor";
 
 interface ClusterCapacityPanelProps {
@@ -24,6 +27,7 @@ interface ClusterCapacityPanelProps {
   overcommitRows: ClusterOvercommitRow[];
   hostDensity: HostDensityPoint[];
   clusterDensity: ClusterDensityRow[];
+  rawResourcePools: SheetRow[];
   search: string;
   onOpenCluster: (clusterKey: string) => void;
 }
@@ -152,7 +156,7 @@ export function HostDensityTooltip({
   );
 }
 
-export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity, clusterDensity, search, onOpenCluster }: ClusterCapacityPanelProps) {
+export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity, clusterDensity, rawResourcePools, search, onOpenCluster }: ClusterCapacityPanelProps) {
   const [onlyNotableHosts, setOnlyNotableHosts] = useState(false);
   const visibleHostDensity = useMemo(
     () => hostDensity.filter((row) => !onlyNotableHosts || row.vcpuPerCore > 4),
@@ -163,6 +167,7 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
     [capacityRows],
   );
   const kpis = useMemo(() => calculateCapacityRiskKpis(capacityRows), [capacityRows]);
+  const resourcePoolRisks = useMemo(() => buildResourcePoolPressureRows(rawResourcePools).filter((row) => row.risk !== "niedrig").length, [rawResourcePools]);
 
   return (
     <div className="space-y-6">
@@ -172,6 +177,7 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
         <KpiCard title="Hot Hosts" value={formatNum(kpis.hotHosts)} severity={kpis.hotHosts > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={CAPACITY_RISK_KPI.hotHosts} />
         <KpiCard title="Max Swap+Balloon" value={formatPct(kpis.maxSwapBalloon, 2)} severity={kpis.maxSwapBalloon !== null && kpis.maxSwapBalloon > 5 ? "crit" : kpis.maxSwapBalloon !== null && kpis.maxSwapBalloon > 2 ? "warn" : "ok"} icon={<MemoryStick className="h-4 w-4" />} info={CAPACITY_RISK_KPI.maxSwapBalloon} />
         <KpiCard title="Ø vCPU/Core" value={kpis.avgVcpuPerCore !== null ? `${kpis.avgVcpuPerCore.toFixed(2)}:1` : "—"} severity={kpis.avgVcpuPerCore !== null && kpis.avgVcpuPerCore > 6 ? "crit" : kpis.avgVcpuPerCore !== null && kpis.avgVcpuPerCore > 4 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={CAPACITY_RISK_KPI.avgVcpuPerCore} />
+        <KpiCard title="RP Risiken" value={formatNum(resourcePoolRisks)} severity={resourcePoolRisks > 0 ? "warn" : "ok"} info={CAPACITY_RISK_KPI.rpRisks} />
       </KpiGrid>
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -219,6 +225,7 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
         <InfoTooltip entry={LICENSING_SECTIONS.clusterDensity} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Dichte & Effizienz</h3></InfoTooltip>
         <VirtualTable data={clusterDensity} columns={densityColumns} globalFilter={search} height={300} initialSorting={[{ id: "vmsPerHost", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
+      <ResourcePoolPressurePanel rawResourcePools={rawResourcePools} search={search} />
     </div>
   );
 }

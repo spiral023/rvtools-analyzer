@@ -187,7 +187,6 @@ function NetworkAuditSuccess({
                 <TabsTrigger
                   key={section.value}
                   value={section.value}
-                  className="min-h-11 min-w-11"
                 >
                   {section.label}
                 </TabsTrigger>

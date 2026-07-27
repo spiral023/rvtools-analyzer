@@ -389,8 +389,8 @@ function useUploadSnapshotsView() {
       >
         <div className="w-full overflow-x-auto pb-1">
           <TabsList aria-label="Bereich der Uploads" className="h-auto w-full min-w-max justify-start gap-1 p-1">
-            <TabsTrigger value="uploads" className="min-h-11 min-w-11">Uploads</TabsTrigger>
-            <TabsTrigger value="diagnostics" className="min-h-11 min-w-11">Diagnose</TabsTrigger>
+            <TabsTrigger value="uploads">Uploads</TabsTrigger>
+            <TabsTrigger value="diagnostics">Diagnose</TabsTrigger>
           </TabsList>
         </div>
       </PageHeader>

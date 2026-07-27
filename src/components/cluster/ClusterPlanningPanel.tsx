@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { SelectionBar } from "@/components/planning/SelectionBar";
 import { ScenarioList } from "@/components/planning/ScenarioList";
@@ -55,6 +57,8 @@ export function ClusterPlanningPanel() {
   }, [clusters, snapshots]);
   const whatIfResult = useWhatIf(activeScenario);
   const allVmKeys = useMemo(() => vms.map((vm) => vm.vmKey), [vms]);
+  const scenarioGroupCount = scenarios.reduce((count, scenario) => count + scenario.groups.length, 0);
+  const plannedVmCount = scenarios.reduce((count, scenario) => count + scenario.groups.reduce((groupCount, group) => groupCount + group.vmKeys.length, 0), 0);
 
   const selectScenario = (id: string) => {
     setActiveScenarioId(id);
@@ -84,6 +88,12 @@ export function ClusterPlanningPanel() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <KpiGrid>
+        <KpiCard title="Szenarien" value={scenarios.length} subtitle="gespeicherte What-if-Varianten" />
+        <KpiCard title="Migrationsgruppen" value={scenarioGroupCount} subtitle="Ziel-Cluster in allen Szenarien" />
+        <KpiCard title="Zugeordnete VMs" value={plannedVmCount} subtitle="geplante Verschiebungen" />
+        <KpiCard title="Aktuelle Auswahl" value={selectedVmKeys.size} subtitle="VMs für die nächste Zuordnung" />
+      </KpiGrid>
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <ScenarioList scenarios={scenarios} activeId={activeScenarioId} onSelect={selectScenario} onCreate={handleCreateScenario} onDelete={(id) => { void deleteScenario(id); if (activeScenarioId === id) setActiveScenarioId(null); }} />
         <div className="space-y-4">

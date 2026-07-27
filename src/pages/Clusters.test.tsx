@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
@@ -220,6 +221,21 @@ function renderClusters(initialEntry = "/clusters", includeLocation = false) {
   );
 }
 
+function renderToolPage(page: ReactNode) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <FilterProvider>
+          <SelectionProvider>
+            <MemoryRouter>{page}</MemoryRouter>
+          </SelectionProvider>
+        </FilterProvider>
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   whatIfResult = null;
@@ -233,10 +249,8 @@ describe("Clusters", () => {
     const capacityTab = await screen.findByRole("tab", { name: "Kapazität" });
     expect(capacityTab).toHaveAttribute("data-state", "active");
 
-    const planningTab = screen.getByRole("tab", { name: "Planung" });
-    fireEvent.mouseDown(planningTab);
-    fireEvent.click(planningTab);
-    expect(screen.getByText("/clusters?tab=planning")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Wartung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Planung" })).not.toBeInTheDocument();
   });
 
   it("renders the filtered cluster overview with separate vCenter cells", async () => {
@@ -315,18 +329,16 @@ describe("Clusters", () => {
     expect(screen.getByText("Host Dichte (VMs vs vCPU/Core)").closest("section")).toContainElement(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ }));
   });
 
-  it("shows maintenance assignments in the Wartung tab", async () => {
-    renderClusters();
+  it("shows maintenance assignments on its own page", async () => {
+    renderToolPage(<Wartungsankuendigung />);
 
-    const maintenanceTab = await screen.findByRole("tab", { name: "Wartung" });
-    fireEvent.mouseDown(maintenanceTab);
-    fireEvent.click(maintenanceTab);
-
+    expect(await screen.findByRole("heading", { name: "Wartung" })).toBeInTheDocument();
+    expect(screen.getByText("Cluster")).toBeInTheDocument();
     expect(screen.getByText("Cluster-Zuweisungen")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mail erstellen" })).not.toBeInTheDocument();
   });
 
-  it("shows the What-If metrics table above the summary in the Planung tab", async () => {
+  it("shows planning KPIs and the What-If metrics table above the summary", async () => {
     whatIfResult = [{
       clusterKey: "cluster-a",
       clusterName: "What-If Zielcluster",
@@ -340,12 +352,11 @@ describe("Clusters", () => {
       outgoingVmCount: 0,
       vropsMissing: false,
     }];
-    renderClusters();
+    renderToolPage(<Planning />);
 
-    const planningTab = await screen.findByRole("tab", { name: "Planung" });
-    fireEvent.mouseDown(planningTab);
-    fireEvent.click(planningTab);
-
+    expect(await screen.findByRole("heading", { name: "Planung" })).toBeInTheDocument();
+    expect(screen.getAllByText("Szenarien").length).toBeGreaterThan(0);
+    expect(screen.getByText("Migrationsgruppen")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Migration Production"));
     const comparison = screen.getByRole("heading", { name: "What-If Vergleich" });
@@ -363,29 +374,11 @@ describe("Clusters", () => {
     expect(screen.queryByText(/HBA\/NIC Treiberinventar/)).not.toBeInTheDocument();
   });
 
-  it("redirects the legacy maintenance URL to the maintenance tab", async () => {
-    render(
-      <MemoryRouter initialEntries={["/wartungsankuendigung"]}>
-        <Routes>
-          <Route path="/wartungsankuendigung" element={<Wartungsankuendigung />} />
-          <Route path="/clusters" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+  it("redirects former cluster tabs to the dedicated pages", async () => {
+    renderClusters("/clusters?tab=maintenance", true);
+    expect(await screen.findByText("/wartungsankuendigung")).toBeInTheDocument();
 
-    expect(await screen.findByText("/clusters?tab=maintenance")).toBeInTheDocument();
-  });
-
-  it("redirects the legacy planning URL to the planning tab", async () => {
-    render(
-      <MemoryRouter initialEntries={["/planning"]}>
-        <Routes>
-          <Route path="/planning" element={<Planning />} />
-          <Route path="/clusters" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByText("/clusters?tab=planning")).toBeInTheDocument();
+    renderClusters("/clusters?tab=planning", true);
+    expect(await screen.findByText("/planning")).toBeInTheDocument();
   });
 });

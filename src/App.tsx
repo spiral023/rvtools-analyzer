@@ -18,7 +18,6 @@ import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 const Overview = lazy(() => import("@/pages/Overview"));
 const UploadSnapshots = lazy(() => import("@/pages/UploadSnapshots"));
 const Clusters = lazy(() => import("@/pages/Clusters"));
-const Capacity = lazy(() => import("@/pages/Capacity"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
 const Networking = lazy(() => import("@/pages/Networking"));
 const NetworkAudit = lazy(() => import("@/pages/NetworkAudit"));
@@ -91,7 +90,7 @@ const router = createBrowserRouter([
       { path: "upload", element: <UploadSnapshots /> },
       { path: "upload/diagnostics", element: <Navigate to="/upload?tab=diagnostics" replace /> },
       { path: "clusters", element: <Clusters /> },
-      { path: "capacity", element: <Capacity /> },
+      { path: "capacity", element: <Navigate to="/clusters?tab=capacity" replace /> },
       { path: "storage-backup", element: <StorageBackup /> },
       { path: "network-security", element: <Networking initialTab="security" /> },
       { path: "network-audit", element: <NetworkAudit /> },

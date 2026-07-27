@@ -19,7 +19,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
     isLoading: false,
   }),
   useVmSnapshots: () => ({ data: [] as unknown[], isLoading: false }),
-  useVms: () => ({ allVms: [] as NormalizedVm[], isLoading: false }),
+  useVms: () => ({ vms: [] as NormalizedVm[], allVms: [] as NormalizedVm[], isLoading: false }),
 }));
 
 vi.mock("@/hooks/useGlobalVmFilter", () => ({
@@ -70,6 +70,9 @@ describe("StorageBackup KPI-Kacheln", () => {
       "Warnung (<20%)",
       "Datastores",
       "Datastores <20% frei",
+      "Ø Datastore frei",
+      "Kritische Datastores",
+      "Speicherwirkgrad",
       "VMFS Upgrade-Kandidaten",
     ]);
 

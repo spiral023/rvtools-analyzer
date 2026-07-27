@@ -10,6 +10,8 @@ import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterSc
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
+import { DatastoreCapacityDetails } from "@/components/storage/DatastoreCapacityDetails";
+import { calculateDatastoreCapacityStats } from "@/lib/datastoreCapacity";
 import { Database, AlertTriangle, Clock, FileWarning } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "@/components/charts/recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -150,7 +152,7 @@ const siocColumns: ColumnDef<SiocRow, unknown>[] = [
 
 export default function StorageBackup() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { allVms, isLoading: vmsLoading } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
@@ -228,6 +230,7 @@ export default function StorageBackup() {
     rawDatastore.map((r) => ({ name: String(r.data["Name"] || ""), type: String(r.data["Type"] || ""), version: String(r.data["Version"] || ""), upgradeable: String(r.data["VMFS Upgradeable"] || ""), mha: String(r.data["MHA"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), freePct: Number(r.data["Free %"] || 0) })), [rawDatastore]);
 
   const lowFreeDatastores = datastores.filter((datastore) => (datastore.freePct ?? 100) < 20).length;
+  const datastoreCapacityStats = useMemo(() => calculateDatastoreCapacityStats(datastores, vms), [datastores, vms]);
   const thinDiskCount = disks.filter((disk) => disk.thin).length;
   const rdmDiskCount = disks.filter((disk) => disk.raw).length;
   const vmfsUpgradeCandidates = dsLifecycle.filter((datastore) => datastore.upgradeable.toLowerCase() === "true").length;
@@ -335,6 +338,9 @@ export default function StorageBackup() {
             <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} info={STORAGE_KPI.warning} />
             <KpiCard title="Datastores" value={formatNum(datastores.length)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.datastores} />
             <KpiCard title="Datastores <20% frei" value={formatNum(lowFreeDatastores)} severity={lowFreeDatastores > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.lowFreeDatastores} />
+            <KpiCard title="Ø Datastore frei" value={datastoreCapacityStats.avgFreePct === null ? "—" : formatPct(datastoreCapacityStats.avgFreePct)} severity={datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 15 ? "crit" : datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 25 ? "warn" : "ok"} />
+            <KpiCard title="Kritische Datastores" value={formatNum(datastoreCapacityStats.critical)} severity={datastoreCapacityStats.critical > 0 ? "crit" : "ok"} subtitle="unter 10 % frei" />
+            <KpiCard title="Speicherwirkgrad" value={`${datastoreCapacityStats.storageEfficiency.ratio}%`} subtitle={`${datastoreCapacityStats.storageEfficiency.inUseGiB.toFixed(0)} / ${datastoreCapacityStats.storageEfficiency.provisionedGiB.toFixed(0)} GiB`} />
             <KpiCard title="VMFS Upgrade-Kandidaten" value={formatNum(vmfsUpgradeCandidates)} severity={vmfsUpgradeCandidates > 0 ? "warn" : "ok"} info={STORAGE_KPI.rdmUpgradeable} />
           </KpiGrid>
           {partitions.length > 0 && (
@@ -357,6 +363,8 @@ export default function StorageBackup() {
           )}
 
           <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+
+          <DatastoreCapacityDetails datastores={datastores} allVms={allVms} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} />
 
           {datastoreCapacityChart.length > 0 && (
             <div className="rounded-lg border border-border/50 bg-card/30 p-4">

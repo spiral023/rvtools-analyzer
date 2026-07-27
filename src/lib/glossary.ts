@@ -34,7 +34,7 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
   "/clusters": {
     term: "Cluster",
     description:
-      "Cluster-Arbeitsbereich für Übersicht, Kapazität, Wartung, Planung und Infrastruktur. vCenter-, Cluster- und Suchfilter gelten für alle Tabs.",
+      "Cluster-Arbeitsbereich für Übersicht und Kapazität. vCenter-, Cluster- und Suchfilter gelten für beide Ansichten.",
   },
   "/overview": {
     term: "Overview",
@@ -45,11 +45,6 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     term: "Uploads",
     description:
       "Droppe unterstützte Dateien einfach hier oder klicke für Details. RVTools-Exporte (.xlsx) und weitere Importe landen im Hintergrund in der Warteschlange – du kannst währenddessen ungestört weiterarbeiten. Je vCenter wird ein aktueller Stand gehalten; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.",
-  },
-  "/capacity": {
-    term: "Capacity",
-    description:
-      "Kapazität und Auslastung von CPU, RAM und Storage – inklusive Overcommit-Verhältnissen. Grundlage für Konsolidierung und Wachstumsplanung.",
   },
   "/storage-backup": {
     term: "Storage / Backup",
@@ -93,9 +88,9 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
       "Virtuelle Maschinen mit Inventar sowie Performance-, Snapshot-, Health- und Compliance-Details.",
   },
   "/wartungsankuendigung": {
-    term: "Wartungsankündigung",
+    term: "Wartung",
     description:
-      "Wartungsfenster vorbereiten und betroffene VMs/Systeme ableiten – als Grundlage für Ankündigungstexte an Stakeholder.",
+      "Cluster-Zuweisungen, Verantwortliche und Wartungsfenster pflegen sowie daraus Wartungsankündigungen ableiten.",
   },
   "/wartungsfenster": {
     term: "Wartungsfenster",

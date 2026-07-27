@@ -318,10 +318,11 @@ describe("MaintenanceWindows", () => {
     expect(screen.queryByText("Vergleich")).not.toBeInTheDocument();
   });
 
-  it("zeigt Wartungsankündigung und Planung nicht in der Betrieb-Navigation", () => {
+  it("zeigt Wartung und Planung als eigene Tools", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
     expect(screen.queryByRole("link", { name: "Wartungsankündigung" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Planung" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
+    expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 });

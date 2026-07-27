@@ -15,6 +15,7 @@ import { MaintenanceWeekGrid } from "@/components/maintenance-windows/Maintenanc
 import { MaintenanceWindowEditor } from "@/components/maintenance-windows/MaintenanceWindowEditor";
 import { MaintenanceCoverageChart } from "@/components/maintenance-windows/MaintenanceCoverageChart";
 import { MaintenanceWindowImportDialog } from "@/components/maintenance-windows/MaintenanceWindowImportDialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
 import { useAllTechInfoLatest } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceWindows } from "@/hooks/useMaintenanceWindows";
@@ -228,19 +229,16 @@ export default function MaintenanceWindows() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border/70 pb-5">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            <CalendarRange className="h-4 w-4 text-primary" /> Betriebsplanung
+      <PageHeader
+        title="Wartungsfenster"
+        subtitle="Lokaler Katalog für Zeitpläne und ihre Zuordnung zu Systemen aus Tech-Info – ohne Server oder externe Synchronisierung."
+        meta={(
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}><FileText className="mr-2 h-4 w-4" />Aus Text importieren</Button>
+            <Button onClick={createNew}><Plus className="mr-2 h-4 w-4" />Neues Wartungsfenster</Button>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Wartungsfenster</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Lokaler Katalog für Zeitpläne und ihre Zuordnung zu Systemen aus Tech-Info – ohne Server oder externe Synchronisierung.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}><FileText className="mr-2 h-4 w-4" />Aus Text importieren</Button>
-          <Button onClick={createNew}><Plus className="mr-2 h-4 w-4" />Neues Wartungsfenster</Button>
-        </div>
-      </header>
+        )}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Definierte Fenster" value={definitions.length} icon={<CalendarRange className="h-4 w-4" />} info={MAINTENANCE_WINDOWS_KPI.definitions} />
