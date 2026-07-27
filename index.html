@@ -25,6 +25,8 @@
 
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Rocket Loader darf das Vite-Entry-Modul nicht verzögert umschreiben:
+         dynamische ES-Module benötigen den ursprünglichen `type="module"`. -->
+    <script type="module" data-cfasync="false" src="/src/main.tsx"></script>
   </body>
 </html>
