@@ -71,15 +71,16 @@ describe("AppSidebar", () => {
     expect(vcenterLink.compareDocumentPosition(clusterLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("gliedert die Navigation in Hierarchie, Analyse und Betrieb", () => {
+  it("gliedert die Navigation in Hierarchie, Analyse und Tools", () => {
     useOptionalImportControllerMock.mockReturnValue(null);
     renderSidebar();
 
     expect(screen.getByText("Infrastruktur")).toBeInTheDocument();
     expect(screen.getByText("Analyse")).toBeInTheDocument();
-    expect(screen.getByText("Betrieb")).toBeInTheDocument();
+    expect(screen.getByText("Tools")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Übersicht" })).toHaveAttribute("href", "/overview");
     expect(screen.getByRole("link", { name: "Kapazität" })).toHaveAttribute("href", "/capacity");
+    expect(screen.getByRole("link", { name: "Netzwerk-Kontrolle" })).toHaveAttribute("href", "/network-audit");
   });
 
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {

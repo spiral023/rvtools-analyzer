@@ -22,6 +22,7 @@ const Clusters = lazy(() => import("@/pages/Clusters"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
 const Networking = lazy(() => import("@/pages/Networking"));
+const NetworkAudit = lazy(() => import("@/pages/NetworkAudit"));
 const VCenter = lazy(() => import("@/pages/FleetCompare"));
 const Hosts = lazy(() => import("@/pages/Hosts"));
 const Vms = lazy(() => import("@/pages/Vms"));
@@ -94,6 +95,7 @@ const router = createBrowserRouter([
       { path: "capacity", element: <Capacity /> },
       { path: "storage-backup", element: <StorageBackup /> },
       { path: "network-security", element: <Networking initialTab="security" /> },
+      { path: "network-audit", element: <NetworkAudit /> },
       { path: "host-network", element: <Networking initialTab="host" /> },
       { path: "hardware", element: <Hardware /> },
       { path: "tech-info", element: <TechInfo /> },

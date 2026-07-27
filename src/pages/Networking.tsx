@@ -1,5 +1,5 @@
 import { Network } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useActiveSnapshotIds } from "@/hooks/useActiveSnapshots";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -12,7 +12,6 @@ import { CdpPanel } from "@/pages/CdpSwitchPorts";
 import { IpamPanel } from "@/pages/IpamPanel";
 import { EramonIfacePanel } from "@/pages/EramonIfacePanel";
 import { EramonL2Panel } from "@/pages/EramonL2Panel";
-import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { NET_NETWORK_TABS } from "@/lib/glossaries/networking";
 import {
@@ -40,12 +39,16 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
   const activeTab = parseNetworkTab(searchParams, initialTab);
   const hasRvtools = snapshots.length > 0;
 
+  // Alte Bookmarks mit dem früheren Netzwerk-Untertab bleiben gültig.
+  if (searchParams.get("tab") === "audit") {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("tab");
+    if (!nextSearchParams.has("check")) nextSearchParams.set("check", "overview");
+    return <Navigate replace to={`/network-audit?${nextSearchParams.toString()}`} />;
+  }
+
   const setActiveTab = (tab: NetworkTab) => {
-    let nextSearchParams = updateNetworkAuditSearch(searchParams, { tab });
-    if (tab === "audit" && !searchParams.has("check")) {
-      nextSearchParams = updateNetworkAuditSearch(nextSearchParams, { check: "overview" });
-    }
-    setSearchParams(nextSearchParams);
+    setSearchParams(updateNetworkAuditSearch(searchParams, { tab }));
   };
 
   const handleTabChange = (value: string) => {
@@ -88,9 +91,6 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
               <InfoTooltip entry={NET_NETWORK_TABS.eramonL2} side="bottom">
                 <TabsTrigger value="eramon-l2" className="min-h-11">MAC-Tabelle (Eramon)</TabsTrigger>
               </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.audit} side="bottom">
-                <TabsTrigger value="audit" className="min-h-11">Kontrolle</TabsTrigger>
-              </InfoTooltip>
             </TabsList>
           </div>
         </PageHeader>
@@ -123,9 +123,6 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
           {hasRvtools ? <EramonL2Panel /> : <RvtoolsEmptyState />}
         </TabsContent>
 
-        <TabsContent value="audit" className="space-y-4">
-          <NetworkAuditPanel />
-        </TabsContent>
       </Tabs>
     </div>
   );

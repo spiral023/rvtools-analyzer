@@ -29,6 +29,7 @@ import {
   Monitor,
   ClipboardList,
   CalendarRange,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,7 +61,8 @@ const analysisNav: NavItem[] = [
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 
-const operationsNav = [
+const toolsNav: NavItem[] = [
+  { title: "Netzwerk-Kontrolle", url: "/network-audit", icon: ListChecks },
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
 
@@ -177,7 +179,7 @@ export function AppSidebar() {
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Infrastruktur" items={infrastructureNav} />
         <NavSection label="Analyse" items={analysisNav} />
-        <NavSection label="Betrieb" items={operationsNav} />
+        <NavSection label="Tools" items={toolsNav} />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-0">
         <RelatedToolsNav />

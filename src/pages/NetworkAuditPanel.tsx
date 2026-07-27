@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, ListChecks } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
+import { PageHeader } from "@/components/layout/PageHeader";
 import {
   HostDataAuditDetail,
   MacAuditDetail,
@@ -76,51 +77,40 @@ function NetworkAuditSuccess({
     nextScope: NetworkAuditScope = scope,
   ) => {
     setSearchParams(updateNetworkAuditSearch(searchParams, {
-      tab: "audit",
       check: nextCheck,
       scope: nextScope,
     }));
   };
 
   return (
-    <section aria-labelledby="network-audit-heading" className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-          <ListChecks aria-hidden="true" className="h-5 w-5" />
-        </div>
-        <div className="space-y-1">
-          <h2 id="network-audit-heading" className="text-xl font-semibold tracking-tight">
-            Netzwerk-Kontrolle
-          </h2>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Prüfen Sie Datenqualität, physische Zuordnungen und unbekannte Geräte.
-          </p>
-        </div>
-      </div>
-
-      <Tabs
+    <Tabs
         value={check}
         onValueChange={(value) => {
           if (isNetworkAuditCheckRoute(value)) navigate(value, "attention");
         }}
         className="space-y-4"
       >
-        <div className="max-w-full overflow-x-auto pb-1">
-          <TabsList
-            aria-label="Bereich der Netzwerk-Kontrolle"
-            className="h-auto min-w-max justify-start gap-1 p-1"
-          >
-            {AUDIT_SECTIONS.map((section) => (
-              <TabsTrigger
-                key={section.value}
-                value={section.value}
-                className="min-h-11 min-w-11"
-              >
-                {section.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+        <PageHeader
+          title="Netzwerk-Kontrolle"
+          subtitle="Prüfen Sie Datenqualität, physische Zuordnungen und unbekannte Geräte."
+        >
+          <div className="w-full overflow-x-auto pb-1">
+            <TabsList
+              aria-label="Bereich der Netzwerk-Kontrolle"
+              className="h-auto w-full min-w-max justify-start gap-1 p-1"
+            >
+              {AUDIT_SECTIONS.map((section) => (
+                <TabsTrigger
+                  key={section.value}
+                  value={section.value}
+                  className="min-h-11 min-w-11"
+                >
+                  {section.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </PageHeader>
 
         <TabsContent value="overview">
           <NetworkAuditOverview
@@ -178,7 +168,6 @@ function NetworkAuditSuccess({
           <NetworkAuditHelp />
         </TabsContent>
       </Tabs>
-    </section>
   );
 }
 

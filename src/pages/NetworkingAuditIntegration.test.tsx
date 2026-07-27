@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { useNetworkAudit } from "@/hooks/useActiveSnapshots";
-import Networking from "@/pages/Networking";
+import { NetworkAuditPanel } from "@/pages/NetworkAuditPanel";
 
 const { useNetworkAuditMock } = vi.hoisted(() => ({
   useNetworkAuditMock: vi.fn(),
@@ -92,7 +92,7 @@ function renderIntegration(initialEntry: string) {
       <QueryClientProvider client={queryClient}>
         <FilterProvider>
           <TooltipProvider>
-            <Networking />
+            <NetworkAuditPanel />
             <LocationProbe />
             <HistoryControls />
           </TooltipProvider>
@@ -118,50 +118,41 @@ beforeEach(() => {
   useNetworkAuditMock.mockReturnValue(auditFixture);
 });
 
-describe("Networking audit integration", () => {
-  it("rendert beide benannten Tablisten und den echten Kontrolle-Tooltip-Trigger im Overview-Deep-Link", async () => {
+describe("NetworkAuditPanel integration", () => {
+  it("rendert den eigenständigen Seitenkopf und die benannte Kontroll-Tablist", async () => {
     renderIntegration(
-      "/network-security?tab=audit&check=overview&scope=attention&foo=bar",
+      "/network-audit?check=overview&scope=attention&foo=bar",
     );
 
     expect(
-      screen.getByRole("tablist", { name: "Netzwerkbereich" }),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("tablist", { name: "Bereich der Netzwerk-Kontrolle" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Netzwerk-Kontrolle" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Datenbasis" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Übersicht" })).toHaveAttribute("data-state", "active");
-
-    const controlTab = screen.getByRole("tab", { name: "Kontrolle" });
-    expect(controlTab).toHaveAttribute("data-state", "active");
-    fireEvent.focus(controlTab);
-
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Kontrolle");
-    expect(controlTab).toHaveAttribute("data-state", "active");
   });
 
-  it("bewahrt echte innere Audit-Navigation und Scope über äußeren Tabwechsel und Browser-History", async () => {
+  it("bewahrt die Kontroll-Navigation und den Scope über Browser-History", async () => {
     renderIntegration(
-      "/network-security?tab=audit&check=overview&scope=attention&foo=bar",
+      "/network-audit?check=overview&scope=attention&foo=bar",
     );
 
     selectTab("MAC-Abgleich");
     expect(screen.getByRole("heading", { name: "ESXi-MAC-Abgleich" })).toBeInTheDocument();
     expectLocation(
-      "/network-security?tab=audit&check=mac&scope=attention&foo=bar",
+      "/network-audit?check=mac&scope=attention&foo=bar",
     );
 
     fireEvent.click(screen.getByRole("radio", { name: "Alle" }));
     expect(screen.getByRole("radio", { name: "Alle" })).toBeChecked();
     expectLocation(
-      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+      "/network-audit?check=mac&scope=all&foo=bar",
     );
 
-    selectTab("Host-Netzwerk");
-    expect(screen.getByTestId("panel-host")).toBeInTheDocument();
+    selectTab("Host-Daten");
+    expect(screen.getByRole("heading", { name: "Host-Datenqualität" })).toBeInTheDocument();
     expectLocation(
-      "/network-security?tab=host&check=mac&scope=all&foo=bar",
+      "/network-audit?check=hosts&scope=attention&foo=bar",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Browser zurück" }));
@@ -169,11 +160,10 @@ describe("Networking audit integration", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "ESXi-MAC-Abgleich" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("tab", { name: "Kontrolle" })).toHaveAttribute("data-state", "active");
     expect(screen.getByRole("tab", { name: "MAC-Abgleich" })).toHaveAttribute("data-state", "active");
     expect(screen.getByRole("radio", { name: "Alle" })).toBeChecked();
     expectLocation(
-      "/network-security?tab=audit&check=mac&scope=all&foo=bar",
+      "/network-audit?check=mac&scope=all&foo=bar",
     );
   });
 });

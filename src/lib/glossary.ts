@@ -61,6 +61,12 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     description:
       "Virtuelle NICs, Portgruppen, VLANs und vSwitch-Zuordnungen. Für Netzwerk-Inventar und Auffälligkeiten in der Anbindung der VMs.",
   },
+  "/network-audit": {
+    term: "Netzwerk-Kontrolle",
+    description:
+      "Gleicht Eramon-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Die Tabs führen von der Übersicht in die einzelnen Prüfungen und zeigen bestätigte Zuordnungen, Datenlücken und Widersprüche.",
+    source: "Eramon · CDP-CSV · RVTools · Tech-Info · IPAM",
+  },
   "/hardware": {
     term: "Hardware",
     description:
