@@ -54,7 +54,7 @@ vi.mock("@/components/tables/VirtualTable", () => ({
   ),
 }));
 
-vi.mock("@/pages/VmwareVersions", () => ({
+vi.mock("@/components/vmware-versions/VmwareReleaseTables", () => ({
   VCenterVersionsTable: () => <div>Neueste vCenter Versionen</div>,
 }));
 

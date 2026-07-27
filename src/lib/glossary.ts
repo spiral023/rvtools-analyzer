@@ -46,20 +46,10 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     description:
       "Droppe unterstützte Dateien einfach hier oder klicke für Details. RVTools-Exporte (.xlsx) und weitere Importe landen im Hintergrund in der Warteschlange – du kannst währenddessen ungestört weiterarbeiten. Je vCenter wird ein aktueller Stand gehalten; ein neuer Export ersetzt den bisherigen Stand desselben vCenters.",
   },
-  "/daily-ops": {
-    term: "Daily Ops",
-    description:
-      "Täglicher Betriebs-Check: Konfigurationsauffälligkeiten, offene VM-Snapshots und Zustände, die kurzfristig Aufmerksamkeit brauchen.",
-  },
   "/capacity": {
     term: "Capacity",
     description:
       "Kapazität und Auslastung von CPU, RAM und Storage – inklusive Overcommit-Verhältnissen. Grundlage für Konsolidierung und Wachstumsplanung.",
-  },
-  "/performance": {
-    term: "Performance",
-    description:
-      "Engpass-Analyse: CPU Ready, Memory Ballooning/Swapping, Latenzen und Entitlement-Lücken. Zeigt, wo Ressourcen-Contention den Betrieb bremst.",
   },
   "/storage-backup": {
     term: "Storage / Backup",
@@ -75,11 +65,6 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     term: "Hardware",
     description:
       "Physische ESXi-Hosts: Hersteller, Modelle, CPU-Bestückung, BIOS sowie HBAs und NICs. Basis für Hardware-Standardisierung und Refresh-Planung.",
-  },
-  "/compliance": {
-    term: "Compliance / Lifecycle",
-    description:
-      "VM-Compliance, Infrastruktur-Hygiene und Support-/EOL-Status. Zeigt Lifecycle-Rückstände und operative Abweichungen.",
   },
   "/tech-info": {
     term: "Tech-Info",

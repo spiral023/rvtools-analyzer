@@ -7,13 +7,18 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { search: "" }, snapshotsLoading: false }),
   useHosts: () => ({ data: [] as NormalizedHost[], isLoading: false }),
+  useRawSheet: () => ({ data: [] as unknown[], isLoading: false }),
 }));
 
 vi.mock("@/components/hosts/HostInventoryPanel", () => ({
   HostInventoryPanel: () => <div>Host Inventar</div>,
 }));
 
-vi.mock("@/pages/VmwareVersions", () => ({
+vi.mock("@/components/hosts/HostHygienePanel", () => ({
+  HostHygienePanel: () => <div>Host-Hygiene</div>,
+}));
+
+vi.mock("@/components/vmware-versions/VmwareReleaseTables", () => ({
   EsxiVersionsTable: () => <div>Neueste ESXi Versionen</div>,
 }));
 
@@ -26,6 +31,7 @@ describe("Hosts", () => {
     expect(screen.getByRole("heading", { name: "Hosts" })).toBeInTheDocument();
     expect(screen.getByText("ESXi Hosts")).toBeInTheDocument();
     expect(screen.getByText("Wartungsmodus")).toBeInTheDocument();
+    expect(screen.getByText("NTP/DNS Issues")).toBeInTheDocument();
     expect(screen.getByText("Host Inventar")).toBeInTheDocument();
     expect(screen.getByText("Neueste ESXi Versionen")).toBeInTheDocument();
   });

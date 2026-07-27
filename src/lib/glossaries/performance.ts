@@ -1,7 +1,7 @@
 import type { GlossaryEntry } from "@/lib/glossary";
 
 /**
- * Glossar für die Performance-Seite (Engpass-Analyse).
+ * Glossar für den Performance-Tab der VM-Seite (Engpass-Analyse).
  * Zielgruppe: VMware-Administrator:innen.
  */
 
@@ -40,12 +40,6 @@ export const PERFORMANCE_KPI: Record<string, GlossaryEntry> = {
     description:
       "Eingeschaltete VMs mit auffälliger Netzanbindung: getrennte NIC oder fehlende IPv4-Adresse. Typische Ursache für nicht erreichbare Dienste.",
     source: `${RV} · vNetwork · „Connected“ / „IPv4 Address“`,
-  },
-  multipathIssues: {
-    term: "Multipath Issues",
-    description:
-      "Speicherpfade mit nicht-ok Betriebszustand oder toten (dead) Pfaden. Reduziert Redundanz und Durchsatz zum Storage – kann Latenzspitzen verursachen.",
-    source: `${RV} · vMultiPath · „Oper. State“ / „Path n state“`,
   },
 };
 

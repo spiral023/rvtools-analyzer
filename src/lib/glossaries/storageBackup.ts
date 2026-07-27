@@ -72,6 +72,26 @@ export const STORAGE_KPI: Record<string, GlossaryEntry> = {
     description: "Anzahl der Datastores in der Effizienzbetrachtung.",
     source: `${RV} · vDatastore`,
   },
+  lowFreeDatastores: {
+    term: "Datastores <20 % frei",
+    description: "Datastores mit weniger als 20 % freiem Speicher. Diese Volumes sollten vor weiterem Wachstum und Snapshot-/Provisioning-Spitzen geprüft werden.",
+    source: `${RV} · vDatastore · „Free %“`,
+  },
+  rdmDisks: {
+    term: "RDMs",
+    description: "Anzahl der virtuellen Disks mit Raw Device Mapping. RDMs begrenzen bestimmte Snapshot-, vMotion- und Storage-vMotion-Szenarien.",
+    source: `${RV} · vDisk · „Raw“`,
+  },
+  backupRisks: {
+    term: "Backup-Risiken",
+    description: "VMs mit fehlendem oder veraltetem Backup. Die Kennzahl entspricht der auffälligen Backup-Arbeitsliste im Backup-Tab.",
+    source: `${RV} · vInfo · „Backup Status“ / „Last Backup“`,
+  },
+  snapshotBackupConflicts: {
+    term: "Snapshot + Backup",
+    description: "VMs mit aktivem Snapshot und gleichzeitigem Backup-Problem. Diese Kombination erhöht Restore- und Kapazitätsrisiken.",
+    source: `${RV} · vSnapshot / vInfo`,
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -409,7 +429,17 @@ export const STORAGE_SECTIONS: Record<string, GlossaryEntry> = {
   partitionChart: {
     term: "Gast-Partitionen mit wenig Platz",
     description:
-      "Zeigt die bis zu 15 knappsten Gast-Partitionen unter 30 % frei. Nutze das Diagramm, um akute Platzprobleme innerhalb der VMs schnell zu erkennen – rote Balken (<10 %) zuerst angehen.",
+      "Gruppiert alle Gast-Partitionen nach ihrem freien Anteil. Nutze die roten und gelben Bereiche, um akute Platzprobleme innerhalb der VMs schnell zu priorisieren.",
+  },
+  datastoreChart: {
+    term: "Datastores mit niedrigstem freien Anteil",
+    description:
+      "Vergleicht die zwölf Datastores mit dem geringsten freien Anteil. Der gestapelte Balken trennt freien und belegten Speicher, damit Kapazitätsrisiken vor einer Vollauslastung sichtbar werden.",
+  },
+  backupChart: {
+    term: "Backup-Risikoverteilung",
+    description:
+      "Zeigt alle VMs nach Backup-Frische. Bearbeite zuerst VMs ohne Backup und danach Sicherungen älter als sieben Tage; der aktuelle Anteil dient als Coverage-Basis.",
   },
   partitionTable: {
     term: "Gast-Partitionen",

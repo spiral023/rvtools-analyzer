@@ -19,17 +19,17 @@ vi.mock("@/hooks/useGlobalVmFilter", () => ({
   useGlobalVmFilterEngine: () => ({ filterVmRows: <T,>(rows: T[]) => rows }),
 }));
 
-vi.mock("@/pages/Overview", () => ({
+vi.mock("@/components/vm/VmInventoryTable", () => ({
   VmInventoryTable: () => <div>Virtuelle Maschinen</div>,
 }));
-vi.mock("@/pages/PerformancePage", () => ({
-  VmPerformanceDetails: () => <div>CPU Ready Details</div>,
+vi.mock("@/components/vm/VmOperationsPanel", () => ({
+  VmOperationsPanel: () => <div>VM Snapshots</div>,
 }));
-vi.mock("@/pages/DailyOps", () => ({
-  VmDailyOpsDetails: () => <div>VM Snapshots</div>,
+vi.mock("@/components/vm/VmPerformancePanel", () => ({
+  VmPerformancePanel: () => <div>CPU Ready Details</div>,
 }));
-vi.mock("@/pages/ComplianceLifecycle", () => ({
-  VmComplianceDetails: () => <div>VM Compliance</div>,
+vi.mock("@/components/vm/VmComplianceLifecyclePanel", () => ({
+  VmComplianceLifecyclePanel: () => <div>VM Compliance</div>,
 }));
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: () => <div>VMTools Wellen-Tabelle</div>,
@@ -38,16 +38,16 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 const { default: Vms } = await import("./Vms");
 
 describe("VMs", () => {
-  it("bündelt die VM-Übersicht und VM-spezifische Detailbereiche", () => {
+  it("bündelt die VM-Übersicht in vier Sitzungstabs", () => {
     render(<MemoryRouter><TooltipProvider><Vms /></TooltipProvider></MemoryRouter>);
 
     expect(screen.getByRole("heading", { name: "VMs" })).toBeInTheDocument();
     expect(screen.getByText("VMs gesamt")).toBeInTheDocument();
     expect(screen.getByText("Konfigurationsprobleme")).toBeInTheDocument();
     expect(screen.getByText("Virtuelle Maschinen")).toBeInTheDocument();
-    expect(screen.getByText("CPU Ready Details")).toBeInTheDocument();
-    expect(screen.getByText("VM Snapshots")).toBeInTheDocument();
-    expect(screen.getByText("VMTools Upgrade Wellenplanung")).toBeInTheDocument();
-    expect(screen.getByText("VM Compliance")).toBeInTheDocument();
+
+    expect(screen.getByRole("tab", { name: "Betrieb" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Performance" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Compliance" })).toBeInTheDocument();
   });
 });

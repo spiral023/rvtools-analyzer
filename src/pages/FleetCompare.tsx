@@ -18,7 +18,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { FLEET_KPI, FLEET_COLUMNS, FLEET_SECTIONS } from "@/lib/glossaries/fleetCompare";
 import { getFleetQuerySnapshotIds } from "@/lib/fleetQuery";
-import { VCenterVersionsTable } from "@/pages/VmwareVersions";
+import { VCenterVersionsTable } from "@/components/vmware-versions/VmwareReleaseTables";
 import { LicenseDetailsTable } from "@/components/licensing/LicenseDetailsTable";
 import { getLicenseRows } from "@/lib/licenseDetails";
 import { V_CENTER_RELEASES } from "@/lib/vcenterReleaseCatalog";

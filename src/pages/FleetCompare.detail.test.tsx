@@ -96,10 +96,6 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 
-vi.mock("@/pages/VmwareVersions", () => ({
-  VCenterVersionsTable: (): null => null,
-}));
-
 vi.mock("@/components/licensing/LicenseDetailsTable", () => ({
   LicenseDetailsTable: (): null => null,
 }));

@@ -5,12 +5,13 @@ import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useActiveSnapshotIds, useVmsWithTechInfo } from "@/hooks/useActiveSnapshots";
-import { VmInventoryTable, type OverviewVmRow } from "@/pages/Overview";
-import { VmPerformanceDetails } from "@/pages/PerformancePage";
-import { VmDailyOpsDetails } from "@/pages/DailyOps";
-import { VmComplianceDetails } from "@/pages/ComplianceLifecycle";
-import { VmToolsWavePlan } from "@/components/vm/VmToolsWavePlan";
+import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventoryTable";
+import { VmOperationsPanel } from "@/components/vm/VmOperationsPanel";
+import { VmPerformancePanel } from "@/components/vm/VmPerformancePanel";
+import { VmComplianceLifecyclePanel } from "@/components/vm/VmComplianceLifecyclePanel";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
@@ -36,16 +37,26 @@ export default function Vms() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="VMs" />
-      <KpiGrid>
-        <KpiCard title="VMs gesamt" value={formatNum(vms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />
-        <KpiCard title="Eingeschaltet" value={formatNum(poweredOn)} subtitle={`von ${formatNum(vms.length)}`} icon={<Power className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
-        <KpiCard title="Konfigurationsprobleme" value={formatNum(configIssues)} severity={configIssues > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
-      </KpiGrid>
-      <VmInventoryTable vms={vms} globalFilter={filters.search} />
-      <VmPerformanceDetails />
-      <VmDailyOpsDetails />
-      <VmToolsWavePlan />
-      <VmComplianceDetails />
+      <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung." />
+      <Tabs defaultValue="inventory" className="space-y-4">
+        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+          <TabsTrigger value="inventory">Inventar</TabsTrigger>
+          <TabsTrigger value="operations">Betrieb</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="compliance">Compliance</TabsTrigger>
+        </TabsList>
+        <TabsContent value="inventory" className="space-y-6">
+          <KpiGrid>
+            <KpiCard title="VMs gesamt" value={formatNum(vms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />
+            <KpiCard title="Eingeschaltet" value={formatNum(poweredOn)} subtitle={`von ${formatNum(vms.length)}`} icon={<Power className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
+            <KpiCard title="Konfigurationsprobleme" value={formatNum(configIssues)} severity={configIssues > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+          </KpiGrid>
+          <VmInventoryTable vms={vms} globalFilter={filters.search} />
+        </TabsContent>
+        <TabsContent value="operations"><VmOperationsPanel /></TabsContent>
+        <TabsContent value="performance"><VmPerformancePanel /></TabsContent>
+        <TabsContent value="compliance"><VmComplianceLifecyclePanel /></TabsContent>
+      </Tabs>
     </div>
   );
 }

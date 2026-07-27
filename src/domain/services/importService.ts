@@ -166,7 +166,7 @@ const RAW_SHEET_ALLOWLIST: ReadonlySet<string> = new Set([
 /**
  * Spalten, die pro vCenter konstant und in jeder Zeile jedes Sheets vorhanden, aber ohne
  * Analysewert sind — reiner Speicher-Overhead. `VI SDK Server` bleibt (wird für die
- * vCenter-Anzeige gebraucht, z. B. `src/pages/ComplianceLifecycle.tsx`).
+ * vCenter-Anzeige gebraucht, z. B. in der VMware-Versionsanalyse.
  */
 const RAW_SHEET_COLUMN_DENYLIST: ReadonlySet<string> = new Set([
   "VI SDK UUID",

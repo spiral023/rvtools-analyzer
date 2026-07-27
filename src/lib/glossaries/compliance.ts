@@ -1,41 +1,10 @@
 import type { GlossaryEntry } from "@/lib/glossary";
 
 /**
- * Glossar für die Seite „Compliance / Lifecycle“ (alle Tabs: Compliance,
- * Operations, Infrastructure, Versionen). Zielgruppe: VMware-Administrator:innen.
+ * Glossar für VM-Compliance, Host-Hygiene und VMware-Releases.
  */
 
 const RV = "RVTools";
-
-/* ------------------------------------------------------------------ */
-/*  Bereichs-Tabs                                                     */
-/* ------------------------------------------------------------------ */
-export const COMPLIANCE_TABS: Record<string, GlossaryEntry> = {
-  compliance: {
-    term: "Compliance",
-    description:
-      "Prüft VM-Grundstandards wie Secure Boot, Firmware, CBT, Betriebssystem-Drift und Dokumentation.",
-    source: `${RV} · vInfo · vSource`,
-  },
-  operations: {
-    term: "Operations",
-    description:
-      "Bündelt operativ relevante Auffälligkeiten: VMware-Tools-Updates, NTP/DNS-Hygiene, Hardware-Upgrades und besondere Latenz-Einstellungen.",
-    source: `${RV} · vTools · vInfo · vHost`,
-  },
-  infrastructure: {
-    term: "Infrastruktur",
-    description:
-      "Zeigt den Host- und Treiberbestand, Wartungsmodus, ESXi-Build-Drift sowie gemischte CPU-Generationen in Clustern.",
-    source: `${RV} · vHost · vHBA · vNIC`,
-  },
-  versions: {
-    term: "Versionen",
-    description:
-      "Vergleicht erkannte vCenter- und ESXi-Builds mit dem lokalen Release-Katalog und macht Patch- bzw. Upgrade-Rückstände sichtbar.",
-    source: `${RV} · vSource · vHost`,
-  },
-};
 
 /* ------------------------------------------------------------------ */
 /*  Compliance-Tab – KPIs                                             */
@@ -362,46 +331,6 @@ export const DRIVER_COLUMNS: Record<string, GlossaryEntry> = {
   },
 };
 
-/* ------------------------------------------------------------------ */
-/*  Versionen-Tab (VmwareVersionsPanel) – KPIs                        */
-/* ------------------------------------------------------------------ */
-export const VERSIONS_KPI: Record<string, GlossaryEntry> = {
-  activeVcenters: {
-    term: "Aktive vCenter",
-    description: "Anzahl unterschiedlicher vCenter in den aktiven Snapshots. Bezugsgröße für die vCenter-Adoption.",
-    source: `${RV} · vSource`,
-  },
-  activeHosts: {
-    term: "Aktive ESXi Hosts",
-    description: "Anzahl der ESXi-Hosts in den aktiven Snapshots. Bezugsgröße für die ESXi-Adoption.",
-    source: `${RV} · vHost`,
-  },
-  vcenterOnLatest: {
-    term: "vCenter auf neuestem Release",
-    description:
-      "vCenter-Instanzen, die bereits auf dem jüngsten bekannten Release laufen. Der Prozentwert zeigt den Anteil an allen aktiven vCentern – niedrige Werte deuten auf Patch-Rückstand.",
-    source: `${RV} · vSource · „Build“`,
-  },
-  esxiOnLatest: {
-    term: "ESXi auf neuestem Release",
-    description:
-      "ESXi-Hosts auf dem jüngsten bekannten Release. Der Prozentwert zeigt den Anteil an allen aktiven Hosts.",
-    source: `${RV} · vHost · „Build“`,
-  },
-  vcenterTracked: {
-    term: "vCenter Releases erkannt",
-    description:
-      "vCenter, deren Build einem Eintrag im Release-Katalog zugeordnet werden konnte. „% abgedeckt“ zeigt, wie vollständig die Zuordnung ist; der Rest nutzt unbekannte/ältere Builds.",
-    source: `${RV} · vSource · „Build“`,
-  },
-  esxiTracked: {
-    term: "ESXi Releases erkannt",
-    description:
-      "ESXi-Hosts, deren Build im Release-Katalog gefunden wurde. „% abgedeckt“ zeigt die Vollständigkeit der Zuordnung.",
-    source: `${RV} · vHost · „Build“`,
-  },
-};
-
 export const VERSIONS_COLUMNS: Record<string, GlossaryEntry> = {
   title: {
     term: "Release",
@@ -438,11 +367,6 @@ export const VERSIONS_COLUMNS: Record<string, GlossaryEntry> = {
 /*  Abschnitts-Überschriften (Sinn + Arbeitsweise)                    */
 /* ------------------------------------------------------------------ */
 export const COMPLIANCE_SECTIONS: Record<string, GlossaryEntry> = {
-  vcenterVersion: {
-    term: "vCenter Versionsstand",
-    description:
-      "Zeigt Fullname, Version und API-Version der erfassten vCenter. Nutze den Überblick, um Patch-Rückstände und Support-Fristen je Management-Instanz zu prüfen, bevor du Host- oder Tools-Upgrades planst.",
-  },
   hwVersionDistribution: {
     term: "HW Version Verteilung",
     description:
@@ -492,16 +416,6 @@ export const COMPLIANCE_SECTIONS: Record<string, GlossaryEntry> = {
     term: "CPU-Generationen Mix je Cluster",
     description:
       "Cluster mit mehreren CPU-Modellen. Gemischte Generationen erzwingen einen EVC-Modus (kleinster gemeinsamer Nenner) und können vMotion einschränken – nutze die Übersicht, um Cluster für einen Hardware-Refresh zu homogenisieren.",
-  },
-  vcenterReleaseUsage: {
-    term: "vCenter Release Nutzung",
-    description:
-      "Nutzung der vCenter je erkanntem Release; das jüngste Release ist hervorgehoben. Ein niedriger Balken beim aktuellen Release zeigt Patch-Rückstand – priorisiere das Management-Layer, da es Voraussetzung für Host-Upgrades ist.",
-  },
-  esxiReleaseUsage: {
-    term: "ESXi Release Nutzung",
-    description:
-      "Nutzung der ESXi-Hosts je erkanntem Release; das jüngste Release ist hervorgehoben. Hilft, den Roll-out-Fortschritt eines ESXi-Updates über die Flotte zu verfolgen.",
   },
   vcenterVersionsTable: {
     term: "Neueste vCenter Versionen",

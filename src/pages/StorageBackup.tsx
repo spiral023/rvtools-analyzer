@@ -11,7 +11,8 @@ import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Database, AlertTriangle, Clock, FileWarning } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "@/components/charts/recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "@/components/charts/recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
@@ -41,6 +42,22 @@ interface DsLifecycleRow { name: string; type: string; version: string; upgradea
 interface DsEffRow { datastore: string; provisionedMiB: number; inUseMiB: number; freeMiB: number; efficiency: number }
 interface SiocRow { datastore: string; siocEnabled: boolean; siocThreshold: number; freePct: number; risk: string }
 interface PartitionFreeDistributionRow { label: string; count: number; color: string }
+interface DatastoreCapacityChartRow { datastore: string; freePct: number; usedPct: number }
+interface BackupRiskDistributionRow { label: string; count: number; color: string }
+type BackupRisk = "kein Backup" | "hoch" | "mittel" | "niedrig";
+
+function classifyBackup(status: string, lastBackupStr: string, now: number): { ageDays: number; risk: BackupRisk } {
+  let ageDays = -1;
+  if (lastBackupStr) {
+    const date = new Date(lastBackupStr);
+    if (!isNaN(date.getTime())) ageDays = Math.floor((now - date.getTime()) / 86400000);
+  }
+
+  if (!status && !lastBackupStr) return { ageDays, risk: "kein Backup" };
+  if (ageDays > 7) return { ageDays, risk: "hoch" };
+  if (ageDays > 3) return { ageDays, risk: "mittel" };
+  return { ageDays, risk: "niedrig" };
+}
 
 const partColumns: ColumnDef<PartitionRow, unknown>[] = [
   { accessorKey: "vm", header: "VM", meta: { info: STORAGE_PARTITION_COLUMNS.vm } },
@@ -193,15 +210,7 @@ export default function StorageBackup() {
       const vm = String(r.data["VM"] || "");
       const status = String(r.data["Backup Status"] || "");
       const lastBackupStr = String(r.data["Last Backup"] || "");
-      let ageDays = -1;
-      if (lastBackupStr) {
-        const d = new Date(lastBackupStr);
-        if (!isNaN(d.getTime())) ageDays = Math.floor((now - d.getTime()) / 86400000);
-      }
-      let risk = "niedrig";
-      if (!status && !lastBackupStr) risk = "kein Backup";
-      else if (ageDays > 7) risk = "hoch";
-      else if (ageDays > 3) risk = "mittel";
+      const { ageDays, risk } = classifyBackup(status, lastBackupStr, now);
       if (risk !== "niedrig") rows.push({ snapshotId: r.snapshotId, vm, backupStatus: status || "—", lastBackup: lastBackupStr || "—", ageDays, risk });
     }
     return rows.sort((a, b) => b.ageDays - a.ageDays);
@@ -217,6 +226,11 @@ export default function StorageBackup() {
   // MHA/VMFS Lifecycle
   const dsLifecycle = useMemo<DsLifecycleRow[]>(() =>
     rawDatastore.map((r) => ({ name: String(r.data["Name"] || ""), type: String(r.data["Type"] || ""), version: String(r.data["Version"] || ""), upgradeable: String(r.data["VMFS Upgradeable"] || ""), mha: String(r.data["MHA"] || ""), capacityMiB: Number(r.data["Capacity MiB"] || 0), freePct: Number(r.data["Free %"] || 0) })), [rawDatastore]);
+
+  const lowFreeDatastores = datastores.filter((datastore) => (datastore.freePct ?? 100) < 20).length;
+  const thinDiskCount = disks.filter((disk) => disk.thin).length;
+  const rdmDiskCount = disks.filter((disk) => disk.raw).length;
+  const vmfsUpgradeCandidates = dsLifecycle.filter((datastore) => datastore.upgradeable.toLowerCase() === "true").length;
 
   // Datastore Efficiency
   const dsEfficiency = useMemo<DsEffRow[]>(() => {
@@ -239,6 +253,33 @@ export default function StorageBackup() {
     }
     return rows.sort((left, right) => left.freePct - right.freePct);
   }, [datastores]);
+
+  const datastoreCapacityChart = useMemo<DatastoreCapacityChartRow[]>(() =>
+    datastores
+      .map((datastore) => {
+        const capacity = datastore.capacityMiB || 0;
+        const freePct = Math.max(0, Math.min(100, datastore.freePct ?? (capacity > 0 ? ((datastore.freeMiB || 0) / capacity) * 100 : 100)));
+        return { datastore: datastore.name, freePct, usedPct: 100 - freePct };
+      })
+      .sort((left, right) => left.freePct - right.freePct)
+      .slice(0, 12),
+    [datastores],
+  );
+
+  const backupRiskDistribution = useMemo<BackupRiskDistributionRow[]>(() => {
+    const now = Date.now();
+    const counts: Record<BackupRisk, number> = { "kein Backup": 0, hoch: 0, mittel: 0, niedrig: 0 };
+    for (const row of filteredRawVInfo) {
+      const risk = classifyBackup(String(row.data["Backup Status"] || ""), String(row.data["Last Backup"] || ""), now).risk;
+      counts[risk] += 1;
+    }
+    return [
+      { label: "Kein Backup", count: counts["kein Backup"], color: CHART_COLORS.danger },
+      { label: ">7 Tage", count: counts.hoch, color: CHART_COLORS.danger },
+      { label: "4–7 Tage", count: counts.mittel, color: CHART_COLORS.warning },
+      { label: "Aktuell", count: counts.niedrig, color: CHART_COLORS.success },
+    ];
+  }, [filteredRawVInfo]);
 
   // Snapshot + Backup Conflict
   const snapshotBackupConflicts = useMemo(() => {
@@ -280,63 +321,125 @@ export default function StorageBackup() {
       <PageHeader title="Storage / Backup">
       </PageHeader>
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
-      <KpiGrid>
-        <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} info={STORAGE_KPI.critical} />
-        <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} info={STORAGE_KPI.warning} />
-        <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.multipathIssues} />
-        <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" info={STORAGE_KPI.deadPaths} />
-        <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} info={STORAGE_KPI.noBackup} />
-        <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
-      </KpiGrid>
 
-      {partitions.length > 0 && (
-        <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={STORAGE_SECTIONS.partitionChart} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen nach freiem Speicher</h3>
-          </InfoTooltip>
-          <ResponsiveContainer width="100%" height={340}>
-            <BarChart data={partitionFreeDistribution} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
-              <XAxis dataKey="label" interval={0} angle={-35} textAnchor="end" height={64} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="count" name="Partitionen" radius={[4, 4, 0, 0]}>
-                {partitionFreeDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <Tabs defaultValue="capacity" className="space-y-4">
+        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+          <TabsTrigger value="capacity">Kapazität</TabsTrigger>
+          <TabsTrigger value="paths">Pfade &amp; Geräte</TabsTrigger>
+          <TabsTrigger value="backup">Backup &amp; Recovery</TabsTrigger>
+        </TabsList>
 
-      <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+        <TabsContent value="capacity" className="space-y-6">
+          <KpiGrid>
+            <KpiCard title="Kritisch (<10%)" value={formatNum(critParts)} severity={critParts > 0 ? "crit" : "ok"} info={STORAGE_KPI.critical} />
+            <KpiCard title="Warnung (<20%)" value={formatNum(warnParts)} severity={warnParts > 0 ? "warn" : "ok"} info={STORAGE_KPI.warning} />
+            <KpiCard title="Datastores" value={formatNum(datastores.length)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.datastores} />
+            <KpiCard title="Datastores <20% frei" value={formatNum(lowFreeDatastores)} severity={lowFreeDatastores > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.lowFreeDatastores} />
+            <KpiCard title="VMFS Upgrade-Kandidaten" value={formatNum(vmfsUpgradeCandidates)} severity={vmfsUpgradeCandidates > 0 ? "warn" : "ok"} info={STORAGE_KPI.rdmUpgradeable} />
+          </KpiGrid>
+          {partitions.length > 0 && (
+            <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+              <InfoTooltip entry={STORAGE_SECTIONS.partitionChart} side="bottom">
+                <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen nach freiem Speicher</h3>
+              </InfoTooltip>
+              <ResponsiveContainer width="100%" height={340}>
+                <BarChart data={partitionFreeDistribution} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="label" interval={0} angle={-35} textAnchor="end" height={64} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                  <Bar dataKey="count" name="Partitionen" radius={[4, 4, 0, 0]}>
+                    {partitionFreeDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-      {backupData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.backupTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3></InfoTooltip><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+          <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-      {snapshotBackupConflicts.length > 0 && (
-        <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
-          <InfoTooltip entry={STORAGE_SECTIONS.snapshotConflicts} side="bottom">
-            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
-          </InfoTooltip>
-          <p className="text-xs text-muted-foreground mb-3">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
-          <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
-        </div>
-      )}
+          {datastoreCapacityChart.length > 0 && (
+            <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+              <InfoTooltip entry={STORAGE_SECTIONS.datastoreChart} side="bottom">
+                <h3 className="mb-1 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastores mit niedrigstem freien Anteil</h3>
+              </InfoTooltip>
+              <p className="mb-3 text-xs text-muted-foreground">Die 12 knappsten Datastores; der Balken zeigt den relativen Belegungsgrad.</p>
+              <ResponsiveContainer width="100%" height={Math.max(220, datastoreCapacityChart.length * 30)}>
+                <BarChart data={datastoreCapacityChart} layout="vertical" margin={{ top: 4, right: 16, left: 12, bottom: 4 }}>
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                  <XAxis type="number" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="datastore" width={120} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name === "freePct" ? "Frei" : "Belegt"]} contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                  <Bar dataKey="freePct" name="Frei" stackId="capacity" fill={CHART_COLORS.success} />
+                  <Bar dataKey="usedPct" name="Belegt" stackId="capacity" fill={CHART_COLORS.secondary} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-      {deadPathHosts.length > 0 && (
-        <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
-          <InfoTooltip entry={STORAGE_SECTIONS.deadPathHosts} side="bottom">
-            <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
-          </InfoTooltip>
-          <p className="text-xs text-muted-foreground mb-3">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit `Oper. State != ok` abgleichen für akute Device-Ausfälle.</p>
-          <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
-        </div>
-      )}
+          <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz ({dsEfficiency.length})</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
+          {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
+          {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
+        </TabsContent>
 
-      {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
-      {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
-      {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
-      {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
-      {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
-      <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
+        <TabsContent value="paths" className="space-y-6">
+          <KpiGrid>
+            <KpiCard title="Multipath Issues" value={formatNum(mpIssues)} severity={mpIssues > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.multipathIssues} />
+            <KpiCard title="Dead Paths" value={`${formatNum(deadPathHosts.length)} / ${formatNum(deadPathDevices)}`} severity={deadPathDevices > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} subtitle="Hosts / Devices" info={STORAGE_KPI.deadPaths} />
+            <KpiCard title="Virtuelle Disks" value={formatNum(disks.length)} icon={<Database className="h-4 w-4" />} />
+            <KpiCard title="Thin Disks" value={formatNum(thinDiskCount)} severity={thinDiskCount > 0 ? "warn" : "ok"} info={STORAGE_KPI.thinDisks} />
+            <KpiCard title="RDMs" value={formatNum(rdmDiskCount)} severity={rdmDiskCount > 0 ? "warn" : "ok"} info={STORAGE_KPI.rdmDisks} />
+          </KpiGrid>
+          {deadPathHosts.length > 0 && (
+            <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
+              <InfoTooltip entry={STORAGE_SECTIONS.deadPathHosts} side="bottom">
+                <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
+              </InfoTooltip>
+              <p className="mb-3 text-xs text-muted-foreground">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit „Oper. State != ok“ abgleichen für akute Device-Ausfälle.</p>
+              <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
+            </div>
+          )}
+          {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+          {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+          {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
+        </TabsContent>
+
+        <TabsContent value="backup" className="space-y-6">
+          <KpiGrid>
+            <KpiCard title="Kein Backup" value={formatNum(noBackup)} severity={noBackup > 0 ? "crit" : "ok"} icon={<FileWarning className="h-4 w-4" />} info={STORAGE_KPI.noBackup} />
+            <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
+            <KpiCard title="Backup-Risiken" value={formatNum(backupData.length)} severity={backupData.length > 0 ? "warn" : "ok"} info={STORAGE_KPI.backupRisks} />
+            <KpiCard title="Snapshot + Backup" value={formatNum(snapshotBackupConflicts.length)} severity={snapshotBackupConflicts.length > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.snapshotBackupConflicts} />
+          </KpiGrid>
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={STORAGE_SECTIONS.backupChart} side="bottom">
+              <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup-Risikoverteilung</h3>
+            </InfoTooltip>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={backupRiskDistribution} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="label" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                <Bar dataKey="count" name="VMs" radius={[4, 4, 0, 0]}>
+                  {backupRiskDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {backupData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.backupTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3></InfoTooltip><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+          {snapshotBackupConflicts.length > 0 && (
+            <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
+              <InfoTooltip entry={STORAGE_SECTIONS.snapshotConflicts} side="bottom">
+                <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
+              </InfoTooltip>
+              <p className="mb-3 text-xs text-muted-foreground">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
+              <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
       {vmDetailDialog}
       {hostDetailDialog}
     </div>

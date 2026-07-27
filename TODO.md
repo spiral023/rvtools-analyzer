@@ -1,6 +1,7 @@
 # TODO
 
 - [ ] **Sheet-Builder Feature**: Eine selbst konfigurierbare Tabelle der gefilterten/ungefilterten Objekte als Excel oder Markdown exportieren können. Die Spalten sollen dabei aus den verfügbaren Daten gewählt werden können, ähnlich wie beim globalen Systemfilter.
+- [ ] **Zentrale Export-Seite**: Eine eigene Seite in der Sidebar schaffen, auf der alle Funktionen rund um den Export von Tabellen gebündelt werden. Die möglichen Funktionen und der genaue Umfang werden später gemeinsam gebrainstormt.
 ## VM-IPAM-Kontrolle
 
 ### Ausgangslage

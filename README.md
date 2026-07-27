@@ -28,13 +28,13 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 | Admin-Frage | Wo sie beantwortet wird |
 |---|---|
 | Welche VMs, Hosts, Cluster und Datastores sind im Scope? | **Overview** |
-| Welche VM-Snapshots, Tools- oder Config-Themen brauchen Aufmerksamkeit? | **Daily Ops** |
+| Welche VM-Snapshots, Tools- oder Config-Themen brauchen Aufmerksamkeit? | **VMs → Betrieb** |
 | Wo werden Datastores knapp oder Cluster überbucht? | **Capacity** |
-| Welche VMs zeigen CPU Ready, Memory Pressure oder Netzwerkauffälligkeiten? | **Performance** |
+| Welche VMs zeigen CPU Ready, Memory Pressure oder Netzwerkauffälligkeiten? | **VMs → Performance** |
 | Wo fehlen Backups, sind Pfade tot oder Partitionen voll? | **Storage / Backup** |
 | Welche Portgroups, VLANs, dvSwitches und Security-Settings sind auffällig? | **Network / Security** |
 | Welche Host-Uplinks, VMkernel-Adapter und pNICs sind relevant? | **Host-Netzwerk** |
-| Welche ESXi-/vCenter-Versionen und Lifecycle-Themen sind sichtbar? | **Compliance / Lifecycle**, **VMware Versions** |
+| Welche ESXi-/vCenter-Versionen und Lifecycle-Themen sind sichtbar? | **Hosts**, **vCenter**, **VMs → Compliance** |
 | Wie unterscheiden sich meine vCenter-Umgebungen? | **vCenter** |
 
 ## Highlights
@@ -44,7 +44,7 @@ Für Betrieb, privates Hosting, Security, Datenschutz und Teststatus siehe [Tech
 | **RVTools-Import** | Upload von `.xlsx`/`.xls`, Fortschritt, Duplikaterkennung per SHA-256 und Verwaltung der importierten Stände |
 | **Local-first** | Analyse ohne Backend; Daten liegen lokal in IndexedDB pro Browser-Origin |
 | **Mehrere vCenter** | Je vCenter wird ein aktueller Stand verwaltet und gefiltert; verschiedene vCenter sind vergleichbar. Ein neuer Export ersetzt den bisherigen Stand desselben vCenters |
-| **Admin-Dashboards** | Fokus auf Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware und Lifecycle |
+| **Admin-Dashboards** | Fokus auf VM-Betrieb, Kapazität, Performance, Storage, Netzwerk, Security, Hardware und Releases |
 | **Globale VM-Filter** | Feldbasierte Filter und Textsuche über den importierten Stand je vCenter |
 | **Große Exporte** | XLSX-Parsing im Web Worker und virtuelle Tabellen für große RVTools-Dateien |
 | **Tech-Info-Erweiterung** | Optionale Zuordnung zusätzlicher CMDB-/Betriebsdaten wie Wartungsfenster, SysV, Standort und Backup-Flag |
@@ -109,21 +109,17 @@ http://localhost:5173
 
 | Route | Bereich | Fokus |
 |---|---|---|
-| `/overview` | Overview | Gesamtüberblick über VMs, Hosts, Cluster, Datastores und Health |
+| `/overview` | Overview | Gesamtüberblick über VMs, Hosts, Cluster, Datastores sowie Health-Typen und Health-Events |
 | `/upload` | Uploads & Snapshots | RVTools-Import, Tech-Info-Import, Fortschritt und Snapshot-Verwaltung |
-| `/daily-ops` | Daily Ops | Health Events, VM-Snapshots, VMware Tools, Config Issues, verbundene Medien |
 | `/capacity` | Capacity | Datastore-Headroom, vCPU/Core, Overcommit, Resource Pools, Hot Hosts |
-| `/performance` | Performance | CPU Ready, Memory Pressure, Entitlement Gaps, FT und VM-Netzwerkauffälligkeiten |
+| `/vms` | VMs | Inventar sowie Betrieb, Performance und Compliance in Sitzungstabs |
 | `/storage-backup` | Storage / Backup | Partitionen, Multipath, Dead Paths, Backup-Frische, RDM/VMFS-Indikatoren |
 | `/network-security` | Network / Security | VM-Netzwerk, Portgroups, VLANs, Security-Policies und verwaiste Netze |
 | `/host-network` | Host-Netzwerk | pNICs, vSwitches, VMkernel, dvSwitch-/dvPort-Sicht |
 | `/hardware` | Hardware | Host-Hardware, Modelle, CPU-/RAM-Profile und Standardisierung |
-| `/compliance` | Compliance / Lifecycle | Secure Boot, CBT, OS Drift, Tools Upgrade, ESXi Build Drift, NTP/DNS |
+| `/hosts` | Hosts | Host-Inventar, Host-Hygiene und erkannte ESXi-Releases |
 | `/tech-info` | Tech-Info | Betriebsdaten je VM, z. B. Servertyp, Wartungsfenster, SysV und Backup-Flag |
-| `/vmware-versions` | VMware Versions | Erkannte vCenter-/ESXi-Builds und Abdeckung bekannter Releases |
 | `/vcenter` | vCenter | Vergleich mehrerer vCenter-Umgebungen |
-| `/hosts` | Hosts | Host-Inventar und erkannte ESXi-Releases |
-| `/vms` | VMs | VM-Inventar sowie Performance-, Snapshot-, Health- und Compliance-Details |
 
 ## Unterstützte Daten
 

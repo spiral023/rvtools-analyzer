@@ -51,6 +51,16 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "VMs" })).toHaveAttribute("href", "/vms");
   });
 
+  it("führt die konsolidierten Bereiche statt der entfernten Seiten", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.queryByRole("link", { name: "VMware Versions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Daily Ops" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Compliance / Lifecycle" })).not.toBeInTheDocument();
+  });
+
   it("ordnet Cluster direkt unter vCenter ein", () => {
     useOptionalImportControllerMock.mockReturnValue(null);
     renderSidebar();

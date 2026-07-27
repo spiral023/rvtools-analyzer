@@ -15,7 +15,7 @@ export interface VlanUsageRow {
 
 const s = (v: unknown): string => (v == null ? "" : String(v)).trim();
 
-/** `Connected` kann Boolean oder String sein (vgl. src/pages/DailyOps.tsx). */
+/** `Connected` kann Boolean oder String sein (wie in den VM-Betriebsanalysen). */
 const isConnected = (v: unknown): boolean => v === true || s(v).toLowerCase() === "true";
 
 /** Leere oder 0-VLAN als "untagged" kennzeichnen. */

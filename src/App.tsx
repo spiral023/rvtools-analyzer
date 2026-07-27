@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Navigate, Outlet, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, isRouteErrorResponse, Navigate, Outlet, RouterProvider, useRouteError } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
@@ -18,13 +18,10 @@ import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 const Overview = lazy(() => import("@/pages/Overview"));
 const UploadSnapshots = lazy(() => import("@/pages/UploadSnapshots"));
 const Diagnostics = lazy(() => import("@/pages/Diagnostics"));
-const DailyOps = lazy(() => import("@/pages/DailyOps"));
 const Clusters = lazy(() => import("@/pages/Clusters"));
 const Capacity = lazy(() => import("@/pages/Capacity"));
-const PerformancePage = lazy(() => import("@/pages/PerformancePage"));
 const StorageBackup = lazy(() => import("@/pages/StorageBackup"));
 const Networking = lazy(() => import("@/pages/Networking"));
-const ComplianceLifecycle = lazy(() => import("@/pages/ComplianceLifecycle"));
 const VCenter = lazy(() => import("@/pages/FleetCompare"));
 const Hosts = lazy(() => import("@/pages/Hosts"));
 const Vms = lazy(() => import("@/pages/Vms"));
@@ -65,28 +62,41 @@ function AppRouteLayout() {
   );
 }
 
+function RouterErrorBoundary() {
+  const error = useRouteError();
+  const title = isRouteErrorResponse(error) ? `${error.status} – ${error.statusText}` : "Unerwarteter Fehler";
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted px-6">
+      <div className="max-w-md space-y-3 text-center">
+        <p className="text-sm font-semibold uppercase tracking-wider text-primary">RVTools Analyzer</p>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        <p className="text-sm text-muted-foreground">Die angeforderte Ansicht konnte nicht geladen werden.</p>
+        <a href="/" className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline">Zur Übersicht</a>
+      </div>
+    </div>
+  );
+}
+
 // Der Data Router ermöglicht useBlocker auf Formularseiten und schützt damit
 // auch Browser-Zurück/Vorwärts sowie Sidebar- und URL-Navigation.
 const router = createBrowserRouter([
   {
     path: "/",
     element: <AppRouteLayout />,
+    errorElement: <RouterErrorBoundary />,
     children: [
       { index: true, element: <Navigate to="/overview" replace /> },
       { path: "overview", element: <Overview /> },
       { path: "upload", element: <UploadSnapshots /> },
       { path: "upload/diagnostics", element: <Diagnostics /> },
-      { path: "daily-ops", element: <DailyOps /> },
       { path: "clusters", element: <Clusters /> },
       { path: "capacity", element: <Capacity /> },
-      { path: "performance", element: <PerformancePage /> },
       { path: "storage-backup", element: <StorageBackup /> },
       { path: "network-security", element: <Networking initialTab="security" /> },
       { path: "host-network", element: <Networking initialTab="host" /> },
-      { path: "compliance", element: <ComplianceLifecycle /> },
       { path: "hardware", element: <Hardware /> },
       { path: "tech-info", element: <TechInfo /> },
-      { path: "vmware-versions", element: <ComplianceLifecycle initialTab="versions" /> },
       { path: "wartungsfenster", element: <MaintenanceWindows /> },
       { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
       { path: "planning", element: <Planning /> },

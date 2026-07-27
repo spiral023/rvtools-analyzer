@@ -3,54 +3,19 @@ import { useActiveSnapshotIds, useVmsWithTechInfo, useHosts, useDatastores, useH
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
+import { HealthEventsPanel } from "@/components/dashboard/HealthEventsPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
-import { VirtualTable } from "@/components/tables/VirtualTable";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
+import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventoryTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
-import type { ColumnDef } from "@tanstack/react-table";
-import type { NormalizedVm } from "@/domain/models/types";
-import { formatNum, formatBytes } from "@/lib/xlsx/parseHelpers";
+import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildAverageVm } from "@/lib/averageVm";
 import { buildVmJoinKey, filterRowsByMatchingVmJoinKeys } from "@/lib/globalFilter";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { OVERVIEW_KPI, OVERVIEW_VM_COLUMNS, OVERVIEW_SECTIONS } from "@/lib/glossary";
-
-export interface OverviewVmRow extends NormalizedVm {
-  sysv: string | null;
-}
-
-const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
-  { accessorKey: "vmName", header: "VM", meta: { info: OVERVIEW_VM_COLUMNS.vmName } },
-  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—", meta: { info: OVERVIEW_VM_COLUMNS.sysv } },
-  { accessorKey: "powerState", header: "Power", meta: { info: OVERVIEW_VM_COLUMNS.powerState }, cell: ({ getValue }) => {
-    const v = getValue() as string;
-    return <span className={v === "poweredOn" ? "text-success" : v === "poweredOff" ? "text-muted-foreground" : "text-warning"}>{v || "—"}</span>;
-  }},
-  { accessorKey: "cluster", header: "Cluster", meta: { info: OVERVIEW_VM_COLUMNS.cluster } },
-  { accessorKey: "host", header: "Host", meta: { info: OVERVIEW_VM_COLUMNS.host } },
-  { accessorKey: "cpuCount", header: "vCPU", cell: ({ getValue }) => getValue() ?? "—", meta: { info: OVERVIEW_VM_COLUMNS.cpuCount } },
-  { accessorKey: "memoryMiB", header: "RAM", cell: ({ getValue }) => formatBytes(getValue() as number | null), meta: { info: OVERVIEW_VM_COLUMNS.memoryMiB } },
-  { accessorKey: "configStatus", header: "Config", meta: { info: OVERVIEW_VM_COLUMNS.configStatus }, cell: ({ getValue }) => {
-    const v = getValue() as string;
-    return <span className={v === "green" ? "text-success" : v === "yellow" ? "text-warning" : v === "red" ? "text-destructive" : ""}>{v || "—"}</span>;
-  }},
-  { accessorKey: "osConfig", header: "OS", meta: { info: OVERVIEW_VM_COLUMNS.osConfig } },
-];
-
-export function VmInventoryTable({ vms, globalFilter, onRowClick }: { vms: OverviewVmRow[]; globalFilter: string; onRowClick?: (vm: OverviewVmRow) => void }) {
-  return (
-    <div>
-      <InfoTooltip entry={OVERVIEW_SECTIONS.vmTable} side="bottom">
-        <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Maschinen ({vms.length})</h3>
-      </InfoTooltip>
-      <VirtualTable data={vms} columns={vmColumns} globalFilter={globalFilter} height={400} onRowClick={onRowClick} />
-    </div>
-  );
-}
+import { OVERVIEW_KPI } from "@/lib/glossary";
 
 export default function Overview() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
@@ -137,6 +102,7 @@ export default function Overview() {
         <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} info={OVERVIEW_KPI.datastores} />
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
+      <HealthEventsPanel />
       <AverageVmPanel avg={averageVm} />
       <VmInventoryTable vms={vmsForTable} globalFilter={filters.search} onRowClick={setSelectedVm} />
       <VmDetailDialog

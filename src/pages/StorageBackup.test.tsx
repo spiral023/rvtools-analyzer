@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import StorageBackup from "@/pages/StorageBackup";
@@ -50,6 +50,7 @@ vi.mock("@/components/charts/recharts", () => ({
   XAxis: (): null => null,
   YAxis: (): null => null,
   Tooltip: (): null => null,
+  CartesianGrid: (): null => null,
   ResponsiveContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Cell: (): null => null,
 }));
@@ -61,19 +62,32 @@ vi.mock("@/components/global-filter/GlobalFilterScopeHint", () => ({ GlobalFilte
 vi.mock("@/components/ui/info-tooltip", () => ({ InfoTooltip: ({ children }: { children: ReactNode }) => <>{children}</> }));
 
 describe("StorageBackup KPI-Kacheln", () => {
-  it("blendet die nicht gewünschten Storage-KPIs aus und behält die übrigen Karten", () => {
+  it("zeigt je Tab passende KPI-Kacheln unterhalb der Tab-Leiste", () => {
     render(<StorageBackup />);
 
-    const kpiCards = within(screen.getByTestId("kpi-grid")).getAllByTestId("kpi-card");
-    const kpiTitles = kpiCards.map((card) => card.textContent);
-
-    expect(kpiTitles).toEqual([
+    expect(within(screen.getByTestId("kpi-grid")).getAllByTestId("kpi-card").map((card) => card.textContent)).toEqual([
       "Kritisch (<10%)",
       "Warnung (<20%)",
+      "Datastores",
+      "Datastores <20% frei",
+      "VMFS Upgrade-Kandidaten",
+    ]);
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Pfade & Geräte" }), { button: 0 });
+    expect(within(screen.getByTestId("kpi-grid")).getAllByTestId("kpi-card").map((card) => card.textContent)).toEqual([
       "Multipath Issues",
       "Dead Paths",
+      "Virtuelle Disks",
+      "Thin Disks",
+      "RDMs",
+    ]);
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Backup & Recovery" }), { button: 0 });
+    expect(within(screen.getByTestId("kpi-grid")).getAllByTestId("kpi-card").map((card) => card.textContent)).toEqual([
       "Kein Backup",
       "Backup >7d",
+      "Backup-Risiken",
+      "Snapshot + Backup",
     ]);
   });
 
