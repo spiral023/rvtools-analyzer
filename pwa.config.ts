@@ -1,7 +1,10 @@
 import type { VitePWAOptions } from "vite-plugin-pwa";
 
 export const pwaOptions: Partial<VitePWAOptions> = {
-  registerType: "prompt",
+  // Bei einem Deploy ändern sich die Dateinamen der lazy geladenen Chunks. Die
+  // neue Version muss daher ohne manuelle Interaktion aktiv werden, damit kein
+  // alter Service-Worker eine nicht mehr passende Chunk-Menge ausliefert.
+  registerType: "autoUpdate",
   injectRegister: false,
   manifest: {
     name: "RVTools Analyzer",
@@ -19,6 +22,11 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     ],
   },
   workbox: {
+    // `injectRegister: false` verschiebt die Registrierung in die React-
+    // Komponente. Deshalb müssen diese beiden GenerateSW-Optionen explizit
+    // gesetzt werden, damit ein neuer Worker ohne Wartephase aktiv wird.
+    skipWaiting: true,
+    clientsClaim: true,
     runtimeCaching: [
       {
         urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

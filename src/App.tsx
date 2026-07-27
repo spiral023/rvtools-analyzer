@@ -1,9 +1,9 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, isRouteErrorResponse, Navigate, Outlet, RouterProvider, useRouteError } from "react-router-dom";
+import { createBrowserRouter, isRouteErrorResponse, Link, Navigate, Outlet, RouterProvider, useRouteError } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { SelectionProvider } from "@/hooks/useSelection";
@@ -12,6 +12,7 @@ import { ImportProvider } from "@/hooks/useImportController";
 import { OnboardingProvider } from "@/hooks/useOnboarding";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
+import { isLazyImportFailure, recoverFromLazyImportFailure } from "@/lib/lazyImportRecovery";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
@@ -64,6 +65,11 @@ function AppRouteLayout() {
 function RouterErrorBoundary() {
   const error = useRouteError();
   const title = isRouteErrorResponse(error) ? `${error.status} – ${error.statusText}` : "Unerwarteter Fehler";
+  const lazyImportFailure = isLazyImportFailure(error);
+
+  useEffect(() => {
+    if (lazyImportFailure) void recoverFromLazyImportFailure();
+  }, [lazyImportFailure]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted px-6">
@@ -71,7 +77,7 @@ function RouterErrorBoundary() {
         <p className="text-sm font-semibold uppercase tracking-wider text-primary">RVTools Analyzer</p>
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="text-sm text-muted-foreground">Die angeforderte Ansicht konnte nicht geladen werden.</p>
-        <a href="/" className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline">Zur Übersicht</a>
+        <Link to="/" className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline">Zur Übersicht</Link>
       </div>
     </div>
   );
