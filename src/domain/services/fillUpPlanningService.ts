@@ -2,6 +2,7 @@ import type {
   CapacityPolicy,
   ClusterCapacityPolicyAssignment,
   FillUpCapacityAnalysis,
+  FillUpObservedVmProfile,
   FillUpHour,
   FillUpHost,
   FillUpRecommendationAnalysis,
@@ -23,6 +24,7 @@ import { analyzeFillUpCapacity } from "@/domain/services/fillUpCapacityEngine";
 import { calculateFillUpRecommendations } from "@/domain/services/fillUpRecommendationEngine";
 import { evaluateVropsDataQuality } from "@/domain/services/vropsDataQualityService";
 import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
+import { buildObservedVmProfiles } from "@/domain/services/fillUpObservedVmProfileService";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -49,6 +51,7 @@ export interface FillUpPlanningClusterResult {
   recommendation: FillUpRecommendationAnalysis;
   quality: VropsDataQualityReport;
   chartHours: FillUpChartHour[];
+  observedVmProfiles: FillUpObservedVmProfile[];
   hostCount: number;
   siteCount: number;
 }
@@ -87,12 +90,12 @@ export function buildFillUpPlanningResults(input: BuildFillUpPlanningResultsInpu
     const assignment = input.assignments.find((entry) => entry.vcenterId === cluster.vcenterId && entry.clusterKey === cluster.clusterKey);
     const policy = resolveEffectiveCapacityPolicy(input.policies, assignment) ?? input.policies[0];
     if (!policy) continue;
-    const hours = toFillUpHours(input.import, clusterObject.objectKey, hosts, vms, input.chunks);
+    const hourlyData = toFillUpHours(input.import, clusterObject.objectKey, hosts, vms, input.chunks, cluster.clusterKey, cluster.name);
     const capacity = analyzeFillUpCapacity({
       policy,
       hosts,
       vms,
-      hours,
+      hours: hourlyData.hours,
       confidence: quality.confidence,
       includeN2: input.includeN2,
     });
@@ -102,11 +105,12 @@ export function buildFillUpPlanningResults(input: BuildFillUpPlanningResultsInpu
       capacity,
       recommendation: calculateFillUpRecommendations({ capacityAnalysis: capacity, profiles: input.profiles, workloadMix: input.workloadMix }),
       quality,
-      chartHours: hours.map(({ timestampUtc, clusterCpuDemandMHz, clusterMemoryUtilizationMiB }) => ({
+      chartHours: hourlyData.hours.map(({ timestampUtc, clusterCpuDemandMHz, clusterMemoryUtilizationMiB }) => ({
         timestampUtc,
         clusterCpuDemandMHz,
         clusterMemoryUtilizationMiB,
       })),
+      observedVmProfiles: hourlyData.observedVmProfiles,
       hostCount: hosts.length,
       siteCount: new Set(hosts.map((host) => host.siteId).filter(Boolean)).size,
     });
@@ -154,6 +158,7 @@ function toFillUpVms(
       return [{
         objectKey: object.objectKey,
         hostKey: object.hostKey,
+        resourcePool: vm.resourcePool,
         workloadClass: object.workloadClass ?? "unknown",
         powerState: object.powerState,
         vcpu: vm.cpuCount ?? 0,
@@ -169,7 +174,9 @@ function toFillUpHours(
   hosts: readonly FillUpHost[],
   vms: readonly FillUpVm[],
   chunks: readonly VropsTimeSeriesChunk[],
-): FillUpHour[] {
+  clusterKey: string,
+  clusterName: string,
+): { hours: FillUpHour[]; observedVmProfiles: FillUpObservedVmProfile[] } {
   const hostCpu = new Map(hosts.map((host) => [host.hostKey, readVropsTimeSeriesMetric(chunks, host.timeSeriesObjectKey ?? `host:${host.name.toLocaleLowerCase("en-US")}`, "hostCpuCapacityAvailableLastMHz")]));
   const hostMemory = new Map(hosts.map((host) => [host.hostKey, readVropsTimeSeriesMetric(chunks, host.timeSeriesObjectKey ?? `host:${host.name.toLocaleLowerCase("en-US")}`, "hostMemoryCapacityAvailableLastMiB")]));
   const vmDemand = new Map(vms.map((vm) => [vm.objectKey, readVropsTimeSeriesMetric(chunks, vm.objectKey, "vmCpuDemandAvgMHz")]));
@@ -177,7 +184,7 @@ function toFillUpHours(
   const clusterDemand = readVropsTimeSeriesMetric(chunks, clusterObjectKey, "clusterCpuDemandAvgMHz");
   const clusterMemory = readVropsTimeSeriesMetric(chunks, clusterObjectKey, "clusterMemoryUtilizationAvgMiB");
   const clusterContention = readVropsTimeSeriesMetric(chunks, clusterObjectKey, "clusterCpuContentionAvgPct");
-  return Array.from({ length: importMeta.expectedSlots }, (_, index) => {
+  const hours = Array.from({ length: importMeta.expectedSlots }, (_, index) => {
     const timestampUtc = importMeta.rangeStartUtc + index * HOUR_MS;
     return {
       timestampUtc,
@@ -192,6 +199,16 @@ function toFillUpHours(
       vmCpuReadyPctByVm: Object.fromEntries(vms.map((vm) => [vm.objectKey, finiteOrNull(vmReady.get(vm.objectKey)?.get(timestampUtc))])),
     };
   });
+  return {
+    hours,
+    observedVmProfiles: buildObservedVmProfiles({
+      clusterKey,
+      clusterName,
+      vms: vms.map((vm) => ({ objectKey: vm.objectKey, resourcePool: vm.resourcePool ?? null, workloadClass: vm.workloadClass, vcpu: vm.vcpu, configuredMemoryMiB: vm.configuredMemoryMiB })),
+      cpuDemandByVm: vmDemand,
+      cpuReadyByVm: vmReady,
+    }),
+  };
 }
 
 function finiteOrNull(value: number | undefined): number | null {

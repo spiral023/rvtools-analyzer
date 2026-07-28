@@ -48,6 +48,8 @@ describe("buildFillUpPlanningResults", () => {
     expect(result.capacity.normal).toMatchObject({ cpuCapacityMHz: 2_000, memoryCapacityMiB: 2_000, cpuDemandMHz: 100 });
     expect(result.recommendation.profileRecommendations[0]).toMatchObject({ profile: { id: "std" }, maxAdditionalVms: 8 });
     expect(result.chartHours).toEqual([{ timestampUtc: 0, clusterCpuDemandMHz: 100, clusterMemoryUtilizationMiB: 100 }]);
+    expect(result.observedVmProfiles).toContainEqual(expect.objectContaining({ scope: "cluster", vmCount: 1, averageVcpu: 2, averageConfiguredMemoryMiB: 100, averageCpuDemandMHz: 100, cpuDemandP95MHz: 100, cpuReadyP95Pct: 0 }));
+    expect(result.observedVmProfiles).toContainEqual(expect.objectContaining({ scope: "resource-pool", resourcePool: "STD", suggestedWorkloadClass: "std" }));
     expect(result).not.toHaveProperty("hours");
   });
 });

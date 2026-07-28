@@ -19,7 +19,11 @@ export function useFillUpPlanning(
   includeN2: boolean,
 ) {
   const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
-  const selectedImport = useMemo(() => (importsQuery.data ?? []).find((entry) => entry.id === importId) ?? null, [importId, importsQuery.data]);
+  const selectedImport = useMemo(() => {
+    const imports = importsQuery.data ?? [];
+    if (importId !== null) return imports.find((entry) => entry.id === importId) ?? null;
+    return imports[0] ?? null;
+  }, [importId, importsQuery.data]);
   const policies = useCapacityPolicies();
   const calculationQuery = useQuery({
     queryKey: ["fillUpPlanningCalculation", selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2],

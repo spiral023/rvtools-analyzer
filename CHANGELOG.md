@@ -2,6 +2,7 @@
 
 ## 28.07.2026
 
+- Fill Up leitet nun je Cluster sowie je Resource Pool typische VM-Referenzprofile aus RVTools und VM-Zeitreihen ab: Ø vCPU, konfigurierter RAM, CPU-Demand Ø/P95 und CPU-Ready P95. Ein Referenzprofil kann direkt als editierbare typische zusätzliche HIGH- oder STD-VM übernommen werden.
 - Neues lokales **Export Studio** mit frei wählbaren, per Drag & Drop sortierbaren Spalten für VM-, Host-, Cluster- und gespeicherte Fill-Up-Ergebnisse.
 - Exporte übernehmen den aktiven Daten-Scope und stehen als XLSX, CSV sowie Markdown-Management-Report bereit.
 - Optionale, konsistente Pseudonymisierung und lokal gespeicherte Exportvorlagen ergänzt.

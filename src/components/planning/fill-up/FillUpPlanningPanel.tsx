@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -6,12 +6,14 @@ import { FillUpClusterDetails } from "@/components/planning/fill-up/FillUpCluste
 import { FillUpClusterTable } from "@/components/planning/fill-up/FillUpClusterTable";
 import { FillUpInputControls } from "@/components/planning/fill-up/FillUpInputControls";
 import { FillUpWorkloadProfileEditor } from "@/components/planning/fill-up/FillUpWorkloadProfileEditor";
+import { FillUpObservedVmProfileTable } from "@/components/planning/fill-up/FillUpObservedVmProfileTable";
 import { VropsDataQualityCard } from "@/components/planning/fill-up/VropsDataQualityCard";
 import { FillUpRunHistory } from "@/components/planning/fill-up/FillUpRunHistory";
 import { useFillUpPlanning } from "@/hooks/useFillUpPlanning";
 import type { FillUpPlanningClusterResult } from "@/domain/services/fillUpPlanningService";
-import type { FillUpWorkloadProfile } from "@/domain/models/types";
+import type { FillUpObservedVmProfile, FillUpWorkloadProfile } from "@/domain/models/types";
 import { FILL_UP_UI } from "@/lib/glossaries/planning";
+import { toast } from "sonner";
 
 const INITIAL_PROFILES: FillUpWorkloadProfile[] = [
   { id: "high-standard", name: "HIGH Standard", workloadClass: "high", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 500 },
@@ -34,22 +36,38 @@ export function FillUpPlanningPanel() {
   const stdProfile = profiles.find((profile) => profile.workloadClass === "std");
   const mix = highProfile && stdProfile ? { highProfileId: highProfile.id, stdProfileId: stdProfile.id, highSharePct } : undefined;
   const planning = useFillUpPlanning(selectedImportId, profiles, mix, includeN2);
+  const effectiveImportId = selectedImportId ?? planning.selectedImport?.id ?? null;
 
-  useEffect(() => {
-    if (!selectedImportId && planning.imports[0]) setSelectedImportId(planning.imports[0].id);
-  }, [planning.imports, selectedImportId]);
   useEffect(() => {
     if (selectedClusterKey && planning.results.some((row) => row.cluster.clusterKey === selectedClusterKey)) return;
     setSelectedClusterKey(planning.results[0]?.cluster.clusterKey ?? null);
   }, [planning.results, selectedClusterKey]);
 
   const selectedResult = useMemo<FillUpPlanningClusterResult | null>(() => planning.results.find((row) => row.cluster.clusterKey === selectedClusterKey) ?? null, [planning.results, selectedClusterKey]);
+  const observedProfiles = useMemo(() => planning.results.flatMap((row) => row.observedVmProfiles), [planning.results]);
   const quality = planning.results[0]?.quality ?? null;
+  const adoptObservedProfile = useCallback((observed: FillUpObservedVmProfile) => {
+    if (observed.averageVcpu === null || observed.averageConfiguredMemoryMiB === null || observed.cpuDemandP95MHz === null) {
+      toast.error("Das beobachtete Profil ist wegen fehlender vCPU-, RAM- oder CPU-P95-Werte nicht übernehmbar.");
+      return;
+    }
+    const scope = observed.scope === "cluster" ? "Gesamt" : observed.resourcePool ?? "Ohne Resource Pool";
+    const profile: FillUpWorkloadProfile = {
+      id: `observed-${crypto.randomUUID()}`,
+      name: `${observed.clusterName} · ${scope}`,
+      workloadClass: observed.suggestedWorkloadClass,
+      vcpu: Math.max(1, Math.round(observed.averageVcpu)),
+      memoryMiB: Math.max(1, Math.round(observed.averageConfiguredMemoryMiB)),
+      cpuDemandP95MHz: Math.max(1, Math.round(observed.cpuDemandP95MHz)),
+    };
+    setProfiles((current) => [profile, ...current]);
+    toast.success(`${profile.name} ist jetzt das aktive ${profile.workloadClass.toUpperCase()}-Profil und bleibt editierbar.`);
+  }, []);
   return <div className="space-y-6">
     <Card className="overflow-hidden border-t-4 border-t-primary shadow-sm">
       <CardHeader className="pb-3"><InfoTooltip entry={FILL_UP_UI.capacity} side="right"><CardTitle className="w-fit cursor-help">Fill-Up-Kapazität</CardTitle></InfoTooltip><p className="text-sm text-muted-foreground">Historische vROps-Zeitreihen werden gegen eingefrorene RVTools-Beziehungen, die aktive Policy und einen expliziten P95-Workload gerechnet. CPU- und RAM-Headrooms bleiben unabhängig ausgewiesen.</p></CardHeader>
-      <FillUpInputControls imports={planning.imports} selectedImportId={selectedImportId} onImportChange={setSelectedImportId} includeN2={includeN2} onIncludeN2Change={setIncludeN2} highSharePct={highSharePct} onHighShareChange={setHighSharePct} />
-      <CardContent className="space-y-6 pt-5"><FillUpWorkloadProfileEditor profiles={profiles} onChange={setProfiles} /></CardContent>
+      <FillUpInputControls imports={planning.imports} selectedImportId={effectiveImportId} onImportChange={setSelectedImportId} includeN2={includeN2} onIncludeN2Change={setIncludeN2} highSharePct={highSharePct} onHighShareChange={setHighSharePct} />
+      <CardContent className="space-y-6 pt-5"><FillUpWorkloadProfileEditor profiles={profiles} onChange={setProfiles} /><FillUpObservedVmProfileTable rows={observedProfiles} onAdopt={adoptObservedProfile} /></CardContent>
     </Card>
     {planning.isError && <Alert variant="destructive"><AlertDescription><p className="font-medium">Fill-Up-Auswertung fehlgeschlagen</p><p className="mt-1 break-words">{formatPlanningError(planning.error)}</p></AlertDescription></Alert>}
     {planning.isCalculating && <Alert><AlertDescription>Fill-Up-Auswertung läuft im Hintergrund. Die Zeitreihen und Ausfallszenarien werden lokal im Browser berechnet; die Seite bleibt dabei bedienbar.</AlertDescription></Alert>}

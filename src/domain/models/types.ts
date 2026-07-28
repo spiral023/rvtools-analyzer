@@ -713,6 +713,8 @@ export interface FillUpHost {
 export interface FillUpVm {
   objectKey: string;
   hostKey: string | null;
+  /** Eingefrorener RVTools-Resource-Pool, für beobachtete Referenzprofile. */
+  resourcePool?: string | null;
   workloadClass: "high" | "std" | "unknown";
   powerState: string | null;
   vcpu: number;
@@ -791,6 +793,35 @@ export interface FillUpWorkloadProfile {
   memoryMiB: number;
   /** Expliziter P95-CPU-Demand je zusätzlicher VM in MHz. */
   cpuDemandP95MHz: number;
+}
+
+/**
+ * Aus dem eingefrorenen RVTools-Inventar und den zugehörigen VM-Zeitreihen
+ * abgeleitetes Referenzprofil. Es ist ausschließlich eine Beobachtung; erst
+ * beim Übernehmen entsteht ein editierbares Fill-Up-Workloadprofil.
+ */
+export interface FillUpObservedVmProfile {
+  id: string;
+  clusterKey: string;
+  clusterName: string;
+  /** `cluster` steht für alle zugeordneten VMs, `resource-pool` für eine einzelne RP-Gruppe. */
+  scope: "cluster" | "resource-pool";
+  resourcePool: string | null;
+  /** HIGH wird nur vorgeschlagen, wenn der gesamte beobachtete Scope als HIGH zugeordnet ist. */
+  suggestedWorkloadClass: "high" | "std";
+  vmCount: number;
+  /** VMs mit mindestens einem verwertbaren CPU-Demand-Wert. */
+  vmWithCpuDemandCount: number;
+  averageVcpu: number | null;
+  /** Konfigurierter, nicht historisch gemessener VM-RAM. */
+  averageConfiguredMemoryMiB: number | null;
+  /** Über alle verwertbaren VM-Stunden gemittelter CPU-Demand. */
+  averageCpuDemandMHz: number | null;
+  /** P95 über alle verwertbaren VM-Stunden; verwendbar als konservativer Planungswert. */
+  cpuDemandP95MHz: number | null;
+  /** P95 der VM-CPU-Ready-Werte, nur zur Einordnung – kein Profilverbrauch. */
+  cpuReadyP95Pct: number | null;
+  sampleCount: number;
 }
 
 /** Zusammensetzung einer gemeinsamen zusätzlichen HIGH-/STD-Workloadmenge. */

@@ -96,6 +96,11 @@ export const FILL_UP_UI: Record<string, GlossaryEntry> = {
     description:
       "Definiert synthetische VM-Profile für die Fill-Up-Empfehlung. Der CPU-Wert ist der P95-Demand, damit kurzzeitige Spitzen im Planungswert berücksichtigt werden.",
   },
+  observedProfiles: {
+    term: "Beobachtete VM-Profile",
+    description: "Verdichtet die mit RVTools eindeutig verknüpften VM-Zeitreihen je Cluster und Resource Pool. CPU-Demand wird über alle vorhandenen VM-Stunden gemittelt; P95 ist der konservative Wert zur Übernahme in ein Fill-Up-Profil. RAM ist der konfigurierte RVTools-RAM, weil der aktuelle VM-CSV-Vertrag keine Zeitreihe der VM-Speichernutzung enthält.",
+    source: "RVTools · vInfo / vROps · VM CPU Demand Avg und VM CPU Ready Max",
+  },
   profileName: {
     term: "Profilname",
     description: "Frei wählbare Bezeichnung der synthetischen zusätzlichen VM. Sie wird in Ergebnissen und gespeicherten Analyzer-Runs verwendet.",
@@ -177,6 +182,21 @@ export const FILL_UP_UI: Record<string, GlossaryEntry> = {
 };
 
 export const FILL_UP_COLUMNS: Record<string, GlossaryEntry> = {
+  observedScope: {
+    term: "Cluster / Resource Pool",
+    description: "„Gesamt“ fasst alle eindeutig verknüpften VM-Zeitreihen eines Clusters zusammen. Die übrigen Zeilen verwenden die exakte Resource-Pool-Zuweisung aus dem eingefrorenen RVTools-Snapshot.",
+    source: "RVTools · vInfo · „Resource pool“",
+  },
+  observedVms: {
+    term: "VMs",
+    description: "Anzahl der zum Scope gehörenden, eindeutig verknüpften VMs. Die zweite Zahl zeigt, für wie viele davon mindestens ein CPU-Demand-Wert vorliegt.",
+    source: "RVTools / vROps-VM-Zeitreihe",
+  },
+  observedVcpu: { term: "Ø vCPU", description: "Arithmetischer Mittelwert der konfigurierten virtuellen CPUs je VM im Scope.", source: "RVTools · vInfo · „CPUs“" },
+  observedMemory: { term: "Ø RAM", description: "Arithmetischer Mittelwert des konfigurierten VM-RAMs. Dies ist keine historische VM-RAM-Auslastung.", source: "RVTools · vInfo · „Memory“" },
+  observedCpuAverage: { term: "CPU Ø", description: "Über alle verfügbaren VM-Stunden im Scope gewichteter mittlerer CPU-Demand.", source: "vROps · VM CPU Demand Avg" },
+  observedCpuP95: { term: "CPU P95", description: "95. Perzentil der verfügbaren VM-Stunden im Scope. Dieser konservative CPU-Demand wird beim Übernehmen als Planungswert der zusätzlichen VM verwendet.", source: "vROps · VM CPU Demand Avg" },
+  observedReadyP95: { term: "Ready P95", description: "95. Perzentil von VM CPU Ready. Es beschreibt CPU-Wartezeit und dient zur Einordnung; es wird nicht in den zusätzlichen VM-Verbrauch übernommen.", source: "vROps · VM CPU Ready Max" },
   cluster: {
     term: "Cluster",
     description: "RVTools-Cluster, für den die vROps-Objekte eindeutig zugeordnet und die Kapazität berechnet wurden. Die zweite Zeile grenzt denselben Clusternamen vCenter-sicher ein.",
