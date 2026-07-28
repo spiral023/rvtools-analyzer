@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   getBySnapshotIds,
   getSnapshots,
@@ -55,6 +55,11 @@ export function useFillUpPlanning(
   const calculationQuery = useQuery({
     queryKey: buildFillUpPlanningQueryKey(selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct),
     enabled: Boolean(selectedImport && policies.policies.length > 0),
+    // Der HIGH/STD-Seeding-Effekt in FillUpPlanningPanel ersetzt die Standardprofile durch die
+    // gemessenen Durchschnitte, sobald diese vorliegen – das ändert den Query-Key und würde ohne
+    // `placeholderData` Clustervergleich und beobachtete VM-Profile für die Dauer der (nicht
+    // vorberechenbaren) Neuberechnung leerlaufen lassen statt weiterhin den letzten Stand zu zeigen.
+    placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
       const importMeta = selectedImport!;
       const [objects, chunks, summaries, snapshots, hosts, vms, clusters] = await Promise.all([
