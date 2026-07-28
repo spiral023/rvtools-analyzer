@@ -8,7 +8,7 @@ export function FillUpClusterDetails({ result }: { result: FillUpPlanningCluster
   if (!result) return <Card className="border-dashed"><CardContent className="py-6 text-sm text-muted-foreground">Wähle einen Cluster in der Tabelle, um seine Kapazitätsbasis, Limiter und Szenarien zu prüfen.</CardContent></Card>;
   const mix = result.recommendation.workloadMixRecommendation;
   const baseline = result.capacity.normal;
-  const chartData = result.hours.map((hour) => ({
+  const chartData = result.chartHours.map((hour) => ({
     timestamp: new Date(hour.timestampUtc).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" }),
     cpuDemandMHz: hour.clusterCpuDemandMHz,
     memoryUtilizationGiB: hour.clusterMemoryUtilizationMiB === null ? null : hour.clusterMemoryUtilizationMiB / 1024,

@@ -47,5 +47,7 @@ describe("buildFillUpPlanningResults", () => {
     expect(result.cluster.name).toBe("C1");
     expect(result.capacity.normal).toMatchObject({ cpuCapacityMHz: 2_000, memoryCapacityMiB: 2_000, cpuDemandMHz: 100 });
     expect(result.recommendation.profileRecommendations[0]).toMatchObject({ profile: { id: "std" }, maxAdditionalVms: 8 });
+    expect(result.chartHours).toEqual([{ timestampUtc: 0, clusterCpuDemandMHz: 100, clusterMemoryUtilizationMiB: 100 }]);
+    expect(result).not.toHaveProperty("hours");
   });
 });

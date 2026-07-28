@@ -12,6 +12,7 @@ import type {
   VropsTimeSeriesMetricKey,
   VropsTimeSeriesSummary,
 } from "@/domain/models/types";
+import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
 
 const HOUR_MS = 60 * 60 * 1000;
 const REQUIRED_HOST_CAPACITY_METRICS: readonly VropsTimeSeriesMetricKey[] = [
@@ -176,8 +177,8 @@ function compareClusterDemand(
   const vmObjects = input.objects.filter((object) => object.objectType === "vm" && object.matchStatus === "matched");
   return clusters.map((cluster) => {
     const vms = vmObjects.filter((vm) => vm.clusterKey === cluster.clusterKey);
-    const vmSeries = vms.map((vm) => readMetricSeries(input.chunks, vm.objectKey, "vmCpuDemandAvgMHz"));
-    const directSeries = readMetricSeries(input.chunks, cluster.objectKey, "clusterCpuDemandAvgMHz");
+    const vmSeries = vms.map((vm) => readVropsTimeSeriesMetric(input.chunks, vm.objectKey, "vmCpuDemandAvgMHz"));
+    const directSeries = readVropsTimeSeriesMetric(input.chunks, cluster.objectKey, "clusterCpuDemandAvgMHz");
     const expectedSlots = input.import.expectedSlots;
     const fullyPresentVmSlots = Array.from({ length: expectedSlots }, (_, index) => input.import.rangeStartUtc + index * HOUR_MS)
       .filter((timestamp) => vms.length > 0 && vmSeries.every((series) => Number.isFinite(series.get(timestamp))));
@@ -256,24 +257,6 @@ function unavailableComparison(
     meanAbsoluteRelativeDifference: null,
     maximumAbsoluteRelativeDifference: null,
   };
-}
-
-function readMetricSeries(
-  chunks: readonly VropsTimeSeriesChunk[],
-  objectKey: string,
-  metric: VropsTimeSeriesMetricKey,
-): Map<number, number> {
-  const series = new Map<number, number>();
-  for (const chunk of chunks) {
-    const objectIndex = chunk.objectKeys.indexOf(objectKey);
-    const buffer = chunk.metricValues[metric];
-    if (objectIndex < 0 || !buffer) continue;
-    const values = new Float32Array(buffer);
-    for (let slot = 0; slot < chunk.slotCount; slot++) {
-      series.set(chunk.startUtc + slot * HOUR_MS, values[objectIndex * chunk.slotCount + slot]);
-    }
-  }
-  return series;
 }
 
 function findRvtoolsTimeDistance(

@@ -34,11 +34,18 @@ export function analyzeFillUpCapacity(input: FillUpCapacityEngineInput): FillUpC
   const scenarios = createFillUpScenarioDefinitions(input.hosts, input.policy, input.includeN2);
   const warnings: string[] = [];
   const activeVms = input.vms.filter((vm) => isPoweredOn(vm.powerState));
+  const highVms = activeVms.filter((vm) => vm.workloadClass === "high");
+  const stdVms = activeVms.filter((vm) => vm.workloadClass === "std");
+  const context: EvaluationContext = {
+    all: createVmScope(activeVms),
+    high: createVmScope(highVms),
+    std: createVmScope(stdVms),
+  };
   if (activeVms.some((vm) => vm.workloadClass === "unknown")) warnings.push("Mindestens eine eingeschaltete VM hat keinen HIGH-/STD-Resource-Pool.");
   if (input.hosts.some((host) => !host.siteId)) warnings.push("Mindestens ein Host hat keine Site-Zuordnung; Site-Failover bleibt unvollständig.");
   if (input.hours.length === 0) warnings.push("Es liegen keine stündlichen Kapazitätswerte vor.");
 
-  const evaluate = (definition: FillUpScenarioDefinition) => evaluateScenario(definition, input, activeVms);
+  const evaluate = (definition: FillUpScenarioDefinition) => evaluateScenario(definition, input, context);
   const normal = evaluate(scenarios.normal);
   const n1Results = scenarios.n1.map(evaluate);
   const n2Results = scenarios.n2.map(evaluate);
@@ -54,11 +61,12 @@ export function analyzeFillUpCapacity(input: FillUpCapacityEngineInput): FillUpC
 function evaluateScenario(
   definition: FillUpScenarioDefinition,
   input: FillUpCapacityEngineInput,
-  activeVms: readonly FillUpVm[],
+  context: EvaluationContext,
 ): FillUpScenarioResult {
-  const remainingHosts = input.hosts.filter((host) => !definition.removedHostKeys.includes(host.hostKey));
-  const scopedVms = definition.workloadScope === "high" ? activeVms.filter((vm) => vm.workloadClass === "high") : activeVms;
-  const candidates = input.hours.map((hour) => evaluateHour(definition, input, remainingHosts, scopedVms, hour));
+  const removedHostKeys = new Set(definition.removedHostKeys);
+  const remainingHosts = input.hosts.filter((host) => !removedHostKeys.has(host.hostKey));
+  const scoped = definition.workloadScope === "high" ? context.high : context.all;
+  const candidates = input.hours.map((hour) => evaluateHour(definition, input, remainingHosts, scoped, context, hour));
   const worst = selectWorstCandidate(candidates);
   if (!worst) return emptyScenarioResult(definition);
   return {
@@ -76,6 +84,28 @@ function evaluateScenario(
     stdCpuDemandMHz: worst.stdCpuDemandMHz,
     assignedMemoryMiB: worst.assignedMemoryMiB,
     highAssignedMemoryMiB: worst.highAssignedMemoryMiB,
+  };
+}
+
+interface VmScope {
+  vms: readonly FillUpVm[];
+  objectKeys: string[];
+  assignedMemoryMiB: number;
+  totalVcpu: number;
+}
+
+interface EvaluationContext {
+  all: VmScope;
+  high: VmScope;
+  std: VmScope;
+}
+
+function createVmScope(vms: readonly FillUpVm[]): VmScope {
+  return {
+    vms,
+    objectKeys: vms.map((vm) => vm.objectKey),
+    assignedMemoryMiB: vms.reduce((sum, vm) => sum + vm.configuredMemoryMiB, 0),
+    totalVcpu: vms.reduce((sum, vm) => sum + vm.vcpu, 0),
   };
 }
 
@@ -100,25 +130,23 @@ function evaluateHour(
   definition: FillUpScenarioDefinition,
   input: FillUpCapacityEngineInput,
   remainingHosts: readonly FillUpHost[],
-  scopedVms: readonly FillUpVm[],
+  scoped: VmScope,
+  context: EvaluationContext,
   hour: FillUpHour,
 ): HourCandidate {
   const capacity = calculateCapacity(remainingHosts, hour, input.policy);
-  const allActiveVms = input.vms.filter((vm) => isPoweredOn(vm.powerState));
   const vmDemand = (vm: FillUpVm) => hour.vmCpuDemandMHzByVm?.[vm.objectKey] ?? vm.fallbackCpuDemandMHz;
   const vmReady = (vm: FillUpVm) => hour.vmCpuReadyPctByVm?.[vm.objectKey] ?? null;
-  const highVms = allActiveVms.filter((vm) => vm.workloadClass === "high");
-  const stdVms = allActiveVms.filter((vm) => vm.workloadClass === "std");
-  const scopedVmDemand = sumKnown(scopedVms.map(vmDemand));
-  const highCpuDemandMHz = sumKnown(highVms.map(vmDemand));
-  const stdCpuDemandMHz = sumKnown(stdVms.map(vmDemand));
+  const scopedVmDemand = sumVmValues(scoped.vms, vmDemand);
+  const highCpuDemandMHz = sumVmValues(context.high.vms, vmDemand);
+  const stdCpuDemandMHz = sumVmValues(context.std.vms, vmDemand);
   const cpuDemandMHz = definition.workloadScope === "all"
     ? (hour.clusterCpuDemandMHz ?? scopedVmDemand)
     : highCpuDemandMHz;
-  const assignedMemoryMiB = sumKnown(scopedVms.map((vm) => vm.configuredMemoryMiB));
-  const highAssignedMemoryMiB = sumKnown(highVms.map((vm) => vm.configuredMemoryMiB));
-  const maxReady = maxKnown(scopedVms.map(vmReady));
-  const totalVcpu = scopedVms.reduce((sum, vm) => sum + vm.vcpu, 0);
+  const assignedMemoryMiB = scoped.assignedMemoryMiB;
+  const highAssignedMemoryMiB = context.high.assignedMemoryMiB;
+  const maxReady = maxVmValue(scoped.vms, vmReady);
+  const totalVcpu = scoped.totalVcpu;
   const observations = buildObservations({
     definition,
     policy: input.policy,
@@ -131,10 +159,10 @@ function evaluateHour(
     maxReady,
     contention: hour.clusterCpuContentionPct,
     memoryUtilizationMiB: hour.clusterMemoryUtilizationMiB,
-    affectedObjectKeys: scopedVms.map((vm) => vm.objectKey),
+    affectedObjectKeys: scoped.objectKeys,
   });
   const findings = evaluateCapacityFindings(input.policy, observations, input.confidence);
-  const placement = simulatePlacement(remainingHosts, hour, scopedVms, input.policy, vmDemand);
+  const placement = simulatePlacement(remainingHosts, hour, scoped.vms, input.policy, vmDemand);
   if (!placement.placeable) findings.push(placementFinding(input.policy, definition, input.confidence, placement.unplacedVmKeys));
   if (placement.oversizedVmKeys.length) findings.push(oversizedVmFinding(input.policy, definition, input.confidence, placement.oversizedVmKeys));
   const status = scenarioStatus(findings, placement);
@@ -154,6 +182,25 @@ function evaluateHour(
     assignedMemoryMiB,
     highAssignedMemoryMiB,
   };
+}
+
+function sumVmValues(vms: readonly FillUpVm[], getValue: (vm: FillUpVm) => number | null): number | null {
+  let sum = 0;
+  for (const vm of vms) {
+    const value = getValue(vm);
+    if (value === null || !Number.isFinite(value)) return null;
+    sum += value;
+  }
+  return sum;
+}
+
+function maxVmValue(vms: readonly FillUpVm[], getValue: (vm: FillUpVm) => number | null): number | null {
+  let maximum: number | null = null;
+  for (const vm of vms) {
+    const value = getValue(vm);
+    if (value !== null && Number.isFinite(value)) maximum = maximum === null ? value : Math.max(maximum, value);
+  }
+  return maximum;
 }
 
 function buildObservations(input: {
@@ -305,15 +352,6 @@ function placementFinding(policy: CapacityPolicy, definition: FillUpScenarioDefi
 
 function oversizedVmFinding(policy: CapacityPolicy, definition: FillUpScenarioDefinition, confidence: VropsTimeSeriesConfidenceLevel, objectKeys: string[]): CapacityFinding {
   return { id: `${policy.id}:v${policy.version}:${definition.id}:large-vm`, status: "red", title: "Große Einzel-VM", metricKey: "single-vm-host", actualValue: objectKeys.length, threshold: { warning: null, danger: null, unit: "%" }, scenario: definition.kind === "site-failover" ? "site-failover" : definition.kind, dataSource: "RVTools VM-Konfiguration / einzelne Resthostkapazität", affectedObjectKeys: objectKeys, confidence, policyId: policy.id, policyVersion: policy.version };
-}
-
-function sumKnown(values: readonly (number | null | undefined)[]): number | null {
-  return values.every((value) => value !== null && value !== undefined && Number.isFinite(value)) ? values.reduce<number>((sum, value) => sum + value!, 0) : null;
-}
-
-function maxKnown(values: readonly (number | null | undefined)[]): number | null {
-  const known = values.filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
-  return known.length ? Math.max(...known) : null;
 }
 
 function isPoweredOn(powerState: string | null): boolean {

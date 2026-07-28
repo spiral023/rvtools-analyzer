@@ -44,6 +44,7 @@ export function FillUpPlanningPanel() {
       <CardContent className="space-y-6 pt-5"><FillUpWorkloadProfileEditor profiles={profiles} onChange={setProfiles} /></CardContent>
     </Card>
     {planning.isError && <Alert variant="destructive"><AlertDescription>{planning.error instanceof Error ? planning.error.message : "Fill-Up-Daten konnten nicht geladen werden."}</AlertDescription></Alert>}
+    {planning.isCalculating && <Alert><AlertDescription>Fill-Up-Auswertung läuft im Hintergrund. Die Zeitreihen und Ausfallszenarien werden lokal im Browser berechnet; die Seite bleibt dabei bedienbar.</AlertDescription></Alert>}
     <VropsDataQualityCard importMeta={planning.selectedImport} quality={quality} />
     {planning.selectedImport && !planning.isLoading && planning.results.length === 0 && <Alert><AlertDescription>Der Import enthält im aktuellen RVTools-Stand keine eindeutig verknüpften Cluster. Prüfe den Datenqualitätsbericht oder importiere den passenden Snapshot erneut.</AlertDescription></Alert>}
     <Card><CardHeader className="pb-3"><CardTitle className="text-base">Clustervergleich</CardTitle></CardHeader><CardContent><FillUpClusterTable rows={planning.results} onSelect={(row) => setSelectedClusterKey(row.cluster.clusterKey)} /></CardContent></Card>

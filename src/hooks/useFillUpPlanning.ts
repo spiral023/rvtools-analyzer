@@ -9,7 +9,7 @@ import {
   getVropsTimeSeriesSummaries,
 } from "@/data/db";
 import type { FillUpWorkloadMix, FillUpWorkloadProfile, NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
-import { buildFillUpPlanningResults } from "@/domain/services/fillUpPlanningService";
+import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
 import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
 
 export function useFillUpPlanning(
@@ -38,9 +38,10 @@ export function useFillUpPlanning(
     },
   });
   const policies = useCapacityPolicies();
-  const results = useMemo(() => {
-    if (!selectedImport || !payloadQuery.data || policies.policies.length === 0) return [];
-    return buildFillUpPlanningResults({
+  const calculationQuery = useQuery({
+    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, payloadQuery.dataUpdatedAt, policies.policies, policies.assignments, profiles, workloadMix, includeN2],
+    enabled: Boolean(selectedImport && payloadQuery.data && policies.policies.length > 0),
+    queryFn: ({ signal }) => buildFillUpPlanningResultsInWorker({
       import: selectedImport,
       ...payloadQuery.data,
       policies: policies.policies,
@@ -48,15 +49,17 @@ export function useFillUpPlanning(
       profiles,
       workloadMix,
       includeN2,
-    });
-  }, [includeN2, payloadQuery.data, policies.assignments, policies.policies, profiles, selectedImport, workloadMix]);
+    }, signal),
+  });
+  const results = calculationQuery.data ?? [];
 
   return {
     imports: importsQuery.data ?? [],
     selectedImport,
     results,
-    isLoading: importsQuery.isLoading || payloadQuery.isLoading || policies.isLoading,
-    isError: importsQuery.isError || payloadQuery.isError || policies.isError,
-    error: importsQuery.error ?? payloadQuery.error ?? policies.error,
+    isLoading: importsQuery.isLoading || payloadQuery.isLoading || policies.isLoading || calculationQuery.isLoading,
+    isCalculating: calculationQuery.isFetching,
+    isError: importsQuery.isError || payloadQuery.isError || policies.isError || calculationQuery.isError,
+    error: importsQuery.error ?? payloadQuery.error ?? policies.error ?? calculationQuery.error,
   };
 }
