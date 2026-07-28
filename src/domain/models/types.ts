@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "maintenance-windows";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "vrops-timeseries" | "maintenance-windows";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -461,6 +461,471 @@ export interface VropsTimeSeriesParseResult {
   schema: VropsTimeSeriesSchemaMatch | null;
   rows: VropsTimeSeriesParsedRow[];
   issues: VropsTimeSeriesValidationIssue[];
+}
+
+export interface VropsTimeSeriesSourceFile {
+  objectType: VropsTimeSeriesObjectType;
+  fileName: string;
+  fileSizeBytes: number;
+  fileChecksum: string;
+  rowCount: number;
+  columnCount: number;
+  detectedColumns: string[];
+  status: "accepted" | "rejected";
+}
+
+export interface VropsTimeSeriesQualitySummary {
+  objectCountByType: Record<VropsTimeSeriesObjectType, number>;
+  expectedSlots: number;
+  errorCount: number;
+  warningCount: number;
+  missingValueCount: number;
+}
+
+/** Metadaten eines atomar gespeicherten VM-, Cluster- und Host-Dateisatzes. */
+export interface VropsTimeSeriesImport {
+  id: string;
+  importedAt: string;
+  timezone: "Europe/Vienna";
+  intervalMinutes: 60;
+  rangeStartUtc: number;
+  rangeEndUtc: number;
+  expectedSlots: number;
+  rvtoolsSnapshotIds: string[];
+  files: VropsTimeSeriesSourceFile[];
+  fileSetChecksum: string;
+  schemaVersion: number;
+  validationStatus: "schema-valid" | "relationships-partial" | "relationships-valid" | "manually-verified";
+  qualitySummary: VropsTimeSeriesQualitySummary;
+  /** Beim Import ermittelte Kollisions- und Site-Hinweise für spätere Qualitätsberichte. */
+  relationshipIssues?: VropsRelationshipIssue[];
+}
+
+export interface VropsTimeSeriesImportedObject {
+  importId: string;
+  objectKey: string;
+  objectType: VropsTimeSeriesObjectType;
+  vropsName: string;
+  vcenterId: VCenterId | null;
+  rvtoolsSnapshotId: SnapshotId | null;
+  rvtoolsObjectKey: string | null;
+  clusterKey: string | null;
+  hostKey: string | null;
+  /** Aus dem letzten RVTools-Resource-Pool-Segment am Importzeitpunkt. */
+  workloadClass: "high" | "std" | "unknown" | null;
+  /** Eingefrorener RVTools-Power-State; nur für VMs belegt. */
+  powerState: string | null;
+  /** Aus einer konfigurierbaren Hostnamenregel abgeleitete Site; nur für Hosts belegt. */
+  siteId: string | null;
+  matchStatus: "matched" | "unmatched" | "ambiguous";
+  matchMethod: "name" | "none";
+}
+
+export interface VropsTimeSeriesSiteRule {
+  id: string;
+  siteId: string;
+  /** Regulärer Ausdruck gegen den Hostnamen, etwa `^esxsrv1`. */
+  hostNamePattern: string;
+}
+
+export type VropsRelationshipIssueCode =
+  | "unmatched-object"
+  | "name-collision-within-vcenter"
+  | "name-collision-across-vcenters"
+  | "invalid-site-rule"
+  | "unknown-site";
+
+export interface VropsRelationshipIssue {
+  code: VropsRelationshipIssueCode;
+  objectKey?: string;
+  objectType?: VropsTimeSeriesObjectType;
+  severity: "warning" | "blocking";
+  message: string;
+  details?: Record<string, string | number | boolean | null>;
+}
+
+export type VropsTimeSeriesConfidenceLevel = "high" | "medium" | "low" | "not-computable";
+
+export type VropsDataQualityFindingCode =
+  | VropsRelationshipIssueCode
+  | "missing-required-capacity"
+  | "missing-vm-relationship"
+  | "unknown-resource-pool"
+  | "missing-optional-host-diagnostic"
+  | "incomplete-vm-coverage"
+  | "cluster-demand-mismatch"
+  | "cluster-demand-comparison-unavailable"
+  | "rvtools-time-distance";
+
+export interface VropsDataQualityFinding {
+  code: VropsDataQualityFindingCode;
+  severity: "info" | "warning" | "blocking";
+  message: string;
+  affectedObjectKeys: string[];
+  metric?: VropsTimeSeriesMetricKey;
+  details?: Record<string, string | number | boolean | null>;
+}
+
+export interface VropsTimeSeriesMetricCoverage {
+  objectKey: string;
+  objectType: VropsTimeSeriesObjectType;
+  metric: VropsTimeSeriesMetricKey;
+  expectedSlots: number;
+  presentSlots: number;
+  missingSlots: number;
+  coverageRatio: number;
+}
+
+export interface VropsClusterDemandComparison {
+  clusterObjectKey: string;
+  clusterKey: string | null;
+  status: "compared" | "insufficient-vm-coverage" | "missing-direct-cluster-series";
+  expectedSlots: number;
+  comparedSlots: number;
+  vmCoverageRatio: number;
+  clusterCoverageRatio: number;
+  meanAbsoluteRelativeDifference: number | null;
+  maximumAbsoluteRelativeDifference: number | null;
+}
+
+export interface VropsDataQualityReport {
+  importId: string;
+  confidence: VropsTimeSeriesConfidenceLevel;
+  findings: VropsDataQualityFinding[];
+  metricCoverage: VropsTimeSeriesMetricCoverage[];
+  clusterDemandComparisons: VropsClusterDemandComparison[];
+  rvtoolsTimeDistanceMs: number | null;
+}
+
+export type CapacityProfileKind =
+  | "realtime-telephony"
+  | "standard-server-windows"
+  | "standard-server-linux"
+  | "vdi"
+  | "preproduction-test"
+  | "special"
+  | "sap"
+  | "paas-openshift"
+  | "data-warehouse"
+  | "vmware-management";
+
+/** Alle fachlichen Grenzwerte einer versionierten Fill-Up-Policy. */
+export interface CapacityPolicyValues {
+  lookbackDays: number;
+  planningPercentile: number;
+  maxVcpuPerCoreNormal: number;
+  maxVcpuPerCoreN1: number;
+  maxVcpuPerCoreN2: number | null;
+  cpuDemandWarnPctNormal: number;
+  cpuDemandDangerPctNormal: number;
+  cpuDemandWarnPctN1: number;
+  cpuDemandDangerPctN1: number;
+  cpuDemandWarnPctN2: number | null;
+  cpuDemandDangerPctN2: number | null;
+  cpuReadyWarnPct: number;
+  cpuReadyDangerPct: number;
+  cpuContentionWarnPct: number;
+  cpuContentionDangerPct: number;
+  totalRamAssignedWarnPct: number;
+  totalRamAssignedDangerPct: number;
+  memoryUtilizationWarnPct: number;
+  memoryUtilizationDangerPct: number;
+  highRamAssignedWarnPct: number;
+  highRamAssignedDangerPct: number;
+  highCpuSiteWarnPct: number;
+  highCpuSiteDangerPct: number;
+  cpuSafetyBufferPct: number;
+  ramSafetyBufferPct: number;
+  ramSystemReserveMiBPerHost: number;
+  requireN1: boolean;
+  useN2AsHardLimit: boolean;
+  requireHighSiteFailover: boolean;
+  maxSingleVmHostCpuPct: number;
+  maxSingleVmHostRamPct: number;
+}
+
+/** Eine Version wird niemals überschrieben; `id` bleibt die fachliche Profilidentität. */
+export interface CapacityPolicy extends CapacityPolicyValues {
+  id: CapacityProfileKind | string;
+  version: number;
+  name: string;
+  profileKind: CapacityProfileKind | "custom";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClusterCapacityPolicyAssignment {
+  vcenterId: VCenterId;
+  clusterKey: string;
+  clusterName: string;
+  policyId: CapacityPolicy["id"];
+  /** Nur abweichende Werte; das Basisprofil bleibt jederzeit erkennbar. */
+  overrides: Partial<CapacityPolicyValues>;
+  updatedAt: string;
+}
+
+export type CapacityStatus = "green" | "yellow" | "red" | "unknown";
+export type CapacityScenario = "normal" | "n1" | "n2" | "site-failover";
+
+export interface CapacityThreshold {
+  warning: number | null;
+  danger: number | null;
+  unit: "%" | "ratio" | "MiB";
+}
+
+export interface CapacityMetricObservation {
+  key: string;
+  label: string;
+  value: number | null;
+  threshold: CapacityThreshold;
+  scenario: CapacityScenario;
+  dataSource: string;
+  affectedObjectKeys: string[];
+}
+
+export interface CapacityFinding {
+  id: string;
+  status: CapacityStatus;
+  title: string;
+  metricKey: string;
+  actualValue: number | null;
+  threshold: CapacityThreshold;
+  scenario: CapacityScenario;
+  dataSource: string;
+  affectedObjectKeys: string[];
+  confidence: VropsTimeSeriesConfidenceLevel;
+  policyId: CapacityPolicy["id"];
+  policyVersion: number;
+}
+
+export interface FillUpHost {
+  hostKey: string;
+  name: string;
+  /** Eingefrorener vROps-Objekt-Key; fehlt nur bei synthetischen Engine-Inputs. */
+  timeSeriesObjectKey?: string;
+  siteId: string | null;
+  cpuCores: number | null;
+  /** RVTools-Fallback, wenn die historische Hostkapazität fehlt. */
+  fallbackCpuCapacityMHz: number | null;
+  fallbackMemoryCapacityMiB: number | null;
+}
+
+export interface FillUpVm {
+  objectKey: string;
+  hostKey: string | null;
+  workloadClass: "high" | "std" | "unknown";
+  powerState: string | null;
+  vcpu: number;
+  configuredMemoryMiB: number;
+  /** Konservativer Fallback, wenn eine stündliche VM-Demand-Reihe fehlt. */
+  fallbackCpuDemandMHz: number | null;
+}
+
+export interface FillUpHostCapacity {
+  cpuCapacityMHz: number | null;
+  memoryCapacityMiB: number | null;
+}
+
+export interface FillUpHour {
+  timestampUtc: number;
+  hostCapacities: Record<string, FillUpHostCapacity>;
+  /** Direkte Clusterreihe ist für Gesamt-Demand autoritativ. */
+  clusterCpuDemandMHz: number | null;
+  clusterMemoryUtilizationMiB: number | null;
+  clusterCpuContentionPct: number | null;
+  /** VM-Aggregate dienen der HIGH-/STD-Aufteilung und als transparenter Fallback. */
+  vmCpuDemandMHzByVm?: Record<string, number | null>;
+  vmCpuReadyPctByVm?: Record<string, number | null>;
+}
+
+export type FillUpScenarioKind = "normal" | "n1" | "n2" | "site-failover";
+
+export interface FillUpScenarioDefinition {
+  id: string;
+  kind: FillUpScenarioKind;
+  removedHostKeys: string[];
+  failedSiteId?: string;
+  /** Bei Site-Ausfall ist STD nur informativ; HIGH bleibt verpflichtend. */
+  workloadScope: "all" | "high";
+  hardLimit: boolean;
+}
+
+export interface FillUpPlacementResult {
+  placeable: boolean;
+  unplacedVmKeys: string[];
+  oversizedVmKeys: string[];
+}
+
+export interface FillUpScenarioResult {
+  definition: FillUpScenarioDefinition;
+  status: CapacityStatus;
+  worstTimestampUtc: number | null;
+  findings: CapacityFinding[];
+  placement: FillUpPlacementResult;
+  usedRvtoolsFallback: boolean;
+  /** Summe der verbleibenden physischen Cores im ungünstigsten Stunden-Slot. */
+  cpuCores: number | null;
+  cpuCapacityMHz: number | null;
+  memoryCapacityMiB: number | null;
+  cpuDemandMHz: number | null;
+  highCpuDemandMHz: number | null;
+  stdCpuDemandMHz: number | null;
+  assignedMemoryMiB: number | null;
+  highAssignedMemoryMiB: number | null;
+}
+
+export interface FillUpCapacityAnalysis {
+  normal: FillUpScenarioResult;
+  n1: FillUpScenarioResult | null;
+  n2: FillUpScenarioResult | null;
+  siteFailover: FillUpScenarioResult[];
+  warnings: string[];
+}
+
+/** Ein typisches, planbares VM-Profil für eine Fill-Up-Empfehlung. */
+export interface FillUpWorkloadProfile {
+  id: string;
+  name: string;
+  workloadClass: "high" | "std";
+  vcpu: number;
+  memoryMiB: number;
+  /** Expliziter P95-CPU-Demand je zusätzlicher VM in MHz. */
+  cpuDemandP95MHz: number;
+}
+
+/** Zusammensetzung einer gemeinsamen zusätzlichen HIGH-/STD-Workloadmenge. */
+export interface FillUpWorkloadMix {
+  highProfileId: string;
+  stdProfileId: string;
+  /** HIGH-Anteil der zusätzlichen VM-Menge; der Wert wird konservativ aufgerundet. */
+  highSharePct: number;
+}
+
+export interface FillUpHeadroomValue {
+  value: number | null;
+  unit: "vCPU" | "MHz" | "MiB";
+  limitingScenarioId: string | null;
+  limitingMetricKey: string | null;
+}
+
+/** Unabhängige Grenzwerte; sie dürfen nicht zu einer gemeinsamen VM-Zahl addiert werden. */
+export interface FillUpIndependentHeadroom {
+  vcpu: FillUpHeadroomValue;
+  cpuDemand: FillUpHeadroomValue;
+  memory: FillUpHeadroomValue;
+}
+
+export interface FillUpGuardrailHeadroom {
+  scenarioId: string;
+  scenario: FillUpScenarioKind;
+  hardLimit: boolean;
+  metricKey: "vcpu-per-core" | "cpu-demand" | "total-ram-assigned" | "high-cpu-site" | "high-ram-assigned";
+  label: string;
+  workloadScope: "all" | "high";
+  available: number | null;
+  unit: "vCPU" | "MHz" | "MiB";
+  currentStatus: CapacityStatus;
+}
+
+export interface FillUpProfileRecommendation {
+  profile: FillUpWorkloadProfile;
+  maxAdditionalVms: number | null;
+  /** Nur Normalbetrieb – zur transparenten Einordnung gegenüber N-1. */
+  normalOnlyMaxAdditionalVms: number | null;
+  limitingGuardrail: FillUpGuardrailHeadroom | null;
+  nextGuardrails: FillUpGuardrailHeadroom[];
+}
+
+export interface FillUpWorkloadMixRecommendation {
+  mix: FillUpWorkloadMix;
+  maxAdditionalVms: number | null;
+  normalOnlyMaxAdditionalVms: number | null;
+  highVmCount: number | null;
+  stdVmCount: number | null;
+  /** Geringerer Verlust bevorzugt größere, N-1-robustere Cluster bei gleicher VM-Zahl. */
+  relativeN1LossPct: number | null;
+  limitingGuardrail: FillUpGuardrailHeadroom | null;
+  nextGuardrails: FillUpGuardrailHeadroom[];
+}
+
+/** Reines, UI- und IndexedDB-unabhängiges Ergebnis der Fill-Up-Mengenkalkulation. */
+export interface FillUpRecommendationAnalysis {
+  independentHeadroom: FillUpIndependentHeadroom;
+  guardrails: FillUpGuardrailHeadroom[];
+  profileRecommendations: FillUpProfileRecommendation[];
+  workloadMixRecommendation: FillUpWorkloadMixRecommendation | null;
+  warnings: string[];
+}
+
+export interface FillUpClusterRecommendationRankInput {
+  clusterKey: string;
+  clusterName: string;
+  recommendation: FillUpWorkloadMixRecommendation;
+}
+
+/** Unveränderliches, kompaktes Ergebnis eines lokalen Fill-Up-Laufs. */
+export interface FillUpAnalysisRunClusterResult {
+  clusterKey: string;
+  clusterName: string;
+  vcenterId: VCenterId;
+  policy: CapacityPolicy;
+  normalStatus: CapacityStatus;
+  n1Status: CapacityStatus;
+  n2Status: CapacityStatus | null;
+  siteFailoverStatus: CapacityStatus;
+  mixAdditionalVms: number | null;
+  independentHeadroom: FillUpIndependentHeadroom;
+  limitingMetric: string | null;
+  warnings: string[];
+}
+
+export interface FillUpAnalysisRun {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  calculationVersion: 1;
+  importId: string;
+  importFileSetChecksum: string;
+  rvtoolsSnapshotIds: string[];
+  includeN2: boolean;
+  workloadProfiles: FillUpWorkloadProfile[];
+  workloadMix: FillUpWorkloadMix | null;
+  results: FillUpAnalysisRunClusterResult[];
+}
+
+export interface VropsTimeSeriesMetricSummary {
+  expectedSlots: number;
+  presentSlots: number;
+  missingSlots: number;
+  minimum: number | null;
+  maximum: number | null;
+  average: number | null;
+}
+
+export interface VropsTimeSeriesSummary {
+  importId: string;
+  objectKey: string;
+  objectType: VropsTimeSeriesObjectType;
+  metricStats: Partial<Record<VropsTimeSeriesMetricKey, VropsTimeSeriesMetricSummary>>;
+}
+
+/** Kompakter rechteckiger Block, zeilenweise Object × Hour; numerische Reihen sind Float32-ArrayBuffers. */
+export interface VropsTimeSeriesChunk {
+  importId: string;
+  objectType: VropsTimeSeriesObjectType;
+  chunkKey: string;
+  clusterKey: string | null;
+  startUtc: number;
+  slotCount: number;
+  objectKeys: string[];
+  metricValues: Partial<Record<VropsTimeSeriesMetricKey, ArrayBuffer>>;
+  maintenanceStates?: Array<string | null>;
+  maintenanceDerived?: ArrayBuffer;
+}
+
+export interface VropsTimeSeriesWorkerResult {
+  parsedFiles: VropsTimeSeriesParseResult[];
 }
 
 export interface MaintenanceSettings {

@@ -312,6 +312,15 @@ Backup, Restore und Speichergrößenanzeige werden um die neuen Stores ergänzt.
 11. Importliste, Größe und Löschfunktion in der bestehenden Importverwaltung
     ergänzen.
 
+### Umsetzungsentscheidung (2026-07-28)
+
+Der Worker übernimmt das CSV-Parsing. Das Laden und Matching der relevanten
+RVTools-Objekte sowie die Verdichtung zu Chunks und Summaries erfolgen danach
+im UI- und IndexedDB-unabhängigen Importservice. So müssen keine vollständigen
+RVTools-Objektverzeichnisse zwischen Main-Thread und Worker serialisiert
+werden; die persistierten Daten werden weiterhin erst nach vollständiger
+Validierung in einer Transaktion geschrieben.
+
 ### Voraussichtliche Dateien
 
 - `src/domain/services/vropsTimeSeriesImportService.ts`
@@ -422,6 +431,16 @@ deterministische Ergebnisse. Sie kennt weder React noch IndexedDB.
 - `src/domain/services/fillUpCapacityEngine.test.ts`
 - gegebenenfalls gezielte Erweiterungen in
   `src/domain/services/clusterCapacityEngine.ts`
+
+### Umsetzungsentscheidung (2026-07-28)
+
+`computeHostFailureCapacity` aus `clusterCapacityEngine.ts` wird nicht direkt
+für Fill Up verwendet: Die bestehende Funktion modelliert homogene Hosts mit
+statischen Capacity-Health-Schwellen. Die Fill-Up-Engine rechnet stattdessen
+mit stündlichen, hostindividuellen vROps-Kapazitäten und der versionierten
+`CapacityPolicy`. Die bestehenden Schwellen bleiben als eigener
+Betriebskontext explizit abgegrenzt und werden nicht widersprüchlich
+wiederverwendet.
 
 ### Synthetische Referenzfälle
 

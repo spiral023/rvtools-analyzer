@@ -56,8 +56,10 @@ describe("IndexedDB-Migration", () => {
     const { getDb, getMaintenanceWindows } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(26);
+    expect(db.version).toBe(29);
     expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
+    expect(db.objectStoreNames.contains("vrops_timeseries_imports")).toBe(true);
+    expect(db.objectStoreNames.contains("capacity_policies")).toBe(true);
     await expect(db.getAll("techinfo_latest")).resolves.toHaveLength(1);
     await expect(db.getAll("scenarios")).resolves.toHaveLength(1);
     await expect(getMaintenanceWindows()).resolves.toEqual([]);
@@ -77,7 +79,7 @@ describe("IndexedDB-Migration", () => {
     const { getDb } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(26);
+    expect(db.version).toBe(29);
     const storeNames = Array.from(db.objectStoreNames) as string[];
     expect(storeNames.includes("switch_imports")).toBe(false);
     expect(storeNames.includes("switch_rows")).toBe(false);

@@ -32,6 +32,13 @@ import type {
   VropsImportMeta,
   VropsRow,
   VropsLatest,
+  VropsTimeSeriesImport,
+  VropsTimeSeriesImportedObject,
+  VropsTimeSeriesChunk,
+  VropsTimeSeriesSummary,
+  CapacityPolicy,
+  ClusterCapacityPolicyAssignment,
+  FillUpAnalysisRun,
   MaintenanceSettings,
   MaintenanceClusterAssignment,
   MaintenanceWindowDefinition,
@@ -169,6 +176,41 @@ interface RVToolsDBSchema extends DBSchema {
     value: VropsLatest;
     indexes: { clusterNorm: string };
   };
+  vrops_timeseries_imports: {
+    key: string;
+    value: VropsTimeSeriesImport;
+    indexes: { fileSetChecksum: string; importedAt: string };
+  };
+  vrops_timeseries_objects: {
+    key: [string, string];
+    value: VropsTimeSeriesImportedObject;
+    indexes: { importId: string; objectType: string; vcenterId: string };
+  };
+  vrops_timeseries_chunks: {
+    key: [string, string, string];
+    value: VropsTimeSeriesChunk;
+    indexes: { importId: string; objectType: string; clusterKey: string; startUtc: number };
+  };
+  vrops_timeseries_summaries: {
+    key: [string, string];
+    value: VropsTimeSeriesSummary;
+    indexes: { importId: string; objectType: string };
+  };
+  capacity_policies: {
+    key: [string, number];
+    value: CapacityPolicy;
+    indexes: { policyId: string; updatedAt: string };
+  };
+  capacity_policy_assignments: {
+    key: [string, string];
+    value: ClusterCapacityPolicyAssignment;
+    indexes: { vcenterId: string; policyId: string; updatedAt: string };
+  };
+  fillup_analysis_runs: {
+    key: string;
+    value: FillUpAnalysisRun;
+    indexes: { createdAt: string; importId: string };
+  };
   maintenance_settings: {
     key: string;
     value: MaintenanceSettings;
@@ -205,6 +247,8 @@ export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entitie
   | "eramon_iface_imports" | "eramon_iface_rows" | "eramon_iface_latest"
   | "eramon_l2_imports" | "eramon_l2_rows" | "eramon_l2_latest"
   | "vrops_imports" | "vrops_rows" | "vrops_latest"
+  | "vrops_timeseries_imports" | "vrops_timeseries_objects" | "vrops_timeseries_chunks" | "vrops_timeseries_summaries"
+  | "capacity_policies" | "capacity_policy_assignments" | "fillup_analysis_runs"
   | "maintenance_settings"
   | "maintenance_cluster_assignments" | "maintenance_windows" | "scenarios" | "vcenter_groups";
 
@@ -231,7 +275,7 @@ type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 26;
+const DB_VERSION = 29;
 const ALL_STORES: StoreName[] = [
   "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
@@ -243,6 +287,8 @@ const ALL_STORES: StoreName[] = [
   "eramon_iface_imports", "eramon_iface_rows", "eramon_iface_latest",
   "eramon_l2_imports", "eramon_l2_rows", "eramon_l2_latest",
   "vrops_imports", "vrops_rows", "vrops_latest",
+  "vrops_timeseries_imports", "vrops_timeseries_objects", "vrops_timeseries_chunks", "vrops_timeseries_summaries",
+  "capacity_policies", "capacity_policy_assignments", "fillup_analysis_runs",
   "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
 ];
 
@@ -416,6 +462,49 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           const latest = db.createObjectStore("vrops_latest", { keyPath: "clusterNorm" });
           latest.createIndex("clusterNorm", "clusterNorm");
         }
+        // v27: getrennte stündliche vROps-Zeitreihen für die Kapazitätsplanung.
+        // Der vorhandene panelbasierte vROps-Import (vrops_*) bleibt absichtlich unverändert.
+        if (!db.objectStoreNames.contains("vrops_timeseries_imports")) {
+          const imports = db.createObjectStore("vrops_timeseries_imports", { keyPath: "id" });
+          imports.createIndex("fileSetChecksum", "fileSetChecksum", { unique: true });
+          imports.createIndex("importedAt", "importedAt");
+        }
+        if (!db.objectStoreNames.contains("vrops_timeseries_objects")) {
+          const objects = db.createObjectStore("vrops_timeseries_objects", { keyPath: ["importId", "objectKey"] });
+          objects.createIndex("importId", "importId");
+          objects.createIndex("objectType", "objectType");
+          objects.createIndex("vcenterId", "vcenterId");
+        }
+        if (!db.objectStoreNames.contains("vrops_timeseries_chunks")) {
+          const chunks = db.createObjectStore("vrops_timeseries_chunks", { keyPath: ["importId", "objectType", "chunkKey"] });
+          chunks.createIndex("importId", "importId");
+          chunks.createIndex("objectType", "objectType");
+          chunks.createIndex("clusterKey", "clusterKey");
+          chunks.createIndex("startUtc", "startUtc");
+        }
+        if (!db.objectStoreNames.contains("vrops_timeseries_summaries")) {
+          const summaries = db.createObjectStore("vrops_timeseries_summaries", { keyPath: ["importId", "objectKey"] });
+          summaries.createIndex("importId", "importId");
+          summaries.createIndex("objectType", "objectType");
+        }
+        // v28: versionierte Fill-Up-Policies und explizite Clusterzuweisungen.
+        if (!db.objectStoreNames.contains("capacity_policies")) {
+          const policies = db.createObjectStore("capacity_policies", { keyPath: ["id", "version"] });
+          policies.createIndex("policyId", "id");
+          policies.createIndex("updatedAt", "updatedAt");
+        }
+        if (!db.objectStoreNames.contains("capacity_policy_assignments")) {
+          const assignments = db.createObjectStore("capacity_policy_assignments", { keyPath: ["vcenterId", "clusterKey"] });
+          assignments.createIndex("vcenterId", "vcenterId");
+          assignments.createIndex("policyId", "policyId");
+          assignments.createIndex("updatedAt", "updatedAt");
+        }
+        // v29: unveränderliche, kompakte Fill-Up-Analyzer-Runs.
+        if (!db.objectStoreNames.contains("fillup_analysis_runs")) {
+          const runs = db.createObjectStore("fillup_analysis_runs", { keyPath: "id" });
+          runs.createIndex("createdAt", "createdAt");
+          runs.createIndex("importId", "importId");
+        }
         if (!db.objectStoreNames.contains("maintenance_settings")) {
           db.createObjectStore("maintenance_settings", { keyPath: "id" });
         }
@@ -491,6 +580,7 @@ export async function hasImportedData(): Promise<boolean> {
     "eramon_iface_imports",
     "eramon_l2_imports",
     "vrops_imports",
+    "vrops_timeseries_imports",
   ] as const;
 
   for (const storeName of metadataStores) {
@@ -1156,6 +1246,140 @@ export async function getVropsLatestByClusterNorms(clusterNorms: string[]): Prom
   return values.filter((v): v is VropsLatest => Boolean(v));
 }
 
+/* ---------- vROps time-series import ---------- */
+
+export async function getVropsTimeSeriesImports(): Promise<VropsTimeSeriesImport[]> {
+  const db = await getDb();
+  const imports = await db.getAll("vrops_timeseries_imports");
+  return imports.sort((left, right) => right.importedAt.localeCompare(left.importedAt));
+}
+
+export async function getVropsTimeSeriesImportByFileSetChecksum(checksum: string): Promise<VropsTimeSeriesImport | undefined> {
+  const db = await getDb();
+  return db.getFromIndex("vrops_timeseries_imports", "fileSetChecksum", checksum);
+}
+
+export async function getVropsTimeSeriesObjects(importId: string): Promise<VropsTimeSeriesImportedObject[]> {
+  const db = await getDb();
+  return db.getAllFromIndex("vrops_timeseries_objects", "importId", importId);
+}
+
+export async function getVropsTimeSeriesChunks(importId: string): Promise<VropsTimeSeriesChunk[]> {
+  const db = await getDb();
+  return db.getAllFromIndex("vrops_timeseries_chunks", "importId", importId);
+}
+
+export async function getVropsTimeSeriesSummaries(importId: string): Promise<VropsTimeSeriesSummary[]> {
+  const db = await getDb();
+  return db.getAllFromIndex("vrops_timeseries_summaries", "importId", importId);
+}
+
+export async function persistVropsTimeSeriesImport(
+  meta: VropsTimeSeriesImport,
+  objects: VropsTimeSeriesImportedObject[],
+  chunks: VropsTimeSeriesChunk[],
+  summaries: VropsTimeSeriesSummary[],
+): Promise<void> {
+  const db = await getDb();
+  const transaction = db.transaction([
+    "vrops_timeseries_imports",
+    "vrops_timeseries_objects",
+    "vrops_timeseries_chunks",
+    "vrops_timeseries_summaries",
+  ], "readwrite");
+  try {
+    await transaction.objectStore("vrops_timeseries_imports").put(meta);
+    for (const object of objects) await transaction.objectStore("vrops_timeseries_objects").put(object);
+    for (const chunk of chunks) await transaction.objectStore("vrops_timeseries_chunks").put(chunk);
+    for (const summary of summaries) await transaction.objectStore("vrops_timeseries_summaries").put(summary);
+    await transaction.done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // Bei einem fehlgeschlagenen Request ist die IndexedDB-Transaktion bereits abgebrochen.
+    }
+    throw error;
+  }
+}
+
+export async function deleteVropsTimeSeriesImport(importId: string): Promise<void> {
+  const db = await getDb();
+  const transaction = db.transaction([
+    "vrops_timeseries_imports",
+    "vrops_timeseries_objects",
+    "vrops_timeseries_chunks",
+    "vrops_timeseries_summaries",
+  ], "readwrite");
+  try {
+    const deleteByImportId = async (storeName: "vrops_timeseries_objects" | "vrops_timeseries_chunks" | "vrops_timeseries_summaries") => {
+      const store = transaction.objectStore(storeName);
+      const keys = await store.index("importId").getAllKeys(importId);
+      for (const key of keys) await store.delete(key);
+    };
+    await deleteByImportId("vrops_timeseries_objects");
+    await deleteByImportId("vrops_timeseries_chunks");
+    await deleteByImportId("vrops_timeseries_summaries");
+    await transaction.objectStore("vrops_timeseries_imports").delete(importId);
+    await transaction.done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // s.o.
+    }
+    throw error;
+  }
+}
+
+export async function getCapacityPolicies(): Promise<CapacityPolicy[]> {
+  const db = await getDb();
+  return db.getAll("capacity_policies");
+}
+
+export async function putCapacityPolicy(policy: CapacityPolicy): Promise<void> {
+  const db = await getDb();
+  await db.put("capacity_policies", policy);
+}
+
+export async function getCapacityPolicyAssignments(): Promise<ClusterCapacityPolicyAssignment[]> {
+  const db = await getDb();
+  return db.getAll("capacity_policy_assignments");
+}
+
+export async function getCapacityPolicyAssignment(
+  vcenterId: string,
+  clusterKey: string,
+): Promise<ClusterCapacityPolicyAssignment | undefined> {
+  const db = await getDb();
+  return db.get("capacity_policy_assignments", [vcenterId, clusterKey]);
+}
+
+export async function putCapacityPolicyAssignment(assignment: ClusterCapacityPolicyAssignment): Promise<void> {
+  const db = await getDb();
+  await db.put("capacity_policy_assignments", assignment);
+}
+
+export async function deleteCapacityPolicyAssignment(vcenterId: string, clusterKey: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("capacity_policy_assignments", [vcenterId, clusterKey]);
+}
+
+export async function getFillUpAnalysisRuns(): Promise<FillUpAnalysisRun[]> {
+  const db = await getDb();
+  return (await db.getAll("fillup_analysis_runs")).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function putFillUpAnalysisRun(run: FillUpAnalysisRun): Promise<void> {
+  const db = await getDb();
+  await db.put("fillup_analysis_runs", run);
+}
+
+export async function deleteFillUpAnalysisRun(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("fillup_analysis_runs", id);
+}
+
 /* ---------- diagnostics ---------- */
 
 /**
@@ -1168,6 +1392,11 @@ function estimateEntryBytes(storeName: StoreName, value: unknown): number {
   if (storeName === "rawSheetBlobs") {
     const blob = value as RawSheetBlob;
     return blob.data.byteLength + JSON.stringify(blob.headers).length + 64;
+  }
+  if (storeName === "vrops_timeseries_chunks") {
+    const chunk = value as VropsTimeSeriesChunk;
+    const metricBytes = Object.values(chunk.metricValues).reduce((sum, buffer) => sum + (buffer?.byteLength ?? 0), 0);
+    return metricBytes + (chunk.maintenanceDerived?.byteLength ?? 0) + JSON.stringify(chunk.maintenanceStates ?? []).length + JSON.stringify(chunk.objectKeys).length + 128;
   }
   return JSON.stringify(value).length;
 }
@@ -1236,8 +1465,8 @@ const SIZE_SAMPLE_COUNT = 40;
  */
 async function estimateSizeByIndex(
   db: IDBPDatabase<RVToolsDBSchema>,
-  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows" | "vrops_rows",
-  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "ifaceImportId" | "l2ImportId" | "vropsImportId",
+  storeName: SnapshotScopedStoreName | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows" | "eramon_iface_rows" | "eramon_l2_rows" | "vrops_rows" | "vrops_timeseries_objects" | "vrops_timeseries_chunks" | "vrops_timeseries_summaries",
+  indexName: "snapshotId" | "techInfoImportId" | "techInfoClientImportId" | "cdpImportId" | "ipamImportId" | "ifaceImportId" | "l2ImportId" | "vropsImportId" | "importId",
   key: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Store/Index-Kombination ist zur Laufzeit gültig, idb-Typen können die Union nicht abbilden
@@ -1342,6 +1571,21 @@ export async function estimateVropsImportSizesBytes(importIds: string[]): Promis
   return Object.fromEntries(entries);
 }
 
+/** Geschätzte IndexedDB-Größe je vROps-Zeitreihen-Dateisatz. */
+export async function estimateVropsTimeSeriesImportSizesBytes(importIds: string[]): Promise<Record<string, number>> {
+  if (importIds.length === 0) return {};
+  const db = await getDb();
+  const entries = await Promise.all(importIds.map(async (id) => {
+    const sizes = await Promise.all([
+      estimateSizeByIndex(db, "vrops_timeseries_objects", "importId", id),
+      estimateSizeByIndex(db, "vrops_timeseries_chunks", "importId", id),
+      estimateSizeByIndex(db, "vrops_timeseries_summaries", "importId", id),
+    ]);
+    return [id, sizes.reduce((sum, size) => sum + size, 0)] as const;
+  }));
+  return Object.fromEntries(entries);
+}
+
 export interface SampleQueryTiming {
   store: "entities_vm";
   snapshotCount: number;
@@ -1402,6 +1646,13 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   vrops_imports: "vROps Importe",
   vrops_rows: "vROps Zeilen",
   vrops_latest: "vROps Latest",
+  vrops_timeseries_imports: "vROps Zeitreihenimporte",
+  vrops_timeseries_objects: "vROps Zeitreihenobjekte",
+  vrops_timeseries_chunks: "vROps Zeitreihenblöcke",
+  vrops_timeseries_summaries: "vROps Zeitreihen-Zusammenfassungen",
+  capacity_policies: "Kapazitätsrichtlinien",
+  capacity_policy_assignments: "Kapazitätsrichtlinien-Zuordnungen",
+  fillup_analysis_runs: "Fill-Up-Analyzer-Runs",
   maintenance_settings: "Wartungseinstellungen",
   maintenance_cluster_assignments: "Cluster-Zuordnungen",
   maintenance_windows: "Wartungsfenster",

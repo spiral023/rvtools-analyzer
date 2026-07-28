@@ -9,9 +9,11 @@ import {
   getEramonIfaceImports, deleteEramonIfaceImport,
   getEramonL2Imports, deleteEramonL2Import,
   getVropsImports, deleteVropsImport,
+  getVropsTimeSeriesImports, deleteVropsTimeSeriesImport,
   estimateSnapshotSizesBytes, estimateTechInfoImportSizesBytes, estimateTechInfoClientImportSizesBytes,
   estimateCdpImportSizesBytes, estimateIpamImportSizesBytes,
   estimateEramonIfaceImportSizesBytes, estimateEramonL2ImportSizesBytes, estimateVropsImportSizesBytes,
+  estimateVropsTimeSeriesImportSizesBytes,
 } from "@/data/db";
 import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
 import { fileKindLabel, useImportController } from "@/hooks/useImportController";
@@ -23,7 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta, VropsImportMeta } from "@/domain/models/types";
+import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta, VropsImportMeta, VropsTimeSeriesImport } from "@/domain/models/types";
 import { DiagnosticsPanel } from "@/components/uploads/DiagnosticsPanel";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -32,6 +34,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, FileCheck2, HardDrive, Layers3 } from "lucide-react";
 import { formatIsoDateTime } from "@/lib/clientDetail";
+import { VropsTimeSeriesImportDialog } from "@/components/uploads/VropsTimeSeriesImportDialog";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
@@ -41,7 +44,8 @@ type StoredUpload =
   | { kind: "ipam"; id: string; importedAt: string; ipam: IpamImportMeta }
   | { kind: "eramon-iface"; id: string; importedAt: string; eramonIface: EramonIfaceImportMeta }
   | { kind: "eramon-l2"; id: string; importedAt: string; eramonL2: EramonL2ImportMeta }
-  | { kind: "vrops"; id: string; importedAt: string; vrops: VropsImportMeta };
+  | { kind: "vrops"; id: string; importedAt: string; vrops: VropsImportMeta }
+  | { kind: "vrops-timeseries"; id: string; importedAt: string; vropsTimeSeries: VropsTimeSeriesImport };
 
 interface UploadTableRow {
   id: string;
@@ -83,6 +87,8 @@ function uploadTableRow(upload: StoredUpload, estimatedSizeBytes?: number): Uplo
       return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.eramonL2.fileName, fileSizeBytes: upload.eramonL2.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.eramonL2.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.eramonL2.rowCount };
     case "vrops":
       return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.vrops.fileName, fileSizeBytes: upload.vrops.fileSizeBytes ?? estimatedSizeBytes ?? null, fileSizeEstimated: upload.vrops.fileSizeBytes === undefined, importedAt: upload.importedAt, sheets: 1, rows: upload.vrops.rowCount };
+    case "vrops-timeseries":
+      return { id: upload.id, kind: upload.kind, type: fileKindLabel(upload.kind), fileName: upload.vropsTimeSeries.files.map((file) => file.fileName).join(" · "), fileSizeBytes: upload.vropsTimeSeries.files.reduce((sum, file) => sum + file.fileSizeBytes, 0), fileSizeEstimated: false, importedAt: upload.importedAt, sheets: upload.vropsTimeSeries.files.length, rows: upload.vropsTimeSeries.files.reduce((sum, file) => sum + file.rowCount, 0) };
   }
 }
 
@@ -127,6 +133,7 @@ function buildStoredUploads(
   eramonIfaceImports: EramonIfaceImportMeta[],
   eramonL2Imports: EramonL2ImportMeta[],
   vropsImports: VropsImportMeta[],
+  vropsTimeSeriesImports: VropsTimeSeriesImport[],
 ): StoredUpload[] {
   const uploads: StoredUpload[] = [];
   for (const snapshot of snapshots) {
@@ -153,6 +160,9 @@ function buildStoredUploads(
   for (const vrops of vropsImports) {
     uploads.push({ kind: "vrops", id: vrops.vropsImportId, importedAt: vrops.importedAt, vrops });
   }
+  for (const vropsTimeSeries of vropsTimeSeriesImports) {
+    uploads.push({ kind: "vrops-timeseries", id: vropsTimeSeries.id, importedAt: vropsTimeSeries.importedAt, vropsTimeSeries });
+  }
   return uploads.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
 
@@ -175,7 +185,7 @@ function useUploadSnapshotsView() {
   const { data: uploads = [], refetch } = useQuery({
     queryKey: ["storedUploads"],
     queryFn: async () => {
-      const [snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports] = await Promise.all([
+      const [snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports, vropsTimeSeriesImports] = await Promise.all([
         getSnapshots(),
         getTechInfoImports(),
         getTechInfoClientImports(),
@@ -184,8 +194,9 @@ function useUploadSnapshotsView() {
         getEramonIfaceImports(),
         getEramonL2Imports(),
         getVropsImports(),
+        getVropsTimeSeriesImports(),
       ]);
-      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports);
+      return buildStoredUploads(snapshots, techInfoImports, techInfoClientImports, cdpImports, ipamImports, eramonIfaceImports, eramonL2Imports, vropsImports, vropsTimeSeriesImports);
     },
   });
 
@@ -199,9 +210,9 @@ function useUploadSnapshotsView() {
           acc[upload.kind].push(upload.id);
           return acc;
         },
-        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [], ipam: [], "eramon-iface": [], "eramon-l2": [], vrops: [] },
+        { rvtools: [], "tech-info": [], "tech-info-client": [], cdp: [], ipam: [], "eramon-iface": [], "eramon-l2": [], vrops: [], "vrops-timeseries": [] },
       );
-      const [rvtools, techInfo, techInfoClient, cdp, ipam, eramonIfaceSizes, eramonL2Sizes, vropsSizes] = await Promise.all([
+      const [rvtools, techInfo, techInfoClient, cdp, ipam, eramonIfaceSizes, eramonL2Sizes, vropsSizes, vropsTimeSeriesSizes] = await Promise.all([
         estimateSnapshotSizesBytes(uploadIdsByKind.rvtools),
         estimateTechInfoImportSizesBytes(uploadIdsByKind["tech-info"]),
         estimateTechInfoClientImportSizesBytes(uploadIdsByKind["tech-info-client"]),
@@ -210,8 +221,9 @@ function useUploadSnapshotsView() {
         estimateEramonIfaceImportSizesBytes(uploadIdsByKind["eramon-iface"]),
         estimateEramonL2ImportSizesBytes(uploadIdsByKind["eramon-l2"]),
         estimateVropsImportSizesBytes(uploadIdsByKind.vrops),
+        estimateVropsTimeSeriesImportSizesBytes(uploadIdsByKind["vrops-timeseries"]),
       ]);
-      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp, ipam, "eramon-iface": eramonIfaceSizes, "eramon-l2": eramonL2Sizes, vrops: vropsSizes } satisfies Record<StoredUpload["kind"], Record<string, number>>;
+      return { rvtools, "tech-info": techInfo, "tech-info-client": techInfoClient, cdp, ipam, "eramon-iface": eramonIfaceSizes, "eramon-l2": eramonL2Sizes, vrops: vropsSizes, "vrops-timeseries": vropsTimeSeriesSizes } satisfies Record<StoredUpload["kind"], Record<string, number>>;
     },
   });
   const totalSizeBytes = uploadSizes
@@ -283,6 +295,10 @@ function useUploadSnapshotsView() {
     await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
   }, [runDelete]);
 
+  const handleDeleteVropsTimeSeriesImport = useCallback(async (importId: string) => {
+    await runDelete(() => deleteVropsTimeSeriesImport(importId), "vROps-Zeitreihen gelöscht.");
+  }, [runDelete]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") === "diagnostics" ? "diagnostics" : "uploads";
   const uploadRows = useMemo(
@@ -343,6 +359,7 @@ function useUploadSnapshotsView() {
             else if (kind === "eramon-iface") void handleDeleteEramonIfaceImport(id);
             else if (kind === "eramon-l2") void handleDeleteEramonL2Import(id);
             else if (kind === "vrops") void handleDeleteVropsImport(id);
+            else if (kind === "vrops-timeseries") void handleDeleteVropsTimeSeriesImport(id);
             else void handleDeleteSnapshot(id);
           }}
           aria-label={uploadDeleteLabel(row.original.kind)}
@@ -351,11 +368,12 @@ function useUploadSnapshotsView() {
         </Button>
       ),
     },
-  ], [deleting, handleDeleteCdpImport, handleDeleteEramonIfaceImport, handleDeleteEramonL2Import, handleDeleteIpamImport, handleDeleteSnapshot, handleDeleteTechInfoClientImport, handleDeleteTechInfoImport, handleDeleteVropsImport, importing]);
+  ], [deleting, handleDeleteCdpImport, handleDeleteEramonIfaceImport, handleDeleteEramonL2Import, handleDeleteIpamImport, handleDeleteSnapshot, handleDeleteTechInfoClientImport, handleDeleteTechInfoImport, handleDeleteVropsImport, handleDeleteVropsTimeSeriesImport, importing]);
 
   const totalRows = uploadRows.reduce((sum, row) => sum + row.rows, 0);
   const totalSheets = uploadRows.reduce((sum, row) => sum + row.sheets, 0);
   const snapshotCount = uploadRows.filter((row) => row.kind === "rvtools").length;
+  const rvtoolsSnapshots = uploads.flatMap((upload) => upload.kind === "rvtools" ? [upload.snapshot] : []);
 
   return (
     <Tabs
@@ -368,6 +386,8 @@ function useUploadSnapshotsView() {
       <PageHeader
         title="Uploads"
         meta={(
+          <div className="flex items-center gap-1">
+          <VropsTimeSeriesImportDialog snapshots={rvtoolsSnapshots} onImported={invalidateAll} />
           <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
@@ -385,6 +405,7 @@ function useUploadSnapshotsView() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         )}
       >
         <div className="w-full overflow-x-auto pb-1">

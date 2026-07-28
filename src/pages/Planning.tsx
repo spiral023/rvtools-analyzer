@@ -1,6 +1,8 @@
 import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { CapacityPolicyEditor } from "@/components/planning/fill-up/CapacityPolicyEditor";
+import { FillUpPlanningPanel } from "@/components/planning/fill-up/FillUpPlanningPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Planning() {
@@ -16,7 +18,11 @@ export default function Planning() {
           <GlobalFilterScopeHint text="Die globale Einschränkung wird bei der VM-Auswahl berücksichtigt; gespeicherte Szenarien bleiben für spätere Vergleiche erhalten." />
           <ClusterPlanningPanel />
         </TabsContent>
-        <TabsContent value="fill-up" />
+        <TabsContent value="fill-up" className="space-y-6">
+          <GlobalFilterScopeHint text="Fill Up verwendet den gewählten, beim vROps-Import eingefrorenen RVTools-Snapshot. Globale Filter verändern die historische Berechnungsbasis nicht." />
+          <FillUpPlanningPanel />
+          <CapacityPolicyEditor />
+        </TabsContent>
       </Tabs>
     </div>
   );

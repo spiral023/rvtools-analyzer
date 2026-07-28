@@ -59,6 +59,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "eramon-iface") return "Eramon Switch-Ports";
   if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
   if (kind === "vrops") return "vROps-Kapazitätsmetriken";
+  if (kind === "vrops-timeseries") return "vROps-Zeitreihen";
   if (kind === "maintenance-windows") return "Wartungsfenster";
   return "RVTools";
 }
