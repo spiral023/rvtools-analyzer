@@ -41,7 +41,7 @@ describe("importVropsTimeSeriesFileSet", () => {
       host: csvFile("host.csv", ['"Name","Interval Breakdown","Host|CPU|Capacity Available to VMs|Last","Host|Memory|Capacity Available to VMs|Last"', '"esxsrv1-01","2026-07-21T00:00:00Z","1000","2048"', '"esxsrv1-01","2026-07-21T01:00:00Z","1000","2048"'].join("\n")),
     };
 
-    const result = await importVropsTimeSeriesFileSet(files, ["snap-1"]);
+    const result = await importVropsTimeSeriesFileSet(files);
 
     expect(result).toMatchObject({ success: true, qualitySummary: { expectedSlots: 2, objectCountByType: { vm: 1, cluster: 1, host: 1 } } });
     const [stored] = await db.getVropsTimeSeriesImports();
@@ -52,7 +52,7 @@ describe("importVropsTimeSeriesFileSet", () => {
     ]));
     await expect(db.getVropsTimeSeriesChunks(stored.id)).resolves.toHaveLength(3);
 
-    const duplicate = await importVropsTimeSeriesFileSet(files, ["snap-1"]);
+    const duplicate = await importVropsTimeSeriesFileSet(files);
     expect(duplicate.success).toBe(false);
     expect(duplicate.errors[0]).toContain("bereits");
   });

@@ -75,17 +75,19 @@ interface PreparedPayload {
   expectedSlots: number;
 }
 
+/**
+ * Der RVTools-Scope wird nicht mehr manuell gewählt, sondern umfasst automatisch alle aktuell
+ * gespeicherten Snapshots: VM-, Cluster- und Hostnamen sind in der Praxis vCenter-übergreifend
+ * eindeutig, und ein echter Namenskonflikt wird von `buildVropsTimeSeriesRelationships` ohnehin
+ * als "ambiguous"/"name-collision" erkannt und im Datenqualitätsbericht sichtbar gemacht statt
+ * still falsch zugeordnet.
+ */
 export async function importVropsTimeSeriesFileSet(
   files: VropsTimeSeriesFileSet,
-  rvtoolsSnapshotIds: string[],
   onProgress?: (progress: VropsTimeSeriesImportProgress) => void,
   options?: VropsTimeSeriesImportOptions,
 ): Promise<VropsTimeSeriesImportResult> {
   const report = (step: string, percent: number, detail?: string) => onProgress?.({ step, percent, detail });
-  const selectedSnapshotIds = [...new Set(rvtoolsSnapshotIds)];
-  if (selectedSnapshotIds.length === 0) {
-    return { success: false, warnings: [], errors: ["Für den Zeitreihenimport muss mindestens ein RVTools-Snapshot gewählt werden."] };
-  }
 
   report("CSV-Dateien lesen", 5);
   const entries = [
@@ -127,26 +129,26 @@ export async function importVropsTimeSeriesFileSet(
 
   report("RVTools-Scope prüfen", 60);
   const snapshots = await getSnapshots();
-  const selectedSnapshots = snapshots.filter((snapshot) => selectedSnapshotIds.includes(snapshot.snapshotId));
-  if (selectedSnapshots.length !== selectedSnapshotIds.length) {
+  if (snapshots.length === 0) {
     return {
       success: false,
       warnings: [...parsedByType.warnings, ...prepared.warnings],
-      errors: ["Mindestens ein gewählter RVTools-Snapshot ist nicht mehr verfügbar."],
+      errors: ["Für den Zeitreihenimport muss zuerst mindestens ein RVTools-Snapshot importiert sein."],
       gridDiagnostics: prepared.gridDiagnostics,
     };
   }
+  const rvtoolsSnapshotIds = snapshots.map((snapshot) => snapshot.snapshotId);
   const importedAt = new Date().toISOString();
   const importId = shortId();
   const [vms, hosts, clusters] = await Promise.all([
-    getBySnapshotIds<NormalizedVm>("entities_vm", selectedSnapshotIds),
-    getBySnapshotIds<NormalizedHost>("entities_host", selectedSnapshotIds),
-    getBySnapshotIds<NormalizedCluster>("entities_cluster", selectedSnapshotIds),
+    getBySnapshotIds<NormalizedVm>("entities_vm", rvtoolsSnapshotIds),
+    getBySnapshotIds<NormalizedHost>("entities_host", rvtoolsSnapshotIds),
+    getBySnapshotIds<NormalizedCluster>("entities_cluster", rvtoolsSnapshotIds),
   ]);
   const relationships = buildVropsTimeSeriesRelationships({
     importId,
     objectNames: prepared.payload!.objectNames,
-    inventory: { vms, hosts, clusters, snapshots: selectedSnapshots },
+    inventory: { vms, hosts, clusters, snapshots },
     siteRules: options?.siteRules,
   });
   const objects = relationships.objects;
@@ -173,7 +175,7 @@ export async function importVropsTimeSeriesFileSet(
     rangeStartUtc: prepared.payload!.rangeStartUtc,
     rangeEndUtc: prepared.payload!.rangeEndUtc,
     expectedSlots: prepared.payload!.expectedSlots,
-    rvtoolsSnapshotIds: selectedSnapshotIds,
+    rvtoolsSnapshotIds,
     files: sourceFiles,
     fileSetChecksum,
     schemaVersion: Math.max(...Object.values(parsedByType.files!).map((file) => file.schema!.version)),

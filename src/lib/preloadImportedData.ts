@@ -179,7 +179,7 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
-function buildStoredUploads(queryClient: QueryClient, snapshots: unknown[]): unknown[] {
+function buildStoredUploads(queryClient: QueryClient, snapshots: unknown[], vropsTimeSeriesImports: readonly VropsTimeSeriesImport[]): unknown[] {
   const uploads: Array<Record<string, unknown>> = snapshots.map((value) => {
     const snapshot = asRecord(value);
     return {
@@ -210,6 +210,15 @@ function buildStoredUploads(queryClient: QueryClient, snapshots: unknown[]): unk
         [definition.field]: value,
       });
     }
+  }
+
+  for (const vropsTimeSeries of vropsTimeSeriesImports) {
+    uploads.push({
+      kind: "vrops-timeseries",
+      id: vropsTimeSeries.id,
+      importedAt: vropsTimeSeries.importedAt,
+      vropsTimeSeries,
+    });
   }
 
   return uploads.sort((left, right) => String(right.importedAt).localeCompare(String(left.importedAt)));
@@ -348,7 +357,20 @@ export async function preloadImportedData(
     ["techInfoClientLatestByClientNames", names],
     filterLatestByNames(techInfoClient, "clientNameNorm", names),
   );
-  queryClient.setQueryData(["storedUploads"], buildStoredUploads(queryClient, snapshots));
+  let vropsTimeSeriesImports: VropsTimeSeriesImport[];
+  try {
+    vropsTimeSeriesImports = await queryClient.fetchQuery({
+      queryKey: ["vropsTimeSeriesImports"],
+      queryFn: dependencies.getVropsTimeSeriesImports,
+      staleTime: QUERY_CACHE_DURATION_MS,
+      gcTime: QUERY_CACHE_DURATION_MS,
+      retry: false,
+    });
+  } catch (error) {
+    throw new Error(`vROps-Zeitreihen-Importe: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  queryClient.setQueryData(["storedUploads"], buildStoredUploads(queryClient, snapshots, vropsTimeSeriesImports));
   queryClient.setQueryData(["hasImportedData"], processedRecords > 0);
 
   notify({

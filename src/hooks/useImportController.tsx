@@ -14,7 +14,59 @@ import {
   importRvtoolsXlsx,
   type ImportProgress,
 } from "@/domain/services/importService";
-import type { ImportFileKind, ImportResult } from "@/domain/models/types";
+import {
+  detectVropsTimeSeriesCsvFile,
+  inferVropsTimeSeriesObjectTypeFromFileName,
+} from "@/domain/services/vropsTimeSeriesParser";
+import {
+  importVropsTimeSeriesFileSet,
+  type VropsTimeSeriesFileSet,
+} from "@/domain/services/vropsTimeSeriesImportService";
+import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
+
+const VROPS_SLOT_LABEL: Record<VropsTimeSeriesObjectType, string> = { vm: "VM", cluster: "Cluster", host: "Host" };
+
+/**
+ * Sortiert CSV-Dateien anhand des Dateinamens (Fallback: CSV-Header) in den vROps-Zeitreihen-
+ * Dateisatz ein. Ein vollständiger Satz besteht aus je genau einer VM-, Cluster- und Host-CSV;
+ * alles andere bleibt für die reguläre Weiterverarbeitung übrig. Ein erkannter, aber unvollständiger
+ * oder mehrdeutiger Satz wird nicht stillschweigend an den RVTools-Import weitergereicht, sondern
+ * per Toast gemeldet.
+ */
+async function classifyVropsTimeSeriesFiles(files: File[]): Promise<{ fileSet: VropsTimeSeriesFileSet | null; otherFiles: File[] }> {
+  const classified = await Promise.all(files.map(async (file) => ({
+    file,
+    slot: file.name.toLocaleLowerCase("en-US").endsWith(".csv")
+      ? inferVropsTimeSeriesObjectTypeFromFileName(file.name) ?? await detectVropsTimeSeriesCsvFile(file)
+      : null,
+  })));
+  const bySlot = new Map<VropsTimeSeriesObjectType, File[]>();
+  const otherFiles: File[] = [];
+  for (const entry of classified) {
+    if (!entry.slot) {
+      otherFiles.push(entry.file);
+      continue;
+    }
+    bySlot.set(entry.slot, [...(bySlot.get(entry.slot) ?? []), entry.file]);
+  }
+  if (bySlot.size === 0) return { fileSet: null, otherFiles };
+
+  const missing = (["vm", "cluster", "host"] as const).filter((slot) => !bySlot.has(slot));
+  const duplicated = [...bySlot.entries()].filter(([, list]) => list.length > 1);
+  if (missing.length > 0 || duplicated.length > 0) {
+    const problems = [
+      missing.length > 0 ? `fehlend: ${missing.map((slot) => VROPS_SLOT_LABEL[slot]).join(", ")}` : "",
+      duplicated.length > 0 ? `mehrfach: ${duplicated.map(([slot, list]) => `${VROPS_SLOT_LABEL[slot]} (${list.map((file) => file.name).join(", ")})`).join(" · ")}` : "",
+    ].filter(Boolean).join(" · ");
+    toast.error(`vROps-Zeitreihen-Dateisatz unvollständig (${problems}). Es wird genau eine VM-, Cluster- und Host-CSV benötigt.`);
+    return { fileSet: null, otherFiles };
+  }
+
+  return {
+    fileSet: { vm: bySlot.get("vm")![0], cluster: bySlot.get("cluster")![0], host: bySlot.get("host")![0] },
+    otherFiles,
+  };
+}
 
 export type ImportItemStatus = "queued" | "running" | "success" | "warning" | "error";
 
@@ -99,23 +151,34 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
       if (validFiles.length === 0) return;
 
+      const { fileSet: vropsFileSet, otherFiles } = await classifyVropsTimeSeriesFiles(validFiles);
+      if (otherFiles.length === 0 && !vropsFileSet) return;
+
       const batchId = Date.now();
-      const queued: ImportQueueItem[] = validFiles.map((file, index) => ({
+      const queued: ImportQueueItem[] = otherFiles.map((file, index) => ({
         id: `${batchId}-${index}-${file.name}`,
         fileName: file.name,
         progress: null as ImportProgress | null,
         result: null as ImportResult | null,
         status: "queued",
       }));
+      const vropsItem: ImportQueueItem | null = vropsFileSet ? {
+        id: `${batchId}-vrops-timeseries`,
+        fileName: `${vropsFileSet.vm.name} · ${vropsFileSet.cluster.name} · ${vropsFileSet.host.name}`,
+        fileKind: "vrops-timeseries",
+        progress: null,
+        result: null,
+        status: "queued",
+      } : null;
 
-      setItems(queued);
+      setItems(vropsItem ? [...queued, vropsItem] : queued);
       runningRef.current = true;
       setImporting(true);
 
       let anySuccess = false;
       try {
-        for (let index = 0; index < validFiles.length; index += 1) {
-          const file = validFiles[index];
+        for (let index = 0; index < otherFiles.length; index += 1) {
+          const file = otherFiles[index];
           const item = queued[index];
           patchItem(item.id, {
             status: "running",
@@ -158,6 +221,44 @@ export function ImportProvider({ children }: { children: ReactNode }) {
               result: { success: false, warnings: [], errors: [message] },
             });
             toast.error(`Import von „${file.name}“ fehlgeschlagen: ${message}`);
+          }
+        }
+
+        if (vropsFileSet && vropsItem) {
+          patchItem(vropsItem.id, {
+            status: "running",
+            progress: { step: "Vorbereitung", percent: 0, detail: vropsItem.fileName },
+          });
+          try {
+            const result = await importVropsTimeSeriesFileSet(vropsFileSet, (progress) => {
+              patchItem(vropsItem.id, { progress });
+            });
+            const status: ImportItemStatus = result.success
+              ? result.warnings.length > 0 ? "warning" : "success"
+              : "error";
+            patchItem(vropsItem.id, {
+              result: { success: result.success, fileKind: "vrops-timeseries", warnings: result.warnings, errors: result.errors },
+              fileKind: "vrops-timeseries",
+              status,
+            });
+
+            if (result.success) {
+              anySuccess = true;
+              const summary = result.qualitySummary;
+              const detail = summary
+                ? ` (${summary.expectedSlots.toLocaleString("de-DE")} Stunden · ${summary.objectCountByType.vm.toLocaleString("de-DE")} VMs · ${summary.objectCountByType.cluster.toLocaleString("de-DE")} Cluster · ${summary.objectCountByType.host.toLocaleString("de-DE")} Hosts)`
+                : "";
+              toast.success(`vROps-Zeitreihen erfolgreich importiert${detail}.`);
+            } else {
+              toast.error(`vROps-Zeitreihen-Import fehlgeschlagen: ${result.errors.join(", ")}`);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            patchItem(vropsItem.id, {
+              status: "error",
+              result: { success: false, fileKind: "vrops-timeseries", warnings: [], errors: [message] },
+            });
+            toast.error(`vROps-Zeitreihen-Import fehlgeschlagen: ${message}`);
           }
         }
 
