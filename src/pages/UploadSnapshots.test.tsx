@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,7 +31,7 @@ vi.mock("@/domain/services/importService", () => ({
 describe("UploadSnapshots", () => {
   beforeEach(() => importFiles.mockClear());
 
-  it("übergibt mehrere ausgewählte Dateien an den gemeinsamen Controller", () => {
+  it("übergibt mehrere ausgewählte Dateien an den gemeinsamen Controller", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -54,6 +54,6 @@ describe("UploadSnapshots", () => {
 
     fireEvent.change(input, { target: { files } });
 
-    expect(importFiles).toHaveBeenCalledWith(files);
+    await waitFor(() => expect(importFiles).toHaveBeenCalledWith(files));
   });
 });

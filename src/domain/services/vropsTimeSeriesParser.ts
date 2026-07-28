@@ -1,5 +1,6 @@
 import type {
   VropsTimeSeriesMetricKey,
+  VropsTimeSeriesObjectType,
   VropsTimeSeriesParseResult,
   VropsTimeSeriesParsedRow,
   VropsTimeSeriesValidationIssue,
@@ -11,6 +12,7 @@ import {
 } from "@/domain/services/vropsTimeSeriesSchema";
 
 const HOUR_MS = 60 * 60 * 1000;
+const VROPS_TIME_SERIES_DETECTION_SAMPLE_BYTES = 64 * 1024;
 const MONTHS = new Map([
   ["january", 1], ["february", 2], ["march", 3], ["april", 4], ["may", 5], ["june", 6],
   ["july", 7], ["august", 8], ["september", 9], ["october", 10], ["november", 11], ["december", 12],
@@ -108,6 +110,21 @@ export function parseVropsTimeSeriesCsv(csv: string): VropsTimeSeriesParseResult
 
   validateSeries(rows, schema.objectType, issues);
   return { schema, rows, issues };
+}
+
+/**
+ * Identifies a vROps time-series export from its CSV header without loading the
+ * complete file. The schema matcher remains the single source of truth for the
+ * accepted columns and aliases.
+ */
+export async function detectVropsTimeSeriesCsvFile(file: Blob): Promise<VropsTimeSeriesObjectType | null> {
+  const sample = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("CSV-Kopf konnte nicht gelesen werden.")));
+    reader.readAsText(file.slice(0, VROPS_TIME_SERIES_DETECTION_SAMPLE_BYTES));
+  });
+  return parseVropsTimeSeriesCsv(sample).schema?.objectType ?? null;
 }
 
 function parseRfc4180Csv(input: string): { records: CsvRecord[]; issues: VropsTimeSeriesValidationIssue[] } {

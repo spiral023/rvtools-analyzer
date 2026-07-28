@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseVropsTimeSeriesCsv } from "@/domain/services/vropsTimeSeriesParser";
+import { detectVropsTimeSeriesCsvFile, parseVropsTimeSeriesCsv } from "@/domain/services/vropsTimeSeriesParser";
 
 const VM_HEADER = '"Name","Interval Breakdown","VM|CPU|Demand (MHz)|Avg","VM|CPU|Ready (%)|Max"';
 const CLUSTER_HEADER = '"Name","Interval Breakdown","Cluster|CPU|Demand|Avg","Cluster|CPU|Demand|Max","Cluster|Memory|Utilization (MB)|Avg","Cluster|Memory|Utilization (MB)|Max","Cluster|CPU|Contention (%)|Avg","Cluster|CPU|Contention (%)|Max"';
@@ -10,6 +10,13 @@ function errorCodes(csv: string): string[] {
 }
 
 describe("parseVropsTimeSeriesCsv", () => {
+  it("erkennt Zeitreihen-Dateien anhand des Headers ohne den vollständigen Inhalt zu laden", async () => {
+    const clusterHeader = '"Name","Interval Breakdown","Cluster|CPU|Demand|Avg","Cluster|CPU|Demand|Max","Cluster|Memory|Utilization (MB)|Avg","Cluster|Memory|Utilization (MB)|Max","Cluster|CPU|Contention (%)|Avg","Cluster|CPU|Contention (%)|Max"';
+    const file = new File([`${clusterHeader}\n${"x".repeat(70 * 1024)}`], "cluster.csv", { type: "text/csv" });
+
+    await expect(detectVropsTimeSeriesCsvFile(file)).resolves.toBe("cluster");
+  });
+
   it("erkennt die bestätigten VM-Header und normalisiert englische Tausenderwerte sowie Vienna-Zeit nach UTC", () => {
     const result = parseVropsTimeSeriesCsv([
       VM_HEADER,

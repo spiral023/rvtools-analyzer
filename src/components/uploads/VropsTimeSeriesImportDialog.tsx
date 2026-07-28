@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, FileClock, Loader2, Upload } from "lucide-react";
 import type { SnapshotMeta } from "@/domain/models/types";
 import { importVropsTimeSeriesFileSet, type VropsTimeSeriesImportProgress, type VropsTimeSeriesImportResult } from "@/domain/services/vropsTimeSeriesImportService";
@@ -10,6 +10,8 @@ import { Progress } from "@/components/ui/progress";
 interface VropsTimeSeriesImportDialogProps {
   snapshots: SnapshotMeta[];
   onImported: () => void;
+  prefilledFiles?: Partial<Record<FileSlot, File>>;
+  prefillRequest?: number;
 }
 
 type FileSlot = "vm" | "cluster" | "host";
@@ -20,7 +22,7 @@ const FILE_LABELS: Record<FileSlot, string> = {
   host: "Host-Zeitreihe",
 };
 
-export function VropsTimeSeriesImportDialog({ snapshots, onImported }: VropsTimeSeriesImportDialogProps) {
+export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFiles, prefillRequest = 0 }: VropsTimeSeriesImportDialogProps) {
   const [open, setOpen] = useState(false);
   const [snapshotId, setSnapshotId] = useState("");
   const [files, setFiles] = useState<Partial<Record<FileSlot, File>>>({});
@@ -28,12 +30,22 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported }: VropsTime
   const [result, setResult] = useState<VropsTimeSeriesImportResult | null>(null);
   const [running, setRunning] = useState(false);
   const fileRefs = useRef<Partial<Record<FileSlot, HTMLInputElement | null>>>({});
+  const handledPrefillRequest = useRef(0);
   const sortedSnapshots = useMemo(
     () => [...snapshots].sort((left, right) => right.exportTs.localeCompare(left.exportTs)),
     [snapshots],
   );
   const selectedSnapshot = sortedSnapshots.find((snapshot) => snapshot.snapshotId === snapshotId);
   const ready = Boolean(snapshotId && files.vm && files.cluster && files.host && !running);
+
+  useEffect(() => {
+    if (prefillRequest === 0 || prefillRequest === handledPrefillRequest.current || !prefilledFiles) return;
+    handledPrefillRequest.current = prefillRequest;
+    setFiles((current) => ({ ...current, ...prefilledFiles }));
+    setProgress(null);
+    setResult(null);
+    setOpen(true);
+  }, [prefilledFiles, prefillRequest]);
 
   const reset = () => {
     setSnapshotId("");

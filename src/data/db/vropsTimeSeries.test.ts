@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import { createInitialCapacityPolicies } from "@/domain/services/capacityPolicyService";
+import type { FillUpAnalysisRun } from "@/domain/models/types";
 
 beforeEach(() => {
   vi.resetModules();
@@ -60,7 +61,7 @@ describe("vROps time-series persistence", () => {
 
   it("persistiert Analyzer-Runs unabhängig von ihren später löschbaren Zeitreihen", async () => {
     const db = await import("./index");
-    const run = {
+    const run: FillUpAnalysisRun = {
       id: "run-1", name: "N-1 Vergleich", createdAt: "2026-07-28T12:00:00.000Z", updatedAt: "2026-07-28T12:00:00.000Z",
       calculationVersion: 1 as const, importId: "ts-1", importFileSetChecksum: "set-1", rvtoolsSnapshotIds: ["snap-1"], includeN2: false,
       workloadProfiles: [], workloadMix: null, results: [],

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useRef } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -35,6 +35,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, FileCheck2, HardDrive, Layers3 } from "lucide-react";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { VropsTimeSeriesImportDialog } from "@/components/uploads/VropsTimeSeriesImportDialog";
+import { detectVropsTimeSeriesCsvFile } from "@/domain/services/vropsTimeSeriesParser";
+
+type VropsTimeSeriesFileSlot = "vm" | "cluster" | "host";
 
 type StoredUpload =
   | { kind: "rvtools"; id: string; importedAt: string; snapshot: SnapshotMeta }
@@ -232,8 +235,31 @@ function useUploadSnapshotsView() {
 
   const invalidateAll = useCallback(() => { queryClient.invalidateQueries(); refetch(); }, [queryClient, refetch]);
 
+  const [prefilledVropsTimeSeriesFiles, setPrefilledVropsTimeSeriesFiles] = useState<Partial<Record<VropsTimeSeriesFileSlot, File>>>({});
+  const [vropsTimeSeriesPrefillRequest, setVropsTimeSeriesPrefillRequest] = useState(0);
+
   const handleFiles = useCallback(async (files: FileList | File[]) => {
-    await importFiles(files);
+    const classifiedFiles = await Promise.all(Array.from(files).map(async (file) => ({
+      file,
+      objectType: file.name.toLocaleLowerCase("de-DE").endsWith(".csv")
+        ? await detectVropsTimeSeriesCsvFile(file)
+        : null,
+    })));
+    const timeSeriesFiles = classifiedFiles.filter((item): item is { file: File; objectType: VropsTimeSeriesFileSlot } => item.objectType !== null);
+    const remainingFiles = classifiedFiles.filter((item) => item.objectType === null).map((item) => item.file);
+
+    if (timeSeriesFiles.length > 0) {
+      setPrefilledVropsTimeSeriesFiles((current) => ({
+        ...current,
+        ...Object.fromEntries(timeSeriesFiles.map(({ file, objectType }) => [objectType, file])),
+      }));
+      setVropsTimeSeriesPrefillRequest((current) => current + 1);
+      toast.message("vROps-Zeitreihen-CSV erkannt", {
+        description: "Die Datei wurde dem passenden Slot im Dateisatz-Import zugeordnet.",
+      });
+    }
+
+    if (remainingFiles.length > 0) await importFiles(remainingFiles);
   }, [importFiles]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -387,7 +413,12 @@ function useUploadSnapshotsView() {
         title="Uploads"
         meta={(
           <div className="flex items-center gap-1">
-          <VropsTimeSeriesImportDialog snapshots={rvtoolsSnapshots} onImported={invalidateAll} />
+          <VropsTimeSeriesImportDialog
+            snapshots={rvtoolsSnapshots}
+            onImported={invalidateAll}
+            prefilledFiles={prefilledVropsTimeSeriesFiles}
+            prefillRequest={vropsTimeSeriesPrefillRequest}
+          />
           <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
@@ -438,7 +469,7 @@ function useUploadSnapshotsView() {
         <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.txt,text/plain" multiple disabled={importing} className="hidden" aria-label="RVTools-, Tech-Info-, Netzwerk-, vROps- oder Wartungsfenster-Datei auswählen" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
         <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), Netzwerk/vROps (CSV) oder Wartungsfenster (TXT) hierher ziehen oder klicken"}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Mehrere Dateien möglich. Ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Zeitreihen-CSVs öffnen automatisch den Dateisatz-Import. Mehrere Dateien möglich; ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
         </label>
 
       {/* Progress bar during deletion */}
