@@ -39,10 +39,22 @@ export function buildFillUpPlanningResultsInWorker(
     }
     signal?.addEventListener("abort", abort, { once: true });
     try {
-      worker.postMessage({ type: "BUILD_FILL_UP_PLANNING", payload: input });
+      worker.postMessage({ type: "BUILD_FILL_UP_PLANNING", payload: input }, collectChunkBuffers(input));
     } catch (error) {
       const detail = error instanceof Error && error.message.trim() ? error.message : "Die Importdaten konnten nicht für den Worker kopiert werden.";
       finish(() => reject(new Error(`Fill-Up-Worker konnte nicht vorbereitet werden: ${detail}`)));
     }
   });
+}
+
+/** IndexedDB liefert neue ArrayBuffer-Instanzen; sie können ohne Kopie an den Worker übergeben werden. */
+function collectChunkBuffers(input: BuildFillUpPlanningResultsInput): Transferable[] {
+  const buffers = new Set<ArrayBuffer>();
+  for (const chunk of input.chunks) {
+    for (const buffer of Object.values(chunk.metricValues)) {
+      if (buffer instanceof ArrayBuffer) buffers.add(buffer);
+    }
+    if (chunk.maintenanceDerived instanceof ArrayBuffer) buffers.add(chunk.maintenanceDerived);
+  }
+  return [...buffers];
 }

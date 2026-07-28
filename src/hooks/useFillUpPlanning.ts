@@ -20,10 +20,11 @@ export function useFillUpPlanning(
 ) {
   const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
   const selectedImport = useMemo(() => (importsQuery.data ?? []).find((entry) => entry.id === importId) ?? null, [importId, importsQuery.data]);
-  const payloadQuery = useQuery({
-    queryKey: ["fillUpPlanningPayload", selectedImport?.id],
-    enabled: Boolean(selectedImport),
-    queryFn: async () => {
+  const policies = useCapacityPolicies();
+  const calculationQuery = useQuery({
+    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2],
+    enabled: Boolean(selectedImport && policies.policies.length > 0),
+    queryFn: async ({ signal }) => {
       const importMeta = selectedImport!;
       const [objects, chunks, summaries, snapshots, hosts, vms, clusters] = await Promise.all([
         getVropsTimeSeriesObjects(importMeta.id),
@@ -34,22 +35,22 @@ export function useFillUpPlanning(
         getBySnapshotIds<NormalizedVm>("entities_vm", importMeta.rvtoolsSnapshotIds),
         getBySnapshotIds<NormalizedCluster>("entities_cluster", importMeta.rvtoolsSnapshotIds),
       ]);
-      return { objects, chunks, summaries, snapshots, hosts, vms, clusters };
+      return buildFillUpPlanningResultsInWorker({
+        import: importMeta,
+        objects,
+        chunks,
+        summaries,
+        snapshots,
+        hosts,
+        vms,
+        clusters,
+        policies: policies.policies,
+        assignments: policies.assignments,
+        profiles,
+        workloadMix,
+        includeN2,
+      }, signal);
     },
-  });
-  const policies = useCapacityPolicies();
-  const calculationQuery = useQuery({
-    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, payloadQuery.dataUpdatedAt, policies.policies, policies.assignments, profiles, workloadMix, includeN2],
-    enabled: Boolean(selectedImport && payloadQuery.data && policies.policies.length > 0),
-    queryFn: ({ signal }) => buildFillUpPlanningResultsInWorker({
-      import: selectedImport,
-      ...payloadQuery.data,
-      policies: policies.policies,
-      assignments: policies.assignments,
-      profiles,
-      workloadMix,
-      includeN2,
-    }, signal),
   });
   const results = calculationQuery.data ?? [];
 
@@ -57,9 +58,9 @@ export function useFillUpPlanning(
     imports: importsQuery.data ?? [],
     selectedImport,
     results,
-    isLoading: importsQuery.isLoading || payloadQuery.isLoading || policies.isLoading || calculationQuery.isLoading,
+    isLoading: importsQuery.isLoading || policies.isLoading || calculationQuery.isLoading,
     isCalculating: calculationQuery.isFetching,
-    isError: importsQuery.isError || payloadQuery.isError || policies.isError || calculationQuery.isError,
-    error: importsQuery.error ?? payloadQuery.error ?? policies.error ?? calculationQuery.error,
+    isError: importsQuery.isError || policies.isError || calculationQuery.isError,
+    error: importsQuery.error ?? policies.error ?? calculationQuery.error,
   };
 }

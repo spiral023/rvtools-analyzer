@@ -18,6 +18,8 @@ Die Fill-up-Auswertung großer Zeitreihen läuft nun in einem eigenen Browser-Wo
 
 Fehler beim Start, der Datenübergabe oder der Rückgabe der Fill-up-Worker-Auswertung werden mit einem eindeutigen Titel und einem belastbaren Browser-Fallback angezeigt.
 
+Große Zeitreihenpuffer werden aus IndexedDB ohne zusätzliche Kopie an den Fill-up-Worker übertragen; die Rückgabe lässt Objektlisten aus Szenarien weg, die in der Oberfläche nicht benötigt werden.
+
 Für jeden verbundenen RVTools-Cluster werden Normalbetrieb, N-1, optional N-2 sowie HIGH-Site-Failover berechnet. Versionierte Kapazitätspolicies, CPU-/RAM- und Platzierungs-Guardrails, HIGH-/STD-Workloadprofile und eine nachvollziehbare Fill-Up-Empfehlung sind im Planungstab verfügbar.
 
 Analyzer-Runs lassen sich lokal speichern, duplizieren, umbenennen, löschen und als Markdown kopieren. Sie behalten ihre import-, policy- und ergebnisbezogenen Snapshots unveränderlich bei. Die fachliche Gegenrechnung mit einem vollständigen Realcluster und der Skalierungstest folgen weiterhin nachgelagert.
