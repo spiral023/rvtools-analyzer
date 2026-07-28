@@ -48,7 +48,7 @@ describe("UploadSnapshots", () => {
     expect(screen.getByText("RVTools-Snapshots")).toBeInTheDocument();
 
     const input = screen.getByLabelText(
-      /RVTools-, Tech-Info-, Netzwerk-, vROps- oder Wartungsfenster-Datei/i,
+      /RVTools-, Tech-Info-, Netzwerk-, vROps-, Wartungsfenster-Datei oder ZIP-Archiv/i,
     );
     const files = [new File(["a"], "a.xlsx"), new File(["b"], "SRV Wartungsfenster Tech-Info Server.txt", { type: "text/plain" })];
 

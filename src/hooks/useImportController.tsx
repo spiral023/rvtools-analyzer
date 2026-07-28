@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { unzipSync } from "fflate";
 import { toast } from "sonner";
 import {
   importMaintenanceWindowsTxt,
@@ -22,9 +23,64 @@ import {
   importVropsTimeSeriesFileSet,
   type VropsTimeSeriesFileSet,
 } from "@/domain/services/vropsTimeSeriesImportService";
+import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
 
 const VROPS_SLOT_LABEL: Record<VropsTimeSeriesObjectType, string> = { vm: "VM", cluster: "Cluster", host: "Host" };
+
+/** Zip-Einträge, die nie als eigenständige Importdatei behandelt werden sollen (Ordner, macOS-Metadaten, versteckte Dateien). */
+function isIgnorableZipEntry(path: string): boolean {
+  if (path.endsWith("/")) return true; // Verzeichniseintrag
+  if (path.startsWith("__MACOSX/")) return true;
+  const name = path.split("/").pop() ?? path;
+  return name.length === 0 || name.startsWith(".");
+}
+
+/** Entpackt eine ZIP-Datei im Browser (fflate) in ihre enthaltenen Dateien; Ordnerstruktur wird verworfen. */
+async function extractZipFile(file: File): Promise<File[]> {
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  const entries = unzipSync(buffer);
+  return Object.entries(entries)
+    .filter(([path]) => !isIgnorableZipEntry(path))
+    .map(([path, data]) => new File([data as BlobPart], path.split("/").pop() ?? path));
+}
+
+/**
+ * Löst alle hochgeladenen ZIP-Archive in ihre enthaltenen Dateien auf (eine Ebene, keine
+ * verschachtelten ZIPs) und reicht alle übrigen Dateien unverändert durch. Fehlgeschlagene oder
+ * leere ZIPs werden separat gemeldet statt den restlichen Import stillschweigend zu blockieren.
+ */
+async function expandZipFiles(files: File[]): Promise<{ files: File[]; zipErrors: string[] }> {
+  const expanded: File[] = [];
+  const zipErrors: string[] = [];
+  for (const file of files) {
+    if (!file.name.toLocaleLowerCase("en-US").endsWith(".zip")) {
+      expanded.push(file);
+      continue;
+    }
+    try {
+      const extracted = await extractZipFile(file);
+      if (extracted.length === 0) zipErrors.push(`${file.name} (keine Dateien enthalten)`);
+      else expanded.push(...extracted);
+    } catch (error) {
+      zipErrors.push(`${file.name} (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
+  return { files: expanded, zipErrors };
+}
+
+/**
+ * Sortiert die regulär zu importierenden Dateien so, dass erkennbare RVTools-Exporte
+ * (Dateiname-Muster `RVTools_export_all_...`) zuerst verarbeitet werden. Alle übrigen Dateien
+ * behalten ihre relative Reihenfolge bei. vROps-Zeitreihen laufen unabhängig davon immer zuletzt
+ * (siehe Aufrufer), da sie auf bereits importierte Cluster/Host-Namen angewiesen sind.
+ */
+function sortRvtoolsFirst(files: File[]): File[] {
+  return files
+    .map((file, index) => ({ file, index, isRvtools: parseRvtoolsExportFileName(file.name) !== null }))
+    .sort((a, b) => (a.isRvtools === b.isRvtools ? a.index - b.index : a.isRvtools ? -1 : 1))
+    .map((entry) => entry.file);
+}
 
 /**
  * Sortiert CSV-Dateien anhand des Dateinamens (Fallback: CSV-Header) in den vROps-Zeitreihen-
@@ -137,7 +193,11 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const allFiles = Array.from(input);
+      const { files: allFiles, zipErrors } = await expandZipFiles(Array.from(input));
+      if (zipErrors.length > 0) {
+        toast.error(`ZIP-Datei konnte nicht entpackt werden: ${zipErrors.join(", ")}`);
+      }
+
       const validFiles: File[] = [];
       const rejected: string[] = [];
       for (const file of allFiles) {
@@ -151,7 +211,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
       if (validFiles.length === 0) return;
 
-      const { fileSet: vropsFileSet, otherFiles } = await classifyVropsTimeSeriesFiles(validFiles);
+      const { fileSet: vropsFileSet, otherFiles: unorderedOtherFiles } = await classifyVropsTimeSeriesFiles(validFiles);
+      const otherFiles = sortRvtoolsFirst(unorderedOtherFiles);
       if (otherFiles.length === 0 && !vropsFileSet) return;
 
       const batchId = Date.now();

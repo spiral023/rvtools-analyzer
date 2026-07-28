@@ -428,10 +428,10 @@ function useUploadSnapshotsView() {
         onDragLeave={() => dispatch({ type: "set-drag-over", value: false })}
         onDrop={handleDrop}
       >
-        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.txt,text/plain" multiple disabled={importing} className="hidden" aria-label="RVTools-, Tech-Info-, Netzwerk-, vROps- oder Wartungsfenster-Datei auswählen" onChange={(e) => e.target.files && void importFiles(e.target.files)} />
+        <input id={fileInputId} ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.txt,.zip,text/plain,application/zip,application/x-zip-compressed" multiple disabled={importing} className="hidden" aria-label="RVTools-, Tech-Info-, Netzwerk-, vROps-, Wartungsfenster-Datei oder ZIP-Archiv auswählen" onChange={(e) => e.target.files && void importFiles(e.target.files)} />
         {importing ? <Loader2 className="h-10 w-10 animate-spin text-primary" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), Netzwerk/vROps (CSV) oder Wartungsfenster (TXT) hierher ziehen oder klicken"}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Zeitreihen-CSVs öffnen automatisch den Dateisatz-Import. Mehrere Dateien möglich; ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
+        <p className="mt-3 text-sm font-medium">{importing ? "Import läuft..." : "RVTools / Tech-Info (XLSX), Netzwerk/vROps (CSV), Wartungsfenster (TXT) oder ZIP-Archiv hierher ziehen oder klicken"}</p>
+        <p className="mt-1 text-xs text-muted-foreground">ZIP-Archive werden automatisch entpackt. Zeitreihen-CSVs öffnen automatisch den Dateisatz-Import und werden immer zuletzt importiert; ein neuer RVTools-Export ersetzt den bisherigen Export desselben vCenters.</p>
         </label>
 
       {/* Progress bar during deletion */}

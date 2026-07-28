@@ -1,17 +1,29 @@
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { strToU8, zipSync } from "fflate";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { importMaintenanceWindowsTxt, importRvtoolsXlsx } from "@/domain/services/importService";
+import { importVropsTimeSeriesFileSet } from "@/domain/services/vropsTimeSeriesImportService";
 import { ImportProvider, useImportController } from "@/hooks/useImportController";
 
 vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn(), importMaintenanceWindowsTxt: vi.fn() }));
+vi.mock("@/domain/services/vropsTimeSeriesImportService", () => ({ importVropsTimeSeriesFileSet: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 const mockedImport = vi.mocked(importRvtoolsXlsx);
 const mockedMaintenanceImport = vi.mocked(importMaintenanceWindowsTxt);
+const mockedVropsTimeSeriesImport = vi.mocked(importVropsTimeSeriesFileSet);
+
+/** jsdom's File-Polyfill kennt kein `arrayBuffer()` (anders als jeder echte Browser) – hier nachgerüstet, analog zu src/test/importService.test.ts. */
+function zipFileFrom(entries: Parameters<typeof zipSync>[0]): File {
+  const buffer = zipSync(entries);
+  const file = new File([buffer], "bundle.zip") as File & { arrayBuffer: () => Promise<ArrayBuffer> };
+  file.arrayBuffer = async () => buffer.slice().buffer as ArrayBuffer;
+  return file;
+}
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -83,5 +95,64 @@ describe("ImportProvider", () => {
     expect(mockedMaintenanceImport).toHaveBeenCalledTimes(1);
     expect(mockedImport).not.toHaveBeenCalled();
     expect(result.current.items[0]).toMatchObject({ status: "success", fileKind: "maintenance-windows" });
+  });
+
+  it("entpackt hochgeladene ZIP-Archive und importiert die enthaltenen Dateien", async () => {
+    mockedImport.mockResolvedValue({ success: true, fileKind: "rvtools", warnings: [], errors: [] });
+    const zipFile = zipFileFrom({
+      "export/one.xlsx": strToU8("data"),
+      "export/__MACOSX/._one.xlsx": strToU8("junk"),
+      "export/.DS_Store": strToU8("junk"),
+    });
+    const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
+
+    await act(() => result.current.importFiles([zipFile]));
+
+    expect(mockedImport).toHaveBeenCalledTimes(1);
+    expect(mockedImport.mock.calls[0][0].name).toBe("one.xlsx");
+    expect(result.current.items[0]).toMatchObject({ fileName: "one.xlsx", status: "success" });
+  });
+
+  it("importiert erkannte RVTools-Exporte vor anderen Dateien, unabhängig von der Upload-Reihenfolge", async () => {
+    const callOrder: string[] = [];
+    mockedImport.mockImplementation(async (file) => {
+      callOrder.push(file.name);
+      return { success: true, fileKind: "rvtools", warnings: [], errors: [] };
+    });
+    const files = [
+      new File(["a"], "tech-info.xlsx"),
+      new File(["b"], "RVTools_export_all_2026_01_01_00_00_test-vcenter.xlsx"),
+    ];
+    const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
+
+    await act(() => result.current.importFiles(files));
+
+    expect(callOrder).toEqual([
+      "RVTools_export_all_2026_01_01_00_00_test-vcenter.xlsx",
+      "tech-info.xlsx",
+    ]);
+  });
+
+  it("importiert vROps-Zeitreihen-Dateisätze immer nach den übrigen Dateien", async () => {
+    const callOrder: string[] = [];
+    mockedImport.mockImplementation(async (file) => {
+      callOrder.push(file.name);
+      return { success: true, fileKind: "rvtools", warnings: [], errors: [] };
+    });
+    mockedVropsTimeSeriesImport.mockImplementation(async () => {
+      callOrder.push("vrops-timeseries");
+      return { success: true, warnings: [], errors: [] };
+    });
+    const files = [
+      new File(["1"], "vm-metrics.csv", { type: "text/csv" }),
+      new File(["2"], "cluster-metrics.csv", { type: "text/csv" }),
+      new File(["3"], "host-metrics.csv", { type: "text/csv" }),
+      new File(["4"], "RVTools_export_all_2026_01_01_00_00_test-vcenter.xlsx"),
+    ];
+    const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
+
+    await act(() => result.current.importFiles(files));
+
+    expect(callOrder).toEqual(["RVTools_export_all_2026_01_01_00_00_test-vcenter.xlsx", "vrops-timeseries"]);
   });
 });
