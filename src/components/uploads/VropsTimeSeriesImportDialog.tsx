@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, FileClock, Loader2, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileClock, ListChecks, Loader2, Upload } from "lucide-react";
 import type { SnapshotMeta } from "@/domain/models/types";
 import { importVropsTimeSeriesFileSet, type VropsTimeSeriesImportProgress, type VropsTimeSeriesImportResult } from "@/domain/services/vropsTimeSeriesImportService";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,14 @@ interface VropsTimeSeriesImportDialogProps {
 }
 
 type FileSlot = "vm" | "cluster" | "host";
+type ImportLogSeverity = "info" | "success" | "warning" | "error";
+
+interface ImportLogEntry {
+  id: number;
+  severity: ImportLogSeverity;
+  message: string;
+  detail?: string;
+}
 
 const FILE_LABELS: Record<FileSlot, string> = {
   vm: "VM-Zeitreihe",
@@ -28,6 +36,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
   const [files, setFiles] = useState<Partial<Record<FileSlot, File>>>({});
   const [progress, setProgress] = useState<VropsTimeSeriesImportProgress | null>(null);
   const [result, setResult] = useState<VropsTimeSeriesImportResult | null>(null);
+  const [logEntries, setLogEntries] = useState<ImportLogEntry[]>([]);
   const [running, setRunning] = useState(false);
   const fileRefs = useRef<Partial<Record<FileSlot, HTMLInputElement | null>>>({});
   const handledPrefillRequest = useRef(0);
@@ -38,12 +47,17 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
   const selectedSnapshot = sortedSnapshots.find((snapshot) => snapshot.snapshotId === snapshotId);
   const ready = Boolean(snapshotId && files.vm && files.cluster && files.host && !running);
 
+  const appendLog = (severity: ImportLogSeverity, message: string, detail?: string) => {
+    setLogEntries((current) => [...current, { id: current.length + 1, severity, message, detail }]);
+  };
+
   useEffect(() => {
     if (prefillRequest === 0 || prefillRequest === handledPrefillRequest.current || !prefilledFiles) return;
     handledPrefillRequest.current = prefillRequest;
     setFiles((current) => ({ ...current, ...prefilledFiles }));
     setProgress(null);
     setResult(null);
+    setLogEntries([]);
     setOpen(true);
   }, [prefilledFiles, prefillRequest]);
 
@@ -52,6 +66,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
     setFiles({});
     setProgress(null);
     setResult(null);
+    setLogEntries([]);
     for (const input of Object.values(fileRefs.current)) {
       if (input) input.value = "";
     }
@@ -66,12 +81,25 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
     if (!files.vm || !files.cluster || !files.host || !snapshotId) return;
     setRunning(true);
     setResult(null);
+    setLogEntries([{ id: 1, severity: "info", message: "Dateisatz zur Prüfung übergeben", detail: `${files.vm.name} · ${files.cluster.name} · ${files.host.name}` }]);
     try {
-      const nextResult = await importVropsTimeSeriesFileSet(files as Record<FileSlot, File>, [snapshotId], setProgress);
+      const nextResult = await importVropsTimeSeriesFileSet(files as Record<FileSlot, File>, [snapshotId], (nextProgress) => {
+        setProgress(nextProgress);
+        appendLog("info", nextProgress.step, nextProgress.detail);
+      });
       setResult(nextResult);
-      if (nextResult.success) onImported();
+      nextResult.warnings.forEach((message) => appendLog("warning", message));
+      nextResult.errors.forEach((message) => appendLog("error", message));
+      if (nextResult.success) {
+        appendLog("success", "Dateisatz vollständig lokal gespeichert", nextResult.importId ? `Import-ID: ${nextResult.importId}` : undefined);
+        onImported();
+      } else {
+        appendLog("error", "Import nicht gespeichert");
+      }
     } catch (error) {
-      setResult({ success: false, warnings: [], errors: [error instanceof Error ? error.message : String(error)] });
+      const message = error instanceof Error ? error.message : String(error);
+      setResult({ success: false, warnings: [], errors: [message] });
+      appendLog("error", "Import unerwartet abgebrochen", message);
     } finally {
       setRunning(false);
     }
@@ -85,7 +113,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
           vROps-Zeitreihen importieren
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto overscroll-contain">
         <DialogHeader>
           <DialogTitle>vROps-Zeitreihen importieren</DialogTitle>
           <DialogDescription>
@@ -128,7 +156,11 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
                     type="file"
                     accept=".csv,text/csv"
                     disabled={running}
-                    onChange={(event) => setFiles((current) => ({ ...current, [slot]: event.target.files?.[0] }))}
+                    onChange={(event) => {
+                      setFiles((current) => ({ ...current, [slot]: event.target.files?.[0] }));
+                      setResult(null);
+                      setLogEntries([]);
+                    }}
                   />
                   <Label className="mt-3 inline-flex h-8 cursor-pointer items-center rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-accent" htmlFor={`vrops-timeseries-${slot}`}>
                     <Upload className="mr-1.5 h-3.5 w-3.5" /> CSV wählen
@@ -136,6 +168,10 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
                 </div>
               ))}
             </div>
+
+            <p className={`rounded-md border px-3 py-2 text-xs ${ready ? "border-success/30 bg-success/5 text-success" : "border-border/70 bg-muted/20 text-muted-foreground"}`} role="status">
+              {ready ? "Dateisatz vollständig. Mit „Dateisatz prüfen und speichern“ wird er lokal gespeichert und danach in Planung › Fill up auswählbar." : "Für den Speichervorgang werden ein RVTools-Snapshot sowie je eine VM-, Cluster- und Host-CSV benötigt."}
+            </p>
 
             {progress && (
               <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/5 p-3">
@@ -149,8 +185,17 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
               <div className={`rounded-lg border p-3 ${result.success ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
                 <div className="flex items-center gap-2 text-sm font-medium">{result.success ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertCircle className="h-4 w-4 text-destructive" />}{result.success ? "Dateisatz lokal gespeichert" : "Import nicht gespeichert"}</div>
                 {result.qualitySummary && <p className="mt-2 text-xs text-muted-foreground">{result.qualitySummary.expectedSlots} Stunden · {result.qualitySummary.objectCountByType.vm} VMs · {result.qualitySummary.objectCountByType.cluster} Cluster · {result.qualitySummary.objectCountByType.host} Hosts</p>}
-                {[...result.errors, ...result.warnings].slice(0, 8).map((message) => <p key={message} className="mt-1 text-xs text-muted-foreground">{message}</p>)}
+                {result.success && <p className="mt-2 text-xs text-muted-foreground">Der Import ist jetzt im Auswahlfeld „Zeitreihenimport“ unter Planung › Fill up verfügbar.</p>}
               </div>
+            )}
+
+            {logEntries.length > 0 && (
+              <details className="rounded-lg border bg-muted/15 p-3" open={!result?.success} aria-label="vROps-Importprotokoll">
+                <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><ListChecks className="h-4 w-4 text-primary" />Importprotokoll · {logEntries.length} Einträge</summary>
+                <ol className="mt-3 max-h-64 space-y-2 overflow-y-auto border-l pl-3 text-xs">
+                  {logEntries.map((entry) => <li key={entry.id} className={entry.severity === "error" ? "text-destructive" : entry.severity === "warning" ? "text-warning" : entry.severity === "success" ? "text-success" : "text-muted-foreground"}><p className="font-medium">{entry.message}</p>{entry.detail && <p className="mt-0.5 break-words text-muted-foreground">{entry.detail}</p>}</li>)}
+                </ol>
+              </details>
             )}
           </div>
         )}

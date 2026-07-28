@@ -31,6 +31,7 @@ export function FillUpInputControls({
             {imports.map((entry) => <SelectItem key={entry.id} value={entry.id}>{new Date(entry.importedAt).toLocaleString("de-DE")} · {entry.expectedSlots} Stunden</SelectItem>)}
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">{imports.length === 0 ? "Noch kein vollständig gespeicherter vROps-Dateisatz. Der Upload-Dialog zeigt nach dem Speichern eine eindeutige Bestätigung und das vollständige Protokoll." : `${imports.length.toLocaleString("de-DE")} lokal gespeicherte Dateisätze verfügbar.`}</p>
       </div>
       <div className="flex items-center justify-between gap-3 rounded-md border bg-background/60 px-3 py-2">
         <div><Label htmlFor="fill-up-n2" className="text-sm">N-2 analysieren</Label><p className="text-xs text-muted-foreground">Policy entscheidet über harte Grenze.</p></div>
