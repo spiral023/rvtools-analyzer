@@ -30,7 +30,7 @@ export function useVmWorkloadProfiles(importId: string | null) {
         getBySnapshotIds<NormalizedHost>("entities_host", importMeta.rvtoolsSnapshotIds),
       ]);
       return {
-        profiles: buildVmWorkloadProfiles({ import: importMeta, objects, chunks, vms }),
+        profiles: buildVmWorkloadProfiles({ import: importMeta, objects, chunks, vms, hosts }),
         hosts,
       };
     },

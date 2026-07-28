@@ -22,7 +22,7 @@ import { average } from "@/lib/statistics";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
-const BEHAVIOR_CLASS_ORDER: VmBehaviorClass[] = ["constant-load", "business-hours", "night-batch", "weekend-load", "bursty", "low-utilization", "irregular"];
+const BEHAVIOR_CLASS_ORDER: VmBehaviorClass[] = ["constant-load", "business-hours", "night-batch", "weekend-load", "bursty", "variable-load", "low-utilization", "irregular", "unclassified"];
 
 function formatPercent(value: number | null, digits = 1): string {
   return value === null || !Number.isFinite(value) ? "—" : `${value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })} %`;

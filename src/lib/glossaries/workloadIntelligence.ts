@@ -20,7 +20,7 @@ export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
   behaviorClass: {
     term: "Verhaltensklasse",
     description:
-      "Automatisch aus dem CPU-Demand-Wochenmuster abgeleitete Einordnung: Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, gering genutzt oder unregelmäßig. Eine Heuristik anhand benannter Schwellenwerte – kein Ersatz für fachliche Prüfung.",
+      "Automatisch aus CPU-Demand, relativer CPU-Auslastung und der Wiederholbarkeit von Tagesprofilen abgeleitete Einordnung. Datenlücken werden als „nicht berechenbar“ getrennt; variable Mischlast ist keine unregelmäßige Last. Eine Heuristik anhand benannter Schwellenwerte – kein Ersatz für fachliche Prüfung.",
   },
   confidence: {
     term: "Vertrauensniveau",
@@ -47,7 +47,7 @@ export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
   },
   irregular: {
     term: "Unregelmäßig",
-    description: "VMs ohne eindeutig erkennbares Wochenmuster – weder konstant, noch klar zeit- oder wochentagsgebunden.",
+    description: "VMs mit ausreichender Datenbasis, deutlich wechselnder Last und geringer Ähnlichkeit zwischen den einzelnen Tagesprofilen. Variable Mischlast und nicht berechenbare Profile werden separat ausgewiesen.",
     source: "berechnet",
   },
 };
@@ -57,7 +57,7 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
   host: { term: "Host", description: "ESXi-Host, auf dem die VM zum Exportzeitpunkt lief.", source: `${RV} · vInfo · „Host“` },
   vcpu: { term: "vCPU", description: "Anzahl der konfigurierten virtuellen CPUs.", source: `${RV} · vInfo · „CPUs“` },
-  behaviorClass: { term: "Verhaltensklasse", description: "Automatisch abgeleitetes Lastmuster der letzten sieben Tage.", source: "berechnet" },
+  behaviorClass: { term: "Verhaltensklasse", description: "Automatisch abgeleitetes Lastmuster der letzten sieben Tage. Berücksichtigt Datenabdeckung, relative CPU-Nutzung, Kalendermuster, Spitzenlast und Tageswiederholbarkeit.", source: "berechnet" },
   confidence: { term: "Vertrauen", description: "Vertrauensniveau der Klassifikation.", source: "berechnet" },
   coverage: { term: "Abdeckung", description: "Anteil der erwarteten Stunden, für die ein CPU-Demand-Wert vorliegt.", source: "berechnet" },
   sparkline: { term: "7-Tage-Profil", description: "CPU Demand je Stunde der letzten sieben Tage – Grundlage der Klassifikation.", source: VROPS },
@@ -71,7 +71,7 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
 export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
   distribution: {
     term: "Verteilung der Verhaltensklassen",
-    description: "Anzahl der VMs je Verhaltensklasse. Ein hoher Anteil „gering genutzt“ oder „bursty“ ist ein guter Ausgangspunkt für Rightsizing und Konsolidierung.",
+    description: "Anzahl der VMs je Verhaltensklasse. Variable Last bezeichnet wiederkehrende Mischlast; „unregelmäßig“ setzt eine geringe Tageswiederholbarkeit voraus. Ein hoher Anteil „gering genutzt“ oder „bursty“ ist ein guter Ausgangspunkt für Rightsizing und Konsolidierung.",
   },
   table: {
     term: "VM-Profile",

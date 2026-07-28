@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesMetricKey, NormalizedVm } from "@/domain/models/types";
 import { buildHourGrid, buildVmWorkloadProfiles, classifyVmBehavior, determineProfileConfidence } from "./vmWorkloadProfileService";
 
-const HOUR_MS = 60 * 60 * 1000;
-
 describe("buildHourGrid", () => {
   it("berechnet Lokalzeit-Stunde und Wochenendflag in Europe/Vienna", () => {
     // 2024-01-05 23:00 UTC = 2024-01-06 00:00 CET (Samstag).
@@ -20,17 +18,31 @@ describe("buildHourGrid", () => {
 });
 
 describe("classifyVmBehavior", () => {
-  it("liefert „irregular“ ohne jeden Messwert", () => {
+  it("liefert „unclassified“ ohne jeden Messwert", () => {
     const grid = buildSyntheticWeek();
     const result = classifyVmBehavior(grid, new Map());
-    expect(result.behaviorClass).toBe("irregular");
+    expect(result.behaviorClass).toBe("unclassified");
     expect(result.signals.coefficientOfVariation).toBeNull();
   });
 
-  it("erkennt gering genutzte VMs unabhängig vom Muster", () => {
+  it("liefert „unclassified“ bei zu geringer Datenabdeckung", () => {
     const grid = buildSyntheticWeek();
-    const demand = new Map(grid.map((entry) => [entry.timestampUtc, 20]));
+    const demand = new Map(grid.slice(0, 20).map((entry) => [entry.timestampUtc, 1_000]));
+    expect(classifyVmBehavior(grid, demand).behaviorClass).toBe("unclassified");
+  });
+
+  it("erkennt gering genutzte VMs robust über den P95", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry, index) => [entry.timestampUtc, index === 0 ? 2_000 : 20]));
     expect(classifyVmBehavior(grid, demand).behaviorClass).toBe("low-utilization");
+  });
+
+  it("berücksichtigt die konfigurierte CPU-Kapazität bei geringer Nutzung", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, 500]));
+    const result = classifyVmBehavior(grid, demand, { configuredCpuCapacityMHz: 10_000 });
+    expect(result.behaviorClass).toBe("low-utilization");
+    expect(result.signals.utilizationP95Pct).toBe(5);
   });
 
   it("erkennt eine konstante Dauerlast", () => {
@@ -63,6 +75,22 @@ describe("classifyVmBehavior", () => {
     const grid = buildSyntheticWeek();
     const demand = new Map(grid.map((entry) => [entry.timestampUtc, entry.isWeekend ? 3_000 : 200]));
     expect(classifyVmBehavior(grid, demand).behaviorClass).toBe("weekend-load");
+  });
+
+  it("ordnet wiederkehrende Mischlast als variable Last ein", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, entry.hour % 2 === 0 ? 300 : 1_500]));
+    const result = classifyVmBehavior(grid, demand);
+    expect(result.behaviorClass).toBe("variable-load");
+    expect(result.signals.dailyRepeatability ?? 0).toBeGreaterThan(0.9);
+  });
+
+  it("verwendet „irregular“ nur für schlecht wiederholbare Tagesprofile", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry, index) => [entry.timestampUtc, 200 + ((index * 73) % 19) * 200]));
+    const result = classifyVmBehavior(grid, demand);
+    expect(result.behaviorClass).toBe("irregular");
+    expect(result.signals.dailyRepeatability ?? 1).toBeLessThan(0.3);
   });
 });
 

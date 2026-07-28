@@ -855,11 +855,13 @@ export interface GlobalWorkloadClassProfile {
  * Placement-Auswertungen; siehe `vmWorkloadProfileService`.
  */
 export type VmBehaviorClass =
+  | "unclassified"
   | "constant-load"
   | "business-hours"
   | "night-batch"
   | "weekend-load"
   | "bursty"
+  | "variable-load"
   | "low-utilization"
   | "irregular";
 
@@ -877,6 +879,10 @@ export interface VmWorkloadProfileMetricStats {
 export interface VmWorkloadClassificationSignals {
   coefficientOfVariation: number | null;
   activeHourSharePct: number | null;
+  /** P95-Demand relativ zur konfigurierten CPU-Kapazität, sofern Hostfrequenz und vCPU bekannt sind. */
+  utilizationP95Pct: number | null;
+  /** Median der Korrelation zwischen Tagesprofilen; 1 = sehr ähnlich, 0 = ohne erkennbaren Zusammenhang. */
+  dailyRepeatability: number | null;
   /** Anteil der Demand-Summe während Mo–Fr 08–18 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
   businessHoursConcentration: number | null;
   /** Wie `businessHoursConcentration`, für Mo–Fr 00–06 Uhr. */
