@@ -53,4 +53,20 @@ describe("prepareVropsTimeSeriesPayload", () => {
     expect(result.payload).toBeUndefined();
     expect(result.errors).toContainEqual(expect.stringContaining("HOST-CSV stimmt nicht mit der VM-CSV überein"));
   });
+
+  it("speichert objektindividuelle Teilzeiträume als Missing Values statt den ganzen Dateisatz abzulehnen", () => {
+    const vmWithTransientObject = parseVropsTimeSeriesCsv([
+      '"Name","Interval Breakdown","VM|CPU|Demand (MHz)|Avg","VM|CPU|Ready (%)|Max"',
+      '"vm-01","2026-07-21T00:00:00Z","100","0.1"',
+      '"vm-01","2026-07-21T01:00:00Z","200","0.2"',
+      '"hotclone-01","2026-07-21T01:00:00Z","10","0.1"',
+    ].join("\n"));
+
+    const result = prepareVropsTimeSeriesPayload({ vm: vmWithTransientObject, cluster, host });
+
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toContainEqual(expect.stringContaining("VM-CSV enthält 1 Objekt(e) mit Teilzeitraum"));
+    const vmChunk = result.payload!.chunks.find((chunk) => chunk.objectType === "vm")!;
+    expect(Array.from(new Float32Array(vmChunk.metricValues.vmCpuDemandAvgMHz!))).toEqual([Number.NaN, 10, 100, 200]);
+  });
 });

@@ -102,13 +102,13 @@ export async function importVropsTimeSeriesFileSet(
 
   report("Stundenraster prüfen", 50);
   const prepared = prepareVropsTimeSeriesPayload(parsedByType.files!);
-  if (prepared.errors.length > 0) return { success: false, warnings: parsedByType.warnings, errors: prepared.errors };
+  if (prepared.errors.length > 0) return { success: false, warnings: [...parsedByType.warnings, ...prepared.warnings], errors: prepared.errors };
 
   report("RVTools-Scope prüfen", 60);
   const snapshots = await getSnapshots();
   const selectedSnapshots = snapshots.filter((snapshot) => selectedSnapshotIds.includes(snapshot.snapshotId));
   if (selectedSnapshots.length !== selectedSnapshotIds.length) {
-    return { success: false, warnings: parsedByType.warnings, errors: ["Mindestens ein gewählter RVTools-Snapshot ist nicht mehr verfügbar."] };
+    return { success: false, warnings: [...parsedByType.warnings, ...prepared.warnings], errors: ["Mindestens ein gewählter RVTools-Snapshot ist nicht mehr verfügbar."] };
   }
   const importedAt = new Date().toISOString();
   const importId = shortId();
@@ -164,7 +164,7 @@ export async function importVropsTimeSeriesFileSet(
     prepared.payload!.summaries.map((summary) => ({ ...summary, importId })),
   );
   report("Abgeschlossen", 100, `${qualitySummary.expectedSlots} Stunden, ${objects.length} Objekte`);
-  return { success: true, importId, warnings: [...parsedByType.warnings, ...relationshipWarnings], errors: [], qualitySummary };
+  return { success: true, importId, warnings: [...parsedByType.warnings, ...prepared.warnings, ...relationshipWarnings], errors: [], qualitySummary };
 }
 
 function parseInWorker(buffers: ArrayBuffer[], onProgress?: (progress: VropsTimeSeriesImportProgress) => void): Promise<VropsTimeSeriesWorkerResult> {
@@ -225,8 +225,10 @@ function validateParsedFileSet(parsedFiles: VropsTimeSeriesParseResult[]): {
 export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>): {
   payload?: PreparedPayload;
   errors: string[];
+  warnings: string[];
 } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const grids = new Map<VropsTimeSeriesObjectType, number[]>();
   for (const type of ["vm", "cluster", "host"] as const) {
     const file = files[type];
@@ -239,16 +241,20 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
       objectTimestamps.push(row.intervalStartUtc);
       byObject.set(row.objectName, objectTimestamps);
     }
-    for (const [objectName, objectTimestamps] of byObject) {
+    let incompleteObjectCount = 0;
+    for (const [, objectTimestamps] of byObject) {
       const unique = [...new Set(objectTimestamps)].sort((left, right) => left - right);
-      if (!sameGrid(unique, timestamps)) errors.push(`${type.toUpperCase()}-Objekt „${objectName}“ besitzt kein vollständiges gemeinsames Stundenraster.`);
+      if (!sameGrid(unique, timestamps)) incompleteObjectCount += 1;
+    }
+    if (incompleteObjectCount > 0) {
+      warnings.push(`${type.toUpperCase()}-CSV enthält ${incompleteObjectCount.toLocaleString("de-DE")} Objekt(e) mit Teilzeitraum. Fehlende Stunden werden als Missing Values gespeichert und in der Datenqualität ausgewiesen.`);
     }
   }
   const vmGrid = grids.get("vm") ?? [];
   for (const type of ["cluster", "host"] as const) {
     if (!sameGrid(vmGrid, grids.get(type) ?? [])) errors.push(`Das Stundenraster der ${type.toUpperCase()}-CSV stimmt nicht mit der VM-CSV überein.`);
   }
-  if (errors.length > 0) return { errors };
+  if (errors.length > 0) return { errors, warnings };
 
   const chunks: VropsTimeSeriesChunk[] = [];
   const summaries: VropsTimeSeriesSummary[] = [];
@@ -258,7 +264,7 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
     const names = [...new Set(file.rows.map((row) => row.objectName))].sort((left, right) => left.localeCompare(right, "en-US"));
     const objectKeys = names.map((name) => createVropsTimeSeriesObjectKey(type, name));
     if (new Set(objectKeys).size !== objectKeys.length) {
-      return { errors: [`Die ${type.toUpperCase()}-CSV enthält Objektbezeichner, die sich nur in Groß-/Kleinschreibung unterscheiden.`] };
+      return { errors: [`Die ${type.toUpperCase()}-CSV enthält Objektbezeichner, die sich nur in Groß-/Kleinschreibung unterscheiden.`], warnings };
     }
     objectNames.set(type, names);
     const slots = vmGrid.length;
@@ -309,6 +315,7 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
   }
   return {
     errors,
+    warnings,
     payload: {
       chunks,
       summaries,
