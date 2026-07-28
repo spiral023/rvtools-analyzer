@@ -25,6 +25,11 @@ const VROPS_IMPORT_FIXTURE: VropsTimeSeriesImport = {
   rangeEndUtc: 0,
   expectedSlots: 0,
   rvtoolsSnapshotIds: ["s1", "s2"],
+  files: [],
+  fileSetChecksum: "checksum",
+  schemaVersion: 1,
+  validationStatus: "relationships-valid",
+  qualitySummary: { objectCountByType: { vm: 0, host: 0, cluster: 0 }, expectedSlots: 0, errorCount: 0, warningCount: 0, missingValueCount: 0 },
 };
 
 function dependencies(overrides: Partial<PreloadDependencies> = {}): PreloadDependencies {

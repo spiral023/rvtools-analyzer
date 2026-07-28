@@ -12,11 +12,6 @@ const VROPS = "vROps-Zeitreihenimport";
 /*  VM-Profile – UI                                                    */
 /* ------------------------------------------------------------------ */
 export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
-  timeSeriesImport: {
-    term: "Zeitreihenimport",
-    description:
-      "Der vollständig gespeicherte, eingefrorene vROps-Dateisatz (VM/Cluster/Host, stündlich), aus dem die Sieben-Tage-Profile abgeleitet werden. Unabhängig von der Sitzungs-vCenter-Auswahl – der Import bringt seine eigenen RVTools-Snapshots mit.",
-  },
   behaviorClass: {
     term: "Verhaltensklasse",
     description:

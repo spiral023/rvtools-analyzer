@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Activity, Clock, Gauge, Layers } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
@@ -9,8 +9,6 @@ import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DemandCell } from "@/components/vm/DemandCell";
 import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
@@ -55,8 +53,7 @@ function Sparkline({ profile }: { profile: VmWorkloadProfile }) {
 }
 
 export function VmWorkloadProfilePanel() {
-  const [importId, setImportId] = useState<string | null>(null);
-  const { imports, selectedImport, profiles, isLoading } = useVmWorkloadProfiles(importId);
+  const { imports, profiles, isLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -102,18 +99,6 @@ export function VmWorkloadProfilePanel() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-end gap-4 rounded-lg border bg-muted/20 px-5 py-4">
-        <div className="min-w-[16rem] space-y-1.5">
-          <InfoTooltip entry={VM_PROFILE_UI.timeSeriesImport} side="bottom"><Label htmlFor="vm-profile-import" className="w-fit cursor-help text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zeitreihenimport</Label></InfoTooltip>
-          <Select value={selectedImport?.id ?? ""} onValueChange={setImportId} disabled={imports.length === 0}>
-            <SelectTrigger id="vm-profile-import" aria-label="vROps-Zeitreihenimport auswählen"><SelectValue placeholder="Kein Import ausgewählt" /></SelectTrigger>
-            <SelectContent>
-              {imports.map((entry) => <SelectItem key={entry.id} value={entry.id}>{new Date(entry.importedAt).toLocaleString("de-DE")} · {entry.expectedSlots} Stunden</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
-
       {isLoading ? <PanelLoadingState /> : <>
         <KpiGrid>
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
@@ -136,7 +121,7 @@ export function VmWorkloadProfilePanel() {
 
         <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({profiles.length})</h3></InfoTooltip>
-          <VirtualTable data={profiles} columns={columns} globalFilter={filters.search} height={500} getRowId={(row) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." />
+          <VirtualTable data={profiles} columns={columns} globalFilter={filters.search} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." />
         </div>
       </>}
       {vmDetailDialog}
