@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   AssignmentPanel,
+  CapacityProfileBulkAssignment,
   CapacityProfileAssignmentSelect,
 } from "./ClusterMaintenancePanel";
 import type { MaintenanceClusterRow } from "@/lib/maintenance";
@@ -66,5 +67,28 @@ describe("CapacityProfileAssignmentSelect", () => {
     });
 
     expect(onChange).toHaveBeenCalledWith(row, "sap");
+  });
+});
+
+describe("CapacityProfileBulkAssignment", () => {
+  it("weist das ausgewählte Profil allen selektierten Clustern gesammelt zu", () => {
+    const onAssign = vi.fn();
+    const secondRow = { ...row, key: "vc-2::CL-VDI", vcenterId: "vc-2", clusterKey: "cluster-2", name: "CL-VDI" };
+    render(<CapacityProfileBulkAssignment
+      rows={[row, secondRow]}
+      policies={[
+        { id: "vdi", name: "VDI", version: 1 },
+        { id: "sap", name: "SAP", version: 2 },
+      ]}
+      disabled={false}
+      onAssign={onAssign}
+    />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Basisprofil für ausgewählte Cluster" }), {
+      target: { value: "sap" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Zuweisen" }));
+
+    expect(onAssign).toHaveBeenCalledWith([row, secondRow], "sap");
   });
 });

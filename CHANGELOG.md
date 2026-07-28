@@ -22,6 +22,8 @@ Große Zeitreihenpuffer werden aus IndexedDB ohne zusätzliche Kopie an den Fill
 
 Auf der Seite Wartung lässt sich das Fill-Up-Basisprofil jetzt direkt je Cluster zuweisen, etwa VDI, SAP oder Standard Server Windows. Jede Auswahl bleibt lokal vCenter- und clusterbezogen gespeichert, bewahrt vorhandene Einzel-Overrides und ist von Wartungsfenstern sowie Empfängern getrennt.
 
+Mehrere markierte Cluster können ihr Fill-Up-Basisprofil jetzt gesammelt erhalten. Die Cluster-Tabelle nutzt dabei die volle Seitenbreite mit kompakter Höhe; die Bulk- und Detailbearbeitung liegt direkt darunter.
+
 Fill Up erklärt nun Eingaben, Datenqualität, Ergebnisbereiche und alle Spalten des Clustervergleichs direkt per Tooltip.
 
 Für jeden verbundenen RVTools-Cluster werden Normalbetrieb, N-1, optional N-2 sowie HIGH-Site-Failover berechnet. Versionierte Kapazitätspolicies, CPU-/RAM- und Platzierungs-Guardrails, HIGH-/STD-Workloadprofile und eine nachvollziehbare Fill-Up-Empfehlung sind im Planungstab verfügbar.

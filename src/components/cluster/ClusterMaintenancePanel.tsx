@@ -147,6 +147,48 @@ export function CapacityProfileAssignmentSelect({
   );
 }
 
+export function CapacityProfileBulkAssignment({
+  rows,
+  policies,
+  disabled,
+  onAssign,
+}: {
+  rows: MaintenanceClusterRow[];
+  policies: readonly Pick<CapacityPolicy, "id" | "name" | "version">[];
+  disabled: boolean;
+  onAssign: (rows: MaintenanceClusterRow[], policyId: string) => void;
+}) {
+  const [policyId, setPolicyId] = useState("");
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/25 bg-background/80 p-1.5">
+      <Label htmlFor="bulk-capacity-profile" className="px-1 text-xs font-medium text-muted-foreground">
+        Fill-Up-Basisprofil
+      </Label>
+      <select
+        id="bulk-capacity-profile"
+        aria-label="Basisprofil für ausgewählte Cluster"
+        value={policyId}
+        disabled={disabled}
+        onChange={(event) => setPolicyId(event.target.value)}
+        className="h-8 min-w-[11.5rem] rounded-md border border-input bg-background px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-60"
+      >
+        <option value="" disabled>Basisprofil wählen</option>
+        {policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.name} · v{policy.version}</option>)}
+      </select>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={disabled || !policyId || rows.length === 0}
+        onClick={() => onAssign(rows, policyId)}
+      >
+        <Save className="mr-2 h-4 w-4" />
+        Zuweisen
+      </Button>
+    </div>
+  );
+}
+
 function SelectBox({
   value,
   onChange,
@@ -778,6 +820,38 @@ export function ClusterMaintenancePanel() {
     }
   }, [capacityPolicyByCluster, saveCapacityPolicyAssignment]);
 
+  const saveCapacityProfileBulk = useCallback(async (targetRows: MaintenanceClusterRow[], policyId: string) => {
+    if (!policyId || targetRows.length === 0) return;
+    const rowsNeedingUpdate = targetRows.filter((row) => (
+      capacityPolicyByCluster.get(`${row.vcenterId}::${row.clusterKey}`)?.policyId !== policyId
+    ));
+    if (rowsNeedingUpdate.length === 0) {
+      toast.message("Alle ausgewählten Cluster verwenden bereits dieses Basisprofil.");
+      return;
+    }
+
+    try {
+      await Promise.all(rowsNeedingUpdate.map((row) => {
+        const current = capacityPolicyByCluster.get(`${row.vcenterId}::${row.clusterKey}`);
+        return saveCapacityPolicyAssignment(createCapacityPolicyAssignment({
+          vcenterId: row.vcenterId,
+          clusterKey: row.clusterKey,
+          clusterName: row.name,
+        }, policyId, current?.overrides ?? {}));
+      }));
+      const policyName = capacityPolicies.find((policy) => policy.id === policyId)?.name ?? policyId;
+      toast.success(
+        rowsNeedingUpdate.length === 1
+          ? `Basisprofil „${policyName}“ für einen Cluster gespeichert.`
+          : `Basisprofil „${policyName}“ für ${formatNum(rowsNeedingUpdate.length)} Cluster gespeichert.`,
+      );
+    } catch (saveError) {
+      toast.error("Basisprofile konnten nicht vollständig gespeichert werden.", {
+        description: saveError instanceof Error ? saveError.message : undefined,
+      });
+    }
+  }, [capacityPolicies, capacityPolicyByCluster, saveCapacityPolicyAssignment]);
+
   const columns = useMemo<ColumnDef<MaintenanceClusterRow, unknown>[]>(() => [
     {
       id: "select",
@@ -946,42 +1020,49 @@ export function ClusterMaintenancePanel() {
         <Badge variant="outline" className="font-mono-data text-xs">{formatNum(searchedRows.length)} im Scope</Badge>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,860px)_minmax(420px,1fr)]">
-        <div>
-          <InfoTooltip entry={WARTUNG_SECTIONS.clusterTable} side="bottom">
-            <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
-              Cluster im aktiven Snapshot-Scope ({searchedRows.length})
-            </h3>
-          </InfoTooltip>
-          <VirtualTable
-            data={searchedRows}
-            columns={columns}
-            height={520}
-            onRowClick={(row) => setActiveKey(row.key)}
-            exportFileName="rvtools-wartungsankuendigung-cluster"
-          />
-        </div>
-        <div className="space-y-3">
-          {selectedRows.length > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{formatNum(selectedRows.length)} Cluster ausgewählt</p>
-                <p className="text-xs text-muted-foreground">Wartungsankündigung für die Auswahl erstellen</p>
-              </div>
+      <div>
+        <InfoTooltip entry={WARTUNG_SECTIONS.clusterTable} side="bottom">
+          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
+            Cluster im aktiven Snapshot-Scope ({searchedRows.length})
+          </h3>
+        </InfoTooltip>
+        <VirtualTable
+          data={searchedRows}
+          columns={columns}
+          height={336}
+          onRowClick={(row) => setActiveKey(row.key)}
+          exportFileName="rvtools-wartungsankuendigung-cluster"
+        />
+      </div>
+
+      <div className="space-y-3">
+        {selectedRows.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">{formatNum(selectedRows.length)} Cluster ausgewählt</p>
+              <p className="text-xs text-muted-foreground">Basisprofil gesammelt setzen oder Wartungsankündigung erstellen</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <CapacityProfileBulkAssignment
+                rows={selectedRows}
+                policies={capacityPolicies}
+                disabled={isSavingCapacityPolicy}
+                onAssign={(rowsToAssign, policyId) => void saveCapacityProfileBulk(rowsToAssign, policyId)}
+              />
               <Button size="sm" className="shrink-0" onClick={() => setMailDialogOpen(true)}>
                 <Mail className="mr-2 h-4 w-4" />
                 Mail erstellen
               </Button>
             </div>
-          )}
-          <AssignmentPanel
-            activeRow={activeRow}
-            selectedRows={selectedRows}
-            suggestions={techContactSuggestions}
-            onSave={saveAssignments}
-            isSaving={isSavingMaintenance}
-          />
-        </div>
+          </div>
+        )}
+        <AssignmentPanel
+          activeRow={activeRow}
+          selectedRows={selectedRows}
+          suggestions={techContactSuggestions}
+          onSave={saveAssignments}
+          isSaving={isSavingMaintenance}
+        />
       </div>
 
       <MaintenanceMailDialog open={mailDialogOpen} onClose={() => setMailDialogOpen(false)} rows={selectedRows} />
