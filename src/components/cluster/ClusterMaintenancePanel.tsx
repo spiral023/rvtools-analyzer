@@ -1012,14 +1012,6 @@ export function ClusterMaintenancePanel() {
         </Alert>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
-        <div>
-          <p className="text-sm font-medium">Fill-Up-Basisprofil zuweisen</p>
-          <p className="text-xs text-muted-foreground">VDI, SAP, Standard Server Windows und weitere Kapazitätsprofile direkt pro vCenter und Cluster setzen. Wartungsfenster, Empfänger und Wartungstyp bleiben davon getrennt.</p>
-        </div>
-        <Badge variant="outline" className="font-mono-data text-xs">{formatNum(searchedRows.length)} im Scope</Badge>
-      </div>
-
       <div>
         <InfoTooltip entry={WARTUNG_SECTIONS.clusterTable} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">
