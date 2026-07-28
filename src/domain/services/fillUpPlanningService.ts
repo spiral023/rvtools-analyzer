@@ -30,6 +30,21 @@ import { isPoweredOnVm, isVclsVm } from "@/lib/vmScope";
 
 const HOUR_MS = 60 * 60 * 1000;
 
+/** Anfänglicher HIGH/STD-Standard der „typischen zusätzlichen VM“, bevor der Nutzer sie anpasst oder aus gemessenen Werten übernimmt. */
+export const DEFAULT_FILL_UP_WORKLOAD_PROFILES: readonly FillUpWorkloadProfile[] = [
+  { id: "high-standard", name: "HIGH Standard", workloadClass: "high", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 500, cpuDemandAverageMHz: 250 },
+  { id: "std-standard", name: "STD Standard", workloadClass: "std", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 350, cpuDemandAverageMHz: 175 },
+];
+
+export const DEFAULT_FILL_UP_HIGH_SHARE_PCT = 50;
+
+/** Der Mix, der aus {@link DEFAULT_FILL_UP_WORKLOAD_PROFILES} vor jeder Nutzeranpassung entsteht. */
+export const DEFAULT_FILL_UP_WORKLOAD_MIX: FillUpWorkloadMix = {
+  highProfileId: "high-standard",
+  stdProfileId: "std-standard",
+  highSharePct: DEFAULT_FILL_UP_HIGH_SHARE_PCT,
+};
+
 export interface BuildFillUpPlanningResultsInput {
   import: VropsTimeSeriesImport;
   objects: readonly VropsTimeSeriesImportedObject[];

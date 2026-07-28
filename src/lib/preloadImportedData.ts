@@ -8,15 +8,44 @@ import {
   getAllTechInfoClientLatest,
   getAllTechInfoLatest,
   getBySnapshotIds,
+  getCapacityPolicies,
+  getCapacityPolicyAssignments,
   getImportedStoreRecords,
   getRawSheetFieldNamesBySnapshot,
   getRawSheetRows,
   getSnapshots,
   getStoredRawSheetNames,
+  getVropsTimeSeriesChunks,
+  getVropsTimeSeriesImports,
+  getVropsTimeSeriesObjects,
+  getVropsTimeSeriesSummaries,
   IMPORT_DATA_STORE_NAMES,
   type ImportedDataStoreName,
 } from "@/data/db";
-import type { SnapshotMeta } from "@/domain/models/types";
+import type {
+  CapacityPolicy,
+  ClusterCapacityPolicyAssignment,
+  NormalizedCluster,
+  NormalizedHost,
+  NormalizedVm,
+  SnapshotMeta,
+  VropsTimeSeriesChunk,
+  VropsTimeSeriesImport,
+  VropsTimeSeriesImportedObject,
+  VropsTimeSeriesSummary,
+} from "@/domain/models/types";
+import { mergeInitialAndStoredCapacityPolicies } from "@/domain/services/capacityPolicyService";
+import {
+  buildGlobalWorkloadClassAverages,
+  DEFAULT_FILL_UP_WORKLOAD_MIX,
+  DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  type BuildFillUpPlanningResultsInput,
+  type FillUpPlanningClusterResult,
+} from "@/domain/services/fillUpPlanningService";
+import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
+import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
+import { buildFillUpPlanningQueryKey } from "@/hooks/useFillUpPlanning";
+import { CAPACITY_ASSIGNMENTS_QUERY_KEY, CAPACITY_POLICY_QUERY_KEY } from "@/hooks/useCapacityPolicies";
 import { QUERY_CACHE_DURATION_MS, RAW_QUERY_GC_MS } from "@/lib/queryCache";
 
 type SnapshotEntityStore =
@@ -41,6 +70,13 @@ export interface PreloadDependencies {
   getAllEramonIfaceLatest: () => Promise<unknown[]>;
   getAllEramonL2Latest: () => Promise<unknown[]>;
   getAllVropsLatest: () => Promise<unknown[]>;
+  getVropsTimeSeriesImports: () => Promise<VropsTimeSeriesImport[]>;
+  getVropsTimeSeriesObjects: (importId: string) => Promise<VropsTimeSeriesImportedObject[]>;
+  getVropsTimeSeriesChunks: (importId: string) => Promise<VropsTimeSeriesChunk[]>;
+  getVropsTimeSeriesSummaries: (importId: string) => Promise<VropsTimeSeriesSummary[]>;
+  getCapacityPolicies: () => Promise<CapacityPolicy[]>;
+  getCapacityPolicyAssignments: () => Promise<ClusterCapacityPolicyAssignment[]>;
+  buildFillUpPlanningResultsInWorker: (input: BuildFillUpPlanningResultsInput) => Promise<FillUpPlanningClusterResult[]>;
 }
 
 export interface PreloadProgress {
@@ -73,6 +109,13 @@ const DEFAULT_DEPENDENCIES: PreloadDependencies = {
   getAllEramonIfaceLatest,
   getAllEramonL2Latest,
   getAllVropsLatest,
+  getVropsTimeSeriesImports,
+  getVropsTimeSeriesObjects,
+  getVropsTimeSeriesChunks,
+  getVropsTimeSeriesSummaries,
+  getCapacityPolicies,
+  getCapacityPolicyAssignments,
+  buildFillUpPlanningResultsInWorker,
 };
 
 const ENTITY_STEPS: ReadonlyArray<{
@@ -245,7 +288,7 @@ export async function preloadImportedData(
     { label: "Aktuelle vROps-Daten", queryKey: ["vropsLatestAll"], load: dependencies.getAllVropsLatest },
   ];
 
-  const totalSteps = steps.length + 1;
+  const totalSteps = steps.length + 2;
   let completedSteps = 1;
   let processedRecords = recordCount(snapshots);
   notify({
@@ -308,5 +351,118 @@ export async function preloadImportedData(
   queryClient.setQueryData(["storedUploads"], buildStoredUploads(queryClient, snapshots));
   queryClient.setQueryData(["hasImportedData"], processedRecords > 0);
 
+  notify({
+    phase: "loading",
+    currentLabel: "Fill-Up-Planung: Standardauswertung",
+    completedSteps,
+    totalSteps,
+    processedRecords,
+    percent: progressPercent(completedSteps, totalSteps),
+  });
+
+  try {
+    processedRecords += await preloadDefaultFillUpPlanning(queryClient, dependencies, snapshots as SnapshotMeta[]);
+  } catch (error) {
+    throw new Error(`Fill-Up-Planung: Standardauswertung: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  completedSteps += 1;
+  notify({
+    phase: "loading",
+    currentLabel: "Fill-Up-Planung: Standardauswertung",
+    completedSteps,
+    totalSteps,
+    processedRecords,
+    percent: progressPercent(completedSteps, totalSteps),
+  });
+
   return { processedRecords, totalSteps };
+}
+
+/**
+ * Berechnet die Fill-Up-Auswertung (Clustervergleich, HIGH/STD-Durchschnitte für die „typische
+ * zusätzliche VM") für den neuesten vROps-Import mit denselben Standardwerten, mit denen
+ * `FillUpPlanningPanel` startet. Trifft der Nutzer später dieselbe Standardauswahl, liefert
+ * `useFillUpPlanning` das hier hinterlegte Ergebnis sofort aus dem Cache statt neu zu rechnen.
+ * Ohne vROps-Import gibt es nichts vorzuberechnen.
+ */
+async function preloadDefaultFillUpPlanning(
+  queryClient: QueryClient,
+  dependencies: PreloadDependencies,
+  snapshots: readonly SnapshotMeta[],
+): Promise<number> {
+  const [vropsImports, storedPolicies, assignments] = await Promise.all([
+    queryClient.fetchQuery({
+      queryKey: ["vropsTimeSeriesImports"],
+      queryFn: dependencies.getVropsTimeSeriesImports,
+      staleTime: QUERY_CACHE_DURATION_MS,
+      gcTime: QUERY_CACHE_DURATION_MS,
+      retry: false,
+    }),
+    queryClient.fetchQuery({
+      queryKey: CAPACITY_POLICY_QUERY_KEY,
+      queryFn: dependencies.getCapacityPolicies,
+      staleTime: QUERY_CACHE_DURATION_MS,
+      gcTime: QUERY_CACHE_DURATION_MS,
+      retry: false,
+    }),
+    queryClient.fetchQuery({
+      queryKey: CAPACITY_ASSIGNMENTS_QUERY_KEY,
+      queryFn: dependencies.getCapacityPolicyAssignments,
+      staleTime: QUERY_CACHE_DURATION_MS,
+      gcTime: QUERY_CACHE_DURATION_MS,
+      retry: false,
+    }),
+  ]);
+
+  const newestImport = vropsImports[0];
+  if (!newestImport) return 0;
+
+  const [objects, chunks, summaries, hosts, fillUpVms, clusters] = await Promise.all([
+    dependencies.getVropsTimeSeriesObjects(newestImport.id),
+    dependencies.getVropsTimeSeriesChunks(newestImport.id),
+    dependencies.getVropsTimeSeriesSummaries(newestImport.id),
+    dependencies.getBySnapshotIds("entities_host", newestImport.rvtoolsSnapshotIds),
+    dependencies.getBySnapshotIds("entities_vm", newestImport.rvtoolsSnapshotIds),
+    dependencies.getBySnapshotIds("entities_cluster", newestImport.rvtoolsSnapshotIds),
+  ]);
+  const mergedPolicies = mergeInitialAndStoredCapacityPolicies(storedPolicies);
+  // Muss vor dem Worker-Aufruf laufen: Dieser transferiert die Chunk-ArrayBuffer statt sie zu
+  // kopieren, wodurch sie im Hauptthread anschließend detached und unlesbar sind.
+  const globalWorkloadClassProfiles = buildGlobalWorkloadClassAverages({
+    objects,
+    vms: fillUpVms as NormalizedVm[],
+    chunks,
+  });
+  const results = await dependencies.buildFillUpPlanningResultsInWorker({
+    import: newestImport,
+    objects,
+    chunks,
+    summaries,
+    snapshots,
+    hosts: hosts as NormalizedHost[],
+    vms: fillUpVms as NormalizedVm[],
+    clusters: clusters as NormalizedCluster[],
+    policies: mergedPolicies,
+    assignments,
+    profiles: DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+    workloadMix: DEFAULT_FILL_UP_WORKLOAD_MIX,
+    includeN2: false,
+    cpuDemandConcurrencyPct: DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+  });
+
+  queryClient.setQueryData(
+    buildFillUpPlanningQueryKey(
+      newestImport.id,
+      mergedPolicies,
+      assignments,
+      DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+      DEFAULT_FILL_UP_WORKLOAD_MIX,
+      false,
+      DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+    ),
+    { results, globalWorkloadClassProfiles },
+  );
+
+  return recordCount(results);
 }

@@ -65,7 +65,13 @@ const PROFILE_DEFINITIONS: ReadonlyArray<{
   { id: "vmware-management", name: "VMware Management", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2, maxVcpuPerCoreN2: 1.5, cpuDemandWarnPctNormal: 60, cpuDemandDangerPctNormal: 70, cpuDemandWarnPctN1: 60, cpuDemandDangerPctN1: 70 } },
 ];
 
-export function createInitialCapacityPolicies(now = new Date().toISOString()): CapacityPolicy[] {
+// Fix für die gesamte Tab-Sitzung: Ohne diesen konstanten Default würde jeder Aufruf einen neuen
+// createdAt/updatedAt-Zeitstempel erzeugen. Da `mergeInitialAndStoredCapacityPolicies` in
+// Query-Keys landet (siehe useFillUpPlanning), würde ein vorab berechneter Fill-Up-Cache-Eintrag
+// beim Seitenaufruf nie treffen, weil die unveränderten Policies scheinbar "neue" Objekte wären.
+const SESSION_INITIAL_POLICY_TIMESTAMP = new Date().toISOString();
+
+export function createInitialCapacityPolicies(now = SESSION_INITIAL_POLICY_TIMESTAMP): CapacityPolicy[] {
   return PROFILE_DEFINITIONS.map((profile) => ({
     ...BASE_VALUES,
     ...profile.values,

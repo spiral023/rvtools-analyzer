@@ -1,11 +1,31 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { IMPORT_DATA_STORE_NAMES } from "@/data/db";
+import type { VropsTimeSeriesImport } from "@/domain/models/types";
+import { mergeInitialAndStoredCapacityPolicies } from "@/domain/services/capacityPolicyService";
+import {
+  buildGlobalWorkloadClassAverages,
+  DEFAULT_FILL_UP_WORKLOAD_MIX,
+  DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+} from "@/domain/services/fillUpPlanningService";
+import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
+import { buildFillUpPlanningQueryKey } from "@/hooks/useFillUpPlanning";
 import {
   preloadImportedData,
   type PreloadDependencies,
   type PreloadProgress,
 } from "@/lib/preloadImportedData";
+
+const VROPS_IMPORT_FIXTURE: VropsTimeSeriesImport = {
+  id: "import-1",
+  importedAt: "2026-01-02",
+  timezone: "Europe/Vienna",
+  intervalMinutes: 60,
+  rangeStartUtc: 0,
+  rangeEndUtc: 0,
+  expectedSlots: 0,
+  rvtoolsSnapshotIds: ["s1", "s2"],
+};
 
 function dependencies(overrides: Partial<PreloadDependencies> = {}): PreloadDependencies {
   const empty = vi.fn(async () => []);
@@ -33,6 +53,13 @@ function dependencies(overrides: Partial<PreloadDependencies> = {}): PreloadDepe
     getAllEramonIfaceLatest: empty,
     getAllEramonL2Latest: empty,
     getAllVropsLatest: empty,
+    getVropsTimeSeriesImports: vi.fn(async () => []),
+    getVropsTimeSeriesObjects: vi.fn(async () => []),
+    getVropsTimeSeriesChunks: vi.fn(async () => []),
+    getVropsTimeSeriesSummaries: vi.fn(async () => []),
+    getCapacityPolicies: vi.fn(async () => []),
+    getCapacityPolicyAssignments: vi.fn(async () => []),
+    buildFillUpPlanningResultsInWorker: vi.fn(async () => []),
     ...overrides,
   } as PreloadDependencies;
 }
@@ -101,5 +128,56 @@ describe("preloadImportedData", () => {
     await expect(preloadImportedData(new QueryClient({ defaultOptions: { queries: { retry: false } } }), {
       dependencies: deps,
     })).rejects.toThrow("RVTools-Rohdaten: vCPU");
+  });
+
+  it("lässt die Fill-Up-Standardauswertung ohne vROps-Import unberührt", async () => {
+    const deps = dependencies();
+
+    await preloadImportedData(new QueryClient({ defaultOptions: { queries: { retry: false } } }), { dependencies: deps });
+
+    expect(deps.buildFillUpPlanningResultsInWorker).not.toHaveBeenCalled();
+  });
+
+  it("berechnet die Fill-Up-Standardauswertung für den neuesten vROps-Import vorab und hinterlegt sie unter dem Query-Key von useFillUpPlanning", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const fakeResults = [{ cluster: { clusterKey: "c1" } }] as unknown as unknown[];
+    const buildWorker = vi.fn(async () => fakeResults);
+    const deps = dependencies({
+      getVropsTimeSeriesImports: vi.fn(async () => [VROPS_IMPORT_FIXTURE]),
+      buildFillUpPlanningResultsInWorker: buildWorker as PreloadDependencies["buildFillUpPlanningResultsInWorker"],
+    });
+
+    await preloadImportedData(queryClient, { dependencies: deps });
+
+    expect(buildWorker).toHaveBeenCalledTimes(1);
+    expect(deps.getBySnapshotIds).toHaveBeenCalledWith("entities_host", VROPS_IMPORT_FIXTURE.rvtoolsSnapshotIds);
+    expect(deps.getBySnapshotIds).toHaveBeenCalledWith("entities_vm", VROPS_IMPORT_FIXTURE.rvtoolsSnapshotIds);
+    expect(deps.getBySnapshotIds).toHaveBeenCalledWith("entities_cluster", VROPS_IMPORT_FIXTURE.rvtoolsSnapshotIds);
+
+    const expectedPolicies = mergeInitialAndStoredCapacityPolicies([]);
+    const expectedGlobalProfiles = buildGlobalWorkloadClassAverages({ objects: [], vms: [], chunks: [] });
+    const key = buildFillUpPlanningQueryKey(
+      VROPS_IMPORT_FIXTURE.id,
+      expectedPolicies,
+      [],
+      DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+      DEFAULT_FILL_UP_WORKLOAD_MIX,
+      false,
+      DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+    );
+    expect(queryClient.getQueryData(key)).toEqual({ results: fakeResults, globalWorkloadClassProfiles: expectedGlobalProfiles });
+  });
+
+  it("nennt eine fehlgeschlagene Fill-Up-Standardauswertung in der Fehlermeldung", async () => {
+    const deps = dependencies({
+      getVropsTimeSeriesImports: vi.fn(async () => [VROPS_IMPORT_FIXTURE]),
+      buildFillUpPlanningResultsInWorker: vi.fn(async () => {
+        throw new Error("Worker abgestürzt");
+      }) as PreloadDependencies["buildFillUpPlanningResultsInWorker"],
+    });
+
+    await expect(preloadImportedData(new QueryClient({ defaultOptions: { queries: { retry: false } } }), {
+      dependencies: deps,
+    })).rejects.toThrow("Fill-Up-Planung: Standardauswertung: Worker abgestürzt");
   });
 });

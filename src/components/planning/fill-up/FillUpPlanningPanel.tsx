@@ -10,16 +10,15 @@ import { FillUpObservedVmProfileTable } from "@/components/planning/fill-up/Fill
 import { VropsDataQualityCard } from "@/components/planning/fill-up/VropsDataQualityCard";
 import { FillUpRunHistory } from "@/components/planning/fill-up/FillUpRunHistory";
 import { useFillUpPlanning } from "@/hooks/useFillUpPlanning";
-import type { FillUpPlanningClusterResult } from "@/domain/services/fillUpPlanningService";
+import {
+  DEFAULT_FILL_UP_HIGH_SHARE_PCT,
+  DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  type FillUpPlanningClusterResult,
+} from "@/domain/services/fillUpPlanningService";
 import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
 import type { FillUpObservedVmProfile, FillUpWorkloadProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
 import { FILL_UP_UI } from "@/lib/glossaries/planning";
 import { toast } from "sonner";
-
-const INITIAL_PROFILES: FillUpWorkloadProfile[] = [
-  { id: "high-standard", name: "HIGH Standard", workloadClass: "high", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 500, cpuDemandAverageMHz: 250 },
-  { id: "std-standard", name: "STD Standard", workloadClass: "std", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 350, cpuDemandAverageMHz: 175 },
-];
 
 /** Kein Präzisionsverlust beim Übernehmen, aber auch keine sinnlos langen Beobachtungsnachkommastellen. */
 function roundAdoptedValue(value: number): number {
@@ -50,8 +49,8 @@ function formatPlanningError(error: unknown) {
 
 export function FillUpPlanningPanel() {
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
-  const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>(INITIAL_PROFILES);
-  const [highSharePct, setHighSharePct] = useState(50);
+  const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>([...DEFAULT_FILL_UP_WORKLOAD_PROFILES]);
+  const [highSharePct, setHighSharePct] = useState(DEFAULT_FILL_UP_HIGH_SHARE_PCT);
   const [cpuDemandConcurrencyPct, setCpuDemandConcurrencyPct] = useState(DEFAULT_CPU_DEMAND_CONCURRENCY_PCT);
   const [includeN2, setIncludeN2] = useState(false);
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);

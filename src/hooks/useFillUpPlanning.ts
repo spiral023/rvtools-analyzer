@@ -8,10 +8,35 @@ import {
   getVropsTimeSeriesObjects,
   getVropsTimeSeriesSummaries,
 } from "@/data/db";
-import type { FillUpWorkloadMix, FillUpWorkloadProfile, NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
+import type {
+  CapacityPolicy,
+  ClusterCapacityPolicyAssignment,
+  FillUpWorkloadMix,
+  FillUpWorkloadProfile,
+  NormalizedCluster,
+  NormalizedHost,
+  NormalizedVm,
+} from "@/domain/models/types";
 import { buildGlobalWorkloadClassAverages } from "@/domain/services/fillUpPlanningService";
 import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
 import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
+
+/**
+ * Einzige Quelle für den Query-Key der Fill-Up-Berechnung. Ein vorab berechnetes Ergebnis (siehe
+ * `preloadImportedData`) trifft nur, wenn dieser Key exakt reproduziert wird – daher hier zentral
+ * statt an beiden Stellen dupliziert.
+ */
+export function buildFillUpPlanningQueryKey(
+  importId: string | undefined,
+  policies: readonly CapacityPolicy[],
+  assignments: readonly ClusterCapacityPolicyAssignment[],
+  profiles: readonly FillUpWorkloadProfile[],
+  workloadMix: FillUpWorkloadMix | undefined,
+  includeN2: boolean,
+  cpuDemandConcurrencyPct: number,
+) {
+  return ["fillUpPlanningCalculation", importId, policies, assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct] as const;
+}
 
 export function useFillUpPlanning(
   importId: string | null,
@@ -28,7 +53,7 @@ export function useFillUpPlanning(
   }, [importId, importsQuery.data]);
   const policies = useCapacityPolicies();
   const calculationQuery = useQuery({
-    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct],
+    queryKey: buildFillUpPlanningQueryKey(selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct),
     enabled: Boolean(selectedImport && policies.policies.length > 0),
     queryFn: async ({ signal }) => {
       const importMeta = selectedImport!;

@@ -10,8 +10,8 @@ import {
 import { mergeInitialAndStoredCapacityPolicies } from "@/domain/services/capacityPolicyService";
 import type { CapacityPolicy, ClusterCapacityPolicyAssignment } from "@/domain/models/types";
 
-const CAPACITY_POLICY_QUERY_KEY = ["capacityPolicies"] as const;
-const CAPACITY_ASSIGNMENTS_QUERY_KEY = ["capacityPolicyAssignments"] as const;
+export const CAPACITY_POLICY_QUERY_KEY = ["capacityPolicies"] as const;
+export const CAPACITY_ASSIGNMENTS_QUERY_KEY = ["capacityPolicyAssignments"] as const;
 
 export function useCapacityPolicies() {
   const queryClient = useQueryClient();
