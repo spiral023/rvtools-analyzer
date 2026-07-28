@@ -41,25 +41,25 @@ export function useFillUpPlanning(
         getBySnapshotIds<NormalizedVm>("entities_vm", importMeta.rvtoolsSnapshotIds),
         getBySnapshotIds<NormalizedCluster>("entities_cluster", importMeta.rvtoolsSnapshotIds),
       ]);
-      const [results, globalWorkloadClassProfiles] = await Promise.all([
-        buildFillUpPlanningResultsInWorker({
-          import: importMeta,
-          objects,
-          chunks,
-          summaries,
-          snapshots,
-          hosts,
-          vms,
-          clusters,
-          policies: policies.policies,
-          assignments: policies.assignments,
-          profiles,
-          workloadMix,
-          includeN2,
-          cpuDemandConcurrencyPct,
-        }, signal),
-        buildGlobalWorkloadClassAverages({ objects, vms, chunks }),
-      ]);
+      // Muss vor dem Worker-Aufruf laufen: Dieser transferiert die Chunk-ArrayBuffer statt sie zu
+      // kopieren, wodurch sie im Hauptthread anschließend detached und unlesbar sind.
+      const globalWorkloadClassProfiles = buildGlobalWorkloadClassAverages({ objects, vms, chunks });
+      const results = await buildFillUpPlanningResultsInWorker({
+        import: importMeta,
+        objects,
+        chunks,
+        summaries,
+        snapshots,
+        hosts,
+        vms,
+        clusters,
+        policies: policies.policies,
+        assignments: policies.assignments,
+        profiles,
+        workloadMix,
+        includeN2,
+        cpuDemandConcurrencyPct,
+      }, signal);
       return { results, globalWorkloadClassProfiles };
     },
   });
