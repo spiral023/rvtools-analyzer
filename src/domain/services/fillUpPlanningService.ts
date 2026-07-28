@@ -42,6 +42,8 @@ export interface BuildFillUpPlanningResultsInput {
   profiles: readonly FillUpWorkloadProfile[];
   workloadMix?: FillUpWorkloadMix;
   includeN2?: boolean;
+  /** Gleichzeitigkeitsfaktor für CPU-Demand-Guardrails; siehe Recommendation-Engine. */
+  cpuDemandConcurrencyPct?: number;
 }
 
 export interface FillUpPlanningClusterResult {
@@ -103,7 +105,7 @@ export function buildFillUpPlanningResults(input: BuildFillUpPlanningResultsInpu
       cluster,
       policy,
       capacity,
-      recommendation: calculateFillUpRecommendations({ capacityAnalysis: capacity, profiles: input.profiles, workloadMix: input.workloadMix }),
+      recommendation: calculateFillUpRecommendations({ capacityAnalysis: capacity, profiles: input.profiles, workloadMix: input.workloadMix, cpuDemandConcurrencyPct: input.cpuDemandConcurrencyPct }),
       quality,
       chartHours: hourlyData.hours.map(({ timestampUtc, clusterCpuDemandMHz, clusterMemoryUtilizationMiB }) => ({
         timestampUtc,

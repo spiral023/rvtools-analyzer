@@ -793,6 +793,13 @@ export interface FillUpWorkloadProfile {
   memoryMiB: number;
   /** Expliziter P95-CPU-Demand je zusätzlicher VM in MHz. */
   cpuDemandP95MHz: number;
+  /**
+   * Mittlerer CPU-Demand je zusätzlicher VM in MHz. Zusammen mit dem P95 spannt
+   * er das Intervall auf, in dem der Gleichzeitigkeitsfaktor den tatsächlich
+   * angesetzten Verbrauch wählt. `null` oder fehlend bedeutet: Es wird
+   * unverändert mit dem P95 gerechnet.
+   */
+  cpuDemandAverageMHz?: number | null;
 }
 
 /**
@@ -863,6 +870,10 @@ export interface FillUpProfileRecommendation {
   maxAdditionalVms: number | null;
   /** Nur Normalbetrieb – zur transparenten Einordnung gegenüber N-1. */
   normalOnlyMaxAdditionalVms: number | null;
+  /** Derselbe Lauf mit reinem P95-Ansatz; macht den Effekt des Faktors sichtbar. */
+  peakOnlyMaxAdditionalVms: number | null;
+  /** Tatsächlich angesetzter CPU-Demand je zusätzlicher VM in MHz. */
+  appliedCpuDemandMHz: number;
   limitingGuardrail: FillUpGuardrailHeadroom | null;
   nextGuardrails: FillUpGuardrailHeadroom[];
 }
@@ -871,6 +882,10 @@ export interface FillUpWorkloadMixRecommendation {
   mix: FillUpWorkloadMix;
   maxAdditionalVms: number | null;
   normalOnlyMaxAdditionalVms: number | null;
+  /** Dieselbe Mischung mit reinem P95-Ansatz; Vergleichsbasis für den Faktor. */
+  peakOnlyMaxAdditionalVms: number | null;
+  /** Mit dem HIGH-Anteil gewichteter, angesetzter CPU-Demand je zusätzlicher VM in MHz. */
+  appliedCpuDemandPerVmMHz: number | null;
   highVmCount: number | null;
   stdVmCount: number | null;
   /** Geringerer Verlust bevorzugt größere, N-1-robustere Cluster bei gleicher VM-Zahl. */
@@ -922,6 +937,11 @@ export interface FillUpAnalysisRun {
   includeN2: boolean;
   workloadProfiles: FillUpWorkloadProfile[];
   workloadMix: FillUpWorkloadMix | null;
+  /**
+   * Gleichzeitigkeitsfaktor des Laufs in Prozent. Fehlt der Wert, stammt der Run
+   * aus einem Stand vor der Einführung und wurde mit reinem P95 gerechnet.
+   */
+  cpuDemandConcurrencyPct?: number;
   results: FillUpAnalysisRunClusterResult[];
 }
 

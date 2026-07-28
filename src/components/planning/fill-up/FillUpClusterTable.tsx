@@ -29,6 +29,10 @@ export function FillUpClusterTable({ rows, onSelect }: { rows: readonly FillUpPl
       cell: ({ row }) => <MixValue recommendation={row.original.recommendation.workloadMixRecommendation} />,
     },
     {
+      id: "cpu-basis", header: "CPU-Ansatz", meta: { info: FILL_UP_COLUMNS.cpuBasis }, accessorFn: (row) => row.recommendation.workloadMixRecommendation?.appliedCpuDemandPerVmMHz ?? -1,
+      cell: ({ row }) => <CpuBasisValue recommendation={row.original.recommendation.workloadMixRecommendation} />,
+    },
+    {
       id: "headroom", header: "Unabhängig", meta: { info: FILL_UP_COLUMNS.headroom }, accessorFn: (row) => row.recommendation.independentHeadroom.vcpu.value ?? -1,
       cell: ({ row }) => <IndependentHeadroomValue result={row.original} />,
     },
@@ -55,6 +59,27 @@ export function FillUpClusterTable({ rows, onSelect }: { rows: readonly FillUpPl
 function MixValue({ recommendation }: { recommendation: FillUpPlanningClusterResult["recommendation"]["workloadMixRecommendation"] }) {
   const limit = recommendation?.limitingGuardrail ?? null;
   return <ValueTooltip title="Gemeinsamer zusätzlicher VM-Mix" description="Die VM-Zahl wird für den eingestellten HIGH/STD-Mix gemeinsam ermittelt. Sie ist die kleinste zulässige Anzahl über alle harten Guardrails und Szenarien hinweg." details={recommendation ? [`Zusätzliche VMs: ${formatAdditionalVms(recommendation.maxAdditionalVms)}`, `Davon HIGH / STD: ${formatOptionalNumber(recommendation.highVmCount)} / ${formatOptionalNumber(recommendation.stdVmCount)}`, `Limiter: ${limit ? `${limit.label} (${limit.scenarioId})` : "—"}`, limit ? `Rest am Limiter: ${formatFillUpValue(Math.max(0, limit.available ?? 0), limit.unit)}` : "Kein berechenbarer Limiter"] : ["Kein vollständiger Workload-Mix konfiguriert."]}><span className="cursor-help font-mono font-semibold tabular-nums">{formatAdditionalVms(recommendation?.maxAdditionalVms)}</span></ValueTooltip>;
+}
+
+/**
+ * Zeigt den gewichteten CPU-Ansatz je zusätzlicher VM und was er gegenüber der
+ * reinen P95-Rechnung an VM-Menge ausmacht. Der Ansatz selbst ist clusterunabhängig,
+ * seine Wirkung nicht – deshalb steht die Differenz je Cluster daneben.
+ */
+function CpuBasisValue({ recommendation }: { recommendation: FillUpPlanningClusterResult["recommendation"]["workloadMixRecommendation"] }) {
+  if (!recommendation || recommendation.appliedCpuDemandPerVmMHz === null) return <span className="text-xs text-muted-foreground">—</span>;
+  const { maxAdditionalVms, peakOnlyMaxAdditionalVms, appliedCpuDemandPerVmMHz } = recommendation;
+  const delta = maxAdditionalVms === null || peakOnlyMaxAdditionalVms === null ? null : maxAdditionalVms - peakOnlyMaxAdditionalVms;
+  return <ValueTooltip
+    title="Angesetzter CPU-Demand je VM"
+    description="Der CPU-Gleichzeitigkeitsfaktor wählt je zusätzlicher VM einen Wert zwischen ihrem Ø- und ihrem P95-Demand. Angezeigt wird der mit dem HIGH-Anteil gewichtete Ansatz und die daraus folgende Mehr- oder Mindermenge gegenüber einer reinen P95-Rechnung."
+    details={[
+      `Angesetzt je VM: ${formatFillUpValue(appliedCpuDemandPerVmMHz, "MHz")}`,
+      `Zusätzliche VMs mit diesem Ansatz: ${formatAdditionalVms(maxAdditionalVms)}`,
+      `Zusätzliche VMs bei reinem P95: ${formatAdditionalVms(peakOnlyMaxAdditionalVms)}`,
+      delta === null ? "Kein Vergleich berechenbar" : delta === 0 ? "Der Faktor verändert diesen Cluster nicht." : `Unterschied: ${delta > 0 ? "+" : ""}${delta.toLocaleString("de-DE")} VMs`,
+    ]}
+  ><div className="cursor-help font-mono text-xs tabular-nums"><p>{formatFillUpValue(appliedCpuDemandPerVmMHz, "MHz")}</p><p className="text-muted-foreground">{delta === null ? "—" : delta === 0 ? "wie P95" : `${delta > 0 ? "+" : ""}${delta.toLocaleString("de-DE")} vs. P95`}</p></div></ValueTooltip>;
 }
 
 function IndependentHeadroomValue({ result }: { result: FillUpPlanningClusterResult }) {

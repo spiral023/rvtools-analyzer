@@ -34,6 +34,7 @@ export function FillUpObservedVmProfileTable({
     { id: "memory", header: "Ø RAM", meta: { info: FILL_UP_COLUMNS.observedMemory }, accessorFn: (row) => row.averageConfiguredMemoryMiB ?? -1, cell: ({ row }) => formatFillUpValue(row.original.averageConfiguredMemoryMiB, "MiB") },
     { id: "cpu-average", header: "CPU Ø", meta: { info: FILL_UP_COLUMNS.observedCpuAverage }, accessorFn: (row) => row.averageCpuDemandMHz ?? -1, cell: ({ row }) => formatFillUpValue(row.original.averageCpuDemandMHz, "MHz") },
     { id: "cpu-p95", header: "CPU P95", meta: { info: FILL_UP_COLUMNS.observedCpuP95 }, accessorFn: (row) => row.cpuDemandP95MHz ?? -1, cell: ({ row }) => <span className="font-mono font-medium tabular-nums">{formatFillUpValue(row.original.cpuDemandP95MHz, "MHz")}</span> },
+    { id: "cpu-spread", header: "Spreizung Δ", meta: { info: FILL_UP_COLUMNS.observedCpuSpread }, accessorFn: (row) => cpuSpreadMHz(row) ?? -1, cell: ({ row }) => <CpuSpread profile={row.original} /> },
     { id: "ready-p95", header: "Ready P95", meta: { info: FILL_UP_COLUMNS.observedReadyP95 }, accessorFn: (row) => row.cpuReadyP95Pct ?? -1, cell: ({ row }) => formatPercent(row.original.cpuReadyP95Pct) },
     {
       id: "adopt",
@@ -50,11 +51,25 @@ export function FillUpObservedVmProfileTable({
     <section className="space-y-3 border-t pt-5">
       <div>
         <InfoTooltip entry={FILL_UP_UI.observedProfiles} side="right"><h3 className="w-fit cursor-help text-sm font-semibold">Typische VM aus Cluster / Resource Pool</h3></InfoTooltip>
-        <p className="text-xs text-muted-foreground">„Gesamt“ und jeder Resource Pool werden aus der gewählten vROps-Zeitreihe abgeleitet. Übernehmen erzeugt ein editierbares Profil mit CPU P95.</p>
+        <p className="text-xs text-muted-foreground">„Gesamt“ und jeder Resource Pool werden aus der gewählten vROps-Zeitreihe abgeleitet. Übernehmen erzeugt ein editierbares Profil mit CPU Ø und P95 – inklusive Nachkommastellen.</p>
       </div>
       <VirtualTable data={[...rows]} columns={columns} height={324} getRowId={(row) => row.id} exportFileName="fill-up-beobachtete-vm-profile" emptyTitle="Keine verknüpften VM-Zeitreihen" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen mit einem RVTools-Cluster." />
     </section>
   );
+}
+
+/** Abstand zwischen Ø und P95: Er bestimmt, wie stark die CPU-Gleichzeitigkeit überhaupt wirken kann. */
+function cpuSpreadMHz(profile: FillUpObservedVmProfile): number | null {
+  const { averageCpuDemandMHz, cpuDemandP95MHz } = profile;
+  if (averageCpuDemandMHz === null || cpuDemandP95MHz === null) return null;
+  return Math.max(0, cpuDemandP95MHz - averageCpuDemandMHz);
+}
+
+function CpuSpread({ profile }: { profile: FillUpObservedVmProfile }) {
+  const spread = cpuSpreadMHz(profile);
+  if (spread === null) return <span className="text-xs text-muted-foreground">—</span>;
+  const relative = profile.cpuDemandP95MHz && profile.cpuDemandP95MHz > 0 ? spread / profile.cpuDemandP95MHz * 100 : null;
+  return <div className="font-mono text-xs tabular-nums"><p>{formatFillUpValue(spread, "MHz")}</p>{relative === null ? null : <p className="text-muted-foreground">{relative.toLocaleString("de-DE", { maximumFractionDigits: 0 })} % des P95</p>}</div>;
 }
 
 function formatDecimal(value: number | null, suffix: string): string {

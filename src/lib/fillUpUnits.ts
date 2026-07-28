@@ -15,6 +15,17 @@ export function toFillUpDisplayValue(value: number | null, unit: "MHz" | "MiB"):
   return (value / divisor).toFixed(2);
 }
 
+/**
+ * Wie `toFillUpDisplayValue`, behält aber bis zu drei Dezimalstellen und schneidet
+ * überflüssige Nullen ab. Übernommene Beobachtungswerte wie 380 MHz bleiben so als
+ * „0,38“ erhalten, statt auf eine feste Zweistelligkeit gerundet zu werden.
+ */
+export function toFillUpPreciseDisplayValue(value: number | null | undefined, unit: "MHz" | "MiB"): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "";
+  const divisor = unit === "MHz" ? 1_000 : 1_024;
+  return String(Math.round(value / divisor * 1_000) / 1_000);
+}
+
 export function fromFillUpDisplayValue(value: string, unit: "MHz" | "MiB"): number | null {
   if (value.trim() === "") return null;
   const parsed = Number(value.replace(",", "."));

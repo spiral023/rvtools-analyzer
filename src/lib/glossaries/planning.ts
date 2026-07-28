@@ -94,7 +94,22 @@ export const FILL_UP_UI: Record<string, GlossaryEntry> = {
   workloadProfiles: {
     term: "Typische zusätzliche VM",
     description:
-      "Definiert synthetische VM-Profile für die Fill-Up-Empfehlung. Der CPU-Wert ist der P95-Demand, damit kurzzeitige Spitzen im Planungswert berücksichtigt werden.",
+      "Definiert synthetische VM-Profile für die Fill-Up-Empfehlung. Der P95-Demand deckt kurzzeitige Spitzen ab, der optionale Ø-Demand die Dauerlast; welcher Wert zwischen beiden tatsächlich zählt, entscheidet die CPU-Gleichzeitigkeit.",
+  },
+  cpuConcurrency: {
+    term: "CPU-Gleichzeitigkeit",
+    description:
+      "Legt fest, welchen CPU-Demand jede zusätzliche VM in den Guardrails beansprucht: 100 % setzt ihren P95 an, 0 % ihren Durchschnitt, Zwischenwerte interpolieren linear. Der Faktor beschreibt die Annahme, wie viele der neuen VMs ihre Spitze gleichzeitig fahren, und wirkt auf alle CPU-Demand-Guardrails einschließlich HIGH-Site-Failover. vCPU- und RAM-Guardrails bleiben unberührt, weil sie konfigurierte statt gemessene Größen prüfen.",
+  },
+  appliedCpuDemand: {
+    term: "Angesetzter CPU-Demand",
+    description:
+      "Der aus Ø, P95 und der CPU-Gleichzeitigkeit berechnete Wert, mit dem dieses Profil tatsächlich gegen die CPU-Guardrails gerechnet wird. Fehlt ein verwertbarer Ø-Demand oder liegt er über dem P95, bleibt es beim P95 – ein fehlender Wert macht die Planung so nie optimistischer.",
+  },
+  profileAverage: {
+    term: "Ø GHz",
+    description:
+      "Mittlerer CPU-Demand je zusätzlicher VM in GHz. Er ist optional und bildet die untere Grenze des Intervalls, in dem die CPU-Gleichzeitigkeit den Planungswert wählt. Ein leeres Feld bedeutet: Es wird ausschließlich mit dem P95 gerechnet.",
   },
   observedProfiles: {
     term: "Beobachtete VM-Profile",
@@ -196,6 +211,7 @@ export const FILL_UP_COLUMNS: Record<string, GlossaryEntry> = {
   observedMemory: { term: "Ø RAM", description: "Arithmetischer Mittelwert des konfigurierten VM-RAMs. Dies ist keine historische VM-RAM-Auslastung.", source: "RVTools · vInfo · „Memory“" },
   observedCpuAverage: { term: "CPU Ø", description: "Über alle verfügbaren VM-Stunden im Scope gewichteter mittlerer CPU-Demand.", source: "vROps · VM CPU Demand Avg" },
   observedCpuP95: { term: "CPU P95", description: "95. Perzentil der verfügbaren VM-Stunden im Scope. Dieser konservative CPU-Demand wird beim Übernehmen als Planungswert der zusätzlichen VM verwendet.", source: "vROps · VM CPU Demand Avg" },
+  observedCpuSpread: { term: "Spreizung Δ", description: "Abstand zwischen CPU P95 und CPU Ø. Er begrenzt, wie stark die CPU-Gleichzeitigkeit das Ergebnis überhaupt verschieben kann: Bei einer kleinen Spreizung liegen Ø- und Peak-Rechnung nah beieinander, bei einer großen entscheidet der Faktor maßgeblich über die zulässige VM-Menge.", source: "vROps · VM CPU Demand Avg" },
   observedReadyP95: { term: "Ready P95", description: "95. Perzentil von VM CPU Ready. Es beschreibt CPU-Wartezeit und dient zur Einordnung; es wird nicht in den zusätzlichen VM-Verbrauch übernommen.", source: "vROps · VM CPU Ready Max" },
   cluster: {
     term: "Cluster",
@@ -215,6 +231,11 @@ export const FILL_UP_COLUMNS: Record<string, GlossaryEntry> = {
   mix: {
     term: "Mix +VM",
     description: "Maximale Anzahl zusätzlicher VMs im eingestellten HIGH/STD-Mix. Der Wert gilt nur, solange keine aktive harte Guardrail verletzt wird.",
+  },
+  cpuBasis: {
+    term: "CPU-Ansatz",
+    description:
+      "Der mit dem HIGH-Anteil gewichtete CPU-Demand, den eine zusätzliche VM bei der eingestellten CPU-Gleichzeitigkeit beansprucht, und die daraus folgende Mehr- oder Mindermenge gegenüber einer reinen P95-Rechnung. Der Ansatz selbst ist für alle Cluster gleich; seine Wirkung hängt davon ab, ob im jeweiligen Cluster überhaupt eine CPU-Guardrail begrenzt.",
   },
   headroom: {
     term: "Unabhängig",

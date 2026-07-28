@@ -14,6 +14,8 @@ export function FillUpInputControls({
   onIncludeN2Change,
   highSharePct,
   onHighShareChange,
+  cpuDemandConcurrencyPct,
+  onCpuDemandConcurrencyChange,
 }: {
   imports: readonly VropsTimeSeriesImport[];
   selectedImportId: string | null;
@@ -22,9 +24,11 @@ export function FillUpInputControls({
   onIncludeN2Change: (value: boolean) => void;
   highSharePct: number;
   onHighShareChange: (value: number) => void;
+  cpuDemandConcurrencyPct: number;
+  onCpuDemandConcurrencyChange: (value: number) => void;
 }) {
   return (
-    <section className="grid gap-4 border-b bg-muted/20 px-5 py-4 lg:grid-cols-[minmax(18rem,1fr)_auto_minmax(16rem,20rem)] lg:items-end">
+    <section className="grid gap-4 border-b bg-muted/20 px-5 py-4 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_auto_minmax(12rem,1fr)_minmax(12rem,1fr)] xl:items-end">
       <div className="space-y-1.5">
         <InfoTooltip entry={FILL_UP_UI.timeSeriesImport} side="bottom"><Label htmlFor="fill-up-import" className="w-fit cursor-help text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zeitreihenimport</Label></InfoTooltip>
         <Select value={selectedImportId ?? ""} onValueChange={onImportChange} disabled={imports.length === 0}>
@@ -43,6 +47,11 @@ export function FillUpInputControls({
         <div className="flex items-center justify-between"><InfoTooltip entry={FILL_UP_UI.highShare} side="bottom"><Label htmlFor="fill-up-high-share" className="w-fit cursor-help text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zusätzlicher HIGH-Anteil</Label></InfoTooltip><span className="font-mono text-sm tabular-nums">{highSharePct} %</span></div>
         <Input id="fill-up-high-share" aria-label="HIGH-Anteil in Prozent" type="range" min="0" max="100" step="1" value={highSharePct} onChange={(event) => onHighShareChange(Number(event.target.value))} />
         <div className="flex justify-between text-[11px] text-muted-foreground"><span>0 % HIGH</span><span>{100 - highSharePct} % STD</span><span>100 % HIGH</span></div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between"><InfoTooltip entry={FILL_UP_UI.cpuConcurrency} side="bottom"><Label htmlFor="fill-up-cpu-concurrency" className="w-fit cursor-help text-xs font-semibold uppercase tracking-wide text-muted-foreground">CPU-Gleichzeitigkeit</Label></InfoTooltip><span className="font-mono text-sm tabular-nums">{cpuDemandConcurrencyPct} %</span></div>
+        <Input id="fill-up-cpu-concurrency" aria-label="CPU-Gleichzeitigkeitsfaktor in Prozent" type="range" min="0" max="100" step="5" value={cpuDemandConcurrencyPct} onChange={(event) => onCpuDemandConcurrencyChange(Number(event.target.value))} />
+        <div className="flex justify-between text-[11px] text-muted-foreground"><span>Ø Demand</span><span>P95 Demand</span></div>
       </div>
     </section>
   );

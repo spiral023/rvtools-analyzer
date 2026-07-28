@@ -19,7 +19,7 @@ describe("FillUpClusterTable", () => {
       columns: Array<{ id: string; meta?: { info?: { term: string; description: string } } }>;
     };
     expect(props.columns.map((column) => column.id)).toEqual([
-      "cluster", "scope", "policy", "mix", "headroom", "n1", "n2", "site", "limiter",
+      "cluster", "scope", "policy", "mix", "cpu-basis", "headroom", "n1", "n2", "site", "limiter",
     ]);
     for (const column of props.columns) {
       expect(column.meta?.info?.term).toBeTruthy();

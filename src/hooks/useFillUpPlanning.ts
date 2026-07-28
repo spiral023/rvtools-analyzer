@@ -17,6 +17,7 @@ export function useFillUpPlanning(
   profiles: readonly FillUpWorkloadProfile[],
   workloadMix: FillUpWorkloadMix | undefined,
   includeN2: boolean,
+  cpuDemandConcurrencyPct: number,
 ) {
   const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
   const selectedImport = useMemo(() => {
@@ -26,7 +27,7 @@ export function useFillUpPlanning(
   }, [importId, importsQuery.data]);
   const policies = useCapacityPolicies();
   const calculationQuery = useQuery({
-    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2],
+    queryKey: ["fillUpPlanningCalculation", selectedImport?.id, policies.policies, policies.assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct],
     enabled: Boolean(selectedImport && policies.policies.length > 0),
     queryFn: async ({ signal }) => {
       const importMeta = selectedImport!;
@@ -53,6 +54,7 @@ export function useFillUpPlanning(
         profiles,
         workloadMix,
         includeN2,
+        cpuDemandConcurrencyPct,
       }, signal);
     },
   });
