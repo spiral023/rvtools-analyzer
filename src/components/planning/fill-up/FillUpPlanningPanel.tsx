@@ -16,6 +16,12 @@ const INITIAL_PROFILES: FillUpWorkloadProfile[] = [
   { id: "std-standard", name: "STD Standard", workloadClass: "std", vcpu: 2, memoryMiB: 8_192, cpuDemandP95MHz: 350 },
 ];
 
+function formatPlanningError(error: unknown) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Die Fill-Up-Auswertung ist ohne verwertbaren Browserfehler abgebrochen. Bitte den Import erneut öffnen; bei erneutem Auftreten diese Meldung weitergeben.";
+}
+
 export function FillUpPlanningPanel() {
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>(INITIAL_PROFILES);
@@ -43,7 +49,7 @@ export function FillUpPlanningPanel() {
       <FillUpInputControls imports={planning.imports} selectedImportId={selectedImportId} onImportChange={setSelectedImportId} includeN2={includeN2} onIncludeN2Change={setIncludeN2} highSharePct={highSharePct} onHighShareChange={setHighSharePct} />
       <CardContent className="space-y-6 pt-5"><FillUpWorkloadProfileEditor profiles={profiles} onChange={setProfiles} /></CardContent>
     </Card>
-    {planning.isError && <Alert variant="destructive"><AlertDescription>{planning.error instanceof Error ? planning.error.message : "Fill-Up-Daten konnten nicht geladen werden."}</AlertDescription></Alert>}
+    {planning.isError && <Alert variant="destructive"><AlertDescription><p className="font-medium">Fill-Up-Auswertung fehlgeschlagen</p><p className="mt-1 break-words">{formatPlanningError(planning.error)}</p></AlertDescription></Alert>}
     {planning.isCalculating && <Alert><AlertDescription>Fill-Up-Auswertung läuft im Hintergrund. Die Zeitreihen und Ausfallszenarien werden lokal im Browser berechnet; die Seite bleibt dabei bedienbar.</AlertDescription></Alert>}
     <VropsDataQualityCard importMeta={planning.selectedImport} quality={quality} />
     {planning.selectedImport && !planning.isLoading && planning.results.length === 0 && <Alert><AlertDescription>Der Import enthält im aktuellen RVTools-Stand keine eindeutig verknüpften Cluster. Prüfe den Datenqualitätsbericht oder importiere den passenden Snapshot erneut.</AlertDescription></Alert>}
