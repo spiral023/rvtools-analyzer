@@ -109,12 +109,12 @@ export const FILL_UP_UI: Record<string, GlossaryEntry> = {
     description: "Konfigurierte virtuelle CPUs je zusätzlicher VM. Der Wert fließt in die vCPU/Core-Guardrails ein.",
   },
   profileMemory: {
-    term: "RAM MiB",
-    description: "Konfigurierter Arbeitsspeicher je zusätzlicher VM. Er wird gegen die verfügbaren RAM-Headrooms und Reserven geprüft.",
+    term: "RAM GiB",
+    description: "Konfigurierter Arbeitsspeicher je zusätzlicher VM in GiB. Intern wird er verlustfrei als MiB gespeichert und gegen die verfügbaren RAM-Headrooms und Reserven geprüft.",
   },
   profileP95: {
-    term: "P95 MHz",
-    description: "95. Perzentil der CPU-Demand in MHz je zusätzlicher VM. Das bedeutet: 95 % der betrachteten Werte liegen höchstens auf diesem Niveau.",
+    term: "P95 GHz",
+    description: "95. Perzentil der CPU-Demand in GHz je zusätzlicher VM. Das bedeutet: 95 % der betrachteten Werte liegen höchstens auf diesem Niveau; intern rechnet die Engine in MHz.",
   },
   dataQuality: {
     term: "Datenstand & Vertrauensniveau",
@@ -152,8 +152,8 @@ export const FILL_UP_UI: Record<string, GlossaryEntry> = {
     description: "Relativer Verlust an aufnehmbarer Kapazität, wenn ein Host im Cluster ausfällt. Die Auswertung nutzt die ungünstigste zulässige Host-Entfernung.",
   },
   cpuDemand: {
-    term: "CPU Demand",
-    description: "Historische CPU-Nachfrage des Clusters in MHz zum ungünstigsten betrachteten Normalbetriebsslot.",
+    term: "CPU Demand GHz",
+    description: "Historische CPU-Nachfrage des Clusters in GHz zum ungünstigsten betrachteten Normalbetriebsslot. Die importierte Quelle wird intern in MHz normalisiert.",
     source: "vROps · Cluster CPU Demand Avg",
   },
   assignedMemory: {
@@ -216,4 +216,39 @@ export const FILL_UP_COLUMNS: Record<string, GlossaryEntry> = {
     term: "Limiter",
     description: "Die Guardrail, die den gemeinsamen zusätzlichen VM-Mix aktuell zuerst begrenzt, inklusive des Szenarios, in dem sie wirkt.",
   },
+};
+
+/** Erläuterungen direkt an den editierbaren Werten einer Fill-Up-Policy. */
+export const FILL_UP_POLICY_FIELDS: Record<string, GlossaryEntry> = {
+  lookbackDays: { term: "Rückblick", description: "Anzahl der zurückliegenden Tage, aus denen die historische Stundenreihe für die Planungsbetrachtung berücksichtigt wird. Ein längerer Zeitraum glättet Ausreißer, kann aber ältere Lastmuster einbeziehen." },
+  planningPercentile: { term: "Planungsperzentil", description: "Legt fest, welcher obere Lastwert aus dem Rückblick als Planungsniveau gilt. Bei P95 liegen 95 % der gemessenen Stunden höchstens auf diesem Niveau; die oberen 5 % sind stärker. Es begrenzt die Aufnahme zusätzlich zu den Szenario-Guardrails." },
+  maxVcpuPerCoreNormal: { term: "vCPU/Core Normal", description: "Maximal zulässige virtuelle CPUs pro verbleibendem physischem Core im Normalbetrieb. Beispiel: 4,00 erlaubt bei 100 Cores höchstens 400 vCPU." },
+  maxVcpuPerCoreN1: { term: "vCPU/Core N-1", description: "Maximal zulässige vCPU/Core nach Ausfall eines Hosts. Die verfügbaren Cores werden im ungünstigsten N-1-Szenario neu bestimmt." },
+  maxVcpuPerCoreN2: { term: "vCPU/Core N-2", description: "Maximal zulässige vCPU/Core nach Ausfall von zwei Hosts. Der Wert wirkt nur, wenn N-2 analysiert wird; die Policy entscheidet zusätzlich, ob er hart begrenzt." },
+  cpuDemandWarnPctNormal: { term: "Demand Warn Normal", description: "Warnschwelle für CPU-Demand im Normalbetrieb, bezogen auf die im jeweiligen Stunden-Slot verfügbare CPU-Kapazität." },
+  cpuDemandDangerPctNormal: { term: "Demand Danger Normal", description: "Harte CPU-Demand-Grenze im Normalbetrieb. Oberhalb dieses Anteils der verfügbaren CPU-Kapazität kann kein weiterer Workload empfohlen werden." },
+  cpuDemandWarnPctN1: { term: "Demand Warn N-1", description: "Warnschwelle für CPU-Demand nach Ausfall eines Hosts, gemessen gegen die verbleibende CPU-Kapazität." },
+  cpuDemandDangerPctN1: { term: "Demand Danger N-1", description: "Harte CPU-Demand-Grenze nach Ausfall eines Hosts. Sie ist meist die konservativere Grenze für die Fill-Up-Empfehlung." },
+  cpuDemandWarnPctN2: { term: "Demand Warn N-2", description: "Warnschwelle für CPU-Demand nach Ausfall von zwei Hosts." },
+  cpuDemandDangerPctN2: { term: "Demand Danger N-2", description: "Harte CPU-Demand-Grenze nach Ausfall von zwei Hosts, sofern N-2 als harte Grenze aktiviert ist." },
+  cpuReadyWarnPct: { term: "CPU Ready Warn", description: "Warnschwelle für CPU Ready der bestehenden VMs. Ready beschreibt Wartezeit auf CPU-Zuteilung; der Wert wird als reale Prozentzahl verarbeitet." },
+  cpuReadyDangerPct: { term: "CPU Ready Danger", description: "Kritische CPU-Ready-Grenze. Wird sie in der historischen Betrachtung überschritten, wird zusätzliche CPU-Last nicht empfohlen." },
+  cpuContentionWarnPct: { term: "Contention Warn", description: "Warnschwelle für Cluster-CPU-Contention aus vROps. Sie signalisiert konkurrierende CPU-Anforderungen im Cluster." },
+  cpuContentionDangerPct: { term: "Contention Danger", description: "Kritische Grenze für Cluster-CPU-Contention aus vROps. Oberhalb dieses Werts wird der Cluster als zu umkämpft für zusätzliche Last behandelt." },
+  totalRamAssignedWarnPct: { term: "Gesamt-RAM Warn", description: "Warnschwelle für die Summe des konfigurierten VM-RAMs im Verhältnis zur nach Reserven verfügbaren Host-RAM-Kapazität." },
+  totalRamAssignedDangerPct: { term: "Gesamt-RAM Danger", description: "Harte Grenze für zugewiesenen VM-RAM. Sie begrenzt den Workload-Mix, bevor der Cluster seine planbare RAM-Kapazität überschreitet." },
+  memoryUtilizationWarnPct: { term: "Memory Util. Warn", description: "Warnschwelle für die direkt aus vROps gelesene Speichernutzung. Sie ergänzt die Konfigurationssicht des zugewiesenen VM-RAMs." },
+  memoryUtilizationDangerPct: { term: "Memory Util. Danger", description: "Kritische vROps-Speichernutzungsgrenze. Sie verhindert Empfehlungen, wenn die tatsächliche Nutzung bereits hoch ist." },
+  highRamAssignedWarnPct: { term: "HIGH-RAM Warn", description: "Warnschwelle für den konfigurierten RAM der HIGH-Workloads in einem HIGH-Site-Failover-Szenario." },
+  highRamAssignedDangerPct: { term: "HIGH-RAM Danger", description: "Harte Grenze für HIGH-Workload-RAM im Site-Failover. Sie sichert, dass HIGH-VMs nach Standortausfall weiter untergebracht werden können." },
+  highCpuSiteWarnPct: { term: "HIGH-Site-CPU Warn", description: "Warnschwelle für CPU-Demand der HIGH-Workloads nach Ausfall eines Standorts." },
+  highCpuSiteDangerPct: { term: "HIGH-Site-CPU Danger", description: "Harte CPU-Demand-Grenze für HIGH-Workloads im Standort-Failover." },
+  cpuSafetyBufferPct: { term: "CPU-Sicherheitspuffer", description: "Zusätzlicher Anteil der CPU-Kapazität, der vor der Berechnung reserviert bleibt. Er wird nicht als freie Fill-Up-Kapazität ausgegeben." },
+  ramSafetyBufferPct: { term: "RAM-Sicherheitspuffer", description: "Zusätzlicher Anteil der RAM-Kapazität, der vor der Berechnung reserviert bleibt. Er reduziert bewusst die planbare Kapazität." },
+  ramSystemReserveMiBPerHost: { term: "RAM-Systemreserve je Host", description: "Pro Host reservierter Arbeitsspeicher für ESXi und Betriebsreserven. Die Eingabe und Anzeige erfolgen in GiB; intern speichert die Policy den Wert in MiB." },
+  maxSingleVmHostCpuPct: { term: "Einzel-VM CPU je Host", description: "Maximaler Anteil der CPU-Kapazität eines einzelnen Hosts, den eine zusätzliche VM beanspruchen darf. Schützt die Platzierbarkeit vor zu großen VMs." },
+  maxSingleVmHostRamPct: { term: "Einzel-VM RAM je Host", description: "Maximaler Anteil des verfügbaren RAM eines einzelnen Hosts für eine zusätzliche VM. Schützt die Platzierbarkeit vor zu großen VMs." },
+  requireN1: { term: "N-1 erforderlich", description: "Macht den Ausfall eines Hosts zur verpflichtenden harten Bedingung für die Fill-Up-Empfehlung." },
+  useN2AsHardLimit: { term: "N-2 als harte Grenze", description: "Wertet N-2-Verstöße als harte Begrenzung statt als reine Information. N-2 muss zusätzlich in den Eingaben aktiviert sein." },
+  requireHighSiteFailover: { term: "HIGH-Site-Failover erforderlich", description: "Macht den Standort-Failover für HIGH-Workloads zu einer harten Bedingung, sofern die Standortzuordnung berechenbar ist." },
 };

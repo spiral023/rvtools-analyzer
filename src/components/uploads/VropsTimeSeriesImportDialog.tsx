@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, FileClock, ListChecks, Loader2, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileCheck2, FileClock, ListChecks, Loader2, Upload } from "lucide-react";
 import type { SnapshotMeta } from "@/domain/models/types";
 import {
   importVropsTimeSeriesFileSet,
@@ -9,8 +9,8 @@ import {
 } from "@/domain/services/vropsTimeSeriesImportService";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { inferVropsTimeSeriesObjectTypeFromFileName } from "@/domain/services/vropsTimeSeriesParser";
 
 interface VropsTimeSeriesImportDialogProps {
   snapshots: SnapshotMeta[];
@@ -69,13 +69,19 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
   const [result, setResult] = useState<VropsTimeSeriesImportResult | null>(null);
   const [logEntries, setLogEntries] = useState<ImportLogEntry[]>([]);
   const [running, setRunning] = useState(false);
-  const fileRefs = useRef<Partial<Record<FileSlot, HTMLInputElement | null>>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handledPrefillRequest = useRef(0);
+  const [dropActive, setDropActive] = useState(false);
+  const [selectionIssues, setSelectionIssues] = useState<string[]>([]);
   const sortedSnapshots = useMemo(
-    () => [...snapshots].sort((left, right) => right.exportTs.localeCompare(left.exportTs)),
+    () => [...snapshots].sort((left, right) => (
+      left.vcenterDisplayName.localeCompare(right.vcenterDisplayName, "de-DE", { sensitivity: "base" })
+      || right.exportTs.localeCompare(left.exportTs)
+    )),
     [snapshots],
   );
-  const selectedSnapshots = sortedSnapshots.filter((snapshot) => snapshotIds.includes(snapshot.snapshotId));
+  const selectedSnapshotIdSet = useMemo(() => new Set(snapshotIds), [snapshotIds]);
+  const selectedSnapshots = sortedSnapshots.filter((snapshot) => selectedSnapshotIdSet.has(snapshot.snapshotId));
   const ready = Boolean(snapshotIds.length > 0 && files.vm && files.cluster && files.host && !running);
 
   const appendLog = (severity: ImportLogSeverity, message: string, detail?: string) => {
@@ -98,9 +104,31 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
     setProgress(null);
     setResult(null);
     setLogEntries([]);
-    for (const input of Object.values(fileRefs.current)) {
-      if (input) input.value = "";
+    setSelectionIssues([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const assignFiles = (fileList: FileList | File[]) => {
+    const nextFiles: Partial<Record<FileSlot, File>> = {};
+    const issues: string[] = [];
+    for (const file of Array.from(fileList)) {
+      if (!file.name.toLocaleLowerCase("en-US").endsWith(".csv")) {
+        issues.push(`„${file.name}“ ist keine CSV-Datei und wurde nicht übernommen.`);
+        continue;
+      }
+      const slot = inferVropsTimeSeriesObjectTypeFromFileName(file.name);
+      if (!slot) {
+        issues.push(`„${file.name}“ enthält keinen eindeutigen Typ im Dateinamen. Erwartet wird VM, Cluster oder Host.`);
+        continue;
+      }
+      if (nextFiles[slot] || files[slot]) issues.push(`„${file.name}“ ersetzt die zuvor gewählte ${FILE_LABELS[slot]}.`);
+      nextFiles[slot] = file;
     }
+    if (Object.keys(nextFiles).length > 0) setFiles((current) => ({ ...current, ...nextFiles }));
+    setSelectionIssues(issues);
+    setResult(null);
+    setLogEntries(issues.map((message, index) => ({ id: index + 1, severity: "warning", message })));
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const onOpenChange = (nextOpen: boolean) => {
@@ -148,7 +176,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
         <DialogHeader>
           <DialogTitle>vROps-Zeitreihen importieren</DialogTitle>
           <DialogDescription>
-            Ein Dateisatz besteht aus genau einer VM-, Cluster- und Host-CSV. Die Werte bleiben ausschließlich lokal in IndexedDB.
+            Ein Dateisatz besteht aus genau einer VM-, Cluster- und Host-CSV. Die Dateinamen ordnen die Dateien automatisch zu; Werte bleiben ausschließlich lokal in IndexedDB.
           </DialogDescription>
         </DialogHeader>
 
@@ -162,7 +190,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
               <div className="max-h-36 space-y-2 overflow-y-auto rounded-md border bg-muted/15 p-3">
                 {sortedSnapshots.map((snapshot) => {
                   const inputId = `vrops-timeseries-snapshot-${snapshot.snapshotId}`;
-                  const selected = snapshotIds.includes(snapshot.snapshotId);
+                  const selected = selectedSnapshotIdSet.has(snapshot.snapshotId);
                   return <label key={snapshot.snapshotId} htmlFor={inputId} className="flex cursor-pointer items-start gap-2 text-sm">
                     <input
                       id={inputId}
@@ -180,33 +208,40 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
               {selectedSnapshots.length > 0 && <p className="text-xs text-muted-foreground">{selectedSnapshots.length.toLocaleString("de-DE")} vCenter-Scope{selectedSnapshots.length === 1 ? "" : "s"} gewählt: {selectedSnapshots.map((snapshot) => snapshot.vcenterId).join(" · ")}</p>}
             </fieldset>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              {(["vm", "cluster", "host"] as const).map((slot) => (
-                <div key={slot} className={`rounded-lg border p-3 transition-colors ${files[slot] ? "border-primary/40 bg-primary/5" : "border-border/70 bg-muted/20"}`}>
-                  <p className="text-sm font-medium">{FILE_LABELS[slot]}</p>
-                  <p className="mt-1 min-h-8 break-all text-xs text-muted-foreground">{files[slot]?.name ?? "Noch keine CSV gewählt"}</p>
-                  <input
-                    ref={(node) => { fileRefs.current[slot] = node; }}
-                    className="sr-only"
-                    id={`vrops-timeseries-${slot}`}
-                    type="file"
-                    accept=".csv,text/csv"
-                    disabled={running}
-                    onChange={(event) => {
-                      setFiles((current) => ({ ...current, [slot]: event.target.files?.[0] }));
-                      setResult(null);
-                      setLogEntries([]);
-                    }}
-                  />
-                  <Label className="mt-3 inline-flex h-8 cursor-pointer items-center rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-accent" htmlFor={`vrops-timeseries-${slot}`}>
-                    <Upload className="mr-1.5 h-3.5 w-3.5" /> CSV wählen
-                  </Label>
-                </div>
-              ))}
+            <div className="space-y-3">
+              <label
+                htmlFor="vrops-timeseries-files"
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-7 text-center transition-[border-color,background-color,box-shadow] ${dropActive ? "border-primary bg-primary/5 shadow-md" : "border-border/60 bg-card/30 hover:border-primary/40 hover:shadow-md"}`}
+                onDragOver={(event) => { event.preventDefault(); if (!running) setDropActive(true); }}
+                onDragLeave={() => setDropActive(false)}
+                onDrop={(event) => { event.preventDefault(); setDropActive(false); if (!running && event.dataTransfer.files.length > 0) assignFiles(event.dataTransfer.files); }}
+              >
+                <input
+                  ref={fileInputRef}
+                  id="vrops-timeseries-files"
+                  className="sr-only"
+                  type="file"
+                  accept=".csv,text/csv"
+                  multiple
+                  disabled={running}
+                  aria-label="vROps-Zeitreihen-CSV-Dateien auswählen"
+                  onChange={(event) => { if (event.target.files) assignFiles(event.target.files); }}
+                />
+                <Upload className="h-8 w-8 text-primary" />
+                <p className="mt-2 text-sm font-medium">VM-, Cluster- und Host-CSV hierher ziehen oder auswählen</p>
+                <p className="mt-1 text-xs text-muted-foreground">Der Dateiname muss den Typ VM, Cluster oder Host enthalten. Mehrere Dateien gleichzeitig auswählen.</p>
+              </label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(["vm", "cluster", "host"] as const).map((slot) => <div key={slot} className={`rounded-md border px-3 py-2 ${files[slot] ? "border-primary/35 bg-primary/5" : "border-border/70 bg-muted/20"}`}>
+                  <div className="flex items-center gap-2"><FileCheck2 className={`h-3.5 w-3.5 ${files[slot] ? "text-success" : "text-muted-foreground"}`} /><p className="text-xs font-medium">{FILE_LABELS[slot]}</p></div>
+                  <p className="mt-1 min-h-8 break-all text-[11px] text-muted-foreground">{files[slot]?.name ?? "Noch nicht erkannt"}</p>
+                </div>)}
+              </div>
+              {selectionIssues.length > 0 && <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning" role="alert">{selectionIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>}
             </div>
 
             <p className={`rounded-md border px-3 py-2 text-xs ${ready ? "border-success/30 bg-success/5 text-success" : "border-border/70 bg-muted/20 text-muted-foreground"}`} role="status">
-              {running ? "Dateisatz wird im Worker geprüft. Der Fortschritt zeigt die aktuell verarbeiteten CSV-Zeilen." : ready ? "Dateisatz vollständig. Mit „Dateisatz prüfen und speichern“ wird er lokal gespeichert und danach in Planung › Fill up auswählbar." : "Für den Speichervorgang werden mindestens ein RVTools-Snapshot sowie je eine VM-, Cluster- und Host-CSV benötigt."}
+              {running ? "Dateisatz wird im Worker geprüft. Der Fortschritt zeigt die aktuell verarbeiteten CSV-Zeilen." : ready ? "Dateisatz vollständig. Mit „Dateisatz prüfen und speichern“ wird er lokal gespeichert und danach in Planung › Fill up auswählbar." : "Für den Speichervorgang werden mindestens ein RVTools-Snapshot sowie CSV-Dateien mit den Dateinamens-Typen VM, Cluster und Host benötigt."}
             </p>
 
             {progress && (

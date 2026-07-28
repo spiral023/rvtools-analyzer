@@ -24,6 +24,10 @@ Auf der Seite Wartung lässt sich das Fill-Up-Basisprofil jetzt direkt je Cluste
 
 Mehrere markierte Cluster können ihr Fill-Up-Basisprofil jetzt gesammelt erhalten. Die Cluster-Tabelle nutzt dabei die volle Seitenbreite mit kompakter Höhe; die Bulk- und Detailbearbeitung liegt direkt darunter.
 
+Der Fill-Up-Clustervergleich erklärt nun seine Ergebniswerte direkt per Tooltip – einschließlich tatsächlichem Mix, Limitierung, Szenariozeitpunkt sowie CPU- und RAM-Basis. Alle Policy-Felder besitzen fachliche Hilfen. Fill-Up-Kapazitätswerte und Eingaben werden durchgängig in GHz und GiB mit zwei Nachkommastellen angezeigt; intern bleiben die Originaleinheiten MHz und MiB erhalten.
+
+Der vROps-Dateisatzimport verwendet jetzt eine gemeinsame Dropzone für VM-, Cluster- und Host-CSV. Die Zuordnung erfolgt über den Typ im Dateinamen, zeigt alle erkannten Slots unmittelbar an und meldet unklare oder doppelte Dateien. RVTools-vCenter-Scopes sind alphabetisch sortiert.
+
 Fill Up erklärt nun Eingaben, Datenqualität, Ergebnisbereiche und alle Spalten des Clustervergleichs direkt per Tooltip.
 
 Für jeden verbundenen RVTools-Cluster werden Normalbetrieb, N-1, optional N-2 sowie HIGH-Site-Failover berechnet. Versionierte Kapazitätspolicies, CPU-/RAM- und Platzierungs-Guardrails, HIGH-/STD-Workloadprofile und eine nachvollziehbare Fill-Up-Empfehlung sind im Planungstab verfügbar.

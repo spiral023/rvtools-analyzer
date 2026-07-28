@@ -7,6 +7,7 @@ import type { FillUpWorkloadProfile } from "@/domain/models/types";
 import { Plus, Trash2 } from "lucide-react";
 import type { GlossaryEntry } from "@/lib/glossary";
 import { FILL_UP_UI } from "@/lib/glossaries/planning";
+import { fromFillUpDisplayValue, toFillUpDisplayValue } from "@/lib/fillUpUnits";
 
 export function FillUpWorkloadProfileEditor({ profiles, onChange }: { profiles: readonly FillUpWorkloadProfile[]; onChange: (profiles: FillUpWorkloadProfile[]) => void }) {
   const update = (id: string, patch: Partial<FillUpWorkloadProfile>) => onChange(profiles.map((profile) => profile.id === id ? { ...profile, ...patch } : profile));
@@ -19,8 +20,8 @@ export function FillUpWorkloadProfileEditor({ profiles, onChange }: { profiles: 
           <Field label="Name" info={FILL_UP_UI.profileName}><Input value={profile.name} onChange={(event) => update(profile.id, { name: event.target.value })} /></Field>
           <Field label="Klasse" info={FILL_UP_UI.profileClass}><Select value={profile.workloadClass} onValueChange={(value) => update(profile.id, { workloadClass: value as FillUpWorkloadProfile["workloadClass"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">HIGH</SelectItem><SelectItem value="std">STD</SelectItem></SelectContent></Select></Field>
           <Field label="vCPU" info={FILL_UP_UI.profileVcpu}><Input type="number" min="1" value={profile.vcpu} onChange={(event) => update(profile.id, { vcpu: Number(event.target.value) })} /></Field>
-          <Field label="RAM MiB" info={FILL_UP_UI.profileMemory}><Input type="number" min="1" value={profile.memoryMiB} onChange={(event) => update(profile.id, { memoryMiB: Number(event.target.value) })} /></Field>
-          <Field label="P95 MHz" info={FILL_UP_UI.profileP95}><Input type="number" min="1" value={profile.cpuDemandP95MHz} onChange={(event) => update(profile.id, { cpuDemandP95MHz: Number(event.target.value) })} /></Field>
+          <Field label="RAM GiB" info={FILL_UP_UI.profileMemory}><Input type="number" min="0.01" step="0.01" value={toFillUpDisplayValue(profile.memoryMiB, "MiB")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MiB"); if (value !== null) update(profile.id, { memoryMiB: value }); }} /></Field>
+          <Field label="P95 GHz" info={FILL_UP_UI.profileP95}><Input type="number" min="0.01" step="0.01" value={toFillUpDisplayValue(profile.cpuDemandP95MHz, "MHz")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MHz"); if (value !== null) update(profile.id, { cpuDemandP95MHz: value }); }} /></Field>
           <Button type="button" variant="ghost" size="icon" aria-label={`${profile.name} entfernen`} disabled={profiles.length < 3} onClick={() => onChange(profiles.filter((entry) => entry.id !== profile.id))}><Trash2 className="h-4 w-4" /></Button>
         </div>)}
       </div>

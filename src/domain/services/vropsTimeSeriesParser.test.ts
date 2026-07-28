@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectVropsTimeSeriesCsvFile, parseVropsTimeSeriesCsv } from "@/domain/services/vropsTimeSeriesParser";
+import { detectVropsTimeSeriesCsvFile, inferVropsTimeSeriesObjectTypeFromFileName, parseVropsTimeSeriesCsv } from "@/domain/services/vropsTimeSeriesParser";
 
 const VM_HEADER = '"Name","Interval Breakdown","VM|CPU|Demand (MHz)|Avg","VM|CPU|Ready (%)|Max"';
 const CLUSTER_HEADER = '"Name","Interval Breakdown","Cluster|CPU|Demand|Avg","Cluster|CPU|Demand|Max","Cluster|Memory|Utilization (MB)|Avg","Cluster|Memory|Utilization (MB)|Max","Cluster|CPU|Contention (%)|Avg","Cluster|CPU|Contention (%)|Max"';
@@ -10,6 +10,13 @@ function errorCodes(csv: string): string[] {
 }
 
 describe("parseVropsTimeSeriesCsv", () => {
+  it("ordnet vROps-Dateien anhand des exportierten Objekttyps im Dateinamen zu", () => {
+    expect(inferVropsTimeSeriesObjectTypeFromFileName("7-28-26 Asa RVTools Analyzer VM vSphere World(1).csv")).toBe("vm");
+    expect(inferVropsTimeSeriesObjectTypeFromFileName("7-28-26 Asa RVTools Analyzer Cluster vSphere World(1).csv")).toBe("cluster");
+    expect(inferVropsTimeSeriesObjectTypeFromFileName("7-28-26 Asa RVTools Analyzer Host vSphere World(1).csv")).toBe("host");
+    expect(inferVropsTimeSeriesObjectTypeFromFileName("hostclone.csv")).toBeNull();
+  });
+
   it("erkennt Zeitreihen-Dateien anhand des Headers ohne den vollständigen Inhalt zu laden", async () => {
     const clusterHeader = '"Name","Interval Breakdown","Cluster|CPU|Demand|Avg","Cluster|CPU|Demand|Max","Cluster|Memory|Utilization (MB)|Avg","Cluster|Memory|Utilization (MB)|Max","Cluster|CPU|Contention (%)|Avg","Cluster|CPU|Contention (%)|Max"';
     const file = new File([`${clusterHeader}\n${"x".repeat(70 * 1024)}`], "cluster.csv", { type: "text/csv" });

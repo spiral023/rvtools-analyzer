@@ -24,6 +24,29 @@ const snapshot: SnapshotMeta = {
 describe("VropsTimeSeriesImportDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("sortiert vCenter-Snapshots alphabetisch und ordnet mehrere CSVs über ihre Dateinamen zu", () => {
+    const aSnapshot = { ...snapshot, snapshotId: "snapshot-a", vcenterId: "vc-a", vcenterDisplayName: "A vCenter" };
+    const zSnapshot = { ...snapshot, snapshotId: "snapshot-z", vcenterId: "vc-z", vcenterDisplayName: "Z vCenter" };
+    render(<MemoryRouter><VropsTimeSeriesImportDialog snapshots={[zSnapshot, aSnapshot]} onImported={vi.fn()} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole("button", { name: "vROps-Zeitreihen importieren" }));
+    expect(screen.getAllByRole("checkbox").map((input) => input.getAttribute("aria-label"))).toEqual([
+      "A vCenter auswählen",
+      "Z vCenter auswählen",
+    ]);
+    fireEvent.change(document.getElementById("vrops-timeseries-files")!, {
+      target: { files: [
+        new File(["csv"], "A VM vSphere World.csv", { type: "text/csv" }),
+        new File(["csv"], "A Cluster vSphere World.csv", { type: "text/csv" }),
+        new File(["csv"], "A Host vSphere World.csv", { type: "text/csv" }),
+      ] },
+    });
+
+    expect(screen.getByText("A VM vSphere World.csv")).toBeInTheDocument();
+    expect(screen.getByText("A Cluster vSphere World.csv")).toBeInTheDocument();
+    expect(screen.getByText("A Host vSphere World.csv")).toBeInTheDocument();
+  });
+
   it("protokolliert alle Rückmeldungen eines nicht gespeicherten Dateisatzes", async () => {
     importVropsTimeSeriesFileSet.mockImplementation(async (_files, _snapshotIds, onProgress) => {
       onProgress?.({ step: "Zeitreihen im Worker parsen", percent: 30, detail: "VM, Cluster und Host" });
@@ -44,9 +67,13 @@ describe("VropsTimeSeriesImportDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "vROps-Zeitreihen importieren" }));
     fireEvent.click(screen.getByLabelText("vCenter 1 auswählen"));
     fireEvent.click(screen.getByLabelText("vCenter 2 auswählen"));
-    for (const slot of ["vm", "cluster", "host"]) {
-      fireEvent.change(document.getElementById(`vrops-timeseries-${slot}`)!, { target: { files: [new File(["csv"], `${slot}.csv`, { type: "text/csv" })] } });
-    }
+    fireEvent.change(document.getElementById("vrops-timeseries-files")!, {
+      target: { files: [
+        new File(["csv"], "export VM.csv", { type: "text/csv" }),
+        new File(["csv"], "export Cluster.csv", { type: "text/csv" }),
+        new File(["csv"], "export Host.csv", { type: "text/csv" }),
+      ] },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Dateisatz prüfen und speichern" }));
 
     await waitFor(() => expect(screen.getByRole("group", { name: "vROps-Importprotokoll" })).toBeInTheDocument());

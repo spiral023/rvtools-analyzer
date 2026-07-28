@@ -145,6 +145,19 @@ export async function detectVropsTimeSeriesCsvFile(file: Blob): Promise<VropsTim
   return parseVropsTimeSeriesCsv(sample).schema?.objectType ?? null;
 }
 
+/**
+ * Leitet den vROps-Objekttyp aus einem typischen Exportdateinamen ab. Diese
+ * Zuordnung ist bewusst konservativ: Der Begriff muss als eigenes Wort im
+ * Namen stehen, damit etwa „hostclone“ nicht versehentlich als Host gilt.
+ */
+export function inferVropsTimeSeriesObjectTypeFromFileName(fileName: string): VropsTimeSeriesObjectType | null {
+  const normalized = fileName.trim().toLocaleLowerCase("en-US");
+  const matches = (["vm", "cluster", "host"] as const).filter((type) => (
+    new RegExp(`(?:^|[^a-z0-9])${type}(?:[^a-z0-9]|$)`, "i").test(normalized)
+  ));
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function parseRfc4180Csv(input: string): { records: CsvRecord[]; issues: VropsTimeSeriesValidationIssue[] } {
   const records: CsvRecord[] = [];
   const issues: VropsTimeSeriesValidationIssue[] = [];

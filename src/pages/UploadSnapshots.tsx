@@ -35,7 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, FileCheck2, HardDrive, Layers3 } from "lucide-react";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 import { VropsTimeSeriesImportDialog } from "@/components/uploads/VropsTimeSeriesImportDialog";
-import { detectVropsTimeSeriesCsvFile } from "@/domain/services/vropsTimeSeriesParser";
+import { detectVropsTimeSeriesCsvFile, inferVropsTimeSeriesObjectTypeFromFileName } from "@/domain/services/vropsTimeSeriesParser";
 
 type VropsTimeSeriesFileSlot = "vm" | "cluster" | "host";
 
@@ -242,7 +242,7 @@ function useUploadSnapshotsView() {
     const classifiedFiles = await Promise.all(Array.from(files).map(async (file) => ({
       file,
       objectType: file.name.toLocaleLowerCase("de-DE").endsWith(".csv")
-        ? await detectVropsTimeSeriesCsvFile(file)
+        ? inferVropsTimeSeriesObjectTypeFromFileName(file.name) ?? await detectVropsTimeSeriesCsvFile(file)
         : null,
     })));
     const timeSeriesFiles = classifiedFiles.filter((item): item is { file: File; objectType: VropsTimeSeriesFileSlot } => item.objectType !== null);
