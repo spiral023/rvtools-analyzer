@@ -59,6 +59,20 @@ describe("vROps time-series persistence", () => {
     await expect(db.getCapacityPolicyAssignment("vc-1", "cluster-1")).resolves.toMatchObject({ policyId: policy.id, overrides: { cpuSafetyBufferPct: 12 } });
   });
 
+  it("löscht alle Versionen einer Policy, lässt andere Policies aber unberührt", async () => {
+    const db = await import("./index");
+    const [policyA, policyB] = createInitialCapacityPolicies("2026-07-28T10:00:00.000Z");
+    await db.putCapacityPolicy(policyA);
+    await db.putCapacityPolicy({ ...policyA, version: 2, updatedAt: "2026-07-28T11:00:00.000Z" });
+    await db.putCapacityPolicy(policyB);
+
+    await db.deleteCapacityPolicy(policyA.id);
+
+    const remaining = await db.getCapacityPolicies();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.id).toBe(policyB.id);
+  });
+
   it("persistiert Analyzer-Runs unabhängig von ihren später löschbaren Zeitreihen", async () => {
     const db = await import("./index");
     const run: FillUpAnalysisRun = {

@@ -272,3 +272,9 @@ export const FILL_UP_POLICY_FIELDS: Record<string, GlossaryEntry> = {
   useN2AsHardLimit: { term: "N-2 als harte Grenze", description: "Wertet N-2-Verstöße als harte Begrenzung statt als reine Information. N-2 muss zusätzlich in den Eingaben aktiviert sein." },
   requireHighSiteFailover: { term: "HIGH-Site-Failover erforderlich", description: "Macht den Standort-Failover für HIGH-Workloads zu einer harten Bedingung, sofern die Standortzuordnung berechenbar ist." },
 };
+
+/** Kennzahlen der KPI-Leiste im Policies-Tab. */
+export const FILL_UP_POLICY_KPI: Record<string, GlossaryEntry> = {
+  totalPolicies: { term: "Policies gesamt", description: "Anzahl aller aktuell aktiven Policy-Versionen, sowohl Standardprofile als auch selbst angelegte Policies." },
+  unassignedClusters: { term: "Cluster ohne explizite Zuweisung", description: "Cluster ohne eigenen Eintrag in der Clusterzuweisung. Sie verwenden aktuell die erste Policy als Fallback, statt eine bewusst gewählte Policy." },
+};

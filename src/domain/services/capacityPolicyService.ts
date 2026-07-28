@@ -38,8 +38,8 @@ const BASE_VALUES: CapacityPolicyValues = {
   highRamAssignedDangerPct: 50,
   highCpuSiteWarnPct: 80,
   highCpuSiteDangerPct: 100,
-  cpuSafetyBufferPct: 10,
-  ramSafetyBufferPct: 10,
+  cpuSafetyBufferPct: 0,
+  ramSafetyBufferPct: 0,
   ramSystemReserveMiBPerHost: 0,
   requireN1: true,
   useN2AsHardLimit: false,
@@ -53,16 +53,16 @@ const PROFILE_DEFINITIONS: ReadonlyArray<{
   name: string;
   values: Partial<CapacityPolicyValues>;
 }> = [
-  { id: "realtime-telephony", name: "Realtime/Telefonie", values: { maxVcpuPerCoreNormal: 2, maxVcpuPerCoreN1: 1.5, maxVcpuPerCoreN2: 1.2, cpuDemandWarnPctNormal: 55, cpuDemandDangerPctNormal: 65, cpuDemandWarnPctN1: 55, cpuDemandDangerPctN1: 65, cpuReadyWarnPct: 2, cpuReadyDangerPct: 5, cpuContentionWarnPct: 2, cpuContentionDangerPct: 5, cpuSafetyBufferPct: 15, ramSafetyBufferPct: 15 } },
+  { id: "realtime-telephony", name: "Realtime/Telefonie", values: { maxVcpuPerCoreNormal: 2, maxVcpuPerCoreN1: 1.5, maxVcpuPerCoreN2: 1.2, cpuDemandWarnPctNormal: 55, cpuDemandDangerPctNormal: 65, cpuDemandWarnPctN1: 55, cpuDemandDangerPctN1: 65, cpuReadyWarnPct: 2, cpuReadyDangerPct: 5, cpuContentionWarnPct: 2, cpuContentionDangerPct: 5 } },
   { id: "standard-server-windows", name: "Standard Server Windows", values: {} },
   { id: "standard-server-linux", name: "Standard Server Linux", values: { maxVcpuPerCoreNormal: 5, maxVcpuPerCoreN1: 4, maxVcpuPerCoreN2: 3 } },
   { id: "vdi", name: "VDI", values: { maxVcpuPerCoreNormal: 6, maxVcpuPerCoreN1: 5, maxVcpuPerCoreN2: 4, cpuDemandWarnPctNormal: 75, cpuDemandDangerPctNormal: 85, cpuDemandWarnPctN1: 75, cpuDemandDangerPctN1: 85 } },
   { id: "preproduction-test", name: "Vorzone/Test", values: { maxVcpuPerCoreNormal: 6, maxVcpuPerCoreN1: 5, maxVcpuPerCoreN2: null, cpuDemandWarnPctNormal: 75, cpuDemandDangerPctNormal: 85, cpuDemandWarnPctN1: 75, cpuDemandDangerPctN1: 85, cpuDemandWarnPctN2: null, cpuDemandDangerPctN2: null, useN2AsHardLimit: false, requireHighSiteFailover: false } },
-  { id: "special", name: "Spezial", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2.5, maxVcpuPerCoreN2: 2, cpuSafetyBufferPct: 15, ramSafetyBufferPct: 15 } },
+  { id: "special", name: "Spezial", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2.5, maxVcpuPerCoreN2: 2 } },
   { id: "sap", name: "SAP", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2, maxVcpuPerCoreN2: 1.5, cpuDemandWarnPctNormal: 60, cpuDemandDangerPctNormal: 70, cpuDemandWarnPctN1: 60, cpuDemandDangerPctN1: 70, highRamAssignedWarnPct: 40, highRamAssignedDangerPct: 45 } },
   { id: "paas-openshift", name: "PaaS/OpenShift", values: { maxVcpuPerCoreNormal: 5, maxVcpuPerCoreN1: 4, maxVcpuPerCoreN2: 3, maxSingleVmHostCpuPct: 40, maxSingleVmHostRamPct: 40 } },
   { id: "data-warehouse", name: "RDW/Data Warehouse", values: { maxVcpuPerCoreNormal: 4, maxVcpuPerCoreN1: 3, maxVcpuPerCoreN2: 2, memoryUtilizationWarnPct: 75, memoryUtilizationDangerPct: 85, maxSingleVmHostRamPct: 40 } },
-  { id: "vmware-management", name: "VMware Management", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2, maxVcpuPerCoreN2: 1.5, cpuDemandWarnPctNormal: 60, cpuDemandDangerPctNormal: 70, cpuDemandWarnPctN1: 60, cpuDemandDangerPctN1: 70, cpuSafetyBufferPct: 15, ramSafetyBufferPct: 15 } },
+  { id: "vmware-management", name: "VMware Management", values: { maxVcpuPerCoreNormal: 3, maxVcpuPerCoreN1: 2, maxVcpuPerCoreN2: 1.5, cpuDemandWarnPctNormal: 60, cpuDemandDangerPctNormal: 70, cpuDemandWarnPctN1: 60, cpuDemandDangerPctN1: 70 } },
 ];
 
 export function createInitialCapacityPolicies(now = new Date().toISOString()): CapacityPolicy[] {
@@ -76,6 +76,36 @@ export function createInitialCapacityPolicies(now = new Date().toISOString()): C
     createdAt: now,
     updatedAt: now,
   }));
+}
+
+export const BUILT_IN_CAPACITY_POLICY_IDS: ReadonlySet<string> = new Set(PROFILE_DEFINITIONS.map((profile) => profile.id));
+
+export function isBuiltInCapacityPolicy(policy: CapacityPolicy): boolean {
+  return BUILT_IN_CAPACITY_POLICY_IDS.has(policy.id);
+}
+
+export function createCustomCapacityPolicy(name: string, now = new Date().toISOString()): CapacityPolicy {
+  return {
+    ...BASE_VALUES,
+    id: crypto.randomUUID(),
+    version: 1,
+    name,
+    profileKind: "custom",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function duplicateCapacityPolicy(policy: CapacityPolicy, name: string, now = new Date().toISOString()): CapacityPolicy {
+  return {
+    ...policy,
+    id: crypto.randomUUID(),
+    version: 1,
+    name,
+    profileKind: "custom",
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export function getLatestCapacityPolicies(policies: readonly CapacityPolicy[]): CapacityPolicy[] {

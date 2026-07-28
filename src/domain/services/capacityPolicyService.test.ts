@@ -2,22 +2,43 @@ import { describe, expect, it } from "vitest";
 import { evaluateCapacityFindings, hasBlockingCapacityFinding } from "./capacityFindingEngine";
 import {
   createCapacityPolicyAssignment,
+  createCustomCapacityPolicy,
   createInitialCapacityPolicies,
   createNextCapacityPolicyVersion,
+  duplicateCapacityPolicy,
   getCapacityStatus,
   getLatestCapacityPolicies,
   getPolicyThreshold,
+  isBuiltInCapacityPolicy,
   resolveEffectiveCapacityPolicy,
   validateCapacityPolicy,
 } from "./capacityPolicyService";
 
 describe("CapacityPolicy-Service", () => {
-  it("liefert alle spezifizierten Basisprofile mit versionierten Defaultwerten", () => {
+  it("liefert alle spezifizierten Basisprofile mit versionierten Defaultwerten und 0 % Sicherheitspuffer", () => {
     const policies = createInitialCapacityPolicies("2026-07-28T10:00:00.000Z");
 
     expect(policies).toHaveLength(10);
     expect(policies.find((policy) => policy.id === "realtime-telephony")).toMatchObject({ name: "Realtime/Telefonie", version: 1, maxVcpuPerCoreNormal: 2 });
     expect(policies.find((policy) => policy.id === "vdi")).toMatchObject({ maxVcpuPerCoreNormal: 6 });
+    for (const policy of policies) {
+      expect(policy.cpuSafetyBufferPct).toBe(0);
+      expect(policy.ramSafetyBufferPct).toBe(0);
+    }
+  });
+
+  it("erkennt Standardprofile und erzeugt eigenständige neue oder duplizierte Policies", () => {
+    const [builtIn] = createInitialCapacityPolicies("2026-07-28T10:00:00.000Z");
+    expect(isBuiltInCapacityPolicy(builtIn)).toBe(true);
+
+    const created = createCustomCapacityPolicy("Meine Policy", "2026-07-28T11:00:00.000Z");
+    expect(created).toMatchObject({ name: "Meine Policy", version: 1, profileKind: "custom" });
+    expect(isBuiltInCapacityPolicy(created)).toBe(false);
+
+    const duplicate = duplicateCapacityPolicy(builtIn, "Kopie von Standard", "2026-07-28T12:00:00.000Z");
+    expect(duplicate).toMatchObject({ name: "Kopie von Standard", version: 1, profileKind: "custom", maxVcpuPerCoreNormal: builtIn.maxVcpuPerCoreNormal });
+    expect(duplicate.id).not.toBe(builtIn.id);
+    expect(isBuiltInCapacityPolicy(duplicate)).toBe(false);
   });
 
   it("erzeugt eine neue unveränderliche Version und wendet Cluster-Overrides erst danach an", () => {

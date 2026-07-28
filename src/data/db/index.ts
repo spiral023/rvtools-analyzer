@@ -1342,6 +1342,14 @@ export async function putCapacityPolicy(policy: CapacityPolicy): Promise<void> {
   await db.put("capacity_policies", policy);
 }
 
+export async function deleteCapacityPolicy(id: string): Promise<void> {
+  const db = await getDb();
+  const transaction = db.transaction("capacity_policies", "readwrite");
+  const keys = await transaction.store.index("policyId").getAllKeys(id);
+  for (const key of keys) await transaction.store.delete(key);
+  await transaction.done;
+}
+
 export async function getCapacityPolicyAssignments(): Promise<ClusterCapacityPolicyAssignment[]> {
   const db = await getDb();
   return db.getAll("capacity_policy_assignments");

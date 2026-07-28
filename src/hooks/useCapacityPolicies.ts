@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  deleteCapacityPolicy,
   getCapacityPolicies,
   getCapacityPolicyAssignments,
   putCapacityPolicy,
@@ -21,6 +22,7 @@ export function useCapacityPolicies() {
     queryClient.invalidateQueries({ queryKey: CAPACITY_ASSIGNMENTS_QUERY_KEY }),
   ]);
   const savePolicy = useMutation({ mutationFn: (policy: CapacityPolicy) => putCapacityPolicy(policy), onSuccess: invalidate });
+  const removePolicy = useMutation({ mutationFn: (id: string) => deleteCapacityPolicy(id), onSuccess: invalidate });
   const saveAssignment = useMutation({ mutationFn: (assignment: ClusterCapacityPolicyAssignment) => putCapacityPolicyAssignment(assignment), onSuccess: invalidate });
   const policies = useMemo(() => mergeInitialAndStoredCapacityPolicies(policiesQuery.data ?? []), [policiesQuery.data]);
 
@@ -31,7 +33,8 @@ export function useCapacityPolicies() {
     isError: policiesQuery.isError || assignmentsQuery.isError,
     error: policiesQuery.error ?? assignmentsQuery.error ?? null,
     savePolicy: savePolicy.mutateAsync,
+    deletePolicy: removePolicy.mutateAsync,
     saveAssignment: saveAssignment.mutateAsync,
-    isSaving: savePolicy.isPending || saveAssignment.isPending,
+    isSaving: savePolicy.isPending || saveAssignment.isPending || removePolicy.isPending,
   };
 }
