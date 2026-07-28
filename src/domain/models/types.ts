@@ -831,6 +831,132 @@ export interface FillUpObservedVmProfile {
   sampleCount: number;
 }
 
+/**
+ * Wie `FillUpObservedVmProfile`, aber über ALLE VMs des Imports je HIGH/STD
+ * gemittelt statt je Cluster/Resource Pool. Aufrufer filtert vorab auf
+ * eingeschaltete, nicht-vCLS-VMs; dient als Vorschlag für die Standardwerte
+ * der „typischen zusätzlichen VM“ in der Fill-Up-Planung.
+ */
+export interface GlobalWorkloadClassProfile {
+  workloadClass: "high" | "std";
+  vmCount: number;
+  vmWithCpuDemandCount: number;
+  averageVcpu: number | null;
+  averageConfiguredMemoryMiB: number | null;
+  averageCpuDemandMHz: number | null;
+  cpuDemandP95MHz: number | null;
+  cpuReadyP95Pct: number | null;
+  sampleCount: number;
+}
+
+/**
+ * Verhaltensklassen einer VM auf Basis ihres Sieben-Tage-CPU-Demand-Profils.
+ * Gemeinsame Basis für VM-Profile, Rightsizing und spätere Korrelations-/
+ * Placement-Auswertungen; siehe `vmWorkloadProfileService`.
+ */
+export type VmBehaviorClass =
+  | "constant-load"
+  | "business-hours"
+  | "night-batch"
+  | "weekend-load"
+  | "bursty"
+  | "low-utilization"
+  | "irregular";
+
+export interface VmWorkloadProfileMetricStats {
+  expectedSlots: number;
+  sampleCount: number;
+  coverageRatio: number;
+  average: number | null;
+  p50: number | null;
+  p95: number | null;
+  maximum: number | null;
+}
+
+/** Nachvollziehbare Kennzahlen, aus denen `behaviorClass` abgeleitet wurde. */
+export interface VmWorkloadClassificationSignals {
+  coefficientOfVariation: number | null;
+  activeHourSharePct: number | null;
+  /** Anteil der Demand-Summe während Mo–Fr 08–18 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
+  businessHoursConcentration: number | null;
+  /** Wie `businessHoursConcentration`, für Mo–Fr 00–06 Uhr. */
+  nightConcentration: number | null;
+  /** Wie `businessHoursConcentration`, für Samstag/Sonntag. */
+  weekendConcentration: number | null;
+}
+
+export interface VmWorkloadHourlyPoint {
+  timestampUtc: number;
+  cpuDemandMHz: number | null;
+  cpuReadyPct: number | null;
+}
+
+/**
+ * Aus einer vROps-Zeitreihe abgeleitetes Sieben-Tage-Auslastungsprofil einer
+ * einzelnen VM. Ausschließlich eine Beobachtung, keine Empfehlung; wird von
+ * VM-Profilen und Rightsizing-Kandidaten gemeinsam genutzt.
+ */
+export interface VmWorkloadProfile {
+  objectKey: string;
+  rvtoolsObjectKey: string | null;
+  vmName: string;
+  clusterKey: string | null;
+  clusterName: string | null;
+  hostKey: string | null;
+  host: string | null;
+  vcpu: number | null;
+  configuredMemoryMiB: number | null;
+  powerState: string | null;
+  workloadClass: "high" | "std" | "unknown";
+  hourly: VmWorkloadHourlyPoint[];
+  demand: VmWorkloadProfileMetricStats;
+  ready: VmWorkloadProfileMetricStats;
+  behaviorClass: VmBehaviorClass;
+  confidence: VropsTimeSeriesConfidenceLevel;
+  signals: VmWorkloadClassificationSignals;
+}
+
+/**
+ * Prüfpflichtiger CPU-Rightsizing-Kandidat: vergleicht konfigurierte vCPU mit
+ * beobachtetem CPU Demand/Ready. Ändert niemals automatisch VM-Ressourcen.
+ */
+export interface VmRightsizingCandidate {
+  objectKey: string;
+  vmName: string;
+  clusterKey: string | null;
+  clusterName: string | null;
+  hostName: string | null;
+  vcpu: number | null;
+  behaviorClass: VmBehaviorClass;
+  confidence: VropsTimeSeriesConfidenceLevel;
+  demand: VmWorkloadProfileMetricStats;
+  ready: VmWorkloadProfileMetricStats;
+  /** MHz pro Core des zum Importzeitpunkt zugeordneten Hosts; Näherung, da VMs migrieren können. */
+  mhzPerCore: number | null;
+  /** Aus P95-Demand und `mhzPerCore` abgeleiteter, tatsächlich genutzter vCPU-Bedarf. */
+  usedVcpuEquivalentP95: number | null;
+  /** Empfohlene vCPU-Zielgröße mit Sicherheitsaufschlag; nur eine prüfpflichtige Kandidatengröße. */
+  recommendedVcpu: number | null;
+  /** `vcpu - recommendedVcpu`, nie negativ. */
+  reclaimableVcpu: number | null;
+  flags: {
+    /** Viele vCPU bei gleichzeitig geringem genutztem vCPU-Äquivalent. */
+    manyVcpuLowDemand: boolean;
+    /** CPU Ready P95 über dem Hotspot-Grenzwert – Rightsizing könnte Ready sogar verschlechtern. */
+    highCpuReady: boolean;
+  };
+}
+
+/** Je Cluster oder Verhaltensklasse aufsummierte, potenziell rückgewinnbare vCPU-Kapazität. */
+export interface VmRightsizingGroupSummary {
+  key: string;
+  label: string;
+  vmCount: number;
+  candidateCount: number;
+  totalVcpu: number;
+  reclaimableVcpu: number;
+}
+
 /** Zusammensetzung einer gemeinsamen zusätzlichen HIGH-/STD-Workloadmenge. */
 export interface FillUpWorkloadMix {
   highProfileId: string;

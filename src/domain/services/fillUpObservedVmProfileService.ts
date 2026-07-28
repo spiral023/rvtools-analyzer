@@ -1,4 +1,5 @@
-import type { FillUpObservedVmProfile } from "@/domain/models/types";
+import type { FillUpObservedVmProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
+import { average, percentile } from "@/lib/statistics";
 
 export interface ObservedVmProfileSource {
   objectKey: string;
@@ -66,6 +67,46 @@ function toObservedProfile(
   };
 }
 
+export interface GlobalWorkloadClassVmSource {
+  objectKey: string;
+  workloadClass: "high" | "std";
+  vcpu: number | null;
+  configuredMemoryMiB: number | null;
+}
+
+export interface BuildGlobalWorkloadClassProfilesInput {
+  vms: readonly GlobalWorkloadClassVmSource[];
+  cpuDemandByVm: ReadonlyMap<string, ReadonlyMap<number, number>>;
+  cpuReadyByVm: ReadonlyMap<string, ReadonlyMap<number, number>>;
+}
+
+/**
+ * Wie `buildObservedVmProfiles`, aber über ALLE VMs des Imports je HIGH/STD
+ * gemittelt statt je Cluster/Resource Pool. Der Aufrufer filtert vorab auf
+ * eingeschaltete, nicht-vCLS-VMs; diese Funktion kennt weder Power-State noch
+ * vCLS-Erkennung.
+ */
+export function buildGlobalWorkloadClassProfiles(input: BuildGlobalWorkloadClassProfilesInput): GlobalWorkloadClassProfile[] {
+  return (["high", "std"] as const).map((workloadClass) => {
+    const vms = input.vms.filter((vm) => vm.workloadClass === workloadClass);
+    const cpuDemandValues = vms.flatMap((vm) => finiteValues(input.cpuDemandByVm.get(vm.objectKey)?.values()));
+    const cpuReadyValues = vms.flatMap((vm) => finiteValues(input.cpuReadyByVm.get(vm.objectKey)?.values()));
+    const vcpu = vms.map((vm) => vm.vcpu).filter(isPositiveFinite);
+    const memory = vms.map((vm) => vm.configuredMemoryMiB).filter(isPositiveFinite);
+    return {
+      workloadClass,
+      vmCount: vms.length,
+      vmWithCpuDemandCount: vms.filter((vm) => finiteValues(input.cpuDemandByVm.get(vm.objectKey)?.values()).length > 0).length,
+      averageVcpu: average(vcpu),
+      averageConfiguredMemoryMiB: average(memory),
+      averageCpuDemandMHz: average(cpuDemandValues),
+      cpuDemandP95MHz: percentile(cpuDemandValues, 0.95),
+      cpuReadyP95Pct: percentile(cpuReadyValues, 0.95),
+      sampleCount: cpuDemandValues.length,
+    };
+  });
+}
+
 function normalizeResourcePool(value: string | null): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
@@ -77,14 +118,4 @@ function finiteValues(values: Iterable<number> | undefined): number[] {
 
 function isPositiveFinite(value: number | null): value is number {
   return value !== null && Number.isFinite(value) && value > 0;
-}
-
-function average(values: readonly number[]): number | null {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-}
-
-function percentile(values: readonly number[], fraction: number): number | null {
-  if (!values.length) return null;
-  const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))] ?? null;
 }

@@ -35,6 +35,12 @@ vi.mock("@/components/vm/VmPerformancePanel", () => ({
 vi.mock("@/components/vm/VmComplianceLifecyclePanel", () => ({
   VmComplianceLifecyclePanel: () => <div>VM Compliance</div>,
 }));
+vi.mock("@/components/vm/VmWorkloadProfilePanel", () => ({
+  VmWorkloadProfilePanel: () => <div>VM-Profile Panel</div>,
+}));
+vi.mock("@/components/vm/VmRightsizingPanel", () => ({
+  VmRightsizingPanel: () => <div>Rightsizing Panel</div>,
+}));
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: () => <div>VMTools Wellen-Tabelle</div>,
 }));
@@ -42,7 +48,7 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 const { default: Vms } = await import("./Vms");
 
 describe("VMs", () => {
-  it("bündelt die VM-Übersicht in vier Sitzungstabs", () => {
+  it("bündelt die VM-Übersicht in sechs Sitzungstabs", () => {
     render(<MemoryRouter><TooltipProvider><Vms /></TooltipProvider></MemoryRouter>);
 
     expect(screen.getByRole("heading", { name: "VMs" })).toBeInTheDocument();
@@ -53,5 +59,7 @@ describe("VMs", () => {
     expect(screen.getByRole("tab", { name: "Betrieb" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Performance" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Compliance" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "VM-Profile" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Rightsizing" })).toBeInTheDocument();
   });
 });

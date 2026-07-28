@@ -13,6 +13,8 @@ import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventor
 import { VmOperationsPanel } from "@/components/vm/VmOperationsPanel";
 import { VmPerformancePanel } from "@/components/vm/VmPerformancePanel";
 import { VmComplianceLifecyclePanel } from "@/components/vm/VmComplianceLifecyclePanel";
+import { VmWorkloadProfilePanel } from "@/components/vm/VmWorkloadProfilePanel";
+import { VmRightsizingPanel } from "@/components/vm/VmRightsizingPanel";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
@@ -39,13 +41,15 @@ export default function Vms() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="VMs" />
-      <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung." />
+      <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung. VM-Profile und Rightsizing basieren zusätzlich auf einem ausgewählten vROps-Zeitreihenimport." />
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList>
           <TabsTrigger value="inventory">Inventar</TabsTrigger>
           <TabsTrigger value="operations">Betrieb</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
+          <TabsTrigger value="vm-profiles">VM-Profile</TabsTrigger>
+          <TabsTrigger value="rightsizing">Rightsizing</TabsTrigger>
         </TabsList>
         <TabsContent value="inventory" className="space-y-6">
           <KpiGrid>
@@ -58,6 +62,8 @@ export default function Vms() {
         <TabsContent value="operations"><VmOperationsPanel /></TabsContent>
         <TabsContent value="performance"><VmPerformancePanel /></TabsContent>
         <TabsContent value="compliance"><VmComplianceLifecyclePanel /></TabsContent>
+        <TabsContent value="vm-profiles"><VmWorkloadProfilePanel /></TabsContent>
+        <TabsContent value="rightsizing"><VmRightsizingPanel /></TabsContent>
       </Tabs>
       {vmDetailDialog}
     </div>

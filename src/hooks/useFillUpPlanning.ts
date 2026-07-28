@@ -9,6 +9,7 @@ import {
   getVropsTimeSeriesSummaries,
 } from "@/data/db";
 import type { FillUpWorkloadMix, FillUpWorkloadProfile, NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
+import { buildGlobalWorkloadClassAverages } from "@/domain/services/fillUpPlanningService";
 import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
 import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
 
@@ -40,30 +41,34 @@ export function useFillUpPlanning(
         getBySnapshotIds<NormalizedVm>("entities_vm", importMeta.rvtoolsSnapshotIds),
         getBySnapshotIds<NormalizedCluster>("entities_cluster", importMeta.rvtoolsSnapshotIds),
       ]);
-      return buildFillUpPlanningResultsInWorker({
-        import: importMeta,
-        objects,
-        chunks,
-        summaries,
-        snapshots,
-        hosts,
-        vms,
-        clusters,
-        policies: policies.policies,
-        assignments: policies.assignments,
-        profiles,
-        workloadMix,
-        includeN2,
-        cpuDemandConcurrencyPct,
-      }, signal);
+      const [results, globalWorkloadClassProfiles] = await Promise.all([
+        buildFillUpPlanningResultsInWorker({
+          import: importMeta,
+          objects,
+          chunks,
+          summaries,
+          snapshots,
+          hosts,
+          vms,
+          clusters,
+          policies: policies.policies,
+          assignments: policies.assignments,
+          profiles,
+          workloadMix,
+          includeN2,
+          cpuDemandConcurrencyPct,
+        }, signal),
+        buildGlobalWorkloadClassAverages({ objects, vms, chunks }),
+      ]);
+      return { results, globalWorkloadClassProfiles };
     },
   });
-  const results = calculationQuery.data ?? [];
 
   return {
     imports: importsQuery.data ?? [],
     selectedImport,
-    results,
+    results: calculationQuery.data?.results ?? [],
+    globalWorkloadClassProfiles: calculationQuery.data?.globalWorkloadClassProfiles ?? [],
     isLoading: importsQuery.isLoading || policies.isLoading || calculationQuery.isLoading,
     isCalculating: calculationQuery.isFetching,
     isError: importsQuery.isError || policies.isError || calculationQuery.isError,

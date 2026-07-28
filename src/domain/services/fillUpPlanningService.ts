@@ -9,6 +9,7 @@ import type {
   FillUpVm,
   FillUpWorkloadMix,
   FillUpWorkloadProfile,
+  GlobalWorkloadClassProfile,
   NormalizedCluster,
   NormalizedHost,
   NormalizedVm,
@@ -24,7 +25,8 @@ import { analyzeFillUpCapacity } from "@/domain/services/fillUpCapacityEngine";
 import { calculateFillUpRecommendations } from "@/domain/services/fillUpRecommendationEngine";
 import { evaluateVropsDataQuality } from "@/domain/services/vropsDataQualityService";
 import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
-import { buildObservedVmProfiles } from "@/domain/services/fillUpObservedVmProfileService";
+import { buildGlobalWorkloadClassProfiles, buildObservedVmProfiles } from "@/domain/services/fillUpObservedVmProfileService";
+import { isPoweredOnVm, isVclsVm } from "@/lib/vmScope";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -211,6 +213,33 @@ function toFillUpHours(
       cpuReadyByVm: vmReady,
     }),
   };
+}
+
+export interface BuildGlobalWorkloadClassAveragesInput {
+  objects: readonly VropsTimeSeriesImportedObject[];
+  vms: readonly NormalizedVm[];
+  chunks: readonly VropsTimeSeriesChunk[];
+}
+
+/**
+ * HIGH-/STD-Durchschnittswerte über ALLE eindeutig zugeordneten, eingeschalteten,
+ * nicht-vCLS-VMs des Imports – unabhängig vom Cluster. Grundlage für die
+ * Standardwerte der „typischen zusätzlichen VM“ in der Fill-Up-Planung.
+ */
+export function buildGlobalWorkloadClassAverages(input: BuildGlobalWorkloadClassAveragesInput): GlobalWorkloadClassProfile[] {
+  const vmByKey = new Map(input.vms.map((vm) => [vm.vmKey, vm]));
+  const sources = input.objects.flatMap((object) => {
+    if (object.objectType !== "vm" || object.matchStatus !== "matched" || !object.rvtoolsObjectKey) return [];
+    if (object.workloadClass !== "high" && object.workloadClass !== "std") return [];
+    const vm = vmByKey.get(object.rvtoolsObjectKey);
+    if (!vm || !isPoweredOnVm(vm) || isVclsVm(vm)) return [];
+    return [{ objectKey: object.objectKey, workloadClass: object.workloadClass, vcpu: vm.cpuCount, configuredMemoryMiB: vm.memoryMiB }];
+  });
+  return buildGlobalWorkloadClassProfiles({
+    vms: sources,
+    cpuDemandByVm: new Map(sources.map((vm) => [vm.objectKey, readVropsTimeSeriesMetric(input.chunks, vm.objectKey, "vmCpuDemandAvgMHz")])),
+    cpuReadyByVm: new Map(sources.map((vm) => [vm.objectKey, readVropsTimeSeriesMetric(input.chunks, vm.objectKey, "vmCpuReadyMaxPct")])),
+  });
 }
 
 function finiteOrNull(value: number | undefined): number | null {

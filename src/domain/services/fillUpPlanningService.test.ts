@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CapacityPolicy, FillUpWorkloadProfile, NormalizedCluster, NormalizedHost, NormalizedVm, SnapshotMeta, VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesSummary } from "@/domain/models/types";
 import { createInitialCapacityPolicies } from "./capacityPolicyService";
-import { buildFillUpPlanningResults } from "./fillUpPlanningService";
+import { buildFillUpPlanningResults, buildGlobalWorkloadClassAverages } from "./fillUpPlanningService";
 
 const profile: FillUpWorkloadProfile = { id: "std", name: "STD", workloadClass: "std", vcpu: 2, memoryMiB: 100, cpuDemandP95MHz: 50 };
 const policy: CapacityPolicy = { ...createInitialCapacityPolicies("2026-07-28T00:00:00.000Z")[1], cpuSafetyBufferPct: 0, ramSafetyBufferPct: 0, ramSystemReserveMiBPerHost: 0, requireHighSiteFailover: false };
@@ -51,5 +51,50 @@ describe("buildFillUpPlanningResults", () => {
     expect(result.observedVmProfiles).toContainEqual(expect.objectContaining({ scope: "cluster", vmCount: 1, averageVcpu: 2, averageConfiguredMemoryMiB: 100, averageCpuDemandMHz: 100, cpuDemandP95MHz: 100, cpuReadyP95Pct: 0 }));
     expect(result.observedVmProfiles).toContainEqual(expect.objectContaining({ scope: "resource-pool", resourcePool: "STD", suggestedWorkloadClass: "std" }));
     expect(result).not.toHaveProperty("hours");
+  });
+});
+
+describe("buildGlobalWorkloadClassAverages", () => {
+  function vm(overrides: Partial<NormalizedVm> & { vmKey: string; vmName: string }): NormalizedVm {
+    return {
+      snapshotId: "snap-1", vcenterId: "vc1", vmUuid: null, cluster: "C1", host: "H1", powerState: "poweredOn",
+      cpuCount: 2, memoryMiB: 100, provisionedMiB: null, inUseMiB: null, configStatus: null, connectionState: null,
+      consolidationNeeded: null, osConfig: null, osTools: null, hwVersion: null, toolsStatus: null, toolsVersion: null,
+      datacenter: null, folder: null, resourcePool: "STD", annotation: null, cpuReady: null, firmware: null,
+      efiSecureBoot: null, cbt: null, ...overrides,
+    };
+  }
+  function vmObject(overrides: Partial<VropsTimeSeriesImportedObject> & { objectKey: string; rvtoolsObjectKey: string; workloadClass: "high" | "std" }): VropsTimeSeriesImportedObject {
+    return {
+      importId: "import-1", objectType: "vm", vropsName: overrides.objectKey, vcenterId: "vc1", rvtoolsSnapshotId: "snap-1",
+      clusterKey: "c1", hostKey: "h1", powerState: "poweredOn", siteId: null, matchStatus: "matched", matchMethod: "name",
+      ...overrides,
+    };
+  }
+
+  it("mittelt vCPU, RAM, CPU Demand und Ready je HIGH/STD nur über eingeschaltete, nicht-vCLS-VMs", () => {
+    const objects: VropsTimeSeriesImportedObject[] = [
+      vmObject({ objectKey: "vm:std-on", rvtoolsObjectKey: "vm-std-on", workloadClass: "std" }),
+      vmObject({ objectKey: "vm:std-off", rvtoolsObjectKey: "vm-std-off", workloadClass: "std" }),
+      vmObject({ objectKey: "vm:std-vcls", rvtoolsObjectKey: "vm-std-vcls", workloadClass: "std" }),
+      vmObject({ objectKey: "vm:high-on", rvtoolsObjectKey: "vm-high-on", workloadClass: "high" }),
+    ];
+    const vms: NormalizedVm[] = [
+      vm({ vmKey: "vm-std-on", vmName: "app-std-1", cpuCount: 2, memoryMiB: 100 }),
+      vm({ vmKey: "vm-std-off", vmName: "app-std-2", powerState: "poweredOff", cpuCount: 8, memoryMiB: 8_000 }),
+      vm({ vmKey: "vm-std-vcls", vmName: "vCLS-abc", cpuCount: 8, memoryMiB: 8_000 }),
+      vm({ vmKey: "vm-high-on", vmName: "app-high-1", cpuCount: 4, memoryMiB: 200, resourcePool: "HIGH" }),
+    ];
+    const chunks: VropsTimeSeriesChunk[] = [
+      chunk("vm", ["vm:std-on", "vm:std-off", "vm:std-vcls", "vm:high-on"], {
+        vmCpuDemandAvgMHz: [100, 9_999, 9_999, 300],
+        vmCpuReadyMaxPct: [1, 99, 99, 2],
+      }),
+    ];
+
+    const [high, std] = buildGlobalWorkloadClassAverages({ objects, vms, chunks });
+
+    expect(high).toMatchObject({ workloadClass: "high", vmCount: 1, averageVcpu: 4, averageConfiguredMemoryMiB: 200, averageCpuDemandMHz: 300, cpuReadyP95Pct: 2 });
+    expect(std).toMatchObject({ workloadClass: "std", vmCount: 1, averageVcpu: 2, averageConfiguredMemoryMiB: 100, averageCpuDemandMHz: 100, cpuReadyP95Pct: 1 });
   });
 });

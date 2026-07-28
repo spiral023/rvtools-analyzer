@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -12,7 +12,7 @@ import { FillUpRunHistory } from "@/components/planning/fill-up/FillUpRunHistory
 import { useFillUpPlanning } from "@/hooks/useFillUpPlanning";
 import type { FillUpPlanningClusterResult } from "@/domain/services/fillUpPlanningService";
 import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
-import type { FillUpObservedVmProfile, FillUpWorkloadProfile } from "@/domain/models/types";
+import type { FillUpObservedVmProfile, FillUpWorkloadProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
 import { FILL_UP_UI } from "@/lib/glossaries/planning";
 import { toast } from "sonner";
 
@@ -24,6 +24,22 @@ const INITIAL_PROFILES: FillUpWorkloadProfile[] = [
 /** Kein Präzisionsverlust beim Übernehmen, aber auch keine sinnlos langen Beobachtungsnachkommastellen. */
 function roundAdoptedValue(value: number): number {
   return Math.max(0.01, Math.round(value * 100) / 100);
+}
+
+function hasUsableGlobalAverages(profile: GlobalWorkloadClassProfile | undefined): profile is GlobalWorkloadClassProfile {
+  return Boolean(profile && profile.averageVcpu !== null && profile.averageConfiguredMemoryMiB !== null && profile.cpuDemandP95MHz !== null);
+}
+
+/** Ersetzt Name und Werte des Standardprofils durch den HIGH-/STD-Durchschnitt über alle eingeschalteten, nicht-vCLS-VMs. */
+function toGlobalAverageProfile(profile: FillUpWorkloadProfile, global: GlobalWorkloadClassProfile): FillUpWorkloadProfile {
+  return {
+    ...profile,
+    name: `${profile.workloadClass.toUpperCase()} · Ø alle VMs`,
+    vcpu: roundAdoptedValue(global.averageVcpu!),
+    memoryMiB: roundAdoptedValue(global.averageConfiguredMemoryMiB!),
+    cpuDemandP95MHz: roundAdoptedValue(global.cpuDemandP95MHz!),
+    cpuDemandAverageMHz: global.averageCpuDemandMHz === null ? null : roundAdoptedValue(global.averageCpuDemandMHz),
+  };
 }
 
 function formatPlanningError(error: unknown) {
@@ -44,6 +60,23 @@ export function FillUpPlanningPanel() {
   const mix = highProfile && stdProfile ? { highProfileId: highProfile.id, stdProfileId: stdProfile.id, highSharePct } : undefined;
   const planning = useFillUpPlanning(selectedImportId, profiles, mix, includeN2, cpuDemandConcurrencyPct);
   const effectiveImportId = selectedImportId ?? planning.selectedImport?.id ?? null;
+
+  // Standardwerte der typischen zusätzlichen VM einmalig mit dem HIGH-/STD-Durchschnitt über alle
+  // eingeschalteten, nicht-vCLS-VMs vorbelegen. Danach nicht mehr überschreiben, damit spätere
+  // manuelle Anpassungen erhalten bleiben.
+  const defaultsSeededRef = useRef(false);
+  useEffect(() => {
+    if (defaultsSeededRef.current) return;
+    const high = planning.globalWorkloadClassProfiles.find((profile) => profile.workloadClass === "high");
+    const std = planning.globalWorkloadClassProfiles.find((profile) => profile.workloadClass === "std");
+    if (!hasUsableGlobalAverages(high) && !hasUsableGlobalAverages(std)) return;
+    defaultsSeededRef.current = true;
+    setProfiles((current) => current.map((profile) => {
+      if (profile.id === "high-standard" && hasUsableGlobalAverages(high)) return toGlobalAverageProfile(profile, high);
+      if (profile.id === "std-standard" && hasUsableGlobalAverages(std)) return toGlobalAverageProfile(profile, std);
+      return profile;
+    }));
+  }, [planning.globalWorkloadClassProfiles]);
 
   useEffect(() => {
     if (selectedClusterKey && planning.results.some((row) => row.cluster.clusterKey === selectedClusterKey)) return;

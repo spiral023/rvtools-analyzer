@@ -1,0 +1,149 @@
+import type { GlossaryEntry } from "@/lib/glossary";
+
+/**
+ * Glossar für die VM-Tabs „VM-Profile“ und „Rightsizing“ (Workload Intelligence).
+ * Zielgruppe: VMware-Administrator:innen und Kapazitätsplanung.
+ */
+
+const RV = "RVTools";
+const VROPS = "vROps-Zeitreihenimport";
+
+/* ------------------------------------------------------------------ */
+/*  VM-Profile – UI                                                    */
+/* ------------------------------------------------------------------ */
+export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
+  timeSeriesImport: {
+    term: "Zeitreihenimport",
+    description:
+      "Der vollständig gespeicherte, eingefrorene vROps-Dateisatz (VM/Cluster/Host, stündlich), aus dem die Sieben-Tage-Profile abgeleitet werden. Unabhängig von der Sitzungs-vCenter-Auswahl – der Import bringt seine eigenen RVTools-Snapshots mit.",
+  },
+  behaviorClass: {
+    term: "Verhaltensklasse",
+    description:
+      "Automatisch aus dem CPU-Demand-Wochenmuster abgeleitete Einordnung: Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, gering genutzt oder unregelmäßig. Eine Heuristik anhand benannter Schwellenwerte – kein Ersatz für fachliche Prüfung.",
+  },
+  confidence: {
+    term: "Vertrauensniveau",
+    description:
+      "Wie verlässlich die Klassifikation ist, abgeleitet aus Datenabdeckung und Stundenzahl: „hoch“ ab rund 90 % Abdeckung über mehrere Tage, „niedrig“ unter 50 % oder einem Tag, „nicht berechenbar“ ohne jeden Messwert.",
+  },
+};
+
+export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
+  profiledVms: {
+    term: "VMs mit Profil",
+    description: "Anzahl der VMs, die eindeutig einer vROps-Zeitreihe zugeordnet werden konnten.",
+    source: `${VROPS} · Objektabgleich`,
+  },
+  lowConfidence: {
+    term: "Niedriges Vertrauen",
+    description: "VMs, deren Klassifikation wegen geringer Datenabdeckung oder zu kurzer Zeitreihe als unsicher gilt.",
+    source: "berechnet · Datenabdeckung",
+  },
+  averageCoverage: {
+    term: "Ø Datenabdeckung",
+    description: "Mittlere Abdeckung der erwarteten Stunden über alle profilierten VMs – zeigt, wie lückenhaft der Import insgesamt ist.",
+    source: "berechnet",
+  },
+  irregular: {
+    term: "Unregelmäßig",
+    description: "VMs ohne eindeutig erkennbares Wochenmuster – weder konstant, noch klar zeit- oder wochentagsgebunden.",
+    source: "berechnet",
+  },
+};
+
+export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
+  vmName: { term: "VM", description: "Anzeigename der VM in vCenter.", source: `${RV} · vInfo · „VM“` },
+  cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
+  host: { term: "Host", description: "ESXi-Host, auf dem die VM zum Exportzeitpunkt lief.", source: `${RV} · vInfo · „Host“` },
+  vcpu: { term: "vCPU", description: "Anzahl der konfigurierten virtuellen CPUs.", source: `${RV} · vInfo · „CPUs“` },
+  behaviorClass: { term: "Verhaltensklasse", description: "Automatisch abgeleitetes Lastmuster der letzten sieben Tage.", source: "berechnet" },
+  confidence: { term: "Vertrauen", description: "Vertrauensniveau der Klassifikation.", source: "berechnet" },
+  coverage: { term: "Abdeckung", description: "Anteil der erwarteten Stunden, für die ein CPU-Demand-Wert vorliegt.", source: "berechnet" },
+  sparkline: { term: "7-Tage-Profil", description: "CPU Demand je Stunde der letzten sieben Tage – Grundlage der Klassifikation.", source: VROPS },
+  demandAvg: { term: "Demand Ø", description: "Mittlerer CPU-Demand über alle verwertbaren Stunden.", source: VROPS },
+  demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand – die „typische“ Stunde.", source: VROPS },
+  demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – konservativer Planungswert, robust gegen einzelne Spitzen.", source: VROPS },
+  demandMax: { term: "Demand Max", description: "Höchster beobachteter CPU-Demand innerhalb der sieben Tage.", source: VROPS },
+  readyP95: { term: "Ready P95", description: "95.-Perzentil des CPU Ready – anhaltende Werte über 5 % deuten auf CPU-Contention hin.", source: VROPS },
+};
+
+export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
+  distribution: {
+    term: "Verteilung der Verhaltensklassen",
+    description: "Anzahl der VMs je Verhaltensklasse. Ein hoher Anteil „gering genutzt“ oder „bursty“ ist ein guter Ausgangspunkt für Rightsizing und Konsolidierung.",
+  },
+  table: {
+    term: "VM-Profile",
+    description: "Alle VMs mit eindeutig zugeordneter Zeitreihe, sortiert nach Namen. Klick auf eine Zeile öffnet die Detailansicht.",
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/*  Rightsizing – KPIs                                                 */
+/* ------------------------------------------------------------------ */
+export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
+  candidateCount: {
+    term: "Rightsizing-Kandidaten",
+    description: "VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready oder rückgewinnbarer vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
+    source: "berechnet",
+  },
+  reclaimableVcpu: {
+    term: "Rückgewinnbare vCPU",
+    description: "Summe aus konfigurierter minus empfohlener vCPU über alle Kandidaten. Eine Näherung auf Basis des aktuellen Hosts – vor jeder Umsetzung fachlich prüfen.",
+    source: "berechnet",
+  },
+  manyVcpuLowDemand: {
+    term: "Viele vCPU, geringer Bedarf",
+    description: "VMs mit mindestens 4 vCPU, deren genutztes vCPU-Äquivalent bei P95 höchstens 30 % der konfigurierten vCPU beträgt.",
+    source: "berechnet",
+  },
+  highCpuReady: {
+    term: "Auffälliges CPU Ready",
+    description: "VMs mit CPU Ready P95 über 5 %. Rightsizing kann Ready hier sogar verschlechtern – vor einer Reduktion die Ursache prüfen.",
+    source: VROPS,
+  },
+};
+
+export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
+  vmName: { term: "VM", description: "Anzeigename der VM in vCenter.", source: `${RV} · vInfo · „VM“` },
+  cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
+  host: { term: "Host", description: "Aktueller ESXi-Host; Grundlage der MHz-pro-Core-Näherung.", source: `${RV} · vInfo · „Host“` },
+  vcpu: { term: "Konfiguriert", description: "Aktuell zugewiesene vCPU-Anzahl.", source: `${RV} · vInfo · „CPUs“` },
+  demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand.", source: VROPS },
+  demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – Basis der empfohlenen vCPU-Größe.", source: VROPS },
+  demandMax: { term: "Demand Max", description: "Höchster beobachteter CPU-Demand.", source: VROPS },
+  readyP95: { term: "Ready P95", description: "95.-Perzentil des CPU Ready.", source: VROPS },
+  usedVcpuEquivalent: {
+    term: "Genutztes vCPU-Äquivalent",
+    description: "P95-CPU-Demand geteilt durch die MHz pro Core des aktuellen Hosts – wie viele vCPU der beobachtete Bedarf tatsächlich auslastet.",
+    source: `berechnet · ${RV} · vInfo/vHost · „CPU MHz“ / „# Cores“`,
+  },
+  recommendedVcpu: {
+    term: "Empfohlen",
+    description: "Genutztes vCPU-Äquivalent hochgerechnet auf 65 % Zielauslastung, aufgerundet. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
+    source: "berechnet",
+  },
+  reclaimableVcpu: {
+    term: "Rückgewinnbar",
+    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ.",
+    source: "berechnet",
+  },
+  behaviorClass: { term: "Verhaltensklasse", description: "Verhaltensklasse aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik.", source: "berechnet" },
+  confidence: { term: "Vertrauen", description: "Vertrauensniveau der zugrunde liegenden Klassifikation.", source: "berechnet" },
+};
+
+export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
+  candidateTable: {
+    term: "vCPU-Vergleich je VM",
+    description: "Vergleicht konfigurierte vCPU mit beobachtetem CPU Demand und Ready. Hervorgehobene Zeilen sind auffällige Kandidaten – die Tabelle selbst zeigt alle VMs mit gültiger vCPU-Angabe.",
+  },
+  clusterSummary: {
+    term: "Rückgewinnbare vCPU je Cluster",
+    description: "Summiert die rückgewinnbare vCPU-Kapazität aller Kandidaten je Cluster – ein Ausgangspunkt für Konsolidierung oder Fill-Up-Planung.",
+  },
+  behaviorSummary: {
+    term: "Rückgewinnbare vCPU je Verhaltensklasse",
+    description: "Summiert die rückgewinnbare vCPU-Kapazität je Verhaltensklasse aus dem VM-Profile-Tab – zeigt, welche Lastmuster das größte Rightsizing-Potenzial haben.",
+  },
+};

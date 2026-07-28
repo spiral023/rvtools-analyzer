@@ -1,17 +1,5 @@
 # TODO
 
-- [ ] **Nächste Umsetzung: Fill-Up- und Cluster-Kapazitätsplanung.** Der
-  vROps-Zeitreihenimport, die gemeinsame Policy-/Finding-Engine und Fill Up
-  werden als nächstes größeres Arbeitspaket umgesetzt. Die kleinen
-  pseudonymisierten Sieben-Tage-Beispiele sind für Schema und Import
-  freigegeben. Ein vollständiger realer Testcluster und der Skalierungstest
-  mit ungefähr 5.000 Server-VMs folgen nachgelagert und blockieren die
-  Entwicklung nicht. Grundlage:
-  [Spezifikation](docs/superpowers/specs/2026-07-28-fill-up-cluster-capacity-planning-design.md)
-  und
-  [Implementierungsplan](docs/superpowers/plans/2026-07-28-fill-up-cluster-capacity-planning.md).
-- [ ] **Sheet-Builder Feature**: Eine selbst konfigurierbare Tabelle der gefilterten/ungefilterten Objekte als Excel oder Markdown exportieren können. Die Spalten sollen dabei aus den verfügbaren Daten gewählt werden können, ähnlich wie beim globalen Systemfilter. Vor dem Export soll optional eine Anonymisierung/Pseudonymisierung konfigurierbar sein, etwa für vCenter-, Cluster- und Systemnamen sowie Namen von Systemverantwortlichen.
-- [ ] **Zentrale Export-Seite**: Eine eigene Seite in der Sidebar schaffen, auf der alle Funktionen rund um den Export von Tabellen gebündelt werden. Die möglichen Funktionen und der genaue Umfang werden später gemeinsam gebrainstormt.
 - [ ] **KI-Prompt-Builder**: Einen Baukasten für Analyse-Prompts bauen. Prompts sollen aus wiederverwendbaren Bausteinen erstellt, lokal gespeichert, bearbeitet und gelöscht werden können. Für eine Analyse wählt der Nutzer gezielt Daten und Kennzahlen aus der Webapp als Kontext aus; daraus entsteht ein vollständiger Prompt, der zum manuellen Einfügen in ChatGPT kopiert oder dort geöffnet werden kann. Vor der Übergabe soll optional eine Anonymisierung/Pseudonymisierung konfigurierbar sein, etwa für vCenter-, Cluster- und Systemnamen sowie Namen von Systemverantwortlichen. Der ausgewählte Datenumfang muss vor der Übergabe transparent sein; keine automatische Datenübertragung und keine Backend-Abhängigkeit.
 
 ## Funktionslandkarte, Kombinationen und Priorisierung
@@ -75,33 +63,33 @@ nachgereicht und dient der fachlichen Abnahme, nicht mehr als Start-Gate.
 
 ### Ideenmatrix
 
-| Idee | Kombination und Abgrenzung | Bereich / Seite / Tab | Aufwand | Nutzen |
-|---|---|---|---:|---:|
-| Zentrale Export-Seite | Gemeinsamer Rahmen für Sheet Builder, Berichte, Review-Exporte und KI-Prompts; keine eigene Exportlogik je Fachseite. | Neuer Sidebar-Bereich **Export & Berichte**, Starttab **Übersicht** | M | hoch |
-| Sheet Builder | Verwendet globale Objektselektion, einheitliche Spaltenmetadaten und dieselbe Pseudonymisierung wie Prompt- und Berichtsexport. | **Export & Berichte** → **Datenexport** | M | hoch |
-| KI-Prompt-Builder | Mit dem Export Studio kombinieren, aber wegen Promptvorlagen und Kontextvorschau als eigener Workflow führen. | **Export & Berichte** → **KI-Prompt** | M | hoch |
-| VM-IPAM-Kontrolle | Mit der bestehenden ESXi-Kontrolle über gemeinsame Namens-, IPAM-, Tech-Info- und Finding-Logik kombinieren. | Bestehende **Netzwerk-Kontrolle** → **VM-Daten** | L | hoch |
-| ESXi-Kontrolle | Bestehende Funktion im gemeinsamen Kontrollbereich behalten; Matching-Komponenten auch für VM-Kontrolle wiederverwenden. | Bestehende **Netzwerk-Kontrolle** → **Host-Daten** | S | hoch |
-| Tech-Info Organisationsanalyse | Bereich, Abteilung und Person als eine drillbare Hierarchie auswerten; bestehende VM-/Tech-Info-Zuordnung und globale Filter wiederverwenden. | Bestehende **Tech-Info** → neuer Tab **Organisation** | M | hoch |
-| Cluster-Review-Wizard | Eigener persistenter Workflow; bindet Analysen nur als Evidenz ein und bleibt von deren Berechnungslogik getrennt. | Neuer Sidebar-Bereich **Cluster Review** → **Reviews** und **Review-Wizard** | XL | sehr hoch |
-| Fill-Up- und Cluster-Kapazitätsplanung | Aktiver erster Kern des Cluster Digital Twin; schafft vROps-Zeitreihen, Policies, Finding- und Szenariologik als Basis für mehrere spätere Ideen. | Bestehende **Planung** → **Fill Up** | XL | sehr hoch |
-| Neuer-Workload-/Placement-Assistent | Szenariotyp des Cluster Digital Twin; teilt Ranking, Policy-Prüfung und Ergebnisvergleich mit Evakuierung und Optimierung. | Bestehende **Planung** → **What-if** → Modus **Workload platzieren** | L | sehr hoch |
-| Host hinzufügen, ersetzen oder entfernen | Kein separates Werkzeug, sondern Hardware-Szenariotyp der vorhandenen What-if-Planung. | **Planung** → **What-if** → Modus **Hardware ändern** | L | sehr hoch |
-| Geplante Kapazitätsreservierungen | Nutzt dieselben Workloadprofile und Policies, benötigt wegen Zeitraum, Status und Konflikten aber einen eigenen Tab. | **Planung** → neuer Tab **Reservierungen** | L | hoch |
-| Cluster-Evakuierungsplaner | Mit Placement und Konsolidierung über dieselbe Platzierungsengine kombinieren; Evakuierung ist ein Szenariomodus mit leerem Quellcluster. | **Planung** → **What-if** → Modus **Evakuierung** | XL | sehr hoch |
-| Cluster-Zusammenlegung und -Aufteilung | Mit Evakuierungs- und Placement-Engine kombinieren; eigener Szenariomodus für mehrere Quell- und Zieltopologien. | **Planung** → **What-if** → Modus **Topologie** | XL | hoch |
-| Historischer Failover-Replay | Grundlage der historischen Resilienzanalyse; Zeitachse und Ausfallsimulation mit Ursachenanalyse teilen. | **Cluster** → neuer Tab **Historie** → **Failover-Replay** | L | sehr hoch |
-| Peak-Contributor-Analyse | Kein eigenes Hauptmodul; gemeinsamer Drilldown aus Peakstunden, roten Ereignissen und VM-Performance. | **Cluster** → **Historie** → Detailansicht **Peak Contributors** | M | hoch |
-| VM-Auslastungsprofile und Verhaltensklassen | Gemeinsame Basis für Korrelation, Rightsizing, Placement und Wartungsfenster; einmal zentral berechnen. | Bestehende **VMs** → **Performance** → Bereich **Profile** | L | hoch |
-| CPU-Rightsizing-Kandidaten | Auf den VM-Profilen aufbauen und als prüfpflichtige Empfehlung darstellen; keine zweite Profillogik. | **VMs** → **Performance** → Bereich **Rightsizing** | M | hoch |
-| Optimale Wartungszeit erkennen | Historische Last- und Failover-Engine wiederverwenden; bestehende Vorgaben und analysierte Empfehlungen nebeneinanderstellen. | Bestehende **Wartungsfenster** → neuer Tab **Empfehlungen** | M–L | hoch |
-| Import-zu-Import-Vergleich | Gemeinsame Cluster-Zeitachse nutzen; kompakte Langzeitaggregate statt einer separaten Snapshot-Historie je Analyse. | **Cluster** → **Historie** → **Veränderungen** | M | hoch |
-| Policy-Compliance | Zentrale Finding-Engine für Fill Up, Resilienz, Reviews und Maßnahmen; keine eigenen Grenzwerte in den einzelnen Oberflächen. | **Cluster** → neuer Tab **Resilienz** → **Compliance** | L | sehr hoch |
-| Automatische Cluster-Review-Evidenz | Kein eigenes Analysemodul; übernimmt versionierte Findings und positive Entwicklungen in einen Review-Entwurf. | **Cluster Review** → **Review-Wizard** → Schritt **Evidenz** | M nach Fertigstellung der Finding-Engine | sehr hoch |
-| Workload-Korrelationsanalyse | Mit VM-Profilen kombinieren; Ergebnisse zusätzlich in Placement und Fill Up einspeisen. | **VMs** → **Performance** → Bereich **Korrelation**; Drilldown auch in **Planung** | L | hoch |
-| Resilience Score mit Maßnahmenplan | Ausbau des vorhandenen Risk Scores und gemeinsame Darstellung der Policy-Findings; kein zweiter konkurrierender Score. | **Cluster** → **Resilienz** → **Score & Maßnahmen** | M–L | sehr hoch |
-| Automatischer Maßnahmen-Simulator | Verbindet Findings mit den vorhandenen What-if-Szenariotypen; keine eigene Simulationsengine und keine automatische vCenter-Änderung. | **Planung** → neuer Tab **Optimierung** | XL | sehr hoch |
-| „Warum wurde es rot?“-Zeitreise | Kombiniert Failover-Replay, Peak Contributors, Hostzustände und Policy-Versionen in einem historischen Ereignis-Drilldown. | **Cluster** → **Historie** → **Ereignisse** | L | sehr hoch |
+| Idee                                        | Kombination und Abgrenzung                                                                                                                        | Bereich / Seite / Tab                                                              |                                  Aufwand |    Nutzen |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------: | --------: |
+| Zentrale Export-Seite                       | Gemeinsamer Rahmen für Sheet Builder, Berichte, Review-Exporte und KI-Prompts; keine eigene Exportlogik je Fachseite.                             | Neuer Sidebar-Bereich **Export & Berichte**, Starttab **Übersicht**                |                                        M |      hoch |
+| Sheet Builder                               | Verwendet globale Objektselektion, einheitliche Spaltenmetadaten und dieselbe Pseudonymisierung wie Prompt- und Berichtsexport.                   | **Export & Berichte** → **Datenexport**                                            |                                        M |      hoch |
+| KI-Prompt-Builder                           | Mit dem Export Studio kombinieren, aber wegen Promptvorlagen und Kontextvorschau als eigener Workflow führen.                                     | **Export & Berichte** → **KI-Prompt**                                              |                                        M |      hoch |
+| VM-IPAM-Kontrolle                           | Mit der bestehenden ESXi-Kontrolle über gemeinsame Namens-, IPAM-, Tech-Info- und Finding-Logik kombinieren.                                      | Bestehende **Netzwerk-Kontrolle** → **VM-Daten**                                   |                                        L |      hoch |
+| ESXi-Kontrolle                              | Bestehende Funktion im gemeinsamen Kontrollbereich behalten; Matching-Komponenten auch für VM-Kontrolle wiederverwenden.                          | Bestehende **Netzwerk-Kontrolle** → **Host-Daten**                                 |                                        S |      hoch |
+| Tech-Info Organisationsanalyse              | Bereich, Abteilung und Person als eine drillbare Hierarchie auswerten; bestehende VM-/Tech-Info-Zuordnung und globale Filter wiederverwenden.     | Bestehende **Tech-Info** → neuer Tab **Organisation**                              |                                        M |      hoch |
+| Cluster-Review-Wizard                       | Eigener persistenter Workflow; bindet Analysen nur als Evidenz ein und bleibt von deren Berechnungslogik getrennt.                                | Neuer Sidebar-Bereich **Cluster Review** → **Reviews** und **Review-Wizard**       |                                       XL | sehr hoch |
+| Fill-Up- und Cluster-Kapazitätsplanung      | Aktiver erster Kern des Cluster Digital Twin; schafft vROps-Zeitreihen, Policies, Finding- und Szenariologik als Basis für mehrere spätere Ideen. | Bestehende **Planung** → **Fill Up**                                               |                                       XL | sehr hoch |
+| Neuer-Workload-/Placement-Assistent         | Szenariotyp des Cluster Digital Twin; teilt Ranking, Policy-Prüfung und Ergebnisvergleich mit Evakuierung und Optimierung.                        | Bestehende **Planung** → **What-if** → Modus **Workload platzieren**               |                                        L | sehr hoch |
+| Host hinzufügen, ersetzen oder entfernen    | Kein separates Werkzeug, sondern Hardware-Szenariotyp der vorhandenen What-if-Planung.                                                            | **Planung** → **What-if** → Modus **Hardware ändern**                              |                                        L | sehr hoch |
+| Geplante Kapazitätsreservierungen           | Nutzt dieselben Workloadprofile und Policies, benötigt wegen Zeitraum, Status und Konflikten aber einen eigenen Tab.                              | **Planung** → neuer Tab **Reservierungen**                                         |                                        L |      hoch |
+| Cluster-Evakuierungsplaner                  | Mit Placement und Konsolidierung über dieselbe Platzierungsengine kombinieren; Evakuierung ist ein Szenariomodus mit leerem Quellcluster.         | **Planung** → **What-if** → Modus **Evakuierung**                                  |                                       XL | sehr hoch |
+| Cluster-Zusammenlegung und -Aufteilung      | Mit Evakuierungs- und Placement-Engine kombinieren; eigener Szenariomodus für mehrere Quell- und Zieltopologien.                                  | **Planung** → **What-if** → Modus **Topologie**                                    |                                       XL |      hoch |
+| Historischer Failover-Replay                | Grundlage der historischen Resilienzanalyse; Zeitachse und Ausfallsimulation mit Ursachenanalyse teilen.                                          | **Cluster** → neuer Tab **Historie** → **Failover-Replay**                         |                                        L | sehr hoch |
+| Peak-Contributor-Analyse                    | Kein eigenes Hauptmodul; gemeinsamer Drilldown aus Peakstunden, roten Ereignissen und VM-Performance.                                             | **Cluster** → **Historie** → Detailansicht **Peak Contributors**                   |                                        M |      hoch |
+| VM-Auslastungsprofile und Verhaltensklassen | Gemeinsame Basis für Korrelation, Rightsizing, Placement und Wartungsfenster; einmal zentral berechnen.                                           | Bestehende **VMs** → **Performance** → Bereich **Profile**                         |                                        L |      hoch |
+| CPU-Rightsizing-Kandidaten                  | Auf den VM-Profilen aufbauen und als prüfpflichtige Empfehlung darstellen; keine zweite Profillogik.                                              | **VMs** → **Performance** → Bereich **Rightsizing**                                |                                        M |      hoch |
+| Optimale Wartungszeit erkennen              | Historische Last- und Failover-Engine wiederverwenden; bestehende Vorgaben und analysierte Empfehlungen nebeneinanderstellen.                     | Bestehende **Wartungsfenster** → neuer Tab **Empfehlungen**                        |                                      M–L |      hoch |
+| Import-zu-Import-Vergleich                  | Gemeinsame Cluster-Zeitachse nutzen; kompakte Langzeitaggregate statt einer separaten Snapshot-Historie je Analyse.                               | **Cluster** → **Historie** → **Veränderungen**                                     |                                        M |      hoch |
+| Policy-Compliance                           | Zentrale Finding-Engine für Fill Up, Resilienz, Reviews und Maßnahmen; keine eigenen Grenzwerte in den einzelnen Oberflächen.                     | **Cluster** → neuer Tab **Resilienz** → **Compliance**                             |                                        L | sehr hoch |
+| Automatische Cluster-Review-Evidenz         | Kein eigenes Analysemodul; übernimmt versionierte Findings und positive Entwicklungen in einen Review-Entwurf.                                    | **Cluster Review** → **Review-Wizard** → Schritt **Evidenz**                       | M nach Fertigstellung der Finding-Engine | sehr hoch |
+| Workload-Korrelationsanalyse                | Mit VM-Profilen kombinieren; Ergebnisse zusätzlich in Placement und Fill Up einspeisen.                                                           | **VMs** → **Performance** → Bereich **Korrelation**; Drilldown auch in **Planung** |                                        L |      hoch |
+| Resilience Score mit Maßnahmenplan          | Ausbau des vorhandenen Risk Scores und gemeinsame Darstellung der Policy-Findings; kein zweiter konkurrierender Score.                            | **Cluster** → **Resilienz** → **Score & Maßnahmen**                                |                                      M–L | sehr hoch |
+| Automatischer Maßnahmen-Simulator           | Verbindet Findings mit den vorhandenen What-if-Szenariotypen; keine eigene Simulationsengine und keine automatische vCenter-Änderung.             | **Planung** → neuer Tab **Optimierung**                                            |                                       XL | sehr hoch |
+| „Warum wurde es rot?“-Zeitreise             | Kombiniert Failover-Replay, Peak Contributors, Hostzustände und Policy-Versionen in einem historischen Ereignis-Drilldown.                        | **Cluster** → **Historie** → **Ereignisse**                                        |                                        L | sehr hoch |
 
 ### Vorgeschlagene Navigation
 
@@ -140,39 +128,6 @@ Der Cluster Review, der Resilience Score und der Maßnahmen-Simulator sind
 damit vor allem unterschiedliche Sichten und Workflows auf denselben Findings
 und Szenarien. Sie dürfen keine voneinander abweichenden Parallelberechnungen
 entwickeln.
-
-## Tech-Info Organisationsanalyse
-
-### Idee und Ziel
-
-- [x] Die vorhandene Zuordnung von Server-VMs zu Systemverantwortlichen und deren Organisationseinheit auf der Seite **Tech-Info** aggregiert darstellen.
-- [x] Die Organisationshierarchie von oben nach unten auswerten: Organisation beziehungsweise Unternehmen → Bereich → Abteilung → Systemverantwortlicher → Server-VM.
-- [x] Organisationskennungen wie `RAITEC/IN-VIA` nachvollziehbar in Organisation `RAITEC`, Bereich `IN` und Abteilung `VIA` zerlegen.
-- [x] Die bestehende Tech-Info-Tabelle als Tab **Systeme** erhalten und die neue Darstellung im Tab **Organisation** ergänzen.
-
-### Darstellung und Navigation
-
-- [x] KPI-Karten für zugeordnete Server-VMs, Bereiche, Abteilungen, Systemverantwortliche und fehlende beziehungsweise ungültige Zuordnungen anzeigen.
-- [x] Eine hierarchische Tabelle bereitstellen, in der Bereich, Abteilung und Person auf- und zugeklappt werden können.
-- [x] VM-Anzahl je Bereich als sortierbares Balkendiagramm darstellen (nach VM-Anzahl, vCPU oder RAM umschaltbar).
-- [x] Beim Klick auf einen Bereich, eine Abteilung oder eine Person direkt die zugehörigen VMs anzeigen beziehungsweise die bestehende VM-Tabelle entsprechend filtern.
-- [x] Neben der VM-Anzahl auch eingeschaltete und ausgeschaltete VMs, konfigurierte vCPU und konfigurierten RAM aggregieren. vROps-Auslastung folgt später optional.
-- [x] Globale Filter, vCenter-Auswahl und Suchfunktion auf die Organisationsauswertung anwenden.
-- [x] Ergebnisse als Excel/Markdown exportieren und dabei optional Personen- und Systemnamen pseudonymisieren (lokale Umsetzung direkt im Organisation-Tab, noch nicht über den zentralen Sheet Builder).
-
-### Verantwortlichkeiten und Datenqualität
-
-- [x] Primären Systemverantwortlichen und Stellvertretung getrennt ausweisen, damit VMs bei kombinierten Auswertungen nicht unbemerkt doppelt gezählt werden.
-- [x] Eine umschaltbare Auswertung für `primär`, `Stellvertretung` oder `beide Rollen` anbieten.
-- [x] Fehlende Verantwortliche, nicht interpretierbare Pfade und widersprüchliche Abteilungszuordnungen als eigene Datenqualitätsgruppe anzeigen.
-- [x] Die Rohangabe aus Tech-Info unverändert aufbewahren; abgeleitete Bereiche und Abteilungen dürfen die Quelldaten nicht überschreiben.
-
-### Aufwand und Nutzen
-
-- **Vorgesehener Bereich:** bestehende Seite **Tech-Info**.
-- **Vorgesehene Tabs:** **Systeme** für die heutige Ansicht und neu **Organisation** für Hierarchie, Diagramme und Drilldown.
-- **Umgesetzt:** Parser, Hierarchie-Aggregation, KPI-Karten, auf-/zuklappbare Baumtabelle, Balkendiagramm, Datenqualitätsgruppen, Rollen-Umschalter und lokaler Export/Pseudonymisierung im Tab **Organisation**.
-- **Nutzen:** **hoch**, weil Verantwortungsumfang, organisatorische Konzentrationen, Datenlücken und Ansprechpartner für Betrieb, Planung und Cluster Reviews unmittelbar sichtbar werden.
 
 ## VM-IPAM-Kontrolle
 
@@ -427,19 +382,19 @@ optionale Metadaten; der Import verwendet versionierte Spaltenschemata.
 
 ### VM-Auslastungsprofile und Verhaltensklassen
 
-- [ ] Für jede VM ein kompaktes Sieben-Tage-Profil mit CPU Demand und CPU Ready anzeigen.
-- [ ] VMs automatisch in nachvollziehbare Klassen einordnen, beispielsweise Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, gering genutzt oder unregelmäßig.
-- [ ] Klassifikation mit Datenabdeckung und Vertrauensniveau versehen.
+- [x] Für jede VM ein kompaktes Sieben-Tage-Profil mit CPU Demand und CPU Ready anzeigen.
+- [x] VMs automatisch in nachvollziehbare Klassen einordnen, beispielsweise Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, gering genutzt oder unregelmäßig.
+- [x] Klassifikation mit Datenabdeckung und Vertrauensniveau versehen.
 - [ ] Verhaltensklassen für Fill Up, Placement, Cluster Review und spätere Konsolidierungsanalysen wiederverwenden.
 - [ ] Manuelle Korrektur oder Kennzeichnung von fachlich bekannten Sonderfällen ermöglichen.
 
 ### CPU-Rightsizing-Kandidaten
 
-- [ ] Konfigurierte vCPU mit P50/P95/Maximum CPU Demand und CPU Ready vergleichen.
-- [ ] Kandidaten mit vielen vCPU, geringem Demand oder auffälligem Ready-Verhalten hervorheben.
+- [x] Konfigurierte vCPU mit P50/P95/Maximum CPU Demand und CPU Ready vergleichen.
+- [x] Kandidaten mit vielen vCPU, geringem Demand oder auffälligem Ready-Verhalten hervorheben.
 - [ ] Breite VMs mit möglichem Co-Scheduling- oder Platzierungsproblem gesondert kennzeichnen.
 - [ ] Empfehlungen nur als prüfpflichtige Kandidaten ausgeben und niemals automatisch VM-Ressourcen ändern.
-- [ ] Potenziell rückgewinnbare vCPU-Kapazität je VM, Cluster und Profil zusammenfassen.
+- [x] Potenziell rückgewinnbare vCPU-Kapazität je VM, Cluster und Profil zusammenfassen.
 
 ### Optimale Wartungszeit erkennen
 
