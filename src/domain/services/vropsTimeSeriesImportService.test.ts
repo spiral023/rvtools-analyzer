@@ -51,7 +51,45 @@ describe("prepareVropsTimeSeriesPayload", () => {
     const result = prepareVropsTimeSeriesPayload({ vm, cluster, host: hostWithDifferentGrid });
 
     expect(result.payload).toBeUndefined();
-    expect(result.errors).toContainEqual(expect.stringContaining("HOST-CSV stimmt nicht mit der VM-CSV überein"));
+    expect(result.errors).toContainEqual(expect.stringContaining("HOST-CSV passt nicht zur VM-CSV: 1 fehlende und 1 zusätzliche Stunde(n)"));
+    expect(result.gridDiagnostics).toContainEqual(expect.objectContaining({
+      objectType: "host",
+      slotCount: 2,
+      missingHourlySlots: 1,
+      missingFromVmCount: 1,
+      additionalToVmCount: 1,
+      missingFromVmSamples: [Date.parse("2026-07-21T01:00:00Z")],
+      additionalToVmSamples: [Date.parse("2026-07-21T02:00:00Z")],
+    }));
+  });
+
+  it("weist eine Lücke in der VM-Referenz getrennt von Objekt-Teilzeiträumen aus", () => {
+    const vmWithGap = parseVropsTimeSeriesCsv([
+      '"Name","Interval Breakdown","VM|CPU|Demand (MHz)|Avg","VM|CPU|Ready (%)|Max"',
+      '"vm-01","2026-07-21T00:00:00Z","100","0.1"',
+      '"vm-01","2026-07-21T02:00:00Z","200","0.2"',
+    ].join("\n"));
+    const clusterWithGap = parseVropsTimeSeriesCsv([
+      '"Name","Interval Breakdown","Cluster|CPU|Demand|Avg","Cluster|CPU|Demand|Max","Cluster|Memory|Utilization (MB)|Avg","Cluster|Memory|Utilization (MB)|Max","Cluster|CPU|Contention (%)|Avg","Cluster|CPU|Contention (%)|Max"',
+      '"cluster-01","2026-07-21T00:00:00Z","100","120","1024","2048","0.1","0.2"',
+      '"cluster-01","2026-07-21T02:00:00Z","200","220","2048","4096","0.2","0.3"',
+    ].join("\n"));
+    const hostWithGap = parseVropsTimeSeriesCsv([
+      '"Name","Interval Breakdown","Host|CPU|Capacity Available to VMs|Last","Host|Memory|Capacity Available to VMs|Last"',
+      '"host-01","2026-07-21T00:00:00Z","1000","2048"',
+      '"host-01","2026-07-21T02:00:00Z","1000","2048"',
+    ].join("\n"));
+
+    const result = prepareVropsTimeSeriesPayload({ vm: vmWithGap, cluster: clusterWithGap, host: hostWithGap });
+
+    expect(result.warnings).toEqual([]);
+    expect(result.errors).toContain("VM-CSV enthält 1 Lücke(n) im Stundenraster.");
+    expect(result.gridDiagnostics).toContainEqual(expect.objectContaining({
+      objectType: "vm",
+      missingHourlySlots: 1,
+      missingFromVmCount: 0,
+      additionalToVmCount: 0,
+    }));
   });
 
   it("speichert objektindividuelle Teilzeiträume als Missing Values statt den ganzen Dateisatz abzulehnen", () => {

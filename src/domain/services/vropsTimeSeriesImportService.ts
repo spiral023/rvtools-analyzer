@@ -50,6 +50,20 @@ export interface VropsTimeSeriesImportResult {
   warnings: string[];
   errors: string[];
   qualitySummary?: VropsTimeSeriesQualitySummary;
+  gridDiagnostics?: VropsTimeSeriesGridDiagnostic[];
+}
+
+/** Kompakte, UI-unabhängige Erklärung des gemeinsamen Stundenrasters. */
+export interface VropsTimeSeriesGridDiagnostic {
+  objectType: VropsTimeSeriesObjectType;
+  slotCount: number;
+  rangeStartUtc?: number;
+  rangeEndUtc?: number;
+  missingHourlySlots: number;
+  missingFromVmCount: number;
+  additionalToVmCount: number;
+  missingFromVmSamples: number[];
+  additionalToVmSamples: number[];
 }
 
 interface PreparedPayload {
@@ -102,13 +116,25 @@ export async function importVropsTimeSeriesFileSet(
 
   report("Stundenraster prüfen", 50);
   const prepared = prepareVropsTimeSeriesPayload(parsedByType.files!);
-  if (prepared.errors.length > 0) return { success: false, warnings: [...parsedByType.warnings, ...prepared.warnings], errors: prepared.errors };
+  if (prepared.errors.length > 0) {
+    return {
+      success: false,
+      warnings: [...parsedByType.warnings, ...prepared.warnings],
+      errors: prepared.errors,
+      gridDiagnostics: prepared.gridDiagnostics,
+    };
+  }
 
   report("RVTools-Scope prüfen", 60);
   const snapshots = await getSnapshots();
   const selectedSnapshots = snapshots.filter((snapshot) => selectedSnapshotIds.includes(snapshot.snapshotId));
   if (selectedSnapshots.length !== selectedSnapshotIds.length) {
-    return { success: false, warnings: [...parsedByType.warnings, ...prepared.warnings], errors: ["Mindestens ein gewählter RVTools-Snapshot ist nicht mehr verfügbar."] };
+    return {
+      success: false,
+      warnings: [...parsedByType.warnings, ...prepared.warnings],
+      errors: ["Mindestens ein gewählter RVTools-Snapshot ist nicht mehr verfügbar."],
+      gridDiagnostics: prepared.gridDiagnostics,
+    };
   }
   const importedAt = new Date().toISOString();
   const importId = shortId();
@@ -164,7 +190,14 @@ export async function importVropsTimeSeriesFileSet(
     prepared.payload!.summaries.map((summary) => ({ ...summary, importId })),
   );
   report("Abgeschlossen", 100, `${qualitySummary.expectedSlots} Stunden, ${objects.length} Objekte`);
-  return { success: true, importId, warnings: [...parsedByType.warnings, ...prepared.warnings, ...relationshipWarnings], errors: [], qualitySummary };
+  return {
+    success: true,
+    importId,
+    warnings: [...parsedByType.warnings, ...prepared.warnings, ...relationshipWarnings],
+    errors: [],
+    qualitySummary,
+    gridDiagnostics: prepared.gridDiagnostics,
+  };
 }
 
 function parseInWorker(buffers: ArrayBuffer[], onProgress?: (progress: VropsTimeSeriesImportProgress) => void): Promise<VropsTimeSeriesWorkerResult> {
@@ -226,6 +259,7 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
   payload?: PreparedPayload;
   errors: string[];
   warnings: string[];
+  gridDiagnostics: VropsTimeSeriesGridDiagnostic[];
 } {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -250,11 +284,23 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
       warnings.push(`${type.toUpperCase()}-CSV enthält ${incompleteObjectCount.toLocaleString("de-DE")} Objekt(e) mit Teilzeitraum. Fehlende Stunden werden als Missing Values gespeichert und in der Datenqualität ausgewiesen.`);
     }
   }
+  const gridDiagnostics = buildGridDiagnostics(grids);
+  for (const diagnostic of gridDiagnostics) {
+    if (diagnostic.missingHourlySlots > 0) {
+      errors.push(`${diagnostic.objectType.toUpperCase()}-CSV enthält ${diagnostic.missingHourlySlots.toLocaleString("de-DE")} Lücke(n) im Stundenraster.`);
+    }
+  }
   const vmGrid = grids.get("vm") ?? [];
   for (const type of ["cluster", "host"] as const) {
-    if (!sameGrid(vmGrid, grids.get(type) ?? [])) errors.push(`Das Stundenraster der ${type.toUpperCase()}-CSV stimmt nicht mit der VM-CSV überein.`);
+    const diagnostic = gridDiagnostics.find((candidate) => candidate.objectType === type)!;
+    if (diagnostic.missingFromVmCount > 0 || diagnostic.additionalToVmCount > 0) {
+      errors.push(
+        `Stundenraster der ${type.toUpperCase()}-CSV passt nicht zur VM-CSV: `
+        + `${diagnostic.missingFromVmCount.toLocaleString("de-DE")} fehlende und ${diagnostic.additionalToVmCount.toLocaleString("de-DE")} zusätzliche Stunde(n).`,
+      );
+    }
   }
-  if (errors.length > 0) return { errors, warnings };
+  if (errors.length > 0) return { errors, warnings, gridDiagnostics };
 
   const chunks: VropsTimeSeriesChunk[] = [];
   const summaries: VropsTimeSeriesSummary[] = [];
@@ -264,7 +310,11 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
     const names = [...new Set(file.rows.map((row) => row.objectName))].sort((left, right) => left.localeCompare(right, "en-US"));
     const objectKeys = names.map((name) => createVropsTimeSeriesObjectKey(type, name));
     if (new Set(objectKeys).size !== objectKeys.length) {
-      return { errors: [`Die ${type.toUpperCase()}-CSV enthält Objektbezeichner, die sich nur in Groß-/Kleinschreibung unterscheiden.`], warnings };
+      return {
+        errors: [`Die ${type.toUpperCase()}-CSV enthält Objektbezeichner, die sich nur in Groß-/Kleinschreibung unterscheiden.`],
+        warnings,
+        gridDiagnostics,
+      };
     }
     objectNames.set(type, names);
     const slots = vmGrid.length;
@@ -316,6 +366,7 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
   return {
     errors,
     warnings,
+    gridDiagnostics,
     payload: {
       chunks,
       summaries,
@@ -325,6 +376,32 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
       expectedSlots: vmGrid.length,
     },
   };
+}
+
+function buildGridDiagnostics(grids: ReadonlyMap<VropsTimeSeriesObjectType, number[]>): VropsTimeSeriesGridDiagnostic[] {
+  const vmGrid = grids.get("vm") ?? [];
+  const vmSlots = new Set(vmGrid);
+  return (["vm", "cluster", "host"] as const).map((objectType) => {
+    const timestamps = grids.get(objectType) ?? [];
+    const slots = new Set(timestamps);
+    const missingHourlySlots = timestamps.reduce((missing, timestamp, index) => {
+      if (index === 0) return missing;
+      const elapsedHours = (timestamp - timestamps[index - 1]) / HOUR_MS;
+      return elapsedHours > 1 ? missing + Math.round(elapsedHours - 1) : missing;
+    }, 0);
+    const missingFromVm = objectType === "vm" ? [] : vmGrid.filter((timestamp) => !slots.has(timestamp));
+    const additionalToVm = objectType === "vm" ? [] : timestamps.filter((timestamp) => !vmSlots.has(timestamp));
+    return {
+      objectType,
+      slotCount: timestamps.length,
+      ...(timestamps[0] !== undefined ? { rangeStartUtc: timestamps[0], rangeEndUtc: timestamps.at(-1)! } : {}),
+      missingHourlySlots,
+      missingFromVmCount: missingFromVm.length,
+      additionalToVmCount: additionalToVm.length,
+      missingFromVmSamples: missingFromVm.slice(0, 3),
+      additionalToVmSamples: additionalToVm.slice(0, 3),
+    };
+  });
 }
 
 function summarizeMetric(values: Float32Array, start: number, count: number): VropsTimeSeriesMetricSummary {
@@ -351,7 +428,7 @@ function summarizeMetric(values: Float32Array, start: number, count: number): Vr
 }
 
 function sameGrid(left: number[], right: number[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]) && left.every((value, index) => index === 0 || value - left[index - 1] === HOUR_MS);
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function buildQualitySummary(

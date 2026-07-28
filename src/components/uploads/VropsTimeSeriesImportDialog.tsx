@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, FileClock, ListChecks, Loader2, Upload } from "lucide-react";
 import type { SnapshotMeta } from "@/domain/models/types";
-import { importVropsTimeSeriesFileSet, type VropsTimeSeriesImportProgress, type VropsTimeSeriesImportResult } from "@/domain/services/vropsTimeSeriesImportService";
+import {
+  importVropsTimeSeriesFileSet,
+  type VropsTimeSeriesGridDiagnostic,
+  type VropsTimeSeriesImportProgress,
+  type VropsTimeSeriesImportResult,
+} from "@/domain/services/vropsTimeSeriesImportService";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -29,6 +34,32 @@ const FILE_LABELS: Record<FileSlot, string> = {
   cluster: "Cluster-Zeitreihe",
   host: "Host-Zeitreihe",
 };
+
+const GRID_LABELS: Record<FileSlot, string> = {
+  vm: "VM",
+  cluster: "Cluster",
+  host: "Host",
+};
+
+const GRID_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Vienna",
+  dateStyle: "short",
+  timeStyle: "short",
+});
+
+function formatGridTimestamp(timestamp?: number) {
+  return timestamp === undefined ? "–" : GRID_DATE_FORMATTER.format(new Date(timestamp));
+}
+
+function formatGridComparison(diagnostic: VropsTimeSeriesGridDiagnostic) {
+  if (diagnostic.objectType === "vm") return "Referenz";
+  if (diagnostic.missingFromVmCount === 0 && diagnostic.additionalToVmCount === 0) return "passt";
+  const samples = [
+    diagnostic.missingFromVmSamples.length > 0 ? `fehlt: ${diagnostic.missingFromVmSamples.map(formatGridTimestamp).join(", ")}` : "",
+    diagnostic.additionalToVmSamples.length > 0 ? `zusätzlich: ${diagnostic.additionalToVmSamples.map(formatGridTimestamp).join(", ")}` : "",
+  ].filter(Boolean);
+  return `${diagnostic.missingFromVmCount} fehlend · ${diagnostic.additionalToVmCount} zusätzlich${samples.length > 0 ? ` (${samples.join("; ")})` : ""}`;
+}
 
 export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFiles, prefillRequest = 0 }: VropsTimeSeriesImportDialogProps) {
   const [open, setOpen] = useState(false);
@@ -189,8 +220,29 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
             {result && (
               <div className={`rounded-lg border p-3 ${result.success ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
                 <div className="flex items-center gap-2 text-sm font-medium">{result.success ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertCircle className="h-4 w-4 text-destructive" />}{result.success ? "Dateisatz lokal gespeichert" : "Import nicht gespeichert"}</div>
+                {!result.success && result.errors.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-destructive" aria-label="Importfehler">
+                    {result.errors.map((error) => <li key={error}>• {error}</li>)}
+                  </ul>
+                )}
                 {result.qualitySummary && <p className="mt-2 text-xs text-muted-foreground">{result.qualitySummary.expectedSlots} Stunden · {result.qualitySummary.objectCountByType.vm} VMs · {result.qualitySummary.objectCountByType.cluster} Cluster · {result.qualitySummary.objectCountByType.host} Hosts</p>}
                 {result.success && <p className="mt-2 text-xs text-muted-foreground">Der Import ist jetzt im Auswahlfeld „Zeitreihenimport“ unter Planung › Fill up verfügbar.</p>}
+                {result.gridDiagnostics && (
+                  <div className="mt-3 rounded-md border border-border/70 bg-background/50 p-2.5 text-xs" aria-label="Stundenraster-Details">
+                    <p className="font-medium">Stundenraster-Details</p>
+                    <div className="mt-2 space-y-2">
+                      {result.gridDiagnostics.map((diagnostic) => (
+                        <div key={diagnostic.objectType} className="grid gap-0.5 border-l-2 border-muted-foreground/30 pl-2">
+                          <p className="font-medium">{GRID_LABELS[diagnostic.objectType]} · {diagnostic.slotCount.toLocaleString("de-DE")} Zeitpunkte</p>
+                          <p className="text-muted-foreground">{formatGridTimestamp(diagnostic.rangeStartUtc)} – {formatGridTimestamp(diagnostic.rangeEndUtc)}</p>
+                          <p className={diagnostic.missingHourlySlots > 0 || diagnostic.missingFromVmCount > 0 || diagnostic.additionalToVmCount > 0 ? "text-destructive" : "text-muted-foreground"}>
+                            {diagnostic.missingHourlySlots > 0 ? `${diagnostic.missingHourlySlots.toLocaleString("de-DE")} Rasterlücke(n) · ` : ""}Abgleich mit VM: {formatGridComparison(diagnostic)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

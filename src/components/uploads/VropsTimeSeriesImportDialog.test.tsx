@@ -27,7 +27,16 @@ describe("VropsTimeSeriesImportDialog", () => {
   it("protokolliert alle Rückmeldungen eines nicht gespeicherten Dateisatzes", async () => {
     importVropsTimeSeriesFileSet.mockImplementation(async (_files, _snapshotIds, onProgress) => {
       onProgress?.({ step: "Zeitreihen im Worker parsen", percent: 30, detail: "VM, Cluster und Host" });
-      return { success: false, warnings: ["Eine optionale Host-Metrik fehlt."], errors: ["Zeile 42: Ungültiger Zeitstempel."] };
+      return {
+        success: false,
+        warnings: ["Eine optionale Host-Metrik fehlt."],
+        errors: ["Stundenraster der HOST-CSV passt nicht zur VM-CSV: 1 fehlende und 1 zusätzliche Stunde(n)."],
+        gridDiagnostics: [
+          { objectType: "vm", slotCount: 168, rangeStartUtc: Date.parse("2026-07-21T00:00:00Z"), rangeEndUtc: Date.parse("2026-07-27T23:00:00Z"), missingHourlySlots: 0, missingFromVmCount: 0, additionalToVmCount: 0, missingFromVmSamples: [], additionalToVmSamples: [] },
+          { objectType: "cluster", slotCount: 168, rangeStartUtc: Date.parse("2026-07-21T00:00:00Z"), rangeEndUtc: Date.parse("2026-07-27T23:00:00Z"), missingHourlySlots: 0, missingFromVmCount: 0, additionalToVmCount: 0, missingFromVmSamples: [], additionalToVmSamples: [] },
+          { objectType: "host", slotCount: 168, rangeStartUtc: Date.parse("2026-07-21T00:00:00Z"), rangeEndUtc: Date.parse("2026-07-28T00:00:00Z"), missingHourlySlots: 0, missingFromVmCount: 1, additionalToVmCount: 1, missingFromVmSamples: [Date.parse("2026-07-25T05:00:00Z")], additionalToVmSamples: [Date.parse("2026-07-28T00:00:00Z")] },
+        ],
+      };
     });
     const secondSnapshot = { ...snapshot, snapshotId: "snapshot-2", vcenterId: "vc-2", vcenterDisplayName: "vCenter 2" };
     render(<MemoryRouter><VropsTimeSeriesImportDialog snapshots={[snapshot, secondSnapshot]} onImported={vi.fn()} /></MemoryRouter>);
@@ -45,7 +54,11 @@ describe("VropsTimeSeriesImportDialog", () => {
     const log = screen.getByRole("group", { name: "vROps-Importprotokoll" });
     expect(within(log).getByText("Zeitreihen im Worker parsen")).toBeInTheDocument();
     expect(within(log).getByText("Eine optionale Host-Metrik fehlt.")).toBeInTheDocument();
-    expect(within(log).getByText("Zeile 42: Ungültiger Zeitstempel.")).toBeInTheDocument();
+    expect(within(log).getByText("Stundenraster der HOST-CSV passt nicht zur VM-CSV: 1 fehlende und 1 zusätzliche Stunde(n).")).toBeInTheDocument();
     expect(screen.getAllByText("Import nicht gespeichert")).toHaveLength(2);
+    expect(screen.getByRole("list", { name: "Importfehler" })).toHaveTextContent("Stundenraster der HOST-CSV passt nicht zur VM-CSV");
+    const gridDetails = screen.getByLabelText("Stundenraster-Details");
+    expect(within(gridDetails).getByText("Host · 168 Zeitpunkte")).toBeInTheDocument();
+    expect(within(gridDetails).getByText(/Abgleich mit VM: 1 fehlend · 1 zusätzlich/)).toBeInTheDocument();
   });
 });

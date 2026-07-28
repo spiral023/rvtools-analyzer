@@ -12,6 +12,8 @@ Große vROps-CSV-Dateisätze werden beim Worker-Parsing nun zeilenweise fortschr
 
 Kurzlebige vROps-Objekte mit einem Teilzeitraum (etwa Hotclones) blockieren den kompletten Dateisatz nicht mehr; ihre fehlenden Stunden werden als Missing Values gespeichert und in der Datenqualität gekennzeichnet.
 
+Fehlschläge bei der Stundenrasterprüfung erläutern nun direkt im Importdialog die konkrete Abweichung: Zeitpunkte und Zeitraum je VM-, Cluster- und Host-CSV, Rasterlücken sowie fehlende oder zusätzliche Stunden gegenüber der VM-Referenz einschließlich Beispielzeitpunkten.
+
 Für jeden verbundenen RVTools-Cluster werden Normalbetrieb, N-1, optional N-2 sowie HIGH-Site-Failover berechnet. Versionierte Kapazitätspolicies, CPU-/RAM- und Platzierungs-Guardrails, HIGH-/STD-Workloadprofile und eine nachvollziehbare Fill-Up-Empfehlung sind im Planungstab verfügbar.
 
 Analyzer-Runs lassen sich lokal speichern, duplizieren, umbenennen, löschen und als Markdown kopieren. Sie behalten ihre import-, policy- und ergebnisbezogenen Snapshots unveränderlich bei. Die fachliche Gegenrechnung mit einem vollständigen Realcluster und der Skalierungstest folgen weiterhin nachgelagert.
