@@ -1,7 +1,7 @@
 # Design: Fill-Up- und Cluster-Kapazitätsplanung mit RVTools und vROps
 
 **Datum:** 2026-07-28  
-**Status:** Fachliches Konzept – Implementierung nach Echtdatenvalidierung  
+**Status:** Fachlich freigegeben – Umsetzung kann beginnen, vollständige Cluster- und Skalierungsabnahme folgt nachgelagert
 **Produkt:** RVTools Analyzer  
 **Architektur:** Frontend-only, local-first, keine Serverpersistenz
 
@@ -39,58 +39,78 @@ Modell muss gleichzeitig berücksichtigen:
 - zeitlich veränderbare Planungsrichtlinien und reproduzierbare,
   gespeicherte Analyseläufe.
 
-## 2. Verbindliches Implementierungs-Gate
+## 2. Implementierungsfreigabe und nachgelagerte Validierung
 
-Vor der Erzeugung von produktivem Code werden pseudonymisierte Echtdaten
-geprüft. Diese Spezifikation beschreibt das Zielmodell, legt aber noch keine
-unbestätigten vROps-Metric-Keys oder Importspalten fest.
+Die drei getrennten pseudonymisierten Sieben-Tage-Exporte für VM, Cluster und
+Host wurden geprüft. Sie besitzen ein stabiles, importierbares Schema, exakt
+168 lückenlose Stunden je enthaltenem Objekt, keine doppelten Zeitpunkte und
+plausible Average-/Maximum-Werte. Die Umsetzung darf deshalb beginnen, obwohl
+derzeit noch kein vollständiger Cluster mit allen zugehörigen VMs und Hosts
+bereitgestellt werden kann.
 
-### 2.1 Vom VMware-Administrator nachzuliefern
+### 2.1 Für die Implementierung bestätigte Entscheidungen
 
-- interne vROps-/Aria-Operations-Metric-Keys,
-- Einheiten und Objektarten der ausgewählten Metriken,
-- genaue Definition von `Cluster CPU Overhead`,
-- anonymisierte Spaltenüberschriften des geplanten Exports,
-- mehrere pseudonymisierte Beispielzeilen,
-- Aggregationssemantik von Average, Maximum und gegebenenfalls Last,
-- Zeitzone und Zeitstempelformat,
-- Information, ob Sample Count oder Datenabdeckung exportiert werden kann,
-- Information, wie ausgeschaltete VMs und Messlücken unterschieden werden,
-- Information, ob stabile VM-, Host- und Cluster-IDs verfügbar sind.
+- drei getrennte CSV-Dateien für VM, Cluster und Host,
+- genau eine Objektart pro Datei,
+- sieben vollständige Tage mit `Interval Breakdown = Per Hour`,
+- Zeitzone `Europe/Vienna`, interne Normalisierung auf UTC,
+- VM CPU Demand `Avg` und VM CPU Ready `Max`,
+- Cluster CPU Demand, Memory Utilization und CPU Contention jeweils als
+  `Avg` und `Max`,
+- Host CPU/Memory Capacity Available to VMs als `Last`,
+- zusätzliche Host-Demand-, Usage-, Memory- und Contention-Reihen für
+  Diagnose- und spätere Analysefunktionen,
+- `-` als Missing Value,
+- englisches Zahlenformat mit Dezimalpunkt und optionalem
+  Tausendertrennzeichen,
+- VMware-`KB` wird entsprechend der vSphere-Web-Services-Dokumentation als
+  KiB interpretiert; Memory-Rohwerte werden intern auf MiB normalisiert,
+- Objekte werden primär über den Namen mit dem aktiven RVTools-vCenter-Scope
+  verbunden; Kollisionen oder Mehrdeutigkeiten führen zu einem sichtbaren
+  Datenqualitätsfehler,
+- CPU-Kapazität basiert auf der Summe `Host CPU Capacity Available to VMs`;
+  Cluster CPU Overhead wird nicht nochmals addiert oder abgezogen,
+- aktuelle VM-/Host-/Cluster- und Resource-Pool-Beziehungen stammen für die
+  erste Version aus dem zugeordneten RVTools-Snapshot.
 
-### 2.2 Prüfschritte mit den Beispieldaten
+Interne Metric Keys werden, sofern verfügbar, als Metadaten dokumentiert. Sie
+sind kein Implementierungsblocker, weil der Import gegen versionierte,
+streng geprüfte Spaltenschemata und Aliaslisten arbeitet.
 
-1. Metric-Key und Anzeigename eindeutig zuordnen.
-2. Einheit, Skalierung und Aggregationsintervall verifizieren.
-3. Bestätigen, dass das stündliche Maximum dem Maximum der zwölf
-   5-Minuten-Messungen entspricht.
-4. VM-, Host-, Cluster- und Resource-Pool-Beziehungen prüfen.
-5. CPU Demand auf VM- und Clusterebene für identische Zeitpunkte
-   gegeneinander plausibilisieren.
-6. Prüfen, ob Cluster CPU Demand den CPU Overhead bereits enthält.
-7. Memory Utilization auf absolute MiB und verwendeten Nenner prüfen.
-8. Verhalten bei ausgeschalteten, migrierten, neu angelegten und gelöschten
-   VMs untersuchen.
-9. Datenlücken, doppelte Zeilen und inkonsistente Zeitstempel simulieren.
-10. Speicherbedarf und Importdauer anhand einer realistischen Dateigröße
-    messen.
-11. Pseudonymisierung auf erhaltene referenzielle Integrität prüfen.
-12. Ergebnisse für mindestens einen bekannten Cluster manuell mit vROps
-    beziehungsweise vorhandenen Betriebsberechnungen vergleichen.
+### 2.2 Bereits bestandene Beispieldatenprüfungen
 
-### 2.3 Freigabekriterien
+- VM: ein Objekt mit 168 Stunden,
+- Cluster: zwei Objekte mit jeweils 168 Stunden,
+- Host: zwei Objekte mit jeweils 168 Stunden,
+- keine Zeitlücken oder doppelten Objekt-/Zeitpunkt-Kombinationen,
+- alle Zeitstempel und Zahlen parsebar,
+- bei Cluster- und Hostpaaren niemals `Max < Avg`,
+- Cluster Memory Utilization ist vorhanden,
+- Cluster CPU Overhead wurde aus dem Pflichtreport entfernt,
+- Host-Maintenance-Spalte ist korrekt benannt,
+- Host Demand und Memory Utilization bleiben in den Beispieldaten innerhalb
+  der gelieferten Hostkapazitäten.
 
-Erst wenn alle folgenden Punkte erfüllt sind, darf ein separater
-Implementierungsplan erstellt werden:
+### 2.3 Bewusst nachgelagerte Abnahme
 
-- alle benötigten Metric-Keys sind bestätigt,
-- CPU Overhead ist semantisch geklärt,
-- Maximum/Average sind fachlich verstanden,
-- Identitäten und Beziehungen sind eindeutig genug,
-- die gewählte Dateistruktur ist importierbar,
-- der Speicherbedarf für sieben Tage ist akzeptabel,
-- mindestens ein bekannter Cluster kann reproduzierbar nachgerechnet werden,
-- offene Datenqualitätsfälle besitzen definierte UI- und Rechenregeln.
+Folgende Prüfungen werden umgesetzt und mit synthetischen Fixtures getestet,
+können aber erst nach Verfügbarkeit größerer Echtdaten endgültig abgenommen
+werden:
+
+1. vollständige VM-Summe gegen Cluster CPU Demand,
+2. reale VM-/Cluster-/Host-/HIGH-/STD-Beziehungen eines ganzen Clusters,
+3. manuelle Gegenrechnung von Normalbetrieb, N-1, N-2 und beiden
+   Site-Ausfallrichtungen,
+4. Verhalten während eines echten Maintenance-Wechsels,
+5. Importdauer und Speicherverbrauch bei ungefähr 5.000 VMs beziehungsweise
+   840.000 VM-Stunden,
+6. Namenskollisionen und Migrationen über mehrere vCenter,
+7. Speicher- und Rechenverhalten bei VDI-Scope.
+
+Bis zur erfolgreichen Abnahme zeigt die Anwendung für nicht vollständig
+validierbare Ergebnisse ein Datenqualitäts- beziehungsweise Vertrauensniveau.
+Fehlende Echtdaten dürfen die Entwicklung nicht blockieren, aber auch nicht
+stillschweigend als produktiv bestätigte Annahme erscheinen.
 
 ## 3. Ausgangslage und Größenordnung
 
@@ -146,9 +166,20 @@ Brutto-RAM = Summe des physischen RAMs der betrachteten Hosts
 Nutzbarer RAM = Brutto-RAM − System-/ESXi-Puffer
 ```
 
-Der Puffer ist Bestandteil der Cluster-Policy. Er kann als Prozentsatz,
-absoluter Betrag pro Host oder später aus einer bestätigten Datenquelle
-berechnet werden.
+Primäre historische Kapazitätsbasis ist `Host Memory Capacity Available to
+VMs`. Falls diese Zeitreihe fehlt, wird der Puffer aus der Cluster-Policy als
+Prozentsatz oder absoluter Betrag pro Host auf den RVTools-Bruttowert
+angewendet.
+
+Die vSphere-Web-Services-API bezeichnet binäre KiB aus Kompatibilitätsgründen
+als `kiloBytes` beziehungsweise `KB`. Der Import normalisiert Memory-Werte
+daher binär:
+
+```text
+1 VMware-KB = 1 KiB = 1.024 Byte
+1 MiB = 1.024 KiB
+1 GiB = 1.024 MiB
+```
 
 ### 4.4 HIGH und STD
 
@@ -408,40 +439,36 @@ Empfehlung.
 ### 8.4 CPU Overhead
 
 Für einen Beispielcluster wurden ungefähr 315 GHz CPU Overhead bei
-4.300 GHz Clusterkapazität beobachtet, also rund 7,3 %. Dieser Anteil ist
-potenziell relevant.
+4.300 GHz Clusterkapazität beobachtet, also rund 7,3 %. Broadcom beschreibt
+CPU Overhead auf Hostebene als Kapazitätsanteil, der zusammen mit
+Reservations von der Total Capacity abgezogen wird.
 
-Vor der Implementierung muss geklärt werden, ob Cluster CPU Demand den
-Overhead bereits enthält.
-
-Falls der Overhead getrennt ist:
+Für Fill Up wird deshalb nicht die Brutto-CPU-Kapazität verwendet, sondern:
 
 ```text
-Planbare CPU-Kapazität =
-physische CPU-Kapazität
-− P95 CPU Overhead
-− Policy-Sicherheitspuffer
+Planbare CPU-Kapazität(t) =
+Σ Host CPU Capacity Available to VMs(t)
+× (1 − Policy-Sicherheitspuffer)
 ```
 
-Falls Cluster CPU Demand den Overhead bereits enthält, darf er nicht erneut
-abgezogen werden. Der Analyzer speichert in jedem Lauf, welcher
-Overhead-Modus verwendet wurde:
-
-- `included-in-demand`,
-- `subtract-explicitly`,
-- `ignored-by-policy`,
-- `unknown` – blockiert eine belastbare Empfehlung.
+Cluster CPU Demand ist die Workload-Nachfrage. Cluster CPU Overhead wird
+weder auf Demand addiert noch erneut von `Capacity Available to VMs`
+abgezogen. Dadurch wird eine Doppelverrechnung vermieden. Die
+Cluster-Overhead-Metrik ist kein Pflichtimport mehr und kann später nur als
+diagnostischer Cross-Check ergänzt werden.
 
 ## 9. Ausgewählte vROps-Metriken
 
-Die endgültigen Metric-Keys werden erst nach der Echtdatenprüfung eingetragen.
+Der Import verwendet versionierte Spaltenschemata und dokumentierte Aliase.
+Interne Metric Keys werden als optionale Metadaten gespeichert, sofern sie
+verfügbar sind.
 
 ### 9.1 Pro VM und Stunde
 
 | Fachliche Metrik | Benötigte Statistik | Einheit | Zweck |
 |---|---|---|---|
-| VM CPU Demand | Average, Maximum | MHz | tatsächlicher CPU-Bedarf und Zeitprofil |
-| VM CPU Ready | Maximum, Average optional | % | VM-spezifische Contention-Kontrolle |
+| VM CPU Demand | Average | MHz | tatsächlicher CPU-Bedarf und Zeitprofil |
+| VM CPU Ready | Maximum | % | VM-spezifische Contention-Kontrolle |
 
 ### 9.2 Pro Cluster und Stunde
 
@@ -449,12 +476,25 @@ Die endgültigen Metric-Keys werden erst nach der Echtdatenprüfung eingetragen.
 |---|---|---|---|
 | Cluster CPU Demand | Average, Maximum | MHz | autoritativer Cluster-Cross-Check |
 | Cluster Memory Utilization | Average, Maximum | bevorzugt MiB | Laufzeit-RAM-Profil |
-| Cluster CPU Contention | Maximum, Average optional | % | aggregierter Scheduling-Druck |
-| Cluster CPU Overhead | Average, Maximum | MHz | optionaler Kapazitätsabzug nach Semantikprüfung |
+| Cluster CPU Contention | Average, Maximum | % | aggregierter Scheduling-Druck |
 
-`Last` wird für diese Zeitreihen zunächst nicht gespeichert. Zustands- und
-Konfigurationsdaten kommen aus RVTools beziehungsweise aus kompakten
-Beziehungsinformationen des vROps-Exports.
+### 9.3 Pro Host und Stunde
+
+| Fachliche Metrik | Benötigte Statistik | Einheit | Priorität | Zweck |
+|---|---|---|---|---|
+| Host CPU Capacity Available to VMs | Last | MHz | Pflicht | CPU-Kapazitätsbasis und Ausfallsimulation |
+| Host Memory Capacity Available to VMs | Last | MiB | Pflicht | RAM-Kapazitätsbasis und Ausfallsimulation |
+| Host CPU Demand | Average, Maximum | MHz | empfohlen | Host-Hotspots und DRS-Verteilung |
+| Host CPU Usage | Average, Maximum | MHz | optional | Demand-/Usage-Cross-Check |
+| Host Memory Utilization | Average, Maximum | MiB | empfohlen | RAM-Verteilung und Hotspots |
+| Host CPU Contention | Average, Maximum | % | empfohlen | lokale Scheduling-Probleme |
+| Host Maintenance State | Last | Zustand | optional | Wartungsereignisse und historische Erklärung |
+
+Der aktuelle Maintenance-Beispielexport liefert je Host zunächst
+`notInMaintenance` und danach `-`. Der Import führt bekannte Zustände
+innerhalb eines Imports fort, kennzeichnet fortgeschriebene Zustände aber als
+abgeleitet. Die Kapazitätszeitreihen und RVTools-Zustände bleiben die
+primären Signale. Ein echter Zustandswechsel wird nachgelagert validiert.
 
 ## 10. RVTools-Daten
 
@@ -503,20 +543,20 @@ Für 30 Servercluster entstehen bei sieben Tagen lediglich:
 Die Clusterzeitreihen sind damit vernachlässigbar klein. Die VM-Zeitreihen
 bestimmen den Speicherbedarf.
 
-Für sieben Tage Serverdaten mit drei numerischen Reihen:
+Für sieben Tage Serverdaten mit zwei numerischen Reihen:
 
 - CPU Demand Average,
-- CPU Demand Maximum,
 - CPU Ready Maximum
 
 ergibt sich bei `Float32`:
 
 ```text
-840.000 × 3 × 4 Byte ≈ 10 MB reine Messwerte
+840.000 × 2 × 4 Byte ≈ 6,7 MB reine Messwerte
 ```
 
 Mit Dictionaries, Missing-Value-Masken und Indizes wird grob mit
-15 bis 30 MB unkomprimiert gerechnet. Diese Annahme wird mit Echtdaten
+12 bis 25 MB unkomprimiert gerechnet. Diese Annahme wird später mit
+vollständigen Echtdaten
 gemessen und nicht nur theoretisch übernommen.
 
 Die erste Datenprüfung und Implementierungsstufe darf auf die ungefähr
@@ -545,7 +585,7 @@ Stattdessen:
 Der Import läuft in einem Web Worker:
 
 1. Datei blockweise lesen und parsen.
-2. Metric-Keys auf bestätigte fachliche Metriken abbilden.
+2. versionierte Spaltennamen und Aliase auf fachliche Metriken abbilden.
 3. Identitäten dictionary-codieren.
 4. Messwerte in kompakte Arrays schreiben.
 5. Cluster-, HIGH- und STD-Zeitreihen zeitgleich aggregieren.
@@ -573,7 +613,7 @@ Pro Cluster sowie HIGH und STD:
 - P50/P95/Maximum,
 - stündliche Cluster Memory Utilization,
 - CPU Contention,
-- CPU Overhead nach Verfügbarkeit,
+- verfügbare Host- und Szenariokapazitäten,
 - Datenabdeckung und Anzahl beitragender VMs.
 
 Die abgeleiteten Aggregate beschleunigen Fill-Up-Runs. Die kompakten
@@ -646,11 +686,6 @@ interface CapacityPolicy {
 
   maxSingleVmHostCpuPct: number;
   maxSingleVmHostRamPct: number;
-
-  cpuOverheadMode:
-    | "included-in-demand"
-    | "subtract-explicitly"
-    | "ignored-by-policy";
 }
 ```
 
@@ -886,7 +921,7 @@ Jeder Run speichert mindestens:
 - N-2-Einstellung,
 - HIGH-/STD-Slider beziehungsweise Workloadprofil,
 - verwendetes Perzentil,
-- CPU-Overhead-Modus,
+- verwendete CPU- und RAM-Kapazitätsbasis,
 - Ergebnisse pro Cluster,
 - limitierende Metriken,
 - Warnungen und Datenqualitätsbefunde.
@@ -953,7 +988,7 @@ Mindestens:
 | Limiter CPU | konkrete Metrik und Szenario |
 | Limiter RAM | konkrete Metrik und Szenario |
 | Datenqualität | Abdeckung, Missing Values, unbekannte Zuordnungen |
-| Warnungen | große VMs, bereits rote Ausgangslage, Overhead unbekannt |
+| Warnungen | große VMs, bereits rote Ausgangslage, unvollständige Beziehungen oder Kapazitäten |
 
 ### 16.3 Detailansicht
 
@@ -1008,10 +1043,10 @@ Sie darf keine deterministische N-1-/Site-Failover-Grenze ersetzen.
 
 Jedes Ergebnis erhält ein Vertrauensniveau:
 
-- **hoch:** vollständige Datenabdeckung, eindeutige Beziehungen, bestätigter
-  Overhead, keine unbekannten RPs,
+- **hoch:** vollständige Datenabdeckung, eindeutige Beziehungen, vollständige
+  Hostkapazitäten, keine unbekannten RPs,
 - **mittel:** kleinere Messlücken oder statische Beziehung über sieben Tage,
-- **niedrig:** größere Lücken, unbestätigte Einheit, Overhead unbekannt,
+- **niedrig:** größere Lücken, unbestätigte Einheit oder Kapazitätsbasis,
   Cluster/RP-Zuordnung unsicher,
 - **nicht berechenbar:** Pflichtmetrik oder Kapazitätsbasis fehlt.
 
@@ -1112,14 +1147,15 @@ bekannt und reproduziert ist.
 - keine vollständige Modellierung seltener einseitiger RDW-Cluster,
 - keine VM-Memory-Zeitreihen für alle VMs,
 - keine 30- oder 90-Tage-Pflichtaufbewahrung,
-- keine Verwendung unbestätigter Metric-Keys,
-- keine produktive Implementierung vor Freigabe der Beispieldaten.
+- keine stillschweigende produktive Freigabe von Ergebnissen, die wegen
+  fehlender vollständiger Cluster- oder Skalierungsdaten noch nicht
+  end-to-end validiert wurden.
 
 ## 22. Teststrategie
 
 ### 22.1 Import
 
-- Metric-Key-Mapping,
+- versioniertes Spalten- und Alias-Mapping,
 - Einheitenkonvertierung,
 - Average/Maximum-Zuordnung,
 - Zeitstempel und Zeitzone,
@@ -1202,12 +1238,17 @@ bekannt und reproduziert ist.
 
 ## 24. Nächster Schritt
 
-Der nächste Schritt ist ausschließlich die **Echtdatenvalidierung**:
+Die Umsetzung beginnt anhand des zugehörigen Implementierungsplans:
 
-1. pseudonymisierten vROps-Beispielexport bereitstellen,
-2. Metric Keys und Semantik dokumentieren,
-3. Importform und Datenvolumen messen,
-4. bekannte Cluster manuell gegenrechnen,
-5. diese Spezifikation mit den bestätigten Erkenntnissen aktualisieren,
-6. fachliche Freigabe einholen,
-7. erst danach einen detaillierten Implementierungsplan erstellen.
+1. Domänentypen, Importverträge und versionierte CSV-Schemata anlegen,
+2. vROps-Zeitreihenimport mit den geprüften Beispieldateien implementieren,
+3. kompakte IndexedDB-Persistenz und Datenqualitätsbericht ergänzen,
+4. Policy-, Szenario- und Fill-Up-Engine testgetrieben umsetzen,
+5. den vorhandenen leeren Tab **Planung → Fill Up** ausbauen,
+6. gespeicherte Analyzer-Runs und Policy-Versionen ergänzen,
+7. synthetische vollständige Cluster-Fixtures für N-1, N-2, Site-Ausfall,
+   HIGH/STD und große VMs testen,
+8. nach Verfügbarkeit eines vollständigen Testclusters die
+   End-to-End-Gegenrechnung durchführen,
+9. anschließend den Skalierungstest mit ungefähr 840.000 VM-Stunden
+   durchführen und die Implementierung produktiv abnehmen.

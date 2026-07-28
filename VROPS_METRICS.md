@@ -18,25 +18,26 @@ Die Exporte bilden die Grundlage für:
 - Wartungsfensterempfehlungen,
 - Importvergleiche, Policy-Compliance und Cluster Reviews.
 
-Die endgültigen internen Metric Keys und Einheiten werden erst nach der
-Prüfung pseudonymisierter Echtdaten verbindlich festgeschrieben.
+Der Analyzer importiert die geprüften Anzeigenamen über ein versioniertes
+Spaltenschema. Interne Metric Keys werden, sofern verfügbar, ergänzend
+dokumentiert, sind aber kein Implementierungsblocker.
 
 ## Aktueller Validierungsstatus
 
-Das erste Beispiel hat zwei relevante Probleme gezeigt:
+Die aktualisierten pseudonymisierten Exporte wurden erfolgreich geprüft:
 
-1. VM-, Cluster- und Hostmetriken wurden in derselben View kombiniert. Dabei
-   erschienen Clusterwerte auf VM- und Hostzeilen mit exakt denselben Werten
-   wie die jeweilige VM- beziehungsweise Hostmetrik. Die Objektarten müssen
-   deshalb in getrennten Views und Reports exportiert werden.
-2. `Avg` und `Max` waren bei allen Beispielwerten identisch. Vermutlich wurde
-   vor der Transformation bereits auf genau einen Stundenwert gerollt.
-   Deshalb wird als nächster Test `Rollup Interval = None` zusammen mit
-   `Interval Breakdown = Per Hour` verwendet.
+- getrennte VM-, Cluster- und Hostdatei,
+- exakt 168 lückenlose Stunden je enthaltenem Objekt,
+- keine doppelten Objekt-/Zeitpunkt-Kombinationen,
+- VM CPU Demand `Avg` und VM CPU Ready `Max`,
+- plausible unterschiedliche Cluster- und Hostwerte für `Avg` und `Max`,
+- Cluster Memory Utilization vorhanden,
+- Cluster CPU Overhead aus dem Pflichtreport entfernt,
+- Host-Maintenance-Spalte korrekt benannt.
 
-`Rollup Interval = None` ist damit noch eine zu bestätigende
-Echtdatenkonfiguration. Erst ein erfolgreicher 24-Stunden-Test gibt sie für
-den vollständigen Sieben-Tage-Export frei.
+Die wenigen enthaltenen Objekte reichen für Schema- und Parserentwicklung.
+Ein vollständiger Cluster und der Skalierungstest mit ungefähr 5.000 VMs
+werden nach der Implementierung nachgeholt.
 
 Broadcom dokumentiert ein bekanntes Problem bei Views mit mehreren
 Objektarten und gleichnamigen Metriken. Als Workaround werden getrennte Views
@@ -51,7 +52,7 @@ Es werden drei getrennte Views und drei getrennte Reports angelegt:
 | View | Subject | Report | Inhalt |
 |---|---|---|---|
 | `RVTA_VM_HOURLY` | ausschließlich Virtual Machine | `RVTA_VM_HOURLY_7D` | VM CPU Demand und CPU Ready |
-| `RVTA_CLUSTER_HOURLY` | ausschließlich vSphere Cluster Compute Resource | `RVTA_CLUSTER_HOURLY_7D` | Cluster Demand, Memory Utilization, Contention und optional Overhead |
+| `RVTA_CLUSTER_HOURLY` | ausschließlich vSphere Cluster Compute Resource | `RVTA_CLUSTER_HOURLY_7D` | Cluster Demand, Memory Utilization und Contention |
 | `RVTA_HOST_HOURLY` | ausschließlich vSphere Host System | `RVTA_HOST_HOURLY_7D` | Host Demand, Usage, Memory, Contention, Kapazität und Maintenance |
 
 Die Bezeichnungen können an lokale Namenskonventionen angepasst werden. Pro
@@ -109,12 +110,13 @@ Aktuelle Testkonfiguration:
 |---|---|
 | Transformation für normale Last | `avg` und `max` |
 | Transformation für Zustände/Kapazität | `last` |
-| Rollup Interval | **None**, vorerst zu validieren |
+| Rollup Interval | **None**, mit den Beispieldaten bestätigt |
 | Interval Breakdown | **Per Hour** |
 | Timestamp bei `max` | **No Timestamp** |
 
-Die Metriken werden jeweils zweimal in die View aufgenommen: einmal mit
-`avg` und einmal mit `max`.
+Cluster- und Host-Lastmetriken werden jeweils als `avg` und `max`
+aufgenommen. Die VM-View enthält nur CPU Demand `avg` und CPU Ready `max`.
+Kapazitäten und Zustände verwenden `last`.
 
 Die gewünschte Semantik ist:
 
@@ -130,30 +132,13 @@ Punkten und nicht auf den ursprünglichen 20-Sekunden-Samples:
 
 - [Broadcom KB 315941 – Aria Operations Data Collection](https://knowledge.broadcom.com/external/article?articleNumber=315941)
 
-### Warum zunächst `Rollup Interval = None`?
+### Warum `Rollup Interval = None`?
 
-Im bisherigen Beispiel waren alle Paare identisch:
-
-```text
-VM CPU Demand Avg = VM CPU Demand Max
-VM CPU Ready Avg  = VM CPU Ready Max
-Host Demand Avg   = Host Demand Max
-Host Usage Avg    = Host Usage Max
-```
-
-Das deutet darauf hin, dass `Rollup Interval = 1 Hour` bereits genau einen
-Stundenpunkt erzeugt und `avg` sowie `max` anschließend auf denselben
-Einzelwert angewendet werden.
-
-Beim nächsten Test übernimmt daher `Interval Breakdown = Per Hour` die
-Stundenaufteilung, während die Transformation mit `Rollup Interval = None`
-auf die darunterliegenden gespeicherten Messpunkte zugreifen soll.
-
-Falls der Export damit 5-Minuten-Zeilen statt Stundenzeilen erzeugt, wird die
-Konfiguration erneut geprüft. Als möglicher Fallback kann die Aggregation
-gezielt über die vROps-API abgefragt oder im Analyzer aus 5-Minuten-Werten
-berechnet werden. Ein vollständiger Fünf-Minuten-Import ist wegen der
-zwölffachen Datenmenge jedoch nicht das bevorzugte Ziel.
+`Interval Breakdown = Per Hour` erzeugt das gewünschte Stundenraster.
+`Rollup Interval = None` lässt `avg` und `max` auf die darunterliegenden
+gespeicherten Messpunkte wirken. Die neuen Cluster- und Hostbeispiele zeigen
+plausible Unterschiede zwischen beiden Transformationen. Ein vollständiger
+Fünf-Minuten-Import ist daher nicht erforderlich.
 
 ## View 1: VM-Zeitreihen
 
@@ -172,22 +157,17 @@ In dieser View dürfen keine Cluster- oder Hostmetriken vorkommen.
 | Fachliche Metrik | Transformation | Ziel-Einheit | Pflicht | Zweck |
 |---|---|---|---|---|
 | VM CPU Demand | `avg` | MHz | ja | zeitgleiche normale Last und P95-Planung |
-| VM CPU Demand | `max` | MHz | ja | kurze VM-Spitzen und Peak Contributors |
-| VM CPU Ready | `avg` | % | ja | anhaltender Scheduling-Druck |
 | VM CPU Ready | `max` | % | ja | kurzzeitige Ready-Probleme |
 
 Beispielnamen aus dem geprüften Export:
 
 ```text
 VM|CPU|Demand (MHz)|Avg
-VM|CPU|Demand (MHz)|Max
-VM|CPU|Ready (%)|Avg
 VM|CPU|Ready (%)|Max
 ```
 
-Die Spaltennamen sind noch keine Bestätigung der internen Metric Keys. Für
-jede Metrik müssen Anzeigename, interner Key, Objektart und Einheit separat
-dokumentiert werden.
+Die Spaltennamen bilden den verbindlichen Importvertrag. Interne Metric Keys
+können im Metric Dictionary ergänzt werden.
 
 ### Nicht benötigte VM-Metriken
 
@@ -211,12 +191,10 @@ Minimal:
 Name
 Interval Breakdown
 VM CPU Demand Avg
-VM CPU Demand Max
-VM CPU Ready Avg
 VM CPU Ready Max
 ```
 
-Bevorzugt zusätzlich:
+Optional zusätzlich:
 
 ```text
 vCenter
@@ -231,8 +209,6 @@ object_id
 vm_name
 interval_start
 cpu_demand_avg_mhz
-cpu_demand_max_mhz
-cpu_ready_avg_pct
 cpu_ready_max_pct
 ```
 
@@ -258,22 +234,19 @@ In dieser View dürfen keine VM- oder Hostmetriken vorkommen.
 | Cluster Memory Utilization | `max` | bevorzugt MiB | ja | RAM-Spitzen |
 | Cluster CPU Contention | `avg` | % | ja | anhaltender Scheduling-Druck |
 | Cluster CPU Contention | `max` | % | ja | kurzzeitige Scheduling-Probleme |
-| Cluster CPU Overhead | `avg` | MHz | optional/experimentell | möglicher Kapazitätsabzug |
-| Cluster CPU Overhead | `max` | MHz | optional/experimentell | Overhead-Spitzen und Semantikprüfung |
 
 Beispielnamen aus dem geprüften Export:
 
 ```text
 Cluster|CPU|Demand|Avg
 Cluster|CPU|Demand|Max
+Cluster|Memory|Utilization (MB)|Avg
+Cluster|Memory|Utilization (MB)|Max
 Cluster|CPU|Contention (%)|Avg
 Cluster|CPU|Contention (%)|Max
-Cluster|CPU|Overhead|Avg
-Cluster|CPU|Overhead|Max
 ```
 
-**Cluster Memory Utilization fehlte im ersten Beispiel und muss ergänzt
-werden.**
+Cluster Memory Utilization ist im geprüften Export vorhanden.
 
 ### Anforderungen an Cluster Memory Utilization
 
@@ -289,27 +262,10 @@ historisch unterschiedlicher Hostverfügbarkeit wichtig.
 
 ### Behandlung von Cluster CPU Overhead
 
-CPU Overhead wird zunächst nur exportiert und angezeigt. Er darf erst von der
-Kapazität abgezogen werden, wenn geklärt ist:
-
-- exakter interner Metric Key,
-- Objektart und Einheit,
-- fachliche Definition,
-- ob CPU Demand diesen Overhead bereits enthält,
-- ob die Metrik Last, Kapazität oder einen berechneten Reservierungswert
-  beschreibt.
-
-Mögliche spätere Modi:
-
-```text
-included-in-demand
-subtract-explicitly
-ignored-by-policy
-unknown
-```
-
-`unknown` blockiert eine belastbare CPU-Fill-Up-Empfehlung, die einen
-Overhead-Abzug voraussetzt.
+Cluster CPU Overhead gehört nicht mehr zum Pflichtreport. Die
+Fill-Up-Kapazität basiert auf `Host CPU Capacity Available to VMs`; der
+Overhead darf davon nicht nochmals abgezogen und auch nicht auf Cluster CPU
+Demand addiert werden. Eine spätere diagnostische Anzeige bleibt möglich.
 
 ### Gewünschte Cluster-Ausgabespalten
 
@@ -324,8 +280,6 @@ Cluster Memory Utilization Avg
 Cluster Memory Utilization Max
 Cluster CPU Contention Avg
 Cluster CPU Contention Max
-Cluster CPU Overhead Avg
-Cluster CPU Overhead Max
 ```
 
 Normiertes Zielschema im Analyzer:
@@ -341,8 +295,6 @@ memory_utilization_avg_mib
 memory_utilization_max_mib
 cpu_contention_avg_pct
 cpu_contention_max_pct
-cpu_overhead_avg_mhz
-cpu_overhead_max_mhz
 ```
 
 ## View 3: ESXi-Host-Zeitreihen
@@ -495,14 +447,17 @@ valid_to
 ```
 
 Falls für die ersten sieben Tage nur der aktuelle RVTools-Snapshot verwendet
-wird, muss bestätigt werden, dass keine relevanten VM-Migrationen oder
-Resource-Pool-Wechsel stattgefunden haben. Andernfalls sinkt das
-Vertrauensniveau der historischen HIGH-/STD-Auswertung.
+wird, friert der Import diese Beziehung für den Analyzer-Run ein. Mögliche
+VM-Migrationen oder Resource-Pool-Wechsel innerhalb des Zeitfensters können
+damit zunächst nicht rekonstruiert werden und senken das Vertrauensniveau der
+historischen HIGH-/STD-Auswertung. Das blockiert die erste Implementierung
+nicht.
 
 ## Metric Dictionary
 
-Zusätzlich zu den drei Messdateien wird eine kleine
-Metrikdefinitionsdatei benötigt.
+Zusätzlich zu den drei Messdateien kann eine kleine Metrikdefinitionsdatei
+beigelegt werden. Sie verbessert Nachvollziehbarkeit und Versionssicherheit,
+ist für den bestätigten Header-basierten Import aber nicht verpflichtend.
 
 Empfohlene Spalten:
 
@@ -519,9 +474,9 @@ sample_count_available
 notes
 ```
 
-Für jede Metrik sind mindestens zu dokumentieren:
+Wenn ein Dictionary geliefert wird, soll es je Metrik dokumentieren:
 
-- interner Metric Key,
+- interner Metric Key, sofern verfügbar,
 - Anzeigename,
 - gültige Objektart,
 - Basiseinheit,
@@ -529,7 +484,7 @@ Für jede Metrik sind mindestens zu dokumentieren:
 - Transformationsart,
 - erwartetes Collection-Intervall,
 - Umgang mit fehlenden Samples,
-- bei Capacity- und Overhead-Metriken die genaue fachliche Definition.
+- bei Capacity-Metriken die genaue fachliche Definition.
 
 ## Einheiten und Zahlenformat
 
@@ -540,7 +495,7 @@ sein:
 
 | Ressource | Bevorzugte Einheit |
 |---|---|
-| CPU Demand, Usage, Overhead und Capacity | MHz |
+| CPU Demand, Usage und Capacity | MHz |
 | Memory Utilization und Capacity | MiB |
 | Ready und Contention | % |
 
@@ -565,10 +520,10 @@ GHz → MHz
 GB/TB → MiB
 ```
 
-Vor der Implementierung ist zu klären, ob `GB` und `TB` in diesem Export
-dezimal oder binär interpretiert werden. Falls vROps intern KiB/MiB-basierte
-Werte nur formatiert anzeigt, soll möglichst der unformatierte Basiswert
-exportiert werden.
+Für vSphere-Memory-Counter bezeichnet Broadcom `kiloBytes` beziehungsweise
+`KB` ausdrücklich als fachlich genauere KiB. Der Analyzer interpretiert diese
+Memory-Werte und daraus formatierte MB-/GB-/TB-Angaben deshalb binär und
+normalisiert sie auf MiB. Der unformatierte Basiswert bleibt bevorzugt.
 
 ### Zahlenformat
 
@@ -680,59 +635,34 @@ Hostdateien sind wesentlich kleiner.
 Die ungefähr 14.000 VDI-VMs werden zunächst nicht in denselben Export
 aufgenommen. Dafür wird später ein eigener Import-Scope vorgesehen.
 
-## 24-Stunden-Validierung vor dem vollständigen Export
+## Validierungsstatus und nachgelagerte Abnahme
 
-Vor dem Sieben-Tage-Gesamtexport werden drei kleine Testreports erzeugt:
+Bestanden:
 
-1. eine deutlich schwankende VM,
-2. der zugehörige Cluster,
-3. der zugehörige ESXi-Host.
+- [x] Jede View enthält genau eine Objektart.
+- [x] Jedes enthaltene Objekt besitzt 168 lückenlose Stundenzeilen.
+- [x] Zeitstempel sind vorhanden und mit `Europe/Vienna` interpretierbar.
+- [x] Cluster- und Host-`avg`/`max` unterscheiden sich plausibel.
+- [x] Cluster-, Host- und VM-Werte erscheinen nur in der passenden Datei.
+- [x] Cluster Memory Utilization ist vorhanden.
+- [x] Missing Values werden als `-` dargestellt.
+- [x] Host-Maintenance-Spalte ist korrekt benannt.
+- [x] Cluster CPU Overhead ist kein Pflichtimport mehr.
 
-Zeitraum:
+Nachgelagert:
 
-```text
-24 vollständig abgeschlossene Stunden
-```
+- [ ] vollständige VM-Summe gegen Cluster CPU Demand prüfen,
+- [ ] Beziehungen eines vollständigen Clusters prüfen,
+- [ ] echten Maintenance-Wechsel prüfen,
+- [ ] vollständigen Cluster manuell gegenrechnen,
+- [ ] Import mit ungefähr 5.000 Server-VMs messen.
 
-Konfiguration:
-
-```text
-Interval Breakdown = Per Hour
-Rollup Interval = None
-Summary Row = Off
-Maximum Timestamp = No Timestamp
-Business Hours = Off
-```
-
-### Abnahmekriterien
-
-- [ ] Jede View enthält genau eine Objektart.
-- [ ] Jedes Testobjekt besitzt 24 Stundenzeilen.
-- [ ] Der Zeitstempel jeder Zeile ist vorhanden und eindeutig.
-- [ ] Bei einer schwankenden Metrik unterscheiden sich `avg` und `max` in mindestens einigen Stunden.
-- [ ] Ein manuell ausgewählter Stundenwert lässt sich gegen den vROps-Chart plausibilisieren.
-- [ ] Clusterwerte erscheinen ausschließlich in der Clusterdatei.
-- [ ] Hostwerte erscheinen ausschließlich in der Hostdatei.
-- [ ] VM-Werte erscheinen ausschließlich in der VM-Datei.
-- [ ] Cluster Memory Utilization ist vorhanden.
-- [ ] Fehlende Werte werden konsistent als `-` oder leer dargestellt.
-- [ ] Einheiten und Skalierung sind dokumentiert.
-- [ ] Maintenance State liefert bekannte, dokumentierte Zustandswerte.
-- [ ] Die VM-Summe von CPU Demand `avg` ist für denselben Zeitpunkt gegen Cluster CPU Demand `avg` plausibel.
-- [ ] CPU Overhead wird noch nicht automatisch von der Kapazität abgezogen.
-
-Wenn `avg` und `max` weiterhin systematisch identisch bleiben:
-
-1. einen bekannten variablen Zeitraum im vROps-Chart prüfen,
-2. die gespeicherten 5-Minuten-Werte mit dem Export vergleichen,
-3. testweise unterschiedliche Rollup-Konfigurationen ausschließlich für das
-   Testobjekt erzeugen,
-4. keinen vollständigen Export starten, bevor die Aggregationssemantik
-   bestätigt ist.
+Diese Punkte sind Abnahmekriterien, aber kein Start-Gate für die
+Implementierung.
 
 ## Sieben-Tage-Gesamtexport
 
-Nach erfolgreicher 24-Stunden-Validierung:
+Für einen späteren Gesamtexport:
 
 1. absoluten Zeitraum mit sieben vollständigen Tagen festlegen,
 2. denselben Start, dasselbe Ende und dieselbe Zeitzone in allen Reports
@@ -795,4 +725,3 @@ Kapazitätsergebnis führen.
 - [Broadcom KB 385173 – Reports mit mehreren Objektarten](https://knowledge.broadcom.com/external/article/385173)
 - [Broadcom vRealize Operations API – Stat Query](https://developer.broadcom.com/xapis/vmware-vrealize-operations-api/latest/data-structures/stat-query/)
 - [Fill-Up-Konzept](docs/superpowers/specs/2026-07-28-fill-up-cluster-capacity-planning-design.md)
-

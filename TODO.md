@@ -1,5 +1,15 @@
 # TODO
 
+- [ ] **Nächste Umsetzung: Fill-Up- und Cluster-Kapazitätsplanung.** Der
+  vROps-Zeitreihenimport, die gemeinsame Policy-/Finding-Engine und Fill Up
+  werden als nächstes größeres Arbeitspaket umgesetzt. Die kleinen
+  pseudonymisierten Sieben-Tage-Beispiele sind für Schema und Import
+  freigegeben. Ein vollständiger realer Testcluster und der Skalierungstest
+  mit ungefähr 5.000 Server-VMs folgen nachgelagert und blockieren die
+  Entwicklung nicht. Grundlage:
+  [Spezifikation](docs/superpowers/specs/2026-07-28-fill-up-cluster-capacity-planning-design.md)
+  und
+  [Implementierungsplan](docs/superpowers/plans/2026-07-28-fill-up-cluster-capacity-planning.md).
 - [ ] **Sheet-Builder Feature**: Eine selbst konfigurierbare Tabelle der gefilterten/ungefilterten Objekte als Excel oder Markdown exportieren können. Die Spalten sollen dabei aus den verfügbaren Daten gewählt werden können, ähnlich wie beim globalen Systemfilter. Vor dem Export soll optional eine Anonymisierung/Pseudonymisierung konfigurierbar sein, etwa für vCenter-, Cluster- und Systemnamen sowie Namen von Systemverantwortlichen.
 - [ ] **Zentrale Export-Seite**: Eine eigene Seite in der Sidebar schaffen, auf der alle Funktionen rund um den Export von Tabellen gebündelt werden. Die möglichen Funktionen und der genaue Umfang werden später gemeinsam gebrainstormt.
 - [ ] **KI-Prompt-Builder**: Einen Baukasten für Analyse-Prompts bauen. Prompts sollen aus wiederverwendbaren Bausteinen erstellt, lokal gespeichert, bearbeitet und gelöscht werden können. Für eine Analyse wählt der Nutzer gezielt Daten und Kennzahlen aus der Webapp als Kontext aus; daraus entsteht ein vollständiger Prompt, der zum manuellen Einfügen in ChatGPT kopiert oder dort geöffnet werden kann. Vor der Übergabe soll optional eine Anonymisierung/Pseudonymisierung konfigurierbar sein, etwa für vCenter-, Cluster- und Systemnamen sowie Namen von Systemverantwortlichen. Der ausgewählte Datenumfang muss vor der Übergabe transparent sein; keine automatische Datenübertragung und keine Backend-Abhängigkeit.
@@ -26,6 +36,13 @@ Kapazitätsplanung, Risikoreduktion und wiederkehrende Cluster Reviews:
 **mittel**, **hoch** oder **sehr hoch**.
 
 ### Empfohlene Funktionspakete
+
+**Aktiver nächster Umsetzungsschritt:** Der erste vertikale Schnitt des
+Funktionspakets **Cluster Digital Twin** ist Fill Up inklusive
+vROps-Zeitreihenimport, Datenqualität, Policies, Normalbetrieb und N-1.
+N-2, Site-Failover, HIGH/STD, Workloadprofile und gespeicherte Runs folgen in
+demselben Implementierungspaket. Ein vollständiger Echtdatencluster wird
+nachgereicht und dient der fachlichen Abnahme, nicht mehr als Start-Gate.
 
 1. **Export Studio:** Zentrale Export-Seite, Sheet Builder und
    KI-Prompt-Builder verwenden eine gemeinsame Auswahl-, Spalten-,
@@ -67,6 +84,7 @@ Kapazitätsplanung, Risikoreduktion und wiederkehrende Cluster Reviews:
 | ESXi-Kontrolle | Bestehende Funktion im gemeinsamen Kontrollbereich behalten; Matching-Komponenten auch für VM-Kontrolle wiederverwenden. | Bestehende **Netzwerk-Kontrolle** → **Host-Daten** | S | hoch |
 | Tech-Info Organisationsanalyse | Bereich, Abteilung und Person als eine drillbare Hierarchie auswerten; bestehende VM-/Tech-Info-Zuordnung und globale Filter wiederverwenden. | Bestehende **Tech-Info** → neuer Tab **Organisation** | M | hoch |
 | Cluster-Review-Wizard | Eigener persistenter Workflow; bindet Analysen nur als Evidenz ein und bleibt von deren Berechnungslogik getrennt. | Neuer Sidebar-Bereich **Cluster Review** → **Reviews** und **Review-Wizard** | XL | sehr hoch |
+| Fill-Up- und Cluster-Kapazitätsplanung | Aktiver erster Kern des Cluster Digital Twin; schafft vROps-Zeitreihen, Policies, Finding- und Szenariologik als Basis für mehrere spätere Ideen. | Bestehende **Planung** → **Fill Up** | XL | sehr hoch |
 | Neuer-Workload-/Placement-Assistent | Szenariotyp des Cluster Digital Twin; teilt Ranking, Policy-Prüfung und Ergebnisvergleich mit Evakuierung und Optimierung. | Bestehende **Planung** → **What-if** → Modus **Workload platzieren** | L | sehr hoch |
 | Host hinzufügen, ersetzen oder entfernen | Kein separates Werkzeug, sondern Hardware-Szenariotyp der vorhandenen What-if-Planung. | **Planung** → **What-if** → Modus **Hardware ändern** | L | sehr hoch |
 | Geplante Kapazitätsreservierungen | Nutzt dieselben Workloadprofile und Policies, benötigt wegen Zeitraum, Status und Konflikten aber einen eigenen Tab. | **Planung** → neuer Tab **Reservierungen** | L | hoch |
@@ -388,9 +406,10 @@ Szenariomodell schrittweise erweitern.
 
 Die folgenden Funktionen sollen auf den für Fill Up importierten kompakten
 VM- und Cluster-Zeitreihen aufbauen. Zusätzlich können vROps-Zeitreihen für
-ESXi-Hosts bereitgestellt werden, insbesondere für CPU- und RAM-Analysen.
-Welche Hostmetriken tatsächlich benötigt werden, wird erst anhand
-pseudonymisierter Beispieldaten und konkreter Metric Keys festgelegt.
+ESXi-Hosts verwendet werden. Die Hostmetriken für Demand, Usage, Memory,
+Contention, verfügbare CPU-/RAM-Kapazität und Maintenance sind anhand der
+pseudonymisierten Beispieldaten festgelegt. Interne Metric Keys bleiben
+optionale Metadaten; der Import verwendet versionierte Spaltenschemata.
 
 ### Historischer Failover-Replay
 
