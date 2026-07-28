@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Layers3, PlusSquare, Server } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { FillUpClusterDetails } from "@/components/planning/fill-up/FillUpClusterDetails";
 import { FillUpClusterTable } from "@/components/planning/fill-up/FillUpClusterTable";
 import { FillUpInputControls } from "@/components/planning/fill-up/FillUpInputControls";
@@ -17,7 +20,7 @@ import {
 } from "@/domain/services/fillUpPlanningService";
 import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
 import type { FillUpObservedVmProfile, FillUpWorkloadProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
-import { FILL_UP_UI } from "@/lib/glossaries/planning";
+import { FILL_UP_KPI, FILL_UP_UI } from "@/lib/glossaries/planning";
 import { toast } from "sonner";
 
 /** Kein Präzisionsverlust beim Übernehmen, aber auch keine sinnlos langen Beobachtungsnachkommastellen. */
@@ -85,6 +88,12 @@ export function FillUpPlanningPanel() {
   const selectedResult = useMemo<FillUpPlanningClusterResult | null>(() => planning.results.find((row) => row.cluster.clusterKey === selectedClusterKey) ?? null, [planning.results, selectedClusterKey]);
   const observedProfiles = useMemo(() => planning.results.flatMap((row) => row.observedVmProfiles), [planning.results]);
   const quality = planning.results[0]?.quality ?? null;
+  const hostsInScope = useMemo(() => planning.results.reduce((sum, row) => sum + row.hostCount, 0), [planning.results]);
+  const additionalVmsTotal = useMemo(
+    () => planning.results.reduce((sum, row) => sum + (row.recommendation.workloadMixRecommendation?.maxAdditionalVms ?? 0), 0),
+    [planning.results],
+  );
+  const criticalClusterCount = useMemo(() => planning.results.filter((row) => row.capacity.n1?.status === "red").length, [planning.results]);
   const adoptObservedProfile = useCallback((observed: FillUpObservedVmProfile) => {
     if (observed.averageVcpu === null || observed.averageConfiguredMemoryMiB === null || observed.cpuDemandP95MHz === null) {
       toast.error("Das beobachtete Profil ist wegen fehlender vCPU-, RAM- oder CPU-P95-Werte nicht übernehmbar.");
@@ -104,6 +113,12 @@ export function FillUpPlanningPanel() {
     toast.success(`${profile.name} ist jetzt das aktive ${profile.workloadClass.toUpperCase()}-Profil und bleibt editierbar.`);
   }, []);
   return <div className="space-y-6">
+    <KpiGrid>
+      <KpiCard title="Berechnete Cluster" value={planning.results.length.toLocaleString("de-DE")} icon={<Layers3 className="h-4 w-4" />} info={FILL_UP_KPI.clustersEvaluated} />
+      <KpiCard title="Hosts im Scope" value={hostsInScope.toLocaleString("de-DE")} icon={<Server className="h-4 w-4" />} info={FILL_UP_KPI.hostsInScope} />
+      <KpiCard title="Zusätzliche VMs gesamt" value={`+${additionalVmsTotal.toLocaleString("de-DE")}`} icon={<PlusSquare className="h-4 w-4" />} info={FILL_UP_KPI.additionalVmsTotal} />
+      <KpiCard title="Kritische Cluster" value={criticalClusterCount.toLocaleString("de-DE")} severity={criticalClusterCount > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={FILL_UP_KPI.criticalClusters} />
+    </KpiGrid>
     <Card className="overflow-hidden border-t-4 border-t-primary shadow-sm">
       <CardHeader className="pb-3"><InfoTooltip entry={FILL_UP_UI.capacity} side="right"><CardTitle className="w-fit cursor-help">Fill-Up-Kapazität</CardTitle></InfoTooltip><p className="text-sm text-muted-foreground">Historische vROps-Zeitreihen werden gegen eingefrorene RVTools-Beziehungen, die aktive Policy und einen expliziten P95-Workload gerechnet. CPU- und RAM-Headrooms bleiben unabhängig ausgewiesen.</p></CardHeader>
       <FillUpInputControls imports={planning.imports} selectedImportId={effectiveImportId} onImportChange={setSelectedImportId} includeN2={includeN2} onIncludeN2Change={setIncludeN2} highSharePct={highSharePct} onHighShareChange={setHighSharePct} cpuDemandConcurrencyPct={cpuDemandConcurrencyPct} onCpuDemandConcurrencyChange={setCpuDemandConcurrencyPct} />

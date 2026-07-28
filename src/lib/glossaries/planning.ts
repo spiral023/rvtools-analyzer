@@ -299,3 +299,11 @@ export const FILL_UP_POLICY_KPI: Record<string, GlossaryEntry> = {
   totalPolicies: { term: "Policies gesamt", description: "Anzahl aller aktuell aktiven Policy-Versionen, sowohl Standardprofile als auch selbst angelegte Policies." },
   unassignedClusters: { term: "Cluster ohne explizite Zuweisung", description: "Cluster ohne eigenen Eintrag in der Clusterzuweisung. Sie verwenden aktuell die erste Policy als Fallback, statt eine bewusst gewählte Policy." },
 };
+
+/** Kennzahlen der KPI-Leiste im Fill-Up-Tab. */
+export const FILL_UP_KPI: Record<string, GlossaryEntry> = {
+  clustersEvaluated: { term: "Berechnete Cluster", description: "Cluster des gewählten Imports mit eindeutig verknüpften vROps-Zeitreihen, für die eine vollständige Fill-Up-Auswertung vorliegt." },
+  hostsInScope: { term: "Hosts im Scope", description: "Summe der eindeutig zugeordneten Hosts mit Zeitreihe über alle berechneten Cluster. Nur diese Hosts fließen in Kapazität, N-1/N-2 und Platzierbarkeit ein." },
+  additionalVmsTotal: { term: "Zusätzliche VMs gesamt", description: "Summe des gemeinsamen HIGH/STD-Mix über alle berechneten Cluster: wie viele zusätzliche VMs laut aktivem Workload-Mix und Policy insgesamt aufgenommen werden könnten." },
+  criticalClusters: { term: "Kritische Cluster", description: "Cluster, deren N-1-Szenario (Ausfall des ungünstigsten einzelnen Hosts) mindestens eine harte Guardrail bereits in der historischen Betrachtung verletzt." },
+};
