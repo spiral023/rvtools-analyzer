@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames, useAllTechInfoClientLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -6,6 +7,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useClientDetailDialog } from "@/hooks/useClientDetailDialog";
@@ -13,7 +15,7 @@ import { Monitor, ClipboardList, Link2Off, AlertTriangle, Users, Server } from "
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
 import { formatIsoDateTime } from "@/lib/clientDetail";
-import { applyVmScopeToVms } from "@/lib/vmScope";
+import { applyVmScopeToVms, isPoweredOnVm } from "@/lib/vmScope";
 import { partitionTechInfoByActiveVms } from "@/lib/techInfoVmScope";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
@@ -23,6 +25,10 @@ import {
   TECHINFO_SECTIONS,
 } from "@/lib/glossaries/techInfo";
 import type { NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
+import type { TechInfoOrgVmSource } from "@/domain/services/techInfoOrganisationService";
+import { TechInfoOrganisationPanel } from "@/components/tech-info/TechInfoOrganisationPanel";
+
+type TechInfoTab = "systeme" | "organisation";
 
 interface TechInfoVmRow {
   vmName: string;
@@ -252,6 +258,34 @@ export default function TechInfo() {
     };
   }, [rows]);
 
+  const orgSources = useMemo<TechInfoOrgVmSource[]>(
+    () =>
+      serverVms.map((vm) => {
+        const techInfo = byVmName.get(vm.vmName.trim().toLowerCase())!;
+        return {
+          vmName: vm.vmName,
+          sysv: techInfo.sysv,
+          sysvDepartment: techInfo.sysvDepartment,
+          sysvDeputy: techInfo.sysvDeputy,
+          sysvDeputyDepartment: techInfo.sysvDeputyDepartment,
+          cpuCount: vm.cpuCount,
+          memoryMiB: vm.memoryMiB,
+          poweredOn: isPoweredOnVm(vm),
+        };
+      }),
+    [serverVms, byVmName],
+  );
+  const vmByNameForOrg = useMemo(() => new Map(scopeVms.map((vm) => [vm.vmName.trim().toLowerCase(), vm])), [scopeVms]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: TechInfoTab = searchParams.get("tab") === "organisation" ? "organisation" : "systeme";
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === "organisation") next.set("tab", "organisation");
+    else next.delete("tab");
+    setSearchParams(next);
+  };
+
   const dataLoading = snapshotsLoading || vmsLoading || techInfoLoading || techInfoClientsLoading;
   if (dataLoading) return <PageLoadingState title="Tech-Info" />;
 
@@ -272,36 +306,49 @@ export default function TechInfo() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Tech-Info">
-      </PageHeader>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
-        <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />
-        <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfoTotal)} severity={vmWithoutTechInfoTotal > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
-        <KpiCard title="SysV = SysVStv" value={formatNum(identicalSysvDeputyCount)} severity={identicalSysvDeputyCount > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={TECHINFO_KPI.sysvDeputyConflict} />
-        <KpiCard title="Eindeutige SysV" value={formatNum(uniqueSysvCount)} icon={<Users className="h-4 w-4" />} info={TECHINFO_KPI.uniqueSysv} />
-        <KpiCard title="Systeme/SysV" value={avgSystemsPerSysv === null ? "—" : avgSystemsPerSysv.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} subtitle={`${formatNum(systemsWithSysv)} Systeme mit SysV`} icon={<Server className="h-4 w-4" />} info={TECHINFO_KPI.systemsPerSysv} />
-      </div>
-      <div>
-        <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
-        </InfoTooltip>
-        <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
-      </div>
-      <div>
-        <InfoTooltip entry={TECHINFO_SECTIONS.clientTable} side="bottom">
-          <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Clients ({searchedClientRows.length})</h3>
-        </InfoTooltip>
-        {techInfoClients.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
-        ) : (
-          <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
-        )}
-      </div>
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs ohne Tech-Info ({searchedUnassignedRows.length})</h3>
-        <VirtualTable data={searchedUnassignedRows} columns={unassignedColumns} height={460} onRowClick={openVmDetail} />
-      </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <PageHeader title="Tech-Info">
+          <TabsList>
+            <TabsTrigger value="systeme">Systeme</TabsTrigger>
+            <TabsTrigger value="organisation">Organisation</TabsTrigger>
+          </TabsList>
+        </PageHeader>
+
+        <TabsContent value="systeme" className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+            <KpiCard title="Aktive VMs gesamt" value={formatNum(vmTotal)} icon={<Monitor className="h-4 w-4" />} info={TECHINFO_KPI.vmTotal} />
+            <KpiCard title="VMs mit Tech-Info" value={formatNum(vmWithTechInfo)} severity="ok" icon={<ClipboardList className="h-4 w-4" />} info={TECHINFO_KPI.vmWithTechInfo} />
+            <KpiCard title="VMs ohne Zuordnung" value={formatNum(vmWithoutTechInfoTotal)} severity={vmWithoutTechInfoTotal > 0 ? "warn" : "ok"} icon={<Link2Off className="h-4 w-4" />} info={TECHINFO_KPI.vmWithoutTechInfo} />
+            <KpiCard title="SysV = SysVStv" value={formatNum(identicalSysvDeputyCount)} severity={identicalSysvDeputyCount > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={TECHINFO_KPI.sysvDeputyConflict} />
+            <KpiCard title="Eindeutige SysV" value={formatNum(uniqueSysvCount)} icon={<Users className="h-4 w-4" />} info={TECHINFO_KPI.uniqueSysv} />
+            <KpiCard title="Systeme/SysV" value={avgSystemsPerSysv === null ? "—" : avgSystemsPerSysv.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} subtitle={`${formatNum(systemsWithSysv)} Systeme mit SysV`} icon={<Server className="h-4 w-4" />} info={TECHINFO_KPI.systemsPerSysv} />
+          </div>
+          <div>
+            <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">
+              <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
+            </InfoTooltip>
+            <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
+          </div>
+          <div>
+            <InfoTooltip entry={TECHINFO_SECTIONS.clientTable} side="bottom">
+              <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Clients ({searchedClientRows.length})</h3>
+            </InfoTooltip>
+            {techInfoClients.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
+            ) : (
+              <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
+            )}
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs ohne Tech-Info ({searchedUnassignedRows.length})</h3>
+            <VirtualTable data={searchedUnassignedRows} columns={unassignedColumns} height={460} onRowClick={openVmDetail} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="organisation" className="space-y-6">
+          <TechInfoOrganisationPanel sources={orgSources} search={filters.search} vmByName={vmByNameForOrg} onOpenVm={openVmDetail} />
+        </TabsContent>
+      </Tabs>
       {vmDetailDialog}
       {clientDetailDialog}
     </div>

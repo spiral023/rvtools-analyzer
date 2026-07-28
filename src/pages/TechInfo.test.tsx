@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import TechInfo from "@/pages/TechInfo";
 import type { NormalizedVm, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
+
+function renderTechInfo() {
+  return render(<TechInfo />, { wrapper: MemoryRouter });
+}
 
 const filters = {
   clusters: [] as string[],
@@ -67,14 +72,14 @@ vi.mock("@/components/ui/info-tooltip", () => ({ InfoTooltip: ({ children }: { c
 
 describe("TechInfo", () => {
   it("zeigt identische SysV- und SysVStv-Zuordnungen als kritische KPI", () => {
-    render(<TechInfo />);
+    renderTechInfo();
 
     const title = screen.getByText("SysV = SysVStv");
     expect(title.closest(".border-l-destructive")).toHaveTextContent("1");
   });
 
   it("markiert fehlende CV-Backups für PROD- und P-Systeme rot", () => {
-    render(<TechInfo />);
+    renderTechInfo();
 
     for (const cell of screen.getAllByText("Nein")) {
       expect(cell).toHaveClass("bg-destructive");
@@ -82,7 +87,7 @@ describe("TechInfo", () => {
   });
 
   it("zeigt die eindeutigen SysV und die durchschnittlichen Systeme je SysV", () => {
-    render(<TechInfo />);
+    renderTechInfo();
 
     expect(screen.getByText("Eindeutige SysV").parentElement?.parentElement).toHaveTextContent("2");
     expect(screen.getByText("Systeme/SysV").parentElement?.parentElement).toHaveTextContent("1,0");

@@ -66,10 +66,7 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
       >
         <PageHeader title="Netzwerk">
           <div className="w-full overflow-x-auto pb-1">
-            <TabsList
-              aria-label="Netzwerkbereich"
-              className="h-auto w-full min-w-max justify-start gap-1 p-1"
-            >
+            <TabsList aria-label="Netzwerkbereich" className="min-w-max">
               <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
                 <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
               </InfoTooltip>

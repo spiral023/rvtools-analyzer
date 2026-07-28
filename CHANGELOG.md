@@ -6,6 +6,8 @@
 - Neues lokales **Export Studio** mit frei wählbaren, per Drag & Drop sortierbaren Spalten für VM-, Host-, Cluster- und gespeicherte Fill-Up-Ergebnisse.
 - Exporte übernehmen den aktiven Daten-Scope und stehen als XLSX, CSV sowie Markdown-Management-Report bereit.
 - Optionale, konsistente Pseudonymisierung und lokal gespeicherte Exportvorlagen ergänzt.
+- **Tech-Info** erhält einen neuen Tab **Organisation**: Server-VMs werden anhand der SysV-Abteilung (z.B. `RAITEC/IN-VIA`) zu einer auf-/zuklappbaren Hierarchie Organisation → Bereich → Abteilung → Systemverantwortliche:r aggregiert, mit KPI-Karten, Balkendiagramm je Bereich (VM-Anzahl, vCPU, RAM), Klick-Drilldown auf die betroffenen VMs, umschaltbarer Auswertung nach primärer Verantwortung, Stellvertretung oder beiden Rollen sowie einer eigenen Datenqualitätsübersicht für fehlende, nicht interpretierbare oder widersprüchliche Zuordnungen. Die VM-Liste lässt sich optional mit pseudonymisierten Namen als Excel/Markdown exportieren.
+- Tab-Leisten nehmen jetzt app-weit einheitlich die volle verfügbare Breite ein (Standard der `TabsList`-Komponente).
 
 ## Änderungen seit 28.07.2026
 

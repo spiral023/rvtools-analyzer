@@ -10,7 +10,7 @@ export default function Planning() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Planung" />
       <Tabs defaultValue="what-if" className="space-y-4">
-        <TabsList aria-label="Planungsbereich" className="h-auto w-full justify-start gap-1 p-1">
+        <TabsList aria-label="Planungsbereich">
           <TabsTrigger value="what-if">What-if</TabsTrigger>
           <TabsTrigger value="fill-up">Fill up</TabsTrigger>
         </TabsList>

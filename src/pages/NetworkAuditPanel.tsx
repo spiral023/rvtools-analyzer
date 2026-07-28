@@ -179,10 +179,7 @@ function NetworkAuditSuccess({
           title="Netzwerk-Kontrolle"
         >
           <div className="w-full overflow-x-auto pb-1">
-            <TabsList
-              aria-label="Bereich der Netzwerk-Kontrolle"
-              className="h-auto w-full min-w-max justify-start gap-1 p-1"
-            >
+            <TabsList aria-label="Bereich der Netzwerk-Kontrolle" className="min-w-max">
               {AUDIT_SECTIONS.map((section) => (
                 <TabsTrigger
                   key={section.value}

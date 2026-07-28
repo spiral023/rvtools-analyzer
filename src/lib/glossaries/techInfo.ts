@@ -248,3 +248,89 @@ export const TECHINFO_SECTIONS: Record<string, GlossaryEntry> = {
       "Inventar der Clients/Endgeräte aus der Tech-Info-Client-Datei (Standort, Pool, User, Hardware, Domäne). Dient als CMDB-Sicht auf die Client-Landschaft; suche nach Standort, Pool oder User und öffne per Klick die Client-Details.",
   },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Tab „Organisation“                                                */
+/* ------------------------------------------------------------------ */
+export const TECHINFO_ORG_KPI: Record<string, GlossaryEntry> = {
+  assignedVms: {
+    term: "Zugeordnete Server-VMs",
+    description:
+      "Server-VMs, die im gewählten Rollenmodus (primär/Stellvertretung/beide) einer auswertbaren Bereichs-/Abteilungszuordnung zugeordnet werden konnten.",
+    source: TECH,
+  },
+  bereichCount: {
+    term: "Bereiche",
+    description: "Anzahl der unterschiedlichen Bereiche, die aus der SysV-Abteilung abgeleitet wurden (erster Teil hinter dem „/“, vor dem „-“).",
+    source: TECH,
+  },
+  abteilungCount: {
+    term: "Abteilungen",
+    description: "Anzahl der unterschiedlichen Abteilungen je Bereich, abgeleitet aus dem Teil hinter dem Bindestrich der SysV-Abteilung.",
+    source: TECH,
+  },
+  personCount: {
+    term: "Systemverantwortliche",
+    description: "Anzahl der unterschiedlichen Personen (Schreibweise ohne Beachtung von Groß-/Kleinschreibung zusammengeführt), die im aktuellen Rollenmodus verantwortlich sind.",
+    source: TECH,
+  },
+  dataQualityCount: {
+    term: "Datenqualitätsfälle",
+    description: "Server-VMs mit fehlender Verantwortlichkeit, nicht interpretierbarem Abteilungspfad, unbekanntem Kürzel oder widersprüchlicher Abteilungszuordnung derselben Person.",
+    source: TECH,
+  },
+};
+
+export const TECHINFO_ORG_SECTIONS: Record<string, GlossaryEntry> = {
+  roleToggle: {
+    term: "Rollenauswertung",
+    description:
+      "Legt fest, ob die Hierarchie nach dem primären Systemverantwortlichen (SysV), der Stellvertretung (SysVStv) oder beiden Rollen aufgebaut wird. Im Modus „beide Rollen“ kann dieselbe VM unter zwei Personen erscheinen – das ist beabsichtigt, aber bei Summen zu beachten.",
+  },
+  hierarchyTable: {
+    term: "Organisationshierarchie",
+    description:
+      "Bereich, Abteilung und Person als auf- und zuklappbare Baumstruktur mit VM-Anzahl, Power-Status, konfigurierter vCPU und konfiguriertem RAM je Ebene. Ein Klick auf eine Zeile filtert die VM-Liste darunter.",
+  },
+  chart: {
+    term: "Ressourcen je Bereich",
+    description: "Vergleicht Bereiche nach VM-Anzahl, konfigurierter vCPU oder konfiguriertem RAM. Ein Klick auf einen Balken filtert die VM-Liste auf den jeweiligen Bereich.",
+  },
+  dataQuality: {
+    term: "Datenqualität",
+    description:
+      "Fehlende Verantwortliche, nicht interpretierbare Abteilungspfade und widersprüchliche Abteilungsangaben derselben Person – gruppiert nach Ursache, mit betroffenen VMs.",
+  },
+  vmDrilldown: {
+    term: "VMs der Auswahl",
+    description: "Server-VMs des in der Hierarchie oder im Diagramm ausgewählten Bereichs, der Abteilung oder Person.",
+  },
+};
+
+export const TECHINFO_ORG_COLUMNS: Record<string, GlossaryEntry> = {
+  node: {
+    term: "Bereich / Abteilung / Person",
+    description: "Organisationsebene gemäß der aus der SysV-Abteilung abgeleiteten Hierarchie.",
+    source: TECH,
+  },
+  vmCount: {
+    term: "Server-VMs",
+    description: "Anzahl der Server-VMs, die dieser Ebene im aktuellen Rollenmodus zugeordnet sind.",
+    source: TECH,
+  },
+  poweredOn: {
+    term: "Ein / Aus",
+    description: "Anzahl eingeschalteter und ausgeschalteter VMs dieser Ebene laut RVTools-Power-Status.",
+    source: "RVTools · vInfo",
+  },
+  vCpu: {
+    term: "vCPU",
+    description: "Summe der konfigurierten vCPU aller VMs dieser Ebene.",
+    source: "RVTools · vInfo",
+  },
+  ram: {
+    term: "RAM",
+    description: "Summe des konfigurierten RAM aller VMs dieser Ebene.",
+    source: "RVTools · vInfo",
+  },
+};

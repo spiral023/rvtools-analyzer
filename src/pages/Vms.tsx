@@ -39,7 +39,7 @@ export default function Vms() {
       <PageHeader title="VMs" />
       <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung." />
       <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+        <TabsList>
           <TabsTrigger value="inventory">Inventar</TabsTrigger>
           <TabsTrigger value="operations">Betrieb</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>

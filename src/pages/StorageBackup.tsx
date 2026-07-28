@@ -326,7 +326,7 @@ export default function StorageBackup() {
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
 
       <Tabs defaultValue="capacity" className="space-y-4">
-        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+        <TabsList>
           <TabsTrigger value="capacity">Kapazität</TabsTrigger>
           <TabsTrigger value="paths">Pfade &amp; Geräte</TabsTrigger>
           <TabsTrigger value="backup">Backup &amp; Recovery</TabsTrigger>

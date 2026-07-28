@@ -99,7 +99,7 @@ export default function Clusters() {
       <PageHeader title="Cluster" />
       <GlobalFilterScopeHint text="Die globale Einschränkung gilt für Übersicht und Kapazität: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf beide Ansichten angewendet." />
       <Tabs value={tab} onValueChange={selectTab}>
-        <TabsList className="h-auto w-full justify-start gap-1 p-1">
+        <TabsList>
           <InfoTooltip entry={CLUSTER_TABS.overview}><TabsTrigger value="overview">Übersicht</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
         </TabsList>

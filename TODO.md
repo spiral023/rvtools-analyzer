@@ -145,35 +145,33 @@ entwickeln.
 
 ### Idee und Ziel
 
-- [ ] Die vorhandene Zuordnung von Server-VMs zu Systemverantwortlichen und deren Organisationseinheit auf der Seite **Tech-Info** aggregiert darstellen.
-- [ ] Die Organisationshierarchie von oben nach unten auswerten: Organisation beziehungsweise Unternehmen → Bereich → Abteilung → Systemverantwortlicher → Server-VM.
-- [ ] Organisationskennungen wie `RAITEC/IN-VIA` nachvollziehbar in Organisation `RAITEC`, Bereich `IN` und Abteilung `VIA` zerlegen.
-- [ ] Neben Kürzeln optional gepflegte Anzeigenamen verwenden, beispielsweise Bereich `IN` als `Infrastruktur` und Abteilung `VIA` als `Virtualisierung`.
-- [ ] Die bestehende Tech-Info-Tabelle als Tab **Systeme** erhalten und die neue Darstellung im Tab **Organisation** ergänzen.
+- [x] Die vorhandene Zuordnung von Server-VMs zu Systemverantwortlichen und deren Organisationseinheit auf der Seite **Tech-Info** aggregiert darstellen.
+- [x] Die Organisationshierarchie von oben nach unten auswerten: Organisation beziehungsweise Unternehmen → Bereich → Abteilung → Systemverantwortlicher → Server-VM.
+- [x] Organisationskennungen wie `RAITEC/IN-VIA` nachvollziehbar in Organisation `RAITEC`, Bereich `IN` und Abteilung `VIA` zerlegen.
+- [x] Die bestehende Tech-Info-Tabelle als Tab **Systeme** erhalten und die neue Darstellung im Tab **Organisation** ergänzen.
 
 ### Darstellung und Navigation
 
-- [ ] KPI-Karten für zugeordnete Server-VMs, Bereiche, Abteilungen, Systemverantwortliche und fehlende beziehungsweise ungültige Zuordnungen anzeigen.
-- [ ] Eine hierarchische Tabelle bereitstellen, in der Bereich, Abteilung und Person auf- und zugeklappt werden können.
-- [ ] VM-Anzahl je Bereich, Abteilung und Person als sortierbares Balkendiagramm oder Treemap darstellen.
-- [ ] Beim Klick auf einen Bereich, eine Abteilung oder eine Person direkt die zugehörigen VMs anzeigen beziehungsweise die bestehende VM-Tabelle entsprechend filtern.
-- [ ] Neben der VM-Anzahl auch eingeschaltete und ausgeschaltete VMs, konfigurierte vCPU, konfigurierten RAM und später optional vROps-Auslastung aggregieren.
-- [ ] Globale Filter, vCenter-Auswahl und Suchfunktion auf die Organisationsauswertung anwenden.
-- [ ] Ergebnisse über den gemeinsamen Sheet Builder beziehungsweise als Markdown exportieren und dabei die vorhandene Pseudonymisierung für Personen- und Systemnamen verwenden.
+- [x] KPI-Karten für zugeordnete Server-VMs, Bereiche, Abteilungen, Systemverantwortliche und fehlende beziehungsweise ungültige Zuordnungen anzeigen.
+- [x] Eine hierarchische Tabelle bereitstellen, in der Bereich, Abteilung und Person auf- und zugeklappt werden können.
+- [x] VM-Anzahl je Bereich als sortierbares Balkendiagramm darstellen (nach VM-Anzahl, vCPU oder RAM umschaltbar).
+- [x] Beim Klick auf einen Bereich, eine Abteilung oder eine Person direkt die zugehörigen VMs anzeigen beziehungsweise die bestehende VM-Tabelle entsprechend filtern.
+- [x] Neben der VM-Anzahl auch eingeschaltete und ausgeschaltete VMs, konfigurierte vCPU und konfigurierten RAM aggregieren. vROps-Auslastung folgt später optional.
+- [x] Globale Filter, vCenter-Auswahl und Suchfunktion auf die Organisationsauswertung anwenden.
+- [x] Ergebnisse als Excel/Markdown exportieren und dabei optional Personen- und Systemnamen pseudonymisieren (lokale Umsetzung direkt im Organisation-Tab, noch nicht über den zentralen Sheet Builder).
 
 ### Verantwortlichkeiten und Datenqualität
 
-- [ ] Primären Systemverantwortlichen und Stellvertretung getrennt ausweisen, damit VMs bei kombinierten Auswertungen nicht unbemerkt doppelt gezählt werden.
-- [ ] Eine umschaltbare Auswertung für `primär`, `Stellvertretung` oder `beide Rollen` anbieten.
-- [ ] Fehlende Verantwortliche, unbekannte Organisationskürzel, nicht interpretierbare Pfade und widersprüchliche Abteilungszuordnungen als eigene Datenqualitätsgruppe anzeigen.
-- [ ] Die Rohangabe aus Tech-Info unverändert aufbewahren; abgeleitete Bereiche und Abteilungen dürfen die Quelldaten nicht überschreiben.
-- [ ] Eine lokal konfigurierbare Kürzel- und Anzeigenamen-Zuordnung vorsehen, damit organisatorische Änderungen ohne Codeänderung gepflegt werden können.
+- [x] Primären Systemverantwortlichen und Stellvertretung getrennt ausweisen, damit VMs bei kombinierten Auswertungen nicht unbemerkt doppelt gezählt werden.
+- [x] Eine umschaltbare Auswertung für `primär`, `Stellvertretung` oder `beide Rollen` anbieten.
+- [x] Fehlende Verantwortliche, nicht interpretierbare Pfade und widersprüchliche Abteilungszuordnungen als eigene Datenqualitätsgruppe anzeigen.
+- [x] Die Rohangabe aus Tech-Info unverändert aufbewahren; abgeleitete Bereiche und Abteilungen dürfen die Quelldaten nicht überschreiben.
 
 ### Aufwand und Nutzen
 
 - **Vorgesehener Bereich:** bestehende Seite **Tech-Info**.
 - **Vorgesehene Tabs:** **Systeme** für die heutige Ansicht und neu **Organisation** für Hierarchie, Diagramme und Drilldown.
-- **Aufwand:** **M**, da die VM-/Tech-Info-Zuordnung bereits vorhanden ist, aber Parser, konfigurierbares Organisationsmapping, Aggregate und Visualisierungen ergänzt werden müssen.
+- **Umgesetzt:** Parser, Hierarchie-Aggregation, KPI-Karten, auf-/zuklappbare Baumtabelle, Balkendiagramm, Datenqualitätsgruppen, Rollen-Umschalter und lokaler Export/Pseudonymisierung im Tab **Organisation**.
 - **Nutzen:** **hoch**, weil Verantwortungsumfang, organisatorische Konzentrationen, Datenlücken und Ansprechpartner für Betrieb, Planung und Cluster Reviews unmittelbar sichtbar werden.
 
 ## VM-IPAM-Kontrolle

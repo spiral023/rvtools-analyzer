@@ -12,7 +12,8 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      // Tab-Leisten sollen app-weit immer die volle verfügbare Breite einnehmen (siehe alle TabsList-Verwendungen).
+      "inline-flex h-auto w-full items-center justify-start gap-1 rounded-md bg-muted p-1 text-muted-foreground",
       className,
     )}
     {...props}
