@@ -394,6 +394,75 @@ export interface VropsLatest {
   cpuOvercommitRatio: number | null;
 }
 
+/**
+ * Eigenständiger, stündlicher vROps-Export für die Kapazitätsplanung.
+ *
+ * Diese Verträge sind bewusst von `VropsImportMeta`, `VropsRow` und
+ * `VropsLatest` getrennt: Letztere modellieren den bisherigen panelbasierten
+ * vROps-Import für das Ausfallskonzept.
+ */
+export type VropsTimeSeriesObjectType = "vm" | "cluster" | "host";
+
+export type VropsTimeSeriesMetricKey =
+  | "vmCpuDemandAvgMHz"
+  | "vmCpuReadyMaxPct"
+  | "clusterCpuDemandAvgMHz"
+  | "clusterCpuDemandMaxMHz"
+  | "clusterMemoryUtilizationAvgMiB"
+  | "clusterMemoryUtilizationMaxMiB"
+  | "clusterCpuContentionAvgPct"
+  | "clusterCpuContentionMaxPct"
+  | "hostCpuCapacityAvailableLastMHz"
+  | "hostMemoryCapacityAvailableLastMiB"
+  | "hostCpuDemandAvgMHz"
+  | "hostCpuDemandMaxMHz"
+  | "hostCpuUsageAvgMHz"
+  | "hostCpuUsageMaxMHz"
+  | "hostMemoryUtilizationAvgMiB"
+  | "hostMemoryUtilizationMaxMiB"
+  | "hostCpuContentionAvgPct"
+  | "hostCpuContentionMaxPct"
+  | "hostMaintenanceStateLast";
+
+export type VropsTimeSeriesIssueSeverity = "error" | "warning";
+
+export interface VropsTimeSeriesValidationIssue {
+  code: string;
+  severity: VropsTimeSeriesIssueSeverity;
+  message: string;
+  row?: number;
+  column?: number;
+  header?: string;
+  objectName?: string;
+  intervalStartUtc?: number;
+  metric?: VropsTimeSeriesMetricKey;
+  details?: Record<string, string | number | boolean | null>;
+}
+
+/** Ein normalisierter Punkt aus einer vROps-Zeitreihen-CSV, noch ohne Persistenzbezug. */
+export interface VropsTimeSeriesParsedRow {
+  objectName: string;
+  intervalStartUtc: number;
+  values: Partial<Record<VropsTimeSeriesMetricKey, number | string | null>>;
+  /** Nur für Host-Maintenance: aus dem letzten bekannten Zustand fortgeschrieben. */
+  derivedMetrics?: Partial<Record<VropsTimeSeriesMetricKey, boolean>>;
+  sourceRow: number;
+}
+
+export interface VropsTimeSeriesSchemaMatch {
+  version: number;
+  objectType: VropsTimeSeriesObjectType;
+  objectNameHeader: string;
+  intervalHeader: string;
+  metricHeaders: Partial<Record<VropsTimeSeriesMetricKey, string>>;
+}
+
+export interface VropsTimeSeriesParseResult {
+  schema: VropsTimeSeriesSchemaMatch | null;
+  rows: VropsTimeSeriesParsedRow[];
+  issues: VropsTimeSeriesValidationIssue[];
+}
+
 export interface MaintenanceSettings {
   id: "default";
   firstName: string;
