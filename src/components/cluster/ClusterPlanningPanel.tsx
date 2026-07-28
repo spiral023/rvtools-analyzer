@@ -23,12 +23,13 @@ import { PLANNING_COLUMNS, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
 import { getScenarioTargetDisplay } from "@/lib/scenarioTargets";
 import { getRangeKeys } from "@/lib/selectionRange";
 import { coloredNum, coloredPct, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
+import { shortHostName } from "@/lib/utils";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { id: "__selection", header: "", enableSorting: false, size: 40 },
   { accessorKey: "vmName", header: "VM", meta: { info: PLANNING_COLUMNS.vmName } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: PLANNING_COLUMNS.cluster } },
-  { accessorKey: "host", header: "Host", meta: { info: PLANNING_COLUMNS.host } },
+  { accessorKey: "host", header: "Host", meta: { info: PLANNING_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
   { accessorKey: "powerState", header: "Power", meta: { info: PLANNING_COLUMNS.powerState } },
   { accessorKey: "cpuCount", header: "vCPU", meta: { info: PLANNING_COLUMNS.cpuCount } },
   { accessorKey: "memoryMiB", header: "RAM GiB", meta: { info: PLANNING_COLUMNS.memoryMiB }, cell: ({ row }) => (row.original.memoryMiB / 1024).toFixed(1) },

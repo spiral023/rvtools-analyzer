@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { NormalizedVm } from "@/domain/models/types";
+import { shortHostName } from "@/lib/utils";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_SECTIONS, OVERVIEW_VM_COLUMNS } from "@/lib/glossary";
 
@@ -12,7 +13,7 @@ const vmColumns: ColumnDef<OverviewVmRow, unknown>[] = [
   { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—", meta: { info: OVERVIEW_VM_COLUMNS.sysv } },
   { accessorKey: "powerState", header: "Power", meta: { info: OVERVIEW_VM_COLUMNS.powerState }, cell: ({ getValue }) => { const value = getValue() as string; return <span className={value === "poweredOn" ? "text-success" : value === "poweredOff" ? "text-muted-foreground" : "text-warning"}>{value || "—"}</span>; } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: OVERVIEW_VM_COLUMNS.cluster } },
-  { accessorKey: "host", header: "Host", meta: { info: OVERVIEW_VM_COLUMNS.host } },
+  { accessorKey: "host", header: "Host", meta: { info: OVERVIEW_VM_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
   { accessorKey: "cpuCount", header: "vCPU", cell: ({ getValue }) => getValue() ?? "—", meta: { info: OVERVIEW_VM_COLUMNS.cpuCount } },
   { accessorKey: "memoryMiB", header: "RAM", cell: ({ getValue }) => formatBytes(getValue() as number | null), meta: { info: OVERVIEW_VM_COLUMNS.memoryMiB } },
   { accessorKey: "configStatus", header: "Config", meta: { info: OVERVIEW_VM_COLUMNS.configStatus }, cell: ({ getValue }) => { const value = getValue() as string; return <span className={value === "green" ? "text-success" : value === "yellow" ? "text-warning" : value === "red" ? "text-destructive" : ""}>{value || "—"}</span>; } },

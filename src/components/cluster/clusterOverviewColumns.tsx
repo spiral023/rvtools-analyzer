@@ -4,9 +4,8 @@ import type { ClusterOverviewRow } from "@/lib/clusterWorkspace";
 import { vcpuPerCoreSeverityClass } from "@/lib/clusterOverview";
 import { CLUSTER_OVERVIEW_COLUMNS } from "@/lib/glossaries/clusters";
 import { coloredNum, coloredPct, hostFailureTooltipText, maxHostFailuresClassName, RiskTooltipContent, riskSeverity, severityBadge, vropsMissingBadge } from "@/lib/metricColor";
+import { shortHostName } from "@/lib/utils";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-
-const shortHostName = (host: string) => host.split(".")[0] || host;
 
 export const clusterOverviewColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
   { accessorKey: "vcenterDisplayName", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName } },

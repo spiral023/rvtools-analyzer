@@ -1,5 +1,20 @@
 import type { HostDetail } from "@/lib/conversion";
 
+// Herstellernamen für die Anzeige kürzen (z.B. im Hardware-Kuchendiagramm und im Host-Inventar).
+const VENDOR_SHORT_NAMES: Array<[RegExp, string]> = [
+  [/^dell\b/i, "Dell"],
+  [/^cisco\b/i, "Cisco"],
+  [/^hitachi\b/i, "Hitachi"],
+];
+
+export function shortenVendor(vendor: string): string {
+  const trimmed = vendor.trim();
+  for (const [pattern, short] of VENDOR_SHORT_NAMES) {
+    if (pattern.test(trimmed)) return short;
+  }
+  return trimmed;
+}
+
 export const DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT = 1;
 
 export interface HardwareVariantOptions {

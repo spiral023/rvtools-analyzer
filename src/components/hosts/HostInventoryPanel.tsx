@@ -5,15 +5,17 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import type { NormalizedHost } from "@/domain/models/types";
 import { HOST_COLUMNS, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
+import { shortenVendor } from "@/lib/hardwareVariants";
+import { shortHostName } from "@/lib/utils";
 
 const hostColumns: ColumnDef<NormalizedHost, unknown>[] = [
   { accessorKey: "vcenterId", header: "vCenter" },
-  { accessorKey: "host", header: "Host", meta: { info: HOST_COLUMNS.host } },
+  { accessorKey: "host", header: "Host", meta: { info: HOST_COLUMNS.host }, cell: ({ getValue }) => shortHostName(getValue() as string) },
   { accessorKey: "cluster", header: "Cluster", meta: { info: HOST_COLUMNS.cluster } },
   { accessorKey: "version", header: "ESXi Version", meta: { info: HOST_COLUMNS.version } },
   { accessorKey: "build", header: "Build", meta: { info: HOST_COLUMNS.build } },
   { accessorKey: "cpuModel", header: "CPU Model", meta: { info: HOST_COLUMNS.cpuModel } },
-  { accessorKey: "vendor", header: "Vendor", meta: { info: HOST_COLUMNS.vendor } },
+  { accessorKey: "vendor", header: "Vendor", meta: { info: HOST_COLUMNS.vendor }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortenVendor(value) : "—"; } },
   { accessorKey: "model", header: "Model", meta: { info: HOST_COLUMNS.model } },
   { accessorKey: "maintenanceMode", header: "Maintenance", meta: { info: HOST_COLUMNS.maintenanceMode }, cell: ({ getValue }) => getValue() === "True" ? <span className="text-warning">Ja</span> : "Nein" },
 ];

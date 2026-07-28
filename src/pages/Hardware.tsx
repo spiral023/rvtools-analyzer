@@ -35,6 +35,7 @@ import {
   buildVariantSummary,
   DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT,
   NO_CLUSTER_LABEL,
+  shortenVendor,
   type HardwareModelGroup,
 } from "@/lib/hardwareVariants";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -177,21 +178,6 @@ function formatHardwareBarMetricValue(metric: HardwareBarMetric, value: number):
     case "ram":
       return formatMemory(value);
   }
-}
-
-// Herstellernamen für die Anzeige im Kuchendiagramm kürzen.
-const VENDOR_SHORT_NAMES: Array<[RegExp, string]> = [
-  [/^dell\b/i, "Dell"],
-  [/^cisco\b/i, "Cisco"],
-  [/^hitachi\b/i, "Hitachi"],
-];
-
-function shortenVendor(vendor: string): string {
-  const trimmed = vendor.trim();
-  for (const [pattern, short] of VENDOR_SHORT_NAMES) {
-    if (pattern.test(trimmed)) return short;
-  }
-  return trimmed;
 }
 
 /* ------------------------------------------------------------------ */

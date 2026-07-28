@@ -22,6 +22,7 @@ import {
 import { VM_BEHAVIOR_CLASS_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
+import { shortHostName } from "@/lib/utils";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 function formatPercent(value: number | null): string {
@@ -59,7 +60,7 @@ export function VmRightsizingPanel() {
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
-    { accessorKey: "hostName", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    { accessorKey: "hostName", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
     {
       id: "behaviorClass",

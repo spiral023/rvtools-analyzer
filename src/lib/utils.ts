@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Blendet den Domain-Anteil eines FQDN-Hostnamens aus (alles ab dem ersten Punkt). */
+export function shortHostName(host: string): string {
+  return host.split(".")[0] || host;
+}
+
 export function formatBytes(bytes: number | null): string {
   if (bytes === null) return "k. A.";
   if (bytes < 1024) return `${bytes} B`;
