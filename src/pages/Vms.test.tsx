@@ -19,6 +19,10 @@ vi.mock("@/hooks/useGlobalVmFilter", () => ({
   useGlobalVmFilterEngine: () => ({ filterVmRows: <T,>(rows: T[]) => rows }),
 }));
 
+vi.mock("@/hooks/useVmDetailDialog", () => ({
+  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null as React.ReactNode }),
+}));
+
 vi.mock("@/components/vm/VmInventoryTable", () => ({
   VmInventoryTable: () => <div>Virtuelle Maschinen</div>,
 }));

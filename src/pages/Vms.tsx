@@ -8,6 +8,7 @@ import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useActiveSnapshotIds, useVmsWithTechInfo } from "@/hooks/useActiveSnapshots";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventoryTable";
 import { VmOperationsPanel } from "@/components/vm/VmOperationsPanel";
 import { VmPerformancePanel } from "@/components/vm/VmPerformancePanel";
@@ -24,6 +25,7 @@ export default function Vms() {
       .sort((a, b) => a.vmName.localeCompare(b.vmName))
       .map((vm) => ({ ...vm, sysv: vm.techInfo?.sysv ?? null }))
   ), [vmsWithTechInfo]);
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(vms);
 
   if (snapshotsLoading || vmsLoading) return <PageLoadingState title="VMs" />;
 
@@ -51,12 +53,13 @@ export default function Vms() {
             <KpiCard title="Eingeschaltet" value={formatNum(poweredOn)} subtitle={`von ${formatNum(vms.length)}`} icon={<Power className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
             <KpiCard title="Konfigurationsprobleme" value={formatNum(configIssues)} severity={configIssues > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
           </KpiGrid>
-          <VmInventoryTable vms={vms} globalFilter={filters.search} />
+          <VmInventoryTable vms={vms} globalFilter={filters.search} onRowClick={openVmDetail} />
         </TabsContent>
         <TabsContent value="operations"><VmOperationsPanel /></TabsContent>
         <TabsContent value="performance"><VmPerformancePanel /></TabsContent>
         <TabsContent value="compliance"><VmComplianceLifecyclePanel /></TabsContent>
       </Tabs>
+      {vmDetailDialog}
     </div>
   );
 }

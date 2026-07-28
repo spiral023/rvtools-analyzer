@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getUiState, putUiState } from "@/data/db";
-import { useActiveSnapshotIds, useClusters, useHosts, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { useFillUpAnalysisRuns } from "@/hooks/useFillUpAnalysisRuns";
+import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import type { ExportStudioSource, ExportStudioTemplate } from "@/domain/models/types";
 import {
   buildClusterExportDataset,
@@ -29,7 +30,7 @@ const UI_STATE_ID = "export-studio";
 const sourceLabels: Record<ExportStudioSource, string> = {
   vms: "VM-Inventar",
   hosts: "Host-Inventar",
-  clusters: "Cluster-Inventar",
+  clusters: "Cluster",
   "fill-up": "Fill-Up-Ergebnisse",
 };
 
@@ -54,6 +55,8 @@ export default function ExportStudio() {
   const { vms, isLoading: vmsLoading } = useVms();
   const hostsQuery = useHosts();
   const clustersQuery = useClusters();
+  const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
+  const { data: vropsLatest = [] } = useAllVropsLatest();
   const { runs, isLoading: runsLoading } = useFillUpAnalysisRuns();
   const [source, setSource] = useState<ExportStudioSource>("vms");
   const [columnIds, setColumnIds] = useState<string[]>([]);
@@ -82,12 +85,24 @@ export default function ExportStudio() {
     return (clustersQuery.data ?? []).filter((cluster) => (!clusterSet.size || clusterSet.has(cluster.name)) && (!search || Object.values(cluster).some((value) => String(value ?? "").toLocaleLowerCase("de-DE").includes(search))) && (!globalVmPlacements || globalVmPlacements.clusters.has(`${cluster.vcenterId}::${cluster.name}`)));
   }, [clustersQuery.data, filters, globalVmPlacements]);
 
+  const capacityRows = useMemo(
+    () => buildClusterCapacityWorkspace({
+      clusters: clustersQuery.data ?? [],
+      hosts: hostsQuery.data ?? [],
+      vms,
+      rawVHostRows,
+      snapshots: activeSnapshots,
+      vropsLatest,
+    }).capacityRows,
+    [activeSnapshots, clustersQuery.data, hostsQuery.data, rawVHostRows, vms, vropsLatest],
+  );
+
   const baseDataset = useMemo(() => {
     if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope);
-    if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope);
+    if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
     return buildVmExportDataset(vms, activeSnapshots, scope);
-  }, [activeSnapshots, filteredClusters, filteredHosts, runs, scope, source, vms]);
+  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
   const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
@@ -156,7 +171,7 @@ export default function ExportStudio() {
     }
   };
 
-  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || runsLoading;
+  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading;
   if (loading) return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Exportdaten werden vorbereitet…</div>;
   if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Laden Sie zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
 
