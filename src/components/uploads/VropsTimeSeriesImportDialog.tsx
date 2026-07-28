@@ -32,7 +32,7 @@ const FILE_LABELS: Record<FileSlot, string> = {
 
 export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFiles, prefillRequest = 0 }: VropsTimeSeriesImportDialogProps) {
   const [open, setOpen] = useState(false);
-  const [snapshotId, setSnapshotId] = useState("");
+  const [snapshotIds, setSnapshotIds] = useState<string[]>([]);
   const [files, setFiles] = useState<Partial<Record<FileSlot, File>>>({});
   const [progress, setProgress] = useState<VropsTimeSeriesImportProgress | null>(null);
   const [result, setResult] = useState<VropsTimeSeriesImportResult | null>(null);
@@ -44,8 +44,8 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
     () => [...snapshots].sort((left, right) => right.exportTs.localeCompare(left.exportTs)),
     [snapshots],
   );
-  const selectedSnapshot = sortedSnapshots.find((snapshot) => snapshot.snapshotId === snapshotId);
-  const ready = Boolean(snapshotId && files.vm && files.cluster && files.host && !running);
+  const selectedSnapshots = sortedSnapshots.filter((snapshot) => snapshotIds.includes(snapshot.snapshotId));
+  const ready = Boolean(snapshotIds.length > 0 && files.vm && files.cluster && files.host && !running);
 
   const appendLog = (severity: ImportLogSeverity, message: string, detail?: string) => {
     setLogEntries((current) => [...current, { id: current.length + 1, severity, message, detail }]);
@@ -62,7 +62,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
   }, [prefilledFiles, prefillRequest]);
 
   const reset = () => {
-    setSnapshotId("");
+    setSnapshotIds([]);
     setFiles({});
     setProgress(null);
     setResult(null);
@@ -78,12 +78,12 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
   };
 
   const runImport = async () => {
-    if (!files.vm || !files.cluster || !files.host || !snapshotId) return;
+    if (!files.vm || !files.cluster || !files.host || snapshotIds.length === 0) return;
     setRunning(true);
     setResult(null);
     setLogEntries([{ id: 1, severity: "info", message: "Dateisatz zur Prüfung übergeben", detail: `${files.vm.name} · ${files.cluster.name} · ${files.host.name}` }]);
     try {
-      const nextResult = await importVropsTimeSeriesFileSet(files as Record<FileSlot, File>, [snapshotId], (nextProgress) => {
+      const nextResult = await importVropsTimeSeriesFileSet(files as Record<FileSlot, File>, snapshotIds, (nextProgress) => {
         setProgress(nextProgress);
         appendLog("info", nextProgress.step, nextProgress.detail);
       });
@@ -125,24 +125,29 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
           <p className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-warning">Zuerst einen RVTools-Snapshot importieren, damit der vCenter-Scope eingefroren werden kann.</p>
         ) : (
           <div className="space-y-5 py-1">
-            <div className="space-y-2">
-              <Label htmlFor="vrops-timeseries-snapshot">RVTools-Snapshot / vCenter-Scope</Label>
-              <select
-                id="vrops-timeseries-snapshot"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={snapshotId}
-                disabled={running}
-                onChange={(event) => setSnapshotId(event.target.value)}
-              >
-                <option value="">Snapshot auswählen …</option>
-                {sortedSnapshots.map((snapshot) => (
-                  <option key={snapshot.snapshotId} value={snapshot.snapshotId}>
-                    {snapshot.vcenterDisplayName} · {new Date(snapshot.exportTs).toLocaleString("de-DE")}
-                  </option>
-                ))}
-              </select>
-              {selectedSnapshot && <p className="text-xs text-muted-foreground">{selectedSnapshot.vcenterId} · Export {new Date(selectedSnapshot.exportTs).toLocaleString("de-DE")}</p>}
-            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">RVTools-Snapshots / vCenter-Scopes</legend>
+              <p className="text-xs text-muted-foreground">Bei gemeinsam exportierten Zeitreihen alle zugehörigen vCenter-Snapshots auswählen.</p>
+              <div className="max-h-36 space-y-2 overflow-y-auto rounded-md border bg-muted/15 p-3">
+                {sortedSnapshots.map((snapshot) => {
+                  const inputId = `vrops-timeseries-snapshot-${snapshot.snapshotId}`;
+                  const selected = snapshotIds.includes(snapshot.snapshotId);
+                  return <label key={snapshot.snapshotId} htmlFor={inputId} className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      id={inputId}
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-primary"
+                      aria-label={`${snapshot.vcenterDisplayName} auswählen`}
+                      checked={selected}
+                      disabled={running}
+                      onChange={(event) => setSnapshotIds((current) => event.target.checked ? [...current, snapshot.snapshotId] : current.filter((id) => id !== snapshot.snapshotId))}
+                    />
+                    <span><span className="font-medium">{snapshot.vcenterDisplayName}</span><span className="text-muted-foreground"> · {new Date(snapshot.exportTs).toLocaleString("de-DE")}</span></span>
+                  </label>;
+                })}
+              </div>
+              {selectedSnapshots.length > 0 && <p className="text-xs text-muted-foreground">{selectedSnapshots.length.toLocaleString("de-DE")} vCenter-Scope{selectedSnapshots.length === 1 ? "" : "s"} gewählt: {selectedSnapshots.map((snapshot) => snapshot.vcenterId).join(" · ")}</p>}
+            </fieldset>
 
             <div className="grid gap-3 sm:grid-cols-3">
               {(["vm", "cluster", "host"] as const).map((slot) => (
@@ -170,7 +175,7 @@ export function VropsTimeSeriesImportDialog({ snapshots, onImported, prefilledFi
             </div>
 
             <p className={`rounded-md border px-3 py-2 text-xs ${ready ? "border-success/30 bg-success/5 text-success" : "border-border/70 bg-muted/20 text-muted-foreground"}`} role="status">
-              {ready ? "Dateisatz vollständig. Mit „Dateisatz prüfen und speichern“ wird er lokal gespeichert und danach in Planung › Fill up auswählbar." : "Für den Speichervorgang werden ein RVTools-Snapshot sowie je eine VM-, Cluster- und Host-CSV benötigt."}
+              {running ? "Dateisatz wird im Worker geprüft. Der Fortschritt zeigt die aktuell verarbeiteten CSV-Zeilen." : ready ? "Dateisatz vollständig. Mit „Dateisatz prüfen und speichern“ wird er lokal gespeichert und danach in Planung › Fill up auswählbar." : "Für den Speichervorgang werden mindestens ein RVTools-Snapshot sowie je eine VM-, Cluster- und Host-CSV benötigt."}
             </p>
 
             {progress && (

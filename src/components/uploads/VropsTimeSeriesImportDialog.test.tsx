@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SnapshotMeta } from "@/domain/models/types";
 import { VropsTimeSeriesImportDialog } from "./VropsTimeSeriesImportDialog";
 
@@ -22,21 +22,26 @@ const snapshot: SnapshotMeta = {
 };
 
 describe("VropsTimeSeriesImportDialog", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("protokolliert alle Rückmeldungen eines nicht gespeicherten Dateisatzes", async () => {
     importVropsTimeSeriesFileSet.mockImplementation(async (_files, _snapshotIds, onProgress) => {
       onProgress?.({ step: "Zeitreihen im Worker parsen", percent: 30, detail: "VM, Cluster und Host" });
       return { success: false, warnings: ["Eine optionale Host-Metrik fehlt."], errors: ["Zeile 42: Ungültiger Zeitstempel."] };
     });
-    render(<MemoryRouter><VropsTimeSeriesImportDialog snapshots={[snapshot]} onImported={vi.fn()} /></MemoryRouter>);
+    const secondSnapshot = { ...snapshot, snapshotId: "snapshot-2", vcenterId: "vc-2", vcenterDisplayName: "vCenter 2" };
+    render(<MemoryRouter><VropsTimeSeriesImportDialog snapshots={[snapshot, secondSnapshot]} onImported={vi.fn()} /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole("button", { name: "vROps-Zeitreihen importieren" }));
-    fireEvent.change(screen.getByLabelText("RVTools-Snapshot / vCenter-Scope"), { target: { value: snapshot.snapshotId } });
+    fireEvent.click(screen.getByLabelText("vCenter 1 auswählen"));
+    fireEvent.click(screen.getByLabelText("vCenter 2 auswählen"));
     for (const slot of ["vm", "cluster", "host"]) {
       fireEvent.change(document.getElementById(`vrops-timeseries-${slot}`)!, { target: { files: [new File(["csv"], `${slot}.csv`, { type: "text/csv" })] } });
     }
     fireEvent.click(screen.getByRole("button", { name: "Dateisatz prüfen und speichern" }));
 
     await waitFor(() => expect(screen.getByRole("group", { name: "vROps-Importprotokoll" })).toBeInTheDocument());
+    expect(importVropsTimeSeriesFileSet).toHaveBeenCalledWith(expect.anything(), ["snapshot-1", "snapshot-2"], expect.any(Function));
     const log = screen.getByRole("group", { name: "vROps-Importprotokoll" });
     expect(within(log).getByText("Zeitreihen im Worker parsen")).toBeInTheDocument();
     expect(within(log).getByText("Eine optionale Host-Metrik fehlt.")).toBeInTheDocument();

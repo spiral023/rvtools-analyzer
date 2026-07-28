@@ -96,7 +96,7 @@ export async function importVropsTimeSeriesFileSet(
   }
 
   report("Zeitreihen im Worker parsen", 30, "VM, Cluster und Host");
-  const workerResult = await parseInWorker(buffers);
+  const workerResult = await parseInWorker(buffers, (progress) => report(progress.step, progress.percent, progress.detail));
   const parsedByType = validateParsedFileSet(workerResult.parsedFiles);
   if (parsedByType.errors.length > 0) return { success: false, warnings: parsedByType.warnings, errors: parsedByType.errors };
 
@@ -167,10 +167,16 @@ export async function importVropsTimeSeriesFileSet(
   return { success: true, importId, warnings: [...parsedByType.warnings, ...relationshipWarnings], errors: [], qualitySummary };
 }
 
-function parseInWorker(buffers: ArrayBuffer[]): Promise<VropsTimeSeriesWorkerResult> {
+function parseInWorker(buffers: ArrayBuffer[], onProgress?: (progress: VropsTimeSeriesImportProgress) => void): Promise<VropsTimeSeriesWorkerResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("../../workers/vrops-timeseries.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = (event) => {
+      if (event.data.type === "VROPS_TIMESERIES_PARSE_PROGRESS") {
+        const { fileIndex, fileLabel, processedRows, totalRows } = event.data.payload as { fileIndex: number; fileLabel: string; processedRows: number; totalRows: number };
+        const fraction = totalRows > 0 ? processedRows / totalRows : 0;
+        onProgress?.({ step: "Zeitreihen im Worker parsen", percent: 30 + Math.round(((fileIndex + fraction) / 3) * 18), detail: totalRows > 0 ? `${fileLabel}: ${processedRows.toLocaleString("de-DE")} / ${totalRows.toLocaleString("de-DE")} Zeilen` : `${fileLabel}-CSV wird vorbereitet` });
+        return;
+      }
       worker.terminate();
       if (event.data.type === "VROPS_TIMESERIES_PARSE_ERROR") reject(new Error(event.data.payload));
       else resolve(event.data.payload as VropsTimeSeriesWorkerResult);

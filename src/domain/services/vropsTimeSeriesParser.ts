@@ -37,7 +37,21 @@ interface NumericParseResult {
   issue?: Pick<VropsTimeSeriesValidationIssue, "code" | "message" | "details">;
 }
 
-export function parseVropsTimeSeriesCsv(csv: string): VropsTimeSeriesParseResult {
+interface TimestampParseResult {
+  value: number | null;
+  code?: string;
+  message?: string;
+}
+
+export interface VropsTimeSeriesParseOptions {
+  onProgress?: (processedRows: number, totalRows: number) => void;
+}
+
+const VIENNA_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Vienna", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+});
+
+export function parseVropsTimeSeriesCsv(csv: string, options?: VropsTimeSeriesParseOptions): VropsTimeSeriesParseResult {
   const csvResult = parseRfc4180Csv(csv);
   const issues = [...csvResult.issues];
   if (csvResult.records.length === 0) {
@@ -53,8 +67,11 @@ export function parseVropsTimeSeriesCsv(csv: string): VropsTimeSeriesParseResult
   const { schema } = schemaMatch;
   const indexByHeader = new Map(headerRecord.values.map((header, index) => [header, index]));
   const rows: VropsTimeSeriesParsedRow[] = [];
+  const timestampCache = new Map<string, TimestampParseResult>();
+  options?.onProgress(0, dataRecords.length);
 
-  for (const record of dataRecords) {
+  for (let recordIndex = 0; recordIndex < dataRecords.length; recordIndex += 1) {
+    const record = dataRecords[recordIndex];
     if (record.values.length === 1 && record.values[0] === "") continue;
     if (record.values.length !== headerRecord.values.length) {
       issues.push({
@@ -71,7 +88,7 @@ export function parseVropsTimeSeriesCsv(csv: string): VropsTimeSeriesParseResult
       continue;
     }
     const rawTimestamp = record.values[indexByHeader.get(schema.intervalHeader)!];
-    const parsedTimestamp = parseViennaTimestamp(rawTimestamp);
+    const parsedTimestamp = parseViennaTimestamp(rawTimestamp, timestampCache);
     if (parsedTimestamp.value === null) {
       issues.push({
         code: parsedTimestamp.code ?? "invalid-timestamp",
@@ -106,6 +123,7 @@ export function parseVropsTimeSeriesCsv(csv: string): VropsTimeSeriesParseResult
       }
     }
     rows.push({ objectName, intervalStartUtc: parsedTimestamp.value, values, sourceRow: record.line });
+    if ((recordIndex + 1) % 5_000 === 0 || recordIndex + 1 === dataRecords.length) options?.onProgress(recordIndex + 1, dataRecords.length);
   }
 
   validateSeries(rows, schema.objectType, issues);
@@ -261,19 +279,26 @@ function normalizeUnit(value: number, rawUnit: string, kind: VropsTimeSeriesValu
   return null;
 }
 
-function parseViennaTimestamp(raw: string): { value: number | null; code?: string; message?: string } {
+function parseViennaTimestamp(raw: string, cache?: Map<string, TimestampParseResult>): TimestampParseResult {
+  const cached = cache?.get(raw);
+  if (cached) return cached;
   const trimmed = raw.trim();
-  if (!trimmed) return { value: null, code: "missing-timestamp", message: "Interval Breakdown fehlt." };
+  if (!trimmed) return cacheTimestamp(raw, { value: null, code: "missing-timestamp", message: "Interval Breakdown fehlt." }, cache);
   if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed)) {
     const value = Date.parse(trimmed);
-    return Number.isFinite(value) ? { value } : { value: null, code: "invalid-timestamp", message: `Ungültiger ISO-Zeitstempel: ${raw}.` };
+    return cacheTimestamp(raw, Number.isFinite(value) ? { value } : { value: null, code: "invalid-timestamp", message: `Ungültiger ISO-Zeitstempel: ${raw}.` }, cache);
   }
   const civil = parseCivilDateTime(trimmed);
-  if (!civil) return { value: null, code: "invalid-timestamp", message: `Nicht unterstütztes Interval-Breakdown-Format: ${raw}.` };
+  if (!civil) return cacheTimestamp(raw, { value: null, code: "invalid-timestamp", message: `Nicht unterstütztes Interval-Breakdown-Format: ${raw}.` }, cache);
   const candidates = matchingViennaInstants(civil);
-  if (candidates.length === 0) return { value: null, code: "nonexistent-local-time", message: `Lokale Zeit existiert wegen Zeitumstellung nicht: ${raw}.` };
-  if (candidates.length > 1) return { value: null, code: "ambiguous-local-time", message: `Lokale Zeit ist ohne Offset mehrdeutig: ${raw}.` };
-  return { value: candidates[0] };
+  if (candidates.length === 0) return cacheTimestamp(raw, { value: null, code: "nonexistent-local-time", message: `Lokale Zeit existiert wegen Zeitumstellung nicht: ${raw}.` }, cache);
+  if (candidates.length > 1) return cacheTimestamp(raw, { value: null, code: "ambiguous-local-time", message: `Lokale Zeit ist ohne Offset mehrdeutig: ${raw}.` }, cache);
+  return cacheTimestamp(raw, { value: candidates[0] }, cache);
+}
+
+function cacheTimestamp(raw: string, result: TimestampParseResult, cache?: Map<string, TimestampParseResult>): TimestampParseResult {
+  cache?.set(raw, result);
+  return result;
 }
 
 function parseCivilDateTime(value: string): CivilDateTime | null {
@@ -311,9 +336,7 @@ function matchingViennaInstants(civil: CivilDateTime): number[] {
 }
 
 function viennaParts(timestamp: number): CivilDateTime {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Vienna", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
-  }).formatToParts(new Date(timestamp));
+  const parts = VIENNA_FORMATTER.formatToParts(new Date(timestamp));
   const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute"), second: get("second") };
 }
