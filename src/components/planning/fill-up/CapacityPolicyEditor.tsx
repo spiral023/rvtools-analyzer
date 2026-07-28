@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
 import { useClusters } from "@/hooks/useActiveSnapshots";
-import { createNextCapacityPolicyVersion, validateCapacityPolicy } from "@/domain/services/capacityPolicyService";
-import type { CapacityPolicy, CapacityPolicyValues, ClusterCapacityPolicyAssignment } from "@/domain/models/types";
+import { createCapacityPolicyAssignment, createNextCapacityPolicyVersion, validateCapacityPolicy } from "@/domain/services/capacityPolicyService";
+import type { CapacityPolicy, CapacityPolicyValues } from "@/domain/models/types";
 
 type NumericField = Exclude<{
   [Key in keyof CapacityPolicyValues]: CapacityPolicyValues[Key] extends number | null ? Key : never;
@@ -89,14 +89,11 @@ export function CapacityPolicyEditor() {
     const overrides = { ...current } as Partial<CapacityPolicyValues>;
     if (parsed === undefined) delete overrides[overrideField];
     else overrides[overrideField] = parsed;
-    const assignment: ClusterCapacityPolicyAssignment = {
+    const assignment = createCapacityPolicyAssignment({
       vcenterId: selectedCluster.vcenterId,
       clusterKey: selectedCluster.clusterKey,
       clusterName: selectedCluster.name,
-      policyId: selectedPolicyId,
-      overrides,
-      updatedAt: new Date().toISOString(),
-    };
+    }, selectedPolicyId, overrides);
     setError(null);
     await persistAssignment(assignment);
   };

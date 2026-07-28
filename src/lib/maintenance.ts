@@ -25,6 +25,7 @@ export type ChangeType = "Normal Change" | "Standard Change";
 export interface MaintenanceClusterRow {
   key: string;
   vcenterId: string;
+  clusterKey: string;
   snapshotId: string;
   name: string;
   hosts: number;
@@ -133,21 +134,6 @@ export function createDefaultAssignment(vcenterId: string, clusterName: string):
   };
 }
 
-export function assignmentForClusterType(
-  row: Pick<MaintenanceClusterRow, "vcenterId" | "name" | "windows" | "contacts" | "additionalEmails">,
-  type: MaintenanceClusterType,
-): MaintenanceClusterAssignment {
-  return {
-    vcenterId: row.vcenterId,
-    clusterName: row.name,
-    type,
-    windows: row.windows,
-    contacts: row.contacts,
-    additionalEmails: row.additionalEmails,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 export function formatMaintenanceWindow(window: MaintenanceWindow): string {
   if (window.label) return window.label;
   if (window.dayFrom && window.dayTo && window.startTime && window.endTime) {
@@ -239,6 +225,7 @@ export function buildMaintenanceRows({
       return {
         key,
         vcenterId: cluster.vcenterId,
+        clusterKey: cluster.clusterKey,
         snapshotId: cluster.snapshotId,
         name: cluster.name,
         hosts: clusterHosts.length > 0 ? clusterHosts.length : cluster.numHosts || 0,

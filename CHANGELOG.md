@@ -20,7 +20,7 @@ Fehler beim Start, der Datenübergabe oder der Rückgabe der Fill-up-Worker-Ausw
 
 Große Zeitreihenpuffer werden aus IndexedDB ohne zusätzliche Kopie an den Fill-up-Worker übertragen; die Rückgabe lässt Objektlisten aus Szenarien weg, die in der Oberfläche nicht benötigt werden.
 
-Auf der Seite Wartung lässt sich der Cluster-Typ jetzt direkt in der Tabelle zuweisen. Jede Auswahl bleibt lokal vCenter- und clusterbezogen gespeichert und bewahrt vorhandene Wartungsfenster sowie Empfänger.
+Auf der Seite Wartung lässt sich das Fill-Up-Basisprofil jetzt direkt je Cluster zuweisen, etwa VDI, SAP oder Standard Server Windows. Jede Auswahl bleibt lokal vCenter- und clusterbezogen gespeichert, bewahrt vorhandene Einzel-Overrides und ist von Wartungsfenstern sowie Empfängern getrennt.
 
 Fill Up erklärt nun Eingaben, Datenqualität, Ergebnisbereiche und alle Spalten des Clustervergleichs direkt per Tooltip.
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateCapacityFindings, hasBlockingCapacityFinding } from "./capacityFindingEngine";
 import {
+  createCapacityPolicyAssignment,
   createInitialCapacityPolicies,
   createNextCapacityPolicyVersion,
   getCapacityStatus,
@@ -30,6 +31,22 @@ describe("CapacityPolicy-Service", () => {
     expect(base.version).toBe(1);
     expect(getLatestCapacityPolicies([base, version2])).toEqual([version2]);
     expect(effective).toMatchObject({ version: 2, cpuSafetyBufferPct: 12, maxSingleVmHostRamPct: 40 });
+  });
+
+  it("erstellt vCenter-eindeutige Basisprofil-Zuweisungen und bewahrt Overrides", () => {
+    expect(createCapacityPolicyAssignment(
+      { vcenterId: "vc-1", clusterKey: "cluster-1", clusterName: "CL-Prod" },
+      "sap",
+      { cpuSafetyBufferPct: 15 },
+      "2026-07-28T12:00:00.000Z",
+    )).toEqual({
+      vcenterId: "vc-1",
+      clusterKey: "cluster-1",
+      clusterName: "CL-Prod",
+      policyId: "sap",
+      overrides: { cpuSafetyBufferPct: 15 },
+      updatedAt: "2026-07-28T12:00:00.000Z",
+    });
   });
 
   it("validiert Guardrails und bewertet Warn- und Danger-Grenzen inklusiv", () => {

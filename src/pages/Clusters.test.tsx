@@ -117,6 +117,9 @@ const planningScenarios: Scenario[] = [{
   notes: null,
 }];
 
+const capacityPolicies = [{ id: "standard-server-windows", name: "Standard Server Windows", version: 1 }];
+const capacityPolicyAssignments: never[] = [];
+
 let whatIfResult: WhatIfClusterResult[] | null = null;
 
 const whatIfMetrics = (overrides: Partial<ClusterMetrics> = {}): ClusterMetrics => ({
@@ -162,6 +165,16 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 vi.mock("@/hooks/useMaintenance", () => ({
   useMaintenanceAssignments: () => ({ assignments: [] as never[], saveAssignment: vi.fn(), isSaving: false }),
   useMaintenanceSettings: () => ({ settings: { firstName: "", lastName: "", companyName: "Test GmbH" } }),
+}));
+
+vi.mock("@/hooks/useCapacityPolicies", () => ({
+  useCapacityPolicies: () => ({
+    policies: capacityPolicies,
+    assignments: capacityPolicyAssignments,
+    saveAssignment: vi.fn(),
+    isLoading: false,
+    isSaving: false,
+  }),
 }));
 
 vi.mock("@/hooks/useScenarios", () => ({

@@ -101,6 +101,20 @@ export function resolveEffectiveCapacityPolicy(
   return base && assignment ? { ...base, ...assignment.overrides } : base;
 }
 
+export function createCapacityPolicyAssignment(
+  cluster: Pick<ClusterCapacityPolicyAssignment, "vcenterId" | "clusterKey" | "clusterName">,
+  policyId: CapacityPolicy["id"],
+  overrides: Partial<CapacityPolicyValues> = {},
+  now = new Date().toISOString(),
+): ClusterCapacityPolicyAssignment {
+  return {
+    ...cluster,
+    policyId,
+    overrides,
+    updatedAt: now,
+  };
+}
+
 export function createNextCapacityPolicyVersion(
   policy: CapacityPolicy,
   changes: Partial<CapacityPolicyValues> & Pick<Partial<CapacityPolicy>, "name">,

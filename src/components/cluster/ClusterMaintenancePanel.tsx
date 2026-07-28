@@ -23,9 +23,10 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { WARTUNG_KPI, WARTUNG_COLUMNS, WARTUNG_SECTIONS } from "@/lib/glossaries/wartung";
 import { useActiveSnapshotIds, useClusters, useHosts, useRawSheet, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
+import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
 import { useMaintenanceAssignments, useMaintenanceSettings } from "@/hooks/useMaintenance";
+import { createCapacityPolicyAssignment } from "@/domain/services/capacityPolicyService";
 import {
-  assignmentForClusterType,
   buildMaintenanceMailTemplate,
   buildMaintenanceRows,
   createDefaultAssignment,
@@ -37,6 +38,8 @@ import {
 } from "@/lib/maintenance";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type {
+  CapacityPolicy,
+  ClusterCapacityPolicyAssignment,
   MaintenanceClusterAssignment,
   MaintenanceClusterType,
   MaintenanceContact,
@@ -116,26 +119,30 @@ function makeDraft(row: MaintenanceClusterRow | null): MaintenanceClusterAssignm
   };
 }
 
-export function ClusterTypeAssignmentSelect({
+export function CapacityProfileAssignmentSelect({
   row,
+  policies,
+  policyId,
   disabled,
   onChange,
 }: {
   row: MaintenanceClusterRow;
+  policies: readonly Pick<CapacityPolicy, "id" | "name" | "version">[];
+  policyId: string | undefined;
   disabled: boolean;
-  onChange: (row: MaintenanceClusterRow, type: MaintenanceClusterType) => void;
+  onChange: (row: MaintenanceClusterRow, policyId: string) => void;
 }) {
   return (
     <select
-      aria-label={`Cluster-Typ für ${row.name} in ${row.vcenterId}`}
-      value={row.type}
+      aria-label={`Basisprofil für ${row.name} in ${row.vcenterId}`}
+      value={policyId ?? ""}
       disabled={disabled}
       onClick={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(row, event.target.value as MaintenanceClusterType)}
-      className="h-8 min-w-[6.75rem] rounded-md border border-input bg-background px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-60"
+      onChange={(event) => onChange(row, event.target.value)}
+      className="h-8 min-w-[10.5rem] rounded-md border border-input bg-background px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-60"
     >
-      <option value="Normal">Normal</option>
-      <option value="Spezial">Spezial</option>
+      <option value="" disabled>Nicht zugewiesen</option>
+      {policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.name} · v{policy.version}</option>)}
     </select>
   );
 }
@@ -693,7 +700,14 @@ export function ClusterMaintenancePanel() {
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const vcenterIds = useMemo(() => [...new Set(clusters.map((cluster) => cluster.vcenterId))], [clusters]);
-  const { assignments, saveAssignment, isSaving } = useMaintenanceAssignments(vcenterIds);
+  const { assignments: maintenanceAssignments, saveAssignment: saveMaintenanceAssignment, isSaving: isSavingMaintenance } = useMaintenanceAssignments(vcenterIds);
+  const {
+    policies: capacityPolicies,
+    assignments: capacityPolicyAssignments,
+    saveAssignment: saveCapacityPolicyAssignment,
+    isLoading: capacityPoliciesLoading,
+    isSaving: isSavingCapacityPolicy,
+  } = useCapacityPolicies();
   const { settings } = useMaintenanceSettings();
   const { data: techInfoLatest = [], isLoading: techInfoLoading } = useTechInfoLatestByVmNames(vms.map((vm) => vm.vmName));
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -701,8 +715,8 @@ export function ClusterMaintenancePanel() {
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
 
   const rows = useMemo(
-    () => buildMaintenanceRows({ clusters, hosts, vms, rawVHostRows, assignments }),
-    [assignments, clusters, hosts, rawVHostRows, vms],
+    () => buildMaintenanceRows({ clusters, hosts, vms, rawVHostRows, assignments: maintenanceAssignments }),
+    [clusters, hosts, maintenanceAssignments, rawVHostRows, vms],
   );
 
   const searchedRows = useMemo(() => {
@@ -741,17 +755,28 @@ export function ClusterMaintenancePanel() {
     });
   };
 
-  const saveClusterType = useCallback(async (row: MaintenanceClusterRow, type: MaintenanceClusterType) => {
-    if (row.type === type) return;
+  const capacityPolicyByCluster = useMemo(
+    () => new Map<string, ClusterCapacityPolicyAssignment>(capacityPolicyAssignments.map((assignment) => [`${assignment.vcenterId}::${assignment.clusterKey}`, assignment])),
+    [capacityPolicyAssignments],
+  );
+
+  const saveCapacityProfile = useCallback(async (row: MaintenanceClusterRow, policyId: string) => {
+    if (!policyId) return;
+    const current = capacityPolicyByCluster.get(`${row.vcenterId}::${row.clusterKey}`);
+    if (current?.policyId === policyId) return;
     try {
-      await saveAssignment(assignmentForClusterType(row, type));
-      toast.success(`Cluster-Typ für „${row.name}“ gespeichert.`);
+      await saveCapacityPolicyAssignment(createCapacityPolicyAssignment({
+        vcenterId: row.vcenterId,
+        clusterKey: row.clusterKey,
+        clusterName: row.name,
+      }, policyId, current?.overrides ?? {}));
+      toast.success(`Basisprofil für „${row.name}“ gespeichert.`);
     } catch (saveError) {
-      toast.error(`Cluster-Typ für „${row.name}“ konnte nicht gespeichert werden.`, {
+      toast.error(`Basisprofil für „${row.name}“ konnte nicht gespeichert werden.`, {
         description: saveError instanceof Error ? saveError.message : undefined,
       });
     }
-  }, [saveAssignment]);
+  }, [capacityPolicyByCluster, saveCapacityPolicyAssignment]);
 
   const columns = useMemo<ColumnDef<MaintenanceClusterRow, unknown>[]>(() => [
     {
@@ -818,7 +843,23 @@ export function ClusterMaintenancePanel() {
       accessorKey: "type",
       header: "Typ",
       meta: { info: WARTUNG_COLUMNS.type },
-      cell: ({ row }) => <ClusterTypeAssignmentSelect row={row.original} disabled={isSaving} onChange={saveClusterType} />,
+      cell: ({ getValue }) => {
+        const value = getValue() as MaintenanceClusterType;
+        return <Badge variant={value === "Spezial" ? "destructive" : "secondary"}>{value}</Badge>;
+      },
+    },
+    {
+      id: "capacityProfile",
+      header: "Basisprofil",
+      meta: { info: WARTUNG_COLUMNS.capacityProfile },
+      accessorFn: (row) => capacityPolicyByCluster.get(`${row.vcenterId}::${row.clusterKey}`)?.policyId ?? "",
+      cell: ({ row }) => <CapacityProfileAssignmentSelect
+        row={row.original}
+        policies={capacityPolicies}
+        policyId={capacityPolicyByCluster.get(`${row.original.vcenterId}::${row.original.clusterKey}`)?.policyId}
+        disabled={isSavingCapacityPolicy}
+        onChange={saveCapacityProfile}
+      />,
     },
     {
       accessorKey: "windows",
@@ -846,10 +887,10 @@ export function ClusterMaintenancePanel() {
         );
       },
     },
-  ], [isSaving, saveClusterType, searchedRows, selectedKeys]);
+  ], [capacityPolicies, capacityPolicyByCluster, isSavingCapacityPolicy, saveCapacityProfile, searchedRows, selectedKeys]);
 
   const saveAssignments = async (targetRows: MaintenanceClusterRow[], draft: MaintenanceClusterAssignment) => {
-    await Promise.all(targetRows.map((row) => saveAssignment({
+    await Promise.all(targetRows.map((row) => saveMaintenanceAssignment({
       vcenterId: row.vcenterId,
       clusterName: row.name,
       type: draft.type,
@@ -862,7 +903,7 @@ export function ClusterMaintenancePanel() {
   };
 
   const dataLoading = snapshotsLoading || vmsLoading || clustersLoading || hostsLoading
-    || rawVHostLoading || techInfoLoading;
+    || rawVHostLoading || techInfoLoading || capacityPoliciesLoading;
   if (dataLoading) return <PageLoadingState title="Wartungsankündigung" />;
 
   if (snapshots.length === 0) return null;
@@ -899,8 +940,8 @@ export function ClusterMaintenancePanel() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
         <div>
-          <p className="text-sm font-medium">Clusterzuweisung</p>
-          <p className="text-xs text-muted-foreground">Den Typ direkt in der Tabelle ändern. Die Zuordnung wird lokal pro vCenter und Cluster gespeichert; Wartungsfenster und Empfänger bleiben erhalten.</p>
+          <p className="text-sm font-medium">Fill-Up-Basisprofil zuweisen</p>
+          <p className="text-xs text-muted-foreground">VDI, SAP, Standard Server Windows und weitere Kapazitätsprofile direkt pro vCenter und Cluster setzen. Wartungsfenster, Empfänger und Wartungstyp bleiben davon getrennt.</p>
         </div>
         <Badge variant="outline" className="font-mono-data text-xs">{formatNum(searchedRows.length)} im Scope</Badge>
       </div>
@@ -938,7 +979,7 @@ export function ClusterMaintenancePanel() {
             selectedRows={selectedRows}
             suggestions={techContactSuggestions}
             onSave={saveAssignments}
-            isSaving={isSaving}
+            isSaving={isSavingMaintenance}
           />
         </div>
       </div>

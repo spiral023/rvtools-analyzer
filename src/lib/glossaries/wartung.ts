@@ -64,6 +64,12 @@ export const WARTUNG_COLUMNS: Record<string, GlossaryEntry> = {
       "Wartungsklasse des Clusters: „Normal“ oder „Spezial“. Wird in den Cluster-Zuweisungen gesetzt und steuert die Darstellung in der Ankündigung.",
     source: "Zuweisung (lokal gepflegt)",
   },
+  capacityProfile: {
+    term: "Basisprofil",
+    description:
+      "Wirksame Fill-Up-Kapazitäts-Policy für diesen Cluster, etwa VDI, SAP oder Standard Server Windows. Die Auswahl wird lokal pro vCenter und Cluster gespeichert und steuert spätere Fill-Up-Szenarien; Wartungsfenster und Empfänger bleiben davon getrennt.",
+    source: "Kapazitäts-Policy (lokal gepflegt)",
+  },
   windows: {
     term: "Wartungsfenster",
     description:
