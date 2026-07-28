@@ -30,6 +30,7 @@ const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
+const ExportStudio = lazy(() => import("@/pages/ExportStudio"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Impressum = lazy(() => import("@/pages/Impressum"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -106,6 +107,7 @@ const router = createBrowserRouter([
       { path: "wartungsfenster", element: <MaintenanceWindows /> },
       { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
       { path: "planning", element: <Planning /> },
+      { path: "exports", element: <ExportStudio /> },
       { path: "settings", element: <Settings /> },
       { path: "vcenter", element: <VCenter /> },
       { path: "hosts", element: <Hosts /> },

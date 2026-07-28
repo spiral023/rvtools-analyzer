@@ -1182,6 +1182,19 @@ export interface FilterPreset {
   createdAt: string;
 }
 
+/** Lokal gespeicherte Spaltenauswahl des Export Studios. */
+export type ExportStudioSource = "vms" | "hosts" | "clusters" | "fill-up";
+
+export interface ExportStudioTemplate {
+  id: string;
+  name: string;
+  source: ExportStudioSource;
+  columnIds: string[];
+  pseudonymize: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Wiederverwendbare Auswahl mehrerer vCenter, referenziert über deren stabile vcenterId. */
 export interface VCenterGroup {
   id: string;
@@ -1206,6 +1219,7 @@ export interface UiState {
   lastFilter?: FilterState;
   presets?: FilterPreset[];
   selectionVmKeys?: string[];
+  exportStudioTemplates?: ExportStudioTemplate[];
 }
 
 export type ScenarioType = "cluster-migration";

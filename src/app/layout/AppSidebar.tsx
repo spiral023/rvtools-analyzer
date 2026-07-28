@@ -29,6 +29,7 @@ import {
   ClipboardList,
   CalendarRange,
   ListChecks,
+  FileOutput,
   type LucideIcon,
 } from "lucide-react";
 
@@ -63,6 +64,7 @@ const toolsNav: NavItem[] = [
   { title: "Netzwerk-Kontrolle", url: "/network-audit", icon: ListChecks },
   { title: "Wartung", url: "/wartungsankuendigung", icon: CalendarRange },
   { title: "Planung", url: "/planning", icon: GitCompare },
+  { title: "Export & Berichte", url: "/exports", icon: FileOutput },
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
 

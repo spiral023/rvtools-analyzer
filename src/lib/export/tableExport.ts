@@ -129,6 +129,21 @@ export function exportMarkdownTable(data: TableExportData, filename: string): vo
   );
 }
 
+function escapeCsvCell(value: string): string {
+  return /[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+export function buildCsvTable(data: TableExportData): string {
+  return [
+    data.headers.map(escapeCsvCell).join(";"),
+    ...data.rows.map((row) => data.headers.map((header) => escapeCsvCell(row[header] ?? "")).join(";")),
+  ].join("\r\n");
+}
+
+export function exportCsvTable(data: TableExportData, filename: string): void {
+  downloadTextFile(`\uFEFF${buildCsvTable(data)}`, `${normalizeExportFilename(filename)}.csv`, "text/csv;charset=utf-8");
+}
+
 export async function exportExcelTable(data: TableExportData, filename: string): Promise<void> {
   const XLSX = await import("@e965/xlsx");
   const worksheet = XLSX.utils.json_to_sheet(data.rows, { header: data.headers });

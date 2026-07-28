@@ -1,5 +1,11 @@
 # Changelog
 
+## 28.07.2026
+
+- Neues lokales **Export Studio** mit frei wählbaren, per Drag & Drop sortierbaren Spalten für VM-, Host-, Cluster- und gespeicherte Fill-Up-Ergebnisse.
+- Exporte übernehmen den aktiven Daten-Scope und stehen als XLSX, CSV sowie Markdown-Management-Report bereit.
+- Optionale, konsistente Pseudonymisierung und lokal gespeicherte Exportvorlagen ergänzt.
+
 ## Änderungen seit 28.07.2026
 
 Die Planung enthält jetzt eine lokale Fill-Up- und Cluster-Kapazitätsanalyse. Sie importiert getrennte stündliche vROps-CSV-Dateisätze für VMs, Cluster und Hosts, prüft deren Schema, Einheiten, Zeitzonen und Datenqualität und speichert sie kompakt im Browser.

@@ -103,6 +103,11 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
     description:
       "Kapazitäts- und What-if-Planung auf Cluster-Ebene: Szenarien durchspielen, bevor Workloads verschoben oder Hosts ergänzt werden.",
   },
+  "/exports": {
+    term: "Export & Berichte",
+    description:
+      "Stellt lokale XLSX-, CSV- und Markdown-Exporte aus dem aktuell gefilterten Datenbestand zusammen. Spalten, Reihenfolge, Vorlagen und optionale Pseudonymisierung werden nur im Browser verwaltet.",
+  },
 };
 
 /* ------------------------------------------------------------------ */
