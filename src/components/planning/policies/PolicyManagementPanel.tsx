@@ -84,7 +84,7 @@ export function PolicyManagementPanel() {
 
       <PolicyClusterAssignmentTable />
 
-      <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-6 xl:grid-cols-[23.4rem_minmax(0,1fr)] xl:items-start">
         <PolicyCatalogList
           policies={policies}
           selectedPolicy={selectedPolicy}

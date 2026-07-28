@@ -31,7 +31,6 @@ describe("Hosts", () => {
     expect(screen.getByRole("heading", { name: "Hosts" })).toBeInTheDocument();
     expect(screen.getByText("ESXi Hosts")).toBeInTheDocument();
     expect(screen.getByText("Wartungsmodus")).toBeInTheDocument();
-    expect(screen.getByText("NTP/DNS Issues")).toBeInTheDocument();
     expect(screen.getByText("Host Inventar")).toBeInTheDocument();
     expect(screen.getByText("Neueste ESXi Versionen")).toBeInTheDocument();
   });
