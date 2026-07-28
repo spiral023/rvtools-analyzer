@@ -265,8 +265,6 @@ export function HostNetworkPanel() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">vmnic-zu-Switch-Belegung der Hosts, aggregierte Konfigurations-Varianten und vDS-Übersicht. Infrastruktur-Sicht — nicht vom globalen VM-Filter betroffen.</p>
-
       <KpiGrid>
         <KpiCard title="Hosts" value={formatNum(hostCount)} icon={<Server className="h-4 w-4" />} info={NET_HOST_KPI.hosts} />
         <KpiCard title="vDS" value={formatNum(rawDvSwitch.length)} icon={<Router className="h-4 w-4" />} info={NET_HOST_KPI.vds} />

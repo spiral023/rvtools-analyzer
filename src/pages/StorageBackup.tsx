@@ -233,7 +233,6 @@ export default function StorageBackup() {
   const datastoreCapacityStats = useMemo(() => calculateDatastoreCapacityStats(datastores, vms), [datastores, vms]);
   const thinDiskCount = disks.filter((disk) => disk.thin).length;
   const rdmDiskCount = disks.filter((disk) => disk.raw).length;
-  const vmfsUpgradeCandidates = dsLifecycle.filter((datastore) => datastore.upgradeable.toLowerCase() === "true").length;
 
   // Datastore Efficiency
   const dsEfficiency = useMemo<DsEffRow[]>(() => {
@@ -341,7 +340,6 @@ export default function StorageBackup() {
             <KpiCard title="Ø Datastore frei" value={datastoreCapacityStats.avgFreePct === null ? "—" : formatPct(datastoreCapacityStats.avgFreePct)} severity={datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 15 ? "crit" : datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 25 ? "warn" : "ok"} />
             <KpiCard title="Kritische Datastores" value={formatNum(datastoreCapacityStats.critical)} severity={datastoreCapacityStats.critical > 0 ? "crit" : "ok"} subtitle="unter 10 % frei" />
             <KpiCard title="Speicherwirkgrad" value={`${datastoreCapacityStats.storageEfficiency.ratio}%`} subtitle={`${datastoreCapacityStats.storageEfficiency.inUseGiB.toFixed(0)} / ${datastoreCapacityStats.storageEfficiency.provisionedGiB.toFixed(0)} GiB`} />
-            <KpiCard title="VMFS Upgrade-Kandidaten" value={formatNum(vmfsUpgradeCandidates)} severity={vmfsUpgradeCandidates > 0 ? "warn" : "ok"} info={STORAGE_KPI.rdmUpgradeable} />
           </KpiGrid>
           {partitions.length > 0 && (
             <div className="rounded-lg border border-border/50 bg-card/30 p-4">

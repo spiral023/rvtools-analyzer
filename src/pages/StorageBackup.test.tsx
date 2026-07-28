@@ -73,7 +73,6 @@ describe("StorageBackup KPI-Kacheln", () => {
       "Ø Datastore frei",
       "Kritische Datastores",
       "Speicherwirkgrad",
-      "VMFS Upgrade-Kandidaten",
     ]);
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Pfade & Geräte" }), { button: 0 });

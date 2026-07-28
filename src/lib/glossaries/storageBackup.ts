@@ -61,12 +61,6 @@ export const STORAGE_KPI: Record<string, GlossaryEntry> = {
       "Anzahl der thin-provisionierten virtuellen Disks. Sparen Datastore-Platz, können aber bei Überprovisionierung zu Out-of-Space-Situationen auf dem Datastore führen.",
     source: `${RV} · vDisk · „Thin“`,
   },
-  rdmUpgradeable: {
-    term: "RDM / VMFS Upg.",
-    description:
-      "Raw Device Mappings und auf ältere VMFS-Version laufende, upgrade-fähige Datastores. RDMs schränken vMotion/Snapshots ein; upgrade-fähige VMFS-Volumes sind Lifecycle-Kandidaten.",
-    source: `${RV} · vDisk · „Raw“ / vDatastore · „VMFS Upgradeable“`,
-  },
   datastores: {
     term: "Datastores",
     description: "Anzahl der Datastores in der Effizienzbetrachtung.",
