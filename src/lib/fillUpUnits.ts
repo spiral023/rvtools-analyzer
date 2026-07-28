@@ -21,3 +21,13 @@ export function fromFillUpDisplayValue(value: string, unit: "MHz" | "MiB"): numb
   if (!Number.isFinite(parsed)) return null;
   return parsed * (unit === "MHz" ? 1_000 : 1_024);
 }
+
+const WEEKDAY_LABELS = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"] as const;
+
+export function formatWorstHour(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const date = new Date(value);
+  const weekday = WEEKDAY_LABELS[date.getDay()];
+  const time = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return `${weekday}, ${time}`;
+}

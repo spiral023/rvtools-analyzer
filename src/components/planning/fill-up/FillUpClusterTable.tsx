@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import type { CapacityStatus, FillUpGuardrailHeadroom, FillUpScenarioResult } from "@/domain/models/types";
 import type { FillUpPlanningClusterResult } from "@/domain/services/fillUpPlanningService";
-import { formatFillUpValue } from "@/lib/fillUpUnits";
+import { formatFillUpValue, formatWorstHour } from "@/lib/fillUpUnits";
 import { FILL_UP_COLUMNS } from "@/lib/glossaries/planning";
 
 const STATUS_LABEL: Record<CapacityStatus, string> = { green: "erfüllt", yellow: "knapp", red: "verletzt", unknown: "offen" };
@@ -89,7 +89,7 @@ function LimiterValue({ guardrail }: { guardrail: FillUpGuardrailHeadroom | null
 
 function scenarioDetails(scenario: FillUpScenarioResult): string[] {
   return [
-    `Ungünstigste Stunde: ${formatTimestamp(scenario.worstTimestampUtc)}`,
+    `Ungünstigste Stunde: ${formatWorstHour(scenario.worstTimestampUtc)}`,
     `CPU Demand / Kapazität: ${formatFillUpValue(scenario.cpuDemandMHz, "MHz")} / ${formatFillUpValue(scenario.cpuCapacityMHz, "MHz")}`,
     `RAM zugewiesen / Kapazität: ${formatFillUpValue(scenario.assignedMemoryMiB, "MiB")} / ${formatFillUpValue(scenario.memoryCapacityMiB, "MiB")}`,
     `Verbleibende Cores: ${formatOptionalNumber(scenario.cpuCores)}`,
@@ -109,5 +109,4 @@ function formatOptionalNumber(value: number | null | undefined) { return value =
 function formatPercent(value: number) { return `${value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`; }
 function formatPercentile(value: number) { return value.toLocaleString("de-DE", { maximumFractionDigits: 2 }); }
 function formatRatio(value: number | null) { return value === null ? "—" : value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function formatTimestamp(value: number | null) { return value === null ? "—" : new Date(value).toLocaleString("de-DE"); }
 function statusRank(status: CapacityStatus) { return ({ red: 0, unknown: 1, yellow: 2, green: 3 })[status]; }
