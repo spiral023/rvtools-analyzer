@@ -20,6 +20,8 @@ Fehler beim Start, der Datenübergabe oder der Rückgabe der Fill-up-Worker-Ausw
 
 Große Zeitreihenpuffer werden aus IndexedDB ohne zusätzliche Kopie an den Fill-up-Worker übertragen; die Rückgabe lässt Objektlisten aus Szenarien weg, die in der Oberfläche nicht benötigt werden.
 
+Auf der Seite Wartung lässt sich der Cluster-Typ jetzt direkt in der Tabelle zuweisen. Jede Auswahl bleibt lokal vCenter- und clusterbezogen gespeichert und bewahrt vorhandene Wartungsfenster sowie Empfänger.
+
 Für jeden verbundenen RVTools-Cluster werden Normalbetrieb, N-1, optional N-2 sowie HIGH-Site-Failover berechnet. Versionierte Kapazitätspolicies, CPU-/RAM- und Platzierungs-Guardrails, HIGH-/STD-Workloadprofile und eine nachvollziehbare Fill-Up-Empfehlung sind im Planungstab verfügbar.
 
 Analyzer-Runs lassen sich lokal speichern, duplizieren, umbenennen, löschen und als Markdown kopieren. Sie behalten ihre import-, policy- und ergebnisbezogenen Snapshots unveränderlich bei. Die fachliche Gegenrechnung mit einem vollständigen Realcluster und der Skalierungstest folgen weiterhin nachgelagert.

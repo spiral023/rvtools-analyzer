@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { CalendarClock, Clock, Copy, FileText, Link2, Mail, Plus, Save, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link } from "react-router-dom";
@@ -25,6 +25,7 @@ import { WARTUNG_KPI, WARTUNG_COLUMNS, WARTUNG_SECTIONS } from "@/lib/glossaries
 import { useActiveSnapshotIds, useClusters, useHosts, useRawSheet, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceAssignments, useMaintenanceSettings } from "@/hooks/useMaintenance";
 import {
+  assignmentForClusterType,
   buildMaintenanceMailTemplate,
   buildMaintenanceRows,
   createDefaultAssignment,
@@ -113,6 +114,30 @@ function makeDraft(row: MaintenanceClusterRow | null): MaintenanceClusterAssignm
     additionalEmails: row.additionalEmails,
     updatedAt: new Date().toISOString(),
   };
+}
+
+export function ClusterTypeAssignmentSelect({
+  row,
+  disabled,
+  onChange,
+}: {
+  row: MaintenanceClusterRow;
+  disabled: boolean;
+  onChange: (row: MaintenanceClusterRow, type: MaintenanceClusterType) => void;
+}) {
+  return (
+    <select
+      aria-label={`Cluster-Typ für ${row.name} in ${row.vcenterId}`}
+      value={row.type}
+      disabled={disabled}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => onChange(row, event.target.value as MaintenanceClusterType)}
+      className="h-8 min-w-[6.75rem] rounded-md border border-input bg-background px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-60"
+    >
+      <option value="Normal">Normal</option>
+      <option value="Spezial">Spezial</option>
+    </select>
+  );
 }
 
 function SelectBox({
@@ -716,6 +741,18 @@ export function ClusterMaintenancePanel() {
     });
   };
 
+  const saveClusterType = useCallback(async (row: MaintenanceClusterRow, type: MaintenanceClusterType) => {
+    if (row.type === type) return;
+    try {
+      await saveAssignment(assignmentForClusterType(row, type));
+      toast.success(`Cluster-Typ für „${row.name}“ gespeichert.`);
+    } catch (saveError) {
+      toast.error(`Cluster-Typ für „${row.name}“ konnte nicht gespeichert werden.`, {
+        description: saveError instanceof Error ? saveError.message : undefined,
+      });
+    }
+  }, [saveAssignment]);
+
   const columns = useMemo<ColumnDef<MaintenanceClusterRow, unknown>[]>(() => [
     {
       id: "select",
@@ -743,6 +780,14 @@ export function ClusterMaintenancePanel() {
           aria-label={`${row.original.name} auswählen`}
         />
       ),
+    },
+    {
+      accessorKey: "vcenterId",
+      header: "vCenter",
+      cell: ({ getValue }) => {
+        const value = getValue() as string;
+        return <span className="block max-w-[130px] truncate font-mono-data text-xs" title={value}>{value}</span>;
+      },
     },
     {
       accessorKey: "name",
@@ -773,10 +818,7 @@ export function ClusterMaintenancePanel() {
       accessorKey: "type",
       header: "Typ",
       meta: { info: WARTUNG_COLUMNS.type },
-      cell: ({ getValue }) => {
-        const value = getValue() as MaintenanceClusterType;
-        return <Badge variant={value === "Spezial" ? "destructive" : "secondary"}>{value}</Badge>;
-      },
+      cell: ({ row }) => <ClusterTypeAssignmentSelect row={row.original} disabled={isSaving} onChange={saveClusterType} />,
     },
     {
       accessorKey: "windows",
@@ -804,7 +846,7 @@ export function ClusterMaintenancePanel() {
         );
       },
     },
-  ], [searchedRows, selectedKeys]);
+  ], [isSaving, saveClusterType, searchedRows, selectedKeys]);
 
   const saveAssignments = async (targetRows: MaintenanceClusterRow[], draft: MaintenanceClusterAssignment) => {
     await Promise.all(targetRows.map((row) => saveAssignment({
@@ -854,6 +896,14 @@ export function ClusterMaintenancePanel() {
           </AlertDescription>
         </Alert>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
+        <div>
+          <p className="text-sm font-medium">Clusterzuweisung</p>
+          <p className="text-xs text-muted-foreground">Den Typ direkt in der Tabelle ändern. Die Zuordnung wird lokal pro vCenter und Cluster gespeichert; Wartungsfenster und Empfänger bleiben erhalten.</p>
+        </div>
+        <Badge variant="outline" className="font-mono-data text-xs">{formatNum(searchedRows.length)} im Scope</Badge>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,860px)_minmax(420px,1fr)]">
         <div>

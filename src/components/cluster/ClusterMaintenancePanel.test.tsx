@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AssignmentPanel } from "./ClusterMaintenancePanel";
-import type { MaintenanceClusterRow } from "@/lib/maintenance";
+import {
+  AssignmentPanel,
+  ClusterTypeAssignmentSelect,
+} from "./ClusterMaintenancePanel";
+import { assignmentForClusterType, type MaintenanceClusterRow } from "@/lib/maintenance";
 
 const row: MaintenanceClusterRow = {
   key: "vc-1::CL-Prod",
@@ -46,5 +49,36 @@ describe("AssignmentPanel", () => {
       windows: [expect.objectContaining({ label: "Freitag 22:00-02:00 Uhr" })],
     }));
     await waitFor(() => expect(screen.getByPlaceholderText("z. B. Werktags 22:00-05:00 Uhr")).toHaveValue(""));
+  });
+});
+
+describe("ClusterTypeAssignmentSelect", () => {
+  it("emits the vCenter-scoped cluster and selected type", () => {
+    const onChange = vi.fn();
+    render(<ClusterTypeAssignmentSelect row={row} disabled={false} onChange={onChange} />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Cluster-Typ für CL-Prod in vc-1" }), {
+      target: { value: "Spezial" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith(row, "Spezial");
+  });
+
+  it("preserves windows and recipients when only the cluster type changes", () => {
+    const source: MaintenanceClusterRow = {
+      ...row,
+      windows: [{ id: "window-1", label: "Freitag 22:00-02:00 Uhr" }],
+      contacts: [{ firstName: "Mira", lastName: "Mustermann" }],
+      additionalEmails: ["betrieb@example.invalid"],
+    };
+
+    expect(assignmentForClusterType(source, "Spezial")).toMatchObject({
+      vcenterId: "vc-1",
+      clusterName: "CL-Prod",
+      type: "Spezial",
+      windows: source.windows,
+      contacts: source.contacts,
+      additionalEmails: source.additionalEmails,
+    });
   });
 });
