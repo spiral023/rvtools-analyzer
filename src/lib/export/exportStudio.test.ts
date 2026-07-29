@@ -3,12 +3,13 @@ import {
   buildClusterExportDataset,
   buildExportDataFromDataset,
   buildManagementMarkdown,
+  buildVmExportDataset,
   pseudonymizeExportDataset,
   type ExportStudioDataset,
 } from "./exportStudio";
 import { buildCsvTable } from "./tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
-import type { NormalizedCluster, SnapshotMeta } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedVm, SnapshotMeta, VmWorkloadProfile } from "@/domain/models/types";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 
 const dataset: ExportStudioDataset = {
@@ -51,6 +52,56 @@ describe("Export Studio domain helpers", () => {
 
   it("erstellt Excel-kompatible CSV mit Semikolon und sauber escaped Quotes", () => {
     expect(buildCsvTable({ headers: ["Name", "Kommentar"], rows: [{ Name: "server-001", Kommentar: "A; \"kritisch\"" }] })).toBe('Name;Kommentar\r\nserver-001;"A; ""kritisch"""');
+  });
+});
+
+describe("buildVmExportDataset", () => {
+  const snapshot: SnapshotMeta = {
+    snapshotId: "snap-1", vcenterId: "vc-1", vcenterDisplayName: "vCenter Prod", exportTs: "2026-07-28T00:00:00.000Z",
+    importedAt: "2026-07-28T00:00:00.000Z", fileName: "export.xlsx", fileChecksum: "abc", sheetStats: {},
+  };
+
+  function vm(overrides: Partial<NormalizedVm> = {}): NormalizedVm {
+    return {
+      snapshotId: "snap-1", vcenterId: "vc-1", vmKey: "vm-1", vmUuid: null, vmName: "sql-01", cluster: "Production", host: "esx-01",
+      powerState: "poweredOn", cpuCount: 4, memoryMiB: 8192, provisionedMiB: null, inUseMiB: null, configStatus: null, connectionState: null,
+      consolidationNeeded: null, osConfig: "Windows", osTools: null, hwVersion: null, toolsStatus: null, toolsVersion: null, datacenter: null,
+      folder: null, resourcePool: null, annotation: null, cpuReady: null, firmware: null, efiSecureBoot: null, cbt: null,
+      ...overrides,
+    };
+  }
+
+  const emptyStats = { expectedSlots: 168, sampleCount: 0, coverageRatio: 0, average: null, p50: null, p95: null, maximum: null };
+
+  function profile(overrides: Partial<VmWorkloadProfile> = {}): VmWorkloadProfile {
+    return {
+      objectKey: "obj-1", rvtoolsObjectKey: "vm-1", vmName: "sql-01", clusterKey: null, clusterName: "Production",
+      hostKey: null, host: "esx-01", vcpu: 4, configuredMemoryMiB: 8192, powerState: "poweredOn", workloadClass: "unknown",
+      hourly: [{ timestampUtc: Date.UTC(2026, 6, 1, 0, 0), cpuDemandMHz: 412.3, cpuReadyPct: 0.5 }],
+      demand: emptyStats, ready: emptyStats, behaviorClass: "bursty", confidence: "high",
+      signals: { coefficientOfVariation: null, activeHourSharePct: null, utilizationP95Pct: null, dailyRepeatability: null, businessHoursConcentration: null, nightConcentration: null, weekendConcentration: null },
+      ...overrides,
+    };
+  }
+
+  it("nennt die Datenquelle \"VM\" statt \"VM-Inventar\"", () => {
+    const result = buildVmExportDataset([], [snapshot], "1 vCenter-Scope");
+    expect(result.title).toBe("VM");
+  });
+
+  it("reichert eine VM-Zeile per vmKey mit Verhaltensklasse und CPU-Demand-Rohdaten an", () => {
+    const result = buildVmExportDataset([vm()], [snapshot], "1 vCenter-Scope", [profile()]);
+    expect(result.rows[0]).toMatchObject({ behaviorClass: "Bursty", cpuDemandRaw: "2026-07-01 02:00=412.30" });
+  });
+
+  it("zeigt \"—\" für Profilspalten, wenn keine Zeitreihe zur VM passt", () => {
+    const result = buildVmExportDataset([vm({ vmKey: "vm-2" })], [snapshot], "1 vCenter-Scope", [profile()]);
+    expect(result.rows[0]).toMatchObject({ behaviorClass: "—", cpuDemandRaw: "—" });
+  });
+
+  it("zählt profilierte VMs als eigene Kennzahl", () => {
+    const result = buildVmExportDataset([vm(), vm({ vmKey: "vm-2", vmName: "web-01" })], [snapshot], "1 vCenter-Scope", [profile()]);
+    expect(result.kpis.find((kpi) => kpi.label === "Profilierte VMs")?.value).toBe("1");
   });
 });
 

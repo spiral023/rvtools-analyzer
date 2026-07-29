@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getUiState, putUiState } from "@/data/db";
 import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { useFillUpAnalysisRuns } from "@/hooks/useFillUpAnalysisRuns";
+import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import type { ExportStudioSource, ExportStudioTemplate } from "@/domain/models/types";
 import {
@@ -28,8 +29,8 @@ import { downloadTextFile, exportCsvTable, exportExcelTable, normalizeExportFile
 const UI_STATE_ID = "export-studio";
 
 const sourceLabels: Record<ExportStudioSource, string> = {
-  vms: "VM-Inventar",
-  hosts: "Host-Inventar",
+  vms: "VM",
+  hosts: "Host",
   clusters: "Cluster",
   "fill-up": "Fill-Up-Ergebnisse",
 };
@@ -58,6 +59,7 @@ export default function ExportStudio() {
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const { runs, isLoading: runsLoading } = useFillUpAnalysisRuns();
+  const { profiles: workloadProfiles, isLoading: workloadProfilesLoading } = useVmWorkloadProfiles(null);
   const [source, setSource] = useState<ExportStudioSource>("vms");
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const [pseudonymize, setPseudonymize] = useState(false);
@@ -101,8 +103,8 @@ export default function ExportStudio() {
     if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope);
     if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
-    return buildVmExportDataset(vms, activeSnapshots, scope);
-  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms]);
+    return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles);
+  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadProfiles]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
   const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
@@ -171,7 +173,7 @@ export default function ExportStudio() {
     }
   };
 
-  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading;
+  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading;
   if (loading) return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Exportdaten werden vorbereitet…</div>;
   if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Laden Sie zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
 
