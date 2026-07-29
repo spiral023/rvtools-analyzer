@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, classifyVmBehavior } from "@/domain/services/vmWorkloadProfileService";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { percentile } from "@/lib/statistics";
-import type { NormalizedHost, VmBehaviorClass, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape, VropsTimeSeriesConfidenceLevel } from "@/domain/models/types";
+import type { NormalizedHost, VmBehaviorClass, VmRightsizingCandidate, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape, VropsTimeSeriesConfidenceLevel } from "@/domain/models/types";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -81,8 +81,12 @@ interface ParsedRow {
   confidence: VropsTimeSeriesConfidenceLevel;
   /** Rightsizing-Werte des Exports; `null`, wenn die Spalten fehlen. */
   exportedUsedVcpuP95: number | null;
+  exportedUsedVcpuPeak: number | null;
+  exportedDemandBasedVcpu: number | null;
   exportedRecommendedVcpu: number | null;
   exportedReclaimableVcpu: number | null;
+  /** Rohtext der Spalte „Keine Empfehlung, weil"; „—" bedeutet: Empfehlung ausgesprochen. */
+  exportedWithheldLabel: string | null;
   hasRightsizingColumns: boolean;
   configuredCpuCapacityMHz: number | null;
   /** Alle Slots des Exports, auch Lücken (Wert null) – nötig für coverageRatio. */
@@ -139,8 +143,11 @@ function parseCsv(path: string): ParsedRow[] {
     intensity: optionalColumnIndex("Auslastungsniveau"),
     confidence: optionalColumnIndex("Vertrauen (Profil)"),
     usedVcpuP95: optionalColumnIndex("Genutzt P95 (vCPU)"),
+    usedVcpuPeak: optionalColumnIndex("Genutzt Maximum (vCPU)"),
+    demandBasedVcpu: optionalColumnIndex("Bedarfsgerecht (vCPU)"),
     recommendedVcpu: optionalColumnIndex("Empfohlen (vCPU)"),
     reclaimableVcpu: optionalColumnIndex("Rückgewinnbar (vCPU)"),
+    withheld: optionalColumnIndex("Keine Empfehlung, weil"),
     capacity: columnIndex("Konfigurierte CPU-Kapazität (MHz)"),
     raw: columnIndex("CPU Demand Rohdaten (7 Tage)"),
   };
@@ -166,8 +173,11 @@ function parseCsv(path: string): ParsedRow[] {
       exportedIntensityLabel: idx.intensity !== null ? fields[idx.intensity] ?? "" : null,
       confidence: CONFIDENCE_BY_LABEL.get(idx.confidence !== null ? fields[idx.confidence] ?? "" : "") ?? "high",
       exportedUsedVcpuP95: idx.usedVcpuP95 !== null ? parseGermanNumber(fields[idx.usedVcpuP95] ?? "") : null,
+      exportedUsedVcpuPeak: idx.usedVcpuPeak !== null ? parseGermanNumber(fields[idx.usedVcpuPeak] ?? "") : null,
+      exportedDemandBasedVcpu: idx.demandBasedVcpu !== null ? parseGermanNumber(fields[idx.demandBasedVcpu] ?? "") : null,
       exportedRecommendedVcpu: idx.recommendedVcpu !== null ? parseGermanNumber(fields[idx.recommendedVcpu] ?? "") : null,
       exportedReclaimableVcpu: idx.reclaimableVcpu !== null ? parseGermanNumber(fields[idx.reclaimableVcpu] ?? "") : null,
+      exportedWithheldLabel: idx.withheld !== null ? fields[idx.withheld] ?? "" : null,
       hasRightsizingColumns: idx.reclaimableVcpu !== null,
       configuredCpuCapacityMHz: parseGermanNumber(fields[idx.capacity] ?? ""),
       slots,
@@ -510,8 +520,8 @@ function main(): void {
     console.log(`    < ${String(limit).padStart(5)} MHz: ${String(belowAbsolute(limit)).padStart(5)}  (${((100 * belowAbsolute(limit)) / noisy.length).toFixed(1)} %)`);
   }
 
-  /* --- 15. Verdeckt die constant-Regel Kalendermuster? -------------- */
-  console.log(`\n=== 15. Reihenfolge: "constant" wird vor den Kalenderregeln geprüft ===`);
+  /* --- 14. Verdeckt die constant-Regel Kalendermuster? -------------- */
+  console.log(`\n=== 14. Reihenfolge: "constant" wird vor den Kalenderregeln geprüft ===`);
   console.log(`  Betroffen sind VMs mit CV <= 0,5 (daher "Dauerlast"), die zugleich ein`);
   console.log(`  dominantes Kalenderfenster haben und ohne die Vorrangregel dort landen würden.`);
   const calendarMasked = results.filter((entry) => {
@@ -559,7 +569,7 @@ function main(): void {
  * das Maximum wird gar nicht exportiert, ist für die Empfehlung aber maßgeblich.
  */
 function reportRightsizing(results: readonly Recomputed[]): void {
-  console.log(`\n=== 14. Rightsizing: Export (alte Formel) gegen aktuelle Logik ===`);
+  console.log(`\n=== 15. Rightsizing: Reproduktion und Verteilung ===`);
   const usable = results.filter((entry) => entry.row.vcpu !== null && entry.row.vcpu > 0 && entry.row.configuredCpuCapacityMHz !== null);
   if (usable.length === 0) {
     console.log(`  Keine VMs mit vCPU und Kapazität – nicht auswertbar.`);
@@ -592,50 +602,63 @@ function reportRightsizing(results: readonly Recomputed[]): void {
 
   const candidates = new Map(buildVmRightsizingCandidates({ profiles, hosts }).map((candidate) => [candidate.objectKey, candidate]));
 
-  let oddReclaim = 0;
-  let sumOld = 0;
-  let sumNew = 0;
-  let lessAggressive = 0;
-  let unchanged = 0;
-  let moreAggressive = 0;
-  const deepCutsOld: number[] = [];
-  const deepCutsNew: number[] = [];
-  const reclaimShare: number[] = [];
-
-  for (const entry of usable) {
-    const candidate = candidates.get(entry.row.server);
-    if (!candidate) continue;
-    const vcpu = entry.row.vcpu!;
-    const newReclaim = candidate.reclaimableVcpu ?? 0;
-    const oldReclaim = entry.row.exportedReclaimableVcpu;
-    if (newReclaim % 2 !== 0) oddReclaim += 1;
-    sumNew += newReclaim;
-    reclaimShare.push(newReclaim / vcpu);
-    if (oldReclaim !== null) {
-      sumOld += oldReclaim;
-      if (newReclaim < oldReclaim) lessAggressive += 1;
-      else if (newReclaim > oldReclaim) moreAggressive += 1;
-      else unchanged += 1;
-      deepCutsOld.push(oldReclaim / vcpu);
-    }
-    deepCutsNew.push(newReclaim / vcpu);
-  }
-
   console.log(`  Auswertbare VMs: ${usable.length}`);
-  console.log(`  Ungerade Rückgabewerte der neuen Logik: ${oddReclaim}   (muss 0 sein)`);
+  const oddReclaim = usable.filter((entry) => ((candidates.get(entry.row.server)?.reclaimableVcpu ?? 0) % 2) !== 0).length;
+  console.log(`  Ungerade Rückgabewerte: ${oddReclaim}   (muss 0 sein)`);
+
   if (!usable[0].row.hasRightsizingColumns) {
-    console.log(`  Export führt keine Rightsizing-Spalten – nur die neuen Werte werden ausgewiesen.`);
+    console.log(`  Export führt keine Rightsizing-Spalten – nur die neu berechneten Werte werden ausgewiesen.`);
   } else {
-    console.log(`\n  Rückgewinnbare vCPU gesamt:`);
-    console.log(`    Export (alte Formel): ${sumOld}`);
-    console.log(`    aktuelle Logik:       ${sumNew}   (${sumOld > 0 ? (((sumNew - sumOld) / sumOld) * 100).toFixed(1) : "—"} % gegenüber Export)`);
-    console.log(`\n  Richtung der Änderung je VM:`);
-    console.log(`    zurückhaltender: ${lessAggressive}`);
-    console.log(`    unverändert:     ${unchanged}`);
-    console.log(`    aggressiver:     ${moreAggressive}   (sollte 0 sein)`);
-    console.log(`\n  Anteil der zurückgegebenen vCPU an der konfigurierten Größe:`);
-    console.log(`    Export:         ${quantileSummary(deepCutsOld)}`);
-    console.log(`    aktuelle Logik: ${quantileSummary(deepCutsNew)}`);
+    // Der Export stammt aus derselben Logik, also muss jedes Feld exakt reproduzieren.
+    // Abweichungen sind echte Funde – bei Gleitkommafeldern mit Toleranz, weil die
+    // Kapazität im Export auf ganze MHz gerundet ist und mhzPerCore daraus abgeleitet wird.
+    console.log(`\n  Feldweise Reproduktion gegen den Export:`);
+    const verifyField = (name: string, exported: (row: ParsedRow) => number | null, actual: (candidate: VmRightsizingCandidate) => number | null, tolerance: number) => {
+      let hits = 0;
+      let comparable = 0;
+      const examples: string[] = [];
+      for (const entry of usable) {
+        const candidate = candidates.get(entry.row.server);
+        if (!candidate) continue;
+        const expectedValue = exported(entry.row);
+        if (expectedValue === null) continue;
+        comparable += 1;
+        const actualValue = actual(candidate);
+        if (actualValue !== null && Math.abs(actualValue - expectedValue) <= tolerance) hits += 1;
+        else if (examples.length < 5) examples.push(`${entry.row.server}: Export ${expectedValue} / neu ${actualValue ?? "—"}`);
+      }
+      if (comparable === 0) {
+        console.log(`    ${name.padEnd(26)} Spalte fehlt`);
+        return;
+      }
+      console.log(`    ${name.padEnd(26)} ${hits}/${comparable}  (${((100 * hits) / comparable).toFixed(2)} %)`);
+      for (const example of examples) console.log(`      ${example}`);
+    };
+    verifyField("Genutzt P95 (vCPU)", (row) => row.exportedUsedVcpuP95, (candidate) => candidate.usedVcpuEquivalentP95, 0.01);
+    verifyField("Genutzt Maximum (vCPU)", (row) => row.exportedUsedVcpuPeak, (candidate) => candidate.usedVcpuEquivalentPeak, 0.01);
+    verifyField("Bedarfsgerecht (vCPU)", (row) => row.exportedDemandBasedVcpu, (candidate) => candidate.demandBasedVcpu, 0);
+    verifyField("Empfohlen (vCPU)", (row) => row.exportedRecommendedVcpu, (candidate) => candidate.recommendedVcpu, 0);
+    verifyField("Rückgewinnbar (vCPU)", (row) => row.exportedReclaimableVcpu, (candidate) => candidate.reclaimableVcpu, 0);
+
+    // Der Zurückhaltungsgrund ist Text, daher gegen das Label des Exports geprüft.
+    const withheldLabel: Record<string, string> = { "low-confidence": "Datenbasis zu dünn", "unreliable-shape": "Muster in 7 Tagen nicht verlässlich" };
+    let withheldHits = 0;
+    let withheldComparable = 0;
+    const withheldExamples: string[] = [];
+    for (const entry of usable) {
+      const candidate = candidates.get(entry.row.server);
+      if (!candidate || entry.row.exportedWithheldLabel === null) continue;
+      withheldComparable += 1;
+      const expectedLabel = candidate.recommendationWithheldReason === null ? "—" : withheldLabel[candidate.recommendationWithheldReason];
+      if (entry.row.exportedWithheldLabel === expectedLabel) withheldHits += 1;
+      else if (withheldExamples.length < 5) withheldExamples.push(`${entry.row.server}: Export "${entry.row.exportedWithheldLabel}" / neu "${expectedLabel}"`);
+    }
+    if (withheldComparable > 0) {
+      console.log(`    ${"Keine Empfehlung, weil".padEnd(26)} ${withheldHits}/${withheldComparable}  (${((100 * withheldHits) / withheldComparable).toFixed(2)} %)`);
+      for (const example of withheldExamples) console.log(`      ${example}`);
+    }
+
+    console.log(`\n  Rückgewinnbare vCPU gesamt (Export): ${usable.reduce((sum, entry) => sum + (entry.row.exportedReclaimableVcpu ?? 0), 0)}`);
   }
 
   const all = [...candidates.values()];
