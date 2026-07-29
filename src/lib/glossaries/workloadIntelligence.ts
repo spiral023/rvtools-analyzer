@@ -15,7 +15,17 @@ export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
   behaviorClass: {
     term: "Verhaltensklasse",
     description:
-      "Automatisch aus CPU-Demand, relativer CPU-Auslastung und der Wiederholbarkeit von Tagesprofilen abgeleitete Einordnung. Datenlücken werden als „nicht berechenbar“ getrennt; variable Mischlast ist keine unregelmäßige Last. Eine Heuristik anhand benannter Schwellenwerte – kein Ersatz für fachliche Prüfung.",
+      "Aus Lastmuster und Auslastungsniveau zusammengefasste Einzelklasse. Ein niedriges Niveau überschreibt dabei das Muster, weshalb „gering genutzt“ nichts über den zeitlichen Verlauf aussagt – dafür sind die Spalten „Lastmuster“ und „Auslastungsniveau“ genauer. Erhalten für Vergleichbarkeit mit früheren Auswertungen.",
+  },
+  shape: {
+    term: "Lastmuster",
+    description:
+      "Zeitlicher Verlauf der CPU-Last über sieben Tage, bewusst unabhängig von der Höhe der Auslastung: Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, unregelmäßig oder variabel. Eine schwach ausgelastete VM behält damit ihr erkennbares Muster – etwa ein Nachtjob, der nur wenig CPU braucht.",
+  },
+  intensity: {
+    term: "Auslastungsniveau",
+    description:
+      "Höhe der CPU-Last als P95 relativ zur konfigurierten Kapazität, bewusst unabhängig vom zeitlichen Muster: ruhend (< 2 %), sehr niedrig (2–5 %), niedrig (5–10 %), mittel (10–25 %), erhöht (25–50 %), hoch (ab 50 %). „Unbekannt“, solange Hostfrequenz oder vCPU-Zahl fehlen.",
   },
   confidence: {
     term: "Vertrauensniveau",
@@ -45,6 +55,11 @@ export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
     description: "VMs mit ausreichender Datenbasis, deutlich wechselnder Last und geringer Ähnlichkeit zwischen den einzelnen Tagesprofilen. Variable Mischlast und nicht berechenbare Profile werden separat ausgewiesen.",
     source: "berechnet",
   },
+  idle: {
+    term: "Ruhend",
+    description: "VMs mit einem CPU-Demand-P95 unter 2 % der konfigurierten Kapazität. Der engste und damit belastbarste Kandidatenkreis für Rückbau oder Zusammenlegung – im Gegensatz zu „gering genutzt“, das bis 10 % reicht und deutlich mehr VMs umfasst.",
+    source: "berechnet",
+  },
 };
 
 export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
@@ -52,7 +67,9 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
   host: { term: "Host", description: "ESXi-Host, auf dem die VM zum Exportzeitpunkt lief.", source: `${RV} · vInfo · „Host“` },
   vcpu: { term: "vCPU", description: "Anzahl der konfigurierten virtuellen CPUs.", source: `${RV} · vInfo · „CPUs“` },
-  behaviorClass: { term: "Verhaltensklasse", description: "Automatisch abgeleitetes Lastmuster der letzten sieben Tage. Berücksichtigt Datenabdeckung, relative CPU-Nutzung, Kalendermuster, Spitzenlast und Tageswiederholbarkeit.", source: "berechnet" },
+  shape: { term: "Lastmuster", description: "Zeitlicher Lastverlauf der letzten sieben Tage, unabhängig von der Höhe der Auslastung. Aus Variationskoeffizient, Kalenderkonzentrationen und Tageswiederholbarkeit abgeleitet.", source: "berechnet" },
+  intensity: { term: "Niveau", description: "Auslastungshöhe als P95 relativ zur konfigurierten CPU-Kapazität, unabhängig vom zeitlichen Muster.", source: "berechnet" },
+  behaviorClass: { term: "Verhaltensklasse", description: "Zusammenfassung von Lastmuster und Niveau in eine Einzelklasse; ein niedriges Niveau überschreibt das Muster. Für Musterfragen sind die Spalten „Lastmuster“ und „Niveau“ aussagekräftiger.", source: "berechnet" },
   confidence: { term: "Vertrauen", description: "Vertrauensniveau der Klassifikation.", source: "berechnet" },
   coverage: { term: "Abdeckung", description: "Anteil der erwarteten Stunden, für die ein CPU-Demand-Wert vorliegt.", source: "berechnet" },
   sparkline: { term: "7-Tage-Profil", description: "CPU Demand je Stunde der letzten sieben Tage – Grundlage der Klassifikation.", source: VROPS },
@@ -65,8 +82,12 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
 
 export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
   distribution: {
-    term: "Verteilung der Verhaltensklassen",
-    description: "Anzahl der VMs je Verhaltensklasse. Variable Last bezeichnet wiederkehrende Mischlast; „unregelmäßig“ setzt eine geringe Tageswiederholbarkeit voraus. Ein hoher Anteil „gering genutzt“ oder „bursty“ ist ein guter Ausgangspunkt für Rightsizing und Konsolidierung.",
+    term: "Verteilung der Lastmuster",
+    description: "Anzahl der VMs je zeitlichem Lastmuster – unabhängig davon, wie hoch die Last ausfällt. Variable Last bezeichnet wiederkehrende Mischlast; „unregelmäßig“ setzt eine geringe Tageswiederholbarkeit voraus. Kalendergeprägte Muster sind Kandidaten für Zeitsteuerung, „bursty“ für Rightsizing.",
+  },
+  intensityDistribution: {
+    term: "Verteilung der Auslastungsniveaus",
+    description: "Anzahl der VMs je Auslastungshöhe (P95 relativ zur konfigurierten CPU-Kapazität) – unabhängig vom zeitlichen Muster. Ein starkes Gewicht auf den unteren Stufen zeigt CPU-Überprovisionierung im Bestand.",
   },
   table: {
     term: "VM-Profile",
@@ -124,6 +145,8 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ.",
     source: "berechnet",
   },
+  shape: { term: "Lastmuster", description: "Zeitliches Lastmuster aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik. Unabhängig von der Auslastungshöhe, daher auch bei schwach ausgelasteten Kandidaten aussagekräftig.", source: "berechnet" },
+  intensity: { term: "Niveau", description: "Auslastungsniveau aus dem VM-Profile-Tab: P95 relativ zur konfigurierten CPU-Kapazität.", source: "berechnet" },
   behaviorClass: { term: "Verhaltensklasse", description: "Verhaltensklasse aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik.", source: "berechnet" },
   confidence: { term: "Vertrauen", description: "Vertrauensniveau der zugrunde liegenden Klassifikation.", source: "berechnet" },
 };
@@ -137,8 +160,8 @@ export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
     term: "Rückgewinnbare vCPU je Cluster",
     description: "Summiert die rückgewinnbare vCPU-Kapazität aller Kandidaten je Cluster – ein Ausgangspunkt für Konsolidierung oder Fill-Up-Planung.",
   },
-  behaviorSummary: {
-    term: "Rückgewinnbare vCPU je Verhaltensklasse",
-    description: "Summiert die rückgewinnbare vCPU-Kapazität je Verhaltensklasse aus dem VM-Profile-Tab – zeigt, welche Lastmuster das größte Rightsizing-Potenzial haben.",
+  shapeSummary: {
+    term: "Rückgewinnbare vCPU je Lastmuster",
+    description: "Summiert die rückgewinnbare vCPU-Kapazität je zeitlichem Lastmuster aus dem VM-Profile-Tab – zeigt, welche Muster das größte Rightsizing-Potenzial haben. Bewusst nach Muster statt nach Verhaltensklasse gruppiert: Rightsizing-Kandidaten sind ohnehin überwiegend schwach ausgelastet, wodurch eine Gruppierung nach Verhaltensklasse fast alle in „gering genutzt“ sammeln würde.",
   },
 };

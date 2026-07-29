@@ -13,15 +13,17 @@ import { DemandCell } from "@/components/vm/DemandCell";
 import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
-import type { VmBehaviorClass, VmWorkloadProfile } from "@/domain/models/types";
-import { VM_BEHAVIOR_CLASS_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import type { VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
 import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
-const BEHAVIOR_CLASS_ORDER: VmBehaviorClass[] = ["constant-load", "business-hours", "night-batch", "weekend-load", "bursty", "variable-load", "low-utilization", "irregular", "unclassified"];
+const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+/** Aufsteigend nach Auslastung, damit die Achse als Skala lesbar bleibt. */
+const INTENSITY_ORDER: VmWorkloadIntensity[] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
 
 function formatPercent(value: number | null, digits = 1): string {
   return value === null || !Number.isFinite(value) ? "—" : `${value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })} %`;
@@ -59,15 +61,21 @@ export function VmWorkloadProfilePanel() {
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
-  const distribution = useMemo(() => {
-    const counts = new Map<VmBehaviorClass, number>();
-    for (const profile of profiles) counts.set(profile.behaviorClass, (counts.get(profile.behaviorClass) ?? 0) + 1);
-    return BEHAVIOR_CLASS_ORDER.map((behaviorClass) => ({ behaviorClass, label: VM_BEHAVIOR_CLASS_LABEL[behaviorClass], count: counts.get(behaviorClass) ?? 0 }));
+  const shapeDistribution = useMemo(() => {
+    const counts = new Map<VmWorkloadShape, number>();
+    for (const profile of profiles) counts.set(profile.shape, (counts.get(profile.shape) ?? 0) + 1);
+    return SHAPE_ORDER.map((shape) => ({ key: shape, label: VM_WORKLOAD_SHAPE_LABEL[shape], count: counts.get(shape) ?? 0 }));
+  }, [profiles]);
+
+  const intensityDistribution = useMemo(() => {
+    const counts = new Map<VmWorkloadIntensity, number>();
+    for (const profile of profiles) counts.set(profile.intensity, (counts.get(profile.intensity) ?? 0) + 1);
+    return INTENSITY_ORDER.map((intensity) => ({ key: intensity, label: VM_WORKLOAD_INTENSITY_LABEL[intensity], count: counts.get(intensity) ?? 0 }));
   }, [profiles]);
 
   const lowConfidenceCount = useMemo(() => profiles.filter((profile) => profile.confidence === "low" || profile.confidence === "not-computable").length, [profiles]);
   const averageCoveragePct = useMemo(() => (average(profiles.map((profile) => profile.demand.coverageRatio)) ?? 0) * 100, [profiles]);
-  const irregularCount = useMemo(() => profiles.filter((profile) => profile.behaviorClass === "irregular").length, [profiles]);
+  const idleCount = useMemo(() => profiles.filter((profile) => profile.intensity === "idle").length, [profiles]);
 
   const columns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
@@ -75,11 +83,19 @@ export function VmWorkloadProfilePanel() {
     { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
     { accessorKey: "vcpu", header: "vCPU", meta: { info: VM_PROFILE_COLUMNS.vcpu }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
     {
-      id: "behaviorClass",
-      header: "Verhaltensklasse",
-      meta: { info: VM_PROFILE_COLUMNS.behaviorClass },
-      accessorFn: (row) => VM_BEHAVIOR_CLASS_LABEL[row.behaviorClass],
-      cell: ({ row }) => <Badge variant="outline">{VM_BEHAVIOR_CLASS_LABEL[row.original.behaviorClass]}</Badge>,
+      id: "shape",
+      header: "Lastmuster",
+      meta: { info: VM_PROFILE_COLUMNS.shape },
+      accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
+      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+    },
+    {
+      id: "intensity",
+      header: "Niveau",
+      meta: { info: VM_PROFILE_COLUMNS.intensity },
+      // Nach der Skalenreihenfolge sortieren, nicht alphabetisch nach Label.
+      accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
+      cell: ({ row }) => <Badge variant={row.original.intensity === "idle" ? "secondary" : "outline"}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
     },
     {
       id: "confidence",
@@ -105,19 +121,32 @@ export function VmWorkloadProfilePanel() {
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />
           <KpiCard title="Niedriges Vertrauen" value={formatNum(lowConfidenceCount)} severity={lowConfidenceCount > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={VM_PROFILE_KPI.lowConfidence} />
-          <KpiCard title="Unregelmäßig" value={formatNum(irregularCount)} icon={<Activity className="h-4 w-4" />} info={VM_PROFILE_KPI.irregular} />
+          <KpiCard title="Ruhend (< 2 %)" value={formatNum(idleCount)} icon={<Activity className="h-4 w-4" />} info={VM_PROFILE_KPI.idle} />
         </KpiGrid>
 
-        {profiles.length > 0 && <div className="rounded-lg border border-border/50 bg-card/30 p-4">
-          <InfoTooltip entry={VM_PROFILE_SECTIONS.distribution} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Verteilung der Verhaltensklassen</h3></InfoTooltip>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={distribution} layout="vertical">
-              <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>{distribution.map((entry) => <Cell key={entry.behaviorClass} fill={CHART_COLORS.primary} />)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        {profiles.length > 0 && <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={VM_PROFILE_SECTIONS.distribution} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Verteilung der Lastmuster</h3></InfoTooltip>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={shapeDistribution} layout="vertical">
+                <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>{shapeDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={VM_PROFILE_SECTIONS.intensityDistribution} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Verteilung der Auslastungsniveaus</h3></InfoTooltip>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={intensityDistribution} layout="vertical">
+                <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>{intensityDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>}
 
         <div>

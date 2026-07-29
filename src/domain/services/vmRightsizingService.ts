@@ -1,5 +1,5 @@
 import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile } from "@/domain/models/types";
-import { VM_BEHAVIOR_CLASS_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 
 /** Zielauslastung der empfohlenen vCPU-Größe; Sicherheitsaufschlag gegenüber dem reinen P95-Bedarf. */
 const TARGET_UTILIZATION = 0.65;
@@ -38,6 +38,8 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       clusterName: profile.clusterName,
       hostName: host?.host ?? profile.host,
       vcpu: profile.vcpu,
+      shape: profile.shape,
+      intensity: profile.intensity,
       behaviorClass: profile.behaviorClass,
       confidence: profile.confidence,
       demand: profile.demand,
@@ -62,6 +64,15 @@ export function summarizeReclaimableVcpuByCluster(candidates: readonly VmRightsi
 
 export function summarizeReclaimableVcpuByBehaviorClass(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {
   return summarizeBy(candidates, (candidate) => ({ key: candidate.behaviorClass, label: VM_BEHAVIOR_CLASS_LABEL[candidate.behaviorClass] }));
+}
+
+/**
+ * Gruppiert nach zeitlichem Muster statt nach Verhaltensklasse. Für Rightsizing die
+ * aussagekräftigere Sicht: die Kandidaten sind ohnehin überwiegend schwach ausgelastet,
+ * sodass eine Gruppierung nach Verhaltensklasse fast alle in „gering genutzt“ sammelt.
+ */
+export function summarizeReclaimableVcpuByShape(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {
+  return summarizeBy(candidates, (candidate) => ({ key: candidate.shape, label: VM_WORKLOAD_SHAPE_LABEL[candidate.shape] }));
 }
 
 function summarizeBy(

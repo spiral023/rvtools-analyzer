@@ -8,7 +8,7 @@ import type {
   VmWorkloadProfile,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
-import { VM_BEHAVIOR_CLASS_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
 
@@ -76,8 +76,10 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "powerState", label: "Power-Status" }, { id: "vcpus", label: "vCPU" }, { id: "memory", label: "RAM" },
     { id: "os", label: "Betriebssystem" }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool" },
     { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" }, { id: "tools", label: "VMware Tools" }, { id: "annotation", label: "Notiz" },
+    { id: "shape", label: "Lastmuster" }, { id: "intensity", label: "Auslastungsniveau" },
     { id: "behaviorClass", label: "Verhaltensklasse" }, { id: "profileConfidence", label: "Vertrauen (Profil)" }, { id: "profileCoverage", label: "Datenabdeckung (Profil)" },
     { id: "coefficientOfVariation", label: "Variationskoeffizient" }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil" }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)" },
+    { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil" }, { id: "baselineRatio", label: "Grundlastanteil" },
     { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit" }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration" }, { id: "nightConcentration", label: "Nacht-Konzentration" }, { id: "weekendConcentration", label: "Wochenend-Konzentration" },
     { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)" }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)" },
   ];
@@ -90,12 +92,16 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
       const signals = profile?.signals ?? null;
       return {
         vcenter: names.get(vm.vcenterId) ?? vm.vcenterId, server: vm.vmName, cluster: text(vm.cluster), host: text(vm.host), powerState: text(vm.powerState), vcpus: number(vm.cpuCount), memory: gib(vm.memoryMiB), os: text(vm.osConfig ?? vm.osTools), resourcePool: text(vm.resourcePool), datacenter: text(vm.datacenter), tools: text(vm.toolsStatus), annotation: text(vm.annotation),
+        shape: profile ? VM_WORKLOAD_SHAPE_LABEL[profile.shape] : "—",
+        intensity: profile ? VM_WORKLOAD_INTENSITY_LABEL[profile.intensity] : "—",
         behaviorClass: profile ? VM_BEHAVIOR_CLASS_LABEL[profile.behaviorClass] : "—",
         profileConfidence: profile ? CONFIDENCE_LABEL[profile.confidence] : "—",
         profileCoverage: profile ? pct(profile.demand.coverageRatio * 100) : "—",
         coefficientOfVariation: signals ? ratio(signals.coefficientOfVariation) : "—",
         activeHourSharePct: signals ? pct(signals.activeHourSharePct) : "—",
         utilizationP95Pct: signals ? pct(signals.utilizationP95Pct) : "—",
+        dutyCyclePct: signals ? pct(signals.dutyCyclePct) : "—",
+        baselineRatio: signals ? ratio(signals.baselineRatio) : "—",
         dailyRepeatability: signals ? ratio(signals.dailyRepeatability) : "—",
         businessHoursConcentration: signals ? ratio(signals.businessHoursConcentration) : "—",
         nightConcentration: signals ? ratio(signals.nightConcentration) : "—",

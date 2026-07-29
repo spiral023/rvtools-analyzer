@@ -16,10 +16,10 @@ import type { VmRightsizingCandidate, VmRightsizingGroupSummary } from "@/domain
 import {
   buildVmRightsizingCandidates,
   isNotableRightsizingCandidate,
-  summarizeReclaimableVcpuByBehaviorClass,
+  summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
-import { VM_BEHAVIOR_CLASS_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { shortHostName } from "@/lib/utils";
@@ -55,7 +55,7 @@ export function VmRightsizingPanel() {
   const manyVcpuLowDemandCount = useMemo(() => candidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [candidates]);
   const highCpuReadyCount = useMemo(() => candidates.filter((candidate) => candidate.flags.highCpuReady).length, [candidates]);
   const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
-  const behaviorSummary = useMemo(() => summarizeReclaimableVcpuByBehaviorClass(candidates), [candidates]);
+  const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
 
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
@@ -63,11 +63,18 @@ export function VmRightsizingPanel() {
     { accessorKey: "hostName", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
     {
-      id: "behaviorClass",
-      header: "Verhaltensklasse",
-      meta: { info: RIGHTSIZING_COLUMNS.behaviorClass },
-      accessorFn: (row) => VM_BEHAVIOR_CLASS_LABEL[row.behaviorClass],
-      cell: ({ row }) => <Badge variant="outline">{VM_BEHAVIOR_CLASS_LABEL[row.original.behaviorClass]}</Badge>,
+      id: "shape",
+      header: "Lastmuster",
+      meta: { info: RIGHTSIZING_COLUMNS.shape },
+      accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
+      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+    },
+    {
+      id: "intensity",
+      header: "Niveau",
+      meta: { info: RIGHTSIZING_COLUMNS.intensity },
+      accessorFn: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity],
+      cell: ({ row }) => <Badge variant={row.original.intensity === "idle" ? "secondary" : "outline"}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
@@ -129,8 +136,8 @@ export function VmRightsizingPanel() {
             <VirtualTable data={clusterSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
           </div>
           <div>
-            <InfoTooltip entry={RIGHTSIZING_SECTIONS.behaviorSummary} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Rückgewinnbare vCPU je Verhaltensklasse</h3></InfoTooltip>
-            <VirtualTable data={behaviorSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
+            <InfoTooltip entry={RIGHTSIZING_SECTIONS.shapeSummary} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Rückgewinnbare vCPU je Lastmuster</h3></InfoTooltip>
+            <VirtualTable data={shapeSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
           </div>
         </div>
       </>}

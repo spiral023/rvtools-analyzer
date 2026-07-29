@@ -865,6 +865,39 @@ export type VmBehaviorClass =
   | "low-utilization"
   | "irregular";
 
+/**
+ * Zeitliches Lastmuster einer VM – bewusst **unabhängig vom Auslastungsniveau**.
+ *
+ * `VmBehaviorClass` vermischte beides: weil die Low-Utilization-Prüfung vor allen
+ * Musterregeln stand, verlor jede schwach ausgelastete VM ihr Muster. Eine Messung
+ * an 3.950 VMs zeigte, dass dadurch 1.381 konstante und 194 kalendergeprägte VMs
+ * unter einem einzigen Label verschwanden. Form und Niveau sind deshalb getrennt.
+ */
+export type VmWorkloadShape =
+  | "unclassified"
+  | "constant"
+  | "business-hours"
+  | "night-batch"
+  | "weekend"
+  | "bursty"
+  | "irregular"
+  | "variable";
+
+/**
+ * Auslastungsniveau einer VM – bewusst **unabhängig vom zeitlichen Muster**.
+ * Die Stufen folgen der beobachteten Verteilung des Bestands, damit keine Grenze
+ * im dichtesten Bereich liegt und schon kleine Messunterschiede Hunderte VMs
+ * umsortieren. `unknown`, solange die konfigurierte CPU-Kapazität fehlt.
+ */
+export type VmWorkloadIntensity =
+  | "unknown"
+  | "idle"
+  | "very-low"
+  | "low"
+  | "moderate"
+  | "elevated"
+  | "high";
+
 export interface VmWorkloadProfileMetricStats {
   expectedSlots: number;
   sampleCount: number;
@@ -878,7 +911,24 @@ export interface VmWorkloadProfileMetricStats {
 /** Nachvollziehbare Kennzahlen, aus denen `behaviorClass` abgeleitet wurde. */
 export interface VmWorkloadClassificationSignals {
   coefficientOfVariation: number | null;
+  /**
+   * Anteil der Stunden über 10 % des eigenen P95. Messungen an 3.950 VMs zeigen für
+   * nahezu jede Klasse einen Median von 100 % – die Kennzahl trennt nicht und wird
+   * nur noch informativ mitgeführt. Für Aussagen zur Aktivität `dutyCyclePct` nutzen.
+   */
   activeHourSharePct: number | null;
+  /**
+   * Anteil der Stunden, in denen der Demand 5 % der konfigurierten Kapazität übersteigt –
+   * absolutes Maß dafür, wie viel der Woche die VM tatsächlich arbeitet. `null` ohne
+   * bekannte Kapazität.
+   */
+  dutyCyclePct: number | null;
+  /**
+   * p10/p95 der Stundenwerte: wie stark die VM von Grundlast dominiert wird. Nahe 1 =
+   * flaches Profil, nahe 0 = ausgeprägte Spitzen über ruhender Basis. Niveauunabhängig
+   * und damit brauchbar zur Formunterscheidung.
+   */
+  baselineRatio: number | null;
   /** P95-Demand relativ zur konfigurierten CPU-Kapazität, sofern Hostfrequenz und vCPU bekannt sind. */
   utilizationP95Pct: number | null;
   /** Median der Korrelation zwischen Tagesprofilen; 1 = sehr ähnlich, 0 = ohne erkennbaren Zusammenhang. */
@@ -917,6 +967,14 @@ export interface VmWorkloadProfile {
   hourly: VmWorkloadHourlyPoint[];
   demand: VmWorkloadProfileMetricStats;
   ready: VmWorkloadProfileMetricStats;
+  /** Zeitliches Muster, niveauunabhängig. Zusammen mit `intensity` die primäre Einordnung. */
+  shape: VmWorkloadShape;
+  /** Auslastungsniveau, musterunabhängig. Zusammen mit `shape` die primäre Einordnung. */
+  intensity: VmWorkloadIntensity;
+  /**
+   * Aus `shape` und `intensity` abgeleitete Einzelklasse. Erhalten, damit bestehende
+   * Auswertungen weiterlaufen; für neue Auswertungen sind die beiden Achsen genauer.
+   */
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
   signals: VmWorkloadClassificationSignals;
@@ -933,6 +991,8 @@ export interface VmRightsizingCandidate {
   clusterName: string | null;
   hostName: string | null;
   vcpu: number | null;
+  shape: VmWorkloadShape;
+  intensity: VmWorkloadIntensity;
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
   demand: VmWorkloadProfileMetricStats;

@@ -78,8 +78,8 @@ describe("buildVmExportDataset", () => {
       objectKey: "obj-1", rvtoolsObjectKey: "vm-1", vmName: "sql-01", clusterKey: null, clusterName: "Production",
       hostKey: "host-1", host: "esx-01", vcpu: 4, configuredMemoryMiB: 8192, powerState: "poweredOn", workloadClass: "unknown",
       hourly: [{ timestampUtc: Date.UTC(2026, 6, 1, 0, 0), cpuDemandMHz: 412.3, cpuReadyPct: 0.5 }],
-      demand: { ...emptyStats, coverageRatio: 0.98 }, ready: emptyStats, behaviorClass: "bursty", confidence: "high",
-      signals: { coefficientOfVariation: 1.2, activeHourSharePct: 18.5, utilizationP95Pct: 42.1, dailyRepeatability: 0.15, businessHoursConcentration: 0.9, nightConcentration: 1.1, weekendConcentration: 0.8 },
+      demand: { ...emptyStats, coverageRatio: 0.98 }, ready: emptyStats, shape: "bursty", intensity: "elevated", behaviorClass: "bursty", confidence: "high",
+      signals: { coefficientOfVariation: 1.2, activeHourSharePct: 18.5, dutyCyclePct: 31.5, baselineRatio: 0.12, utilizationP95Pct: 42.1, dailyRepeatability: 0.15, businessHoursConcentration: 0.9, nightConcentration: 1.1, weekendConcentration: 0.8 },
       ...overrides,
     };
   }
@@ -101,9 +101,11 @@ describe("buildVmExportDataset", () => {
   it("reichert eine VM-Zeile per vmKey mit Verhaltensklasse, Klassifikationssignalen und CPU-Demand-Rohdaten an", () => {
     const result = buildVmExportDataset([vm()], [snapshot], "1 vCenter-Scope", [profile()], [host()]);
     expect(result.rows[0]).toMatchObject({
+      shape: "Bursty", intensity: "Erhöht",
       behaviorClass: "Bursty", cpuDemandRaw: "2026-07-01 02:00=412.30",
       profileConfidence: "hoch", profileCoverage: "98,0 %",
       coefficientOfVariation: "1,20", activeHourSharePct: "18,5 %", utilizationP95Pct: "42,1 %",
+      dutyCyclePct: "31,5 %", baselineRatio: "0,12",
       dailyRepeatability: "0,15", businessHoursConcentration: "0,90", nightConcentration: "1,10", weekendConcentration: "0,80",
       // 76.800 MHz / 32 Kerne * 4 vCPU = 9.600 MHz konfigurierte Kapazität
       configuredCpuCapacity: "9.600",

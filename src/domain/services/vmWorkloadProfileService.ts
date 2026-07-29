@@ -4,8 +4,10 @@ import type {
   VmBehaviorClass,
   VmWorkloadClassificationSignals,
   VmWorkloadHourlyPoint,
+  VmWorkloadIntensity,
   VmWorkloadProfile,
   VmWorkloadProfileMetricStats,
+  VmWorkloadShape,
   VropsTimeSeriesChunk,
   VropsTimeSeriesConfidenceLevel,
   VropsTimeSeriesImport,
@@ -29,36 +31,96 @@ export const VM_BEHAVIOR_CLASS_LABEL: Record<VmBehaviorClass, string> = {
   irregular: "Unregelmäßig",
 };
 
+export const VM_WORKLOAD_SHAPE_LABEL: Record<VmWorkloadShape, string> = {
+  unclassified: "Nicht berechenbar",
+  constant: "Dauerlast",
+  "business-hours": "Business-Hours",
+  "night-batch": "Nächtlicher Batch",
+  weekend: "Wochenendlast",
+  bursty: "Bursty",
+  irregular: "Unregelmäßig",
+  variable: "Variable Last",
+};
+
+export const VM_WORKLOAD_INTENSITY_LABEL: Record<VmWorkloadIntensity, string> = {
+  unknown: "Unbekannt",
+  idle: "Ruhend",
+  "very-low": "Sehr niedrig",
+  low: "Niedrig",
+  moderate: "Mittel",
+  elevated: "Erhöht",
+  high: "Hoch",
+};
+
+/** Obergrenze der jeweiligen Stufe in Prozent der konfigurierten CPU-Kapazität; `high` ist offen. */
+export const VM_WORKLOAD_INTENSITY_RANGE: Record<Exclude<VmWorkloadIntensity, "unknown" | "high">, number> = {
+  idle: 2,
+  "very-low": 5,
+  low: 10,
+  moderate: 25,
+  elevated: 50,
+};
+
 /* ------------------------------------------------------------------ */
 /*  Schwellenwerte der Klassifikation – bewusst benannt und an einer   */
 /*  Stelle gesammelt, damit die Herleitung nachvollziehbar bleibt.     */
 /* ------------------------------------------------------------------ */
-/** Robuster als das Maximum: einzelne Ausreißer verhindern keine Low-Utilization-Einstufung. */
-const LOW_UTILIZATION_P95_MAX_MHZ = 100;
-const LOW_UTILIZATION_P95_CAPACITY_MAX_PCT = 10;
-const BURSTY_ACTIVE_HOUR_SHARE_MAX_PCT = 30;
-/** Verhältnis Median/P95: liegt der Median deutlich unter dem P95, dominieren Spitzen statt einer Grundlast. */
-const BURSTY_MEDIAN_TO_P95_MAX = 0.4;
-const BURSTY_CV_MIN = 0.8;
-/** Variationskoeffizient, unterhalb dessen die stündliche Last als annähernd konstant gilt. */
-const CONSTANT_LOAD_CV_MAX = 0.5;
-const CONSTANT_LOAD_ACTIVE_HOUR_SHARE_MIN_PCT = 70;
-/** Konzentration = Demand-Anteil / Stunden-Anteil eines Zeitfensters; 1 = gleichverteilt über die Woche. */
-const CALENDAR_CONCENTRATION_MIN = 1.35;
-const CALENDAR_DOMINANCE_MARGIN_MIN = 0.15;
-const IRREGULAR_CV_MIN = 0.5;
-const IRREGULAR_DAILY_REPEATABILITY_MAX = 0.3;
-const BUSINESS_HOUR_START = 8;
-const BUSINESS_HOUR_END = 18;
-const NIGHT_HOUR_END = 6;
+
+/**
+ * Sämtliche Schwellenwerte der Verhaltensklassifikation. Als Typ und Default-Objekt
+ * exportiert, damit Auswertungsskripte Varianten gegen echte Datensätze durchrechnen
+ * können, ohne die Regelkaskade zu duplizieren (siehe `scripts/analyze-behavior-classes.ts`).
+ */
+export interface VmBehaviorThresholds {
+  /**
+   * Greift praktisch nur, wenn die konfigurierte CPU-Kapazität unbekannt ist – dann
+   * ist ein Kapazitätsanteil nicht berechenbar und nur der Absolutwert bleibt. Auf
+   * 3.950 vermessenen VMs (alle mit bekannter Kapazität) entschied er nie allein.
+   */
+  lowUtilizationP95MaxMHz: number;
+  lowUtilizationP95CapacityMaxPct: number;
+  /** Verhältnis Median/P95: liegt der Median deutlich unter dem P95, dominieren Spitzen statt einer Grundlast. */
+  burstyMedianToP95Max: number;
+  burstyCvMin: number;
+  /** Variationskoeffizient, unterhalb dessen die stündliche Last als annähernd konstant gilt. */
+  constantLoadCvMax: number;
+  /** Konzentration = Demand-Anteil / Stunden-Anteil eines Zeitfensters; 1 = gleichverteilt über die Woche. */
+  calendarConcentrationMin: number;
+  calendarDominanceMarginMin: number;
+  irregularCvMin: number;
+  irregularDailyRepeatabilityMax: number;
+  /** Ab diesem Anteil der konfigurierten Kapazität gilt eine Stunde als produktive Arbeitsstunde. */
+  dutyCycleCapacityMinPct: number;
+  businessHourStart: number;
+  businessHourEnd: number;
+  nightHourEnd: number;
+  classificationMinCoverageRatio: number;
+  classificationMinSamples: number;
+}
+
+export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
+  lowUtilizationP95MaxMHz: 100,
+  lowUtilizationP95CapacityMaxPct: 10,
+  burstyMedianToP95Max: 0.4,
+  burstyCvMin: 0.8,
+  constantLoadCvMax: 0.5,
+  calendarConcentrationMin: 1.35,
+  calendarDominanceMarginMin: 0.15,
+  irregularCvMin: 0.5,
+  irregularDailyRepeatabilityMax: 0.3,
+  dutyCycleCapacityMinPct: 5,
+  businessHourStart: 8,
+  businessHourEnd: 18,
+  nightHourEnd: 6,
+  classificationMinCoverageRatio: 0.5,
+  classificationMinSamples: 24,
+};
 
 /** Ab dieser Datenabdeckung bzw. Stundenzahl gilt eine Klassifikation als vertrauenswürdig genug für „hoch“/„mittel“. */
 const HIGH_CONFIDENCE_COVERAGE_RATIO = 0.9;
 const HIGH_CONFIDENCE_MIN_SAMPLES = 96;
 const MEDIUM_CONFIDENCE_COVERAGE_RATIO = 0.5;
 const MEDIUM_CONFIDENCE_MIN_SAMPLES = 24;
-const CLASSIFICATION_MIN_COVERAGE_RATIO = 0.5;
-const CLASSIFICATION_MIN_SAMPLES = 24;
 
 interface HourGridEntry {
   timestampUtc: number;
@@ -104,7 +166,7 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
       const host = object.hostKey ? hostByKey.get(object.hostKey) : undefined;
       const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
       const configuredCpuCapacityMHz = mhzPerCore !== null && vm.cpuCount ? mhzPerCore * vm.cpuCount : null;
-      const { behaviorClass, signals } = classifyVmBehavior(hourGrid, demandSeries, { configuredCpuCapacityMHz });
+      const { shape, intensity, behaviorClass, signals } = classifyVmBehavior(hourGrid, demandSeries, { configuredCpuCapacityMHz });
       return [{
         objectKey: object.objectKey,
         rvtoolsObjectKey: object.rvtoolsObjectKey,
@@ -120,6 +182,8 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         hourly,
         demand,
         ready,
+        shape,
+        intensity,
         behaviorClass,
         confidence: determineProfileConfidence(demand.coverageRatio, demand.sampleCount),
         signals,
@@ -179,32 +243,45 @@ export function buildHourGrid(importMeta: VropsTimeSeriesImport): HourGridEntry[
 
 interface ClassifyVmBehaviorOptions {
   configuredCpuCapacityMHz?: number | null;
+  /** Überschreibt einzelne Schwellwerte; ungesetzte Felder behalten den Produktionswert. */
+  thresholds?: Partial<VmBehaviorThresholds>;
 }
 
 /**
- * Ordnet eine VM anhand ihres CPU-Demand-Wochenmusters einer Verhaltensklasse zu.
- * Die Reihenfolge der Regeln ist bewusst: nahezu ungenutzte und stark spitzenlastige
- * VMs werden zuerst ausgeschlossen, bevor Wochenmuster geprüft werden.
+ * Ordnet eine VM anhand ihres CPU-Demand-Wochenmusters ein – getrennt nach
+ * zeitlichem Muster (`shape`) und Auslastungsniveau (`intensity`).
+ *
+ * Die Trennung ist der Kern: früher stand die Low-Utilization-Prüfung vor allen
+ * Musterregeln, wodurch jede schwach ausgelastete VM ihr Muster verlor. `shape`
+ * wird deshalb rein aus niveauunabhängigen Signalen bestimmt (Variationskoeffizient,
+ * Kalenderkonzentrationen, Tageswiederholbarkeit), `intensity` rein aus dem P95
+ * relativ zur konfigurierten Kapazität. `behaviorClass` kombiniert beides und
+ * reproduziert die frühere Einzelklasse unverändert.
  */
 export function classifyVmBehavior(
   hourGrid: readonly HourGridEntry[],
   demandByTimestamp: ReadonlyMap<number, number>,
   options: ClassifyVmBehaviorOptions = {},
-): { behaviorClass: VmBehaviorClass; signals: VmWorkloadClassificationSignals } {
+): { shape: VmWorkloadShape; intensity: VmWorkloadIntensity; behaviorClass: VmBehaviorClass; signals: VmWorkloadClassificationSignals } {
   const emptySignals: VmWorkloadClassificationSignals = {
     coefficientOfVariation: null,
     activeHourSharePct: null,
+    dutyCyclePct: null,
+    baselineRatio: null,
     utilizationP95Pct: null,
     dailyRepeatability: null,
     businessHoursConcentration: null,
     nightConcentration: null,
     weekendConcentration: null,
   };
+  const thresholds: VmBehaviorThresholds = options.thresholds
+    ? { ...VM_BEHAVIOR_THRESHOLDS, ...options.thresholds }
+    : VM_BEHAVIOR_THRESHOLDS;
   const samples = hourGrid.flatMap((entry) => {
     const value = demandByTimestamp.get(entry.timestampUtc);
     return value !== undefined && Number.isFinite(value) ? [{ ...entry, value }] : [];
   });
-  if (samples.length === 0) return { behaviorClass: "unclassified", signals: emptySignals };
+  if (samples.length === 0) return { shape: "unclassified", intensity: "unknown", behaviorClass: "unclassified", signals: emptySignals };
 
   const values = samples.map((sample) => sample.value);
   const totalDemand = values.reduce((sum, value) => sum + value, 0);
@@ -221,6 +298,17 @@ export function classifyVmBehavior(
   const activeThreshold = Math.max(p95 * 0.1, Number.EPSILON);
   const activeHourSharePct = (samples.filter((sample) => sample.value > activeThreshold).length / samples.length) * 100;
 
+  // Absolutes Aktivitätsmaß: nur mit bekannter Kapazität aussagekräftig, dafür aber
+  // im Gegensatz zu activeHourSharePct über die Klassen hinweg trennscharf.
+  const dutyCycleThreshold = options.configuredCpuCapacityMHz && options.configuredCpuCapacityMHz > 0
+    ? options.configuredCpuCapacityMHz * (thresholds.dutyCycleCapacityMinPct / 100)
+    : null;
+  const dutyCyclePct = dutyCycleThreshold !== null
+    ? (samples.filter((sample) => sample.value > dutyCycleThreshold).length / samples.length) * 100
+    : null;
+  const p10 = percentile(values, 0.1) ?? 0;
+  const baselineRatio = p95 > 0 ? p10 / p95 : null;
+
   const concentration = (predicate: (sample: (typeof samples)[number]) => boolean): number | null => {
     const subset = samples.filter(predicate);
     if (subset.length === 0 || totalDemand <= 0) return null;
@@ -228,14 +316,16 @@ export function classifyVmBehavior(
     const demandShare = subset.reduce((sum, sample) => sum + sample.value, 0) / totalDemand;
     return hourShare > 0 ? demandShare / hourShare : null;
   };
-  const businessHoursConcentration = concentration((sample) => !sample.isWeekend && sample.hour >= BUSINESS_HOUR_START && sample.hour < BUSINESS_HOUR_END);
-  const nightConcentration = concentration((sample) => !sample.isWeekend && sample.hour < NIGHT_HOUR_END);
+  const businessHoursConcentration = concentration((sample) => !sample.isWeekend && sample.hour >= thresholds.businessHourStart && sample.hour < thresholds.businessHourEnd);
+  const nightConcentration = concentration((sample) => !sample.isWeekend && sample.hour < thresholds.nightHourEnd);
   const weekendConcentration = concentration((sample) => sample.isWeekend);
   const dailyRepeatability = calculateDailyRepeatability(samples);
 
   const signals: VmWorkloadClassificationSignals = {
     coefficientOfVariation,
     activeHourSharePct,
+    dutyCyclePct,
+    baselineRatio,
     utilizationP95Pct,
     dailyRepeatability,
     businessHoursConcentration,
@@ -243,45 +333,97 @@ export function classifyVmBehavior(
     weekendConcentration,
   };
 
-  if (samples.length < CLASSIFICATION_MIN_SAMPLES || coverageRatio < CLASSIFICATION_MIN_COVERAGE_RATIO) {
-    return { behaviorClass: "unclassified", signals };
+  const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration }, thresholds);
+  const intensity = determineIntensity(utilizationP95Pct);
+  // Niveauurteil bewusst mit der bisherigen Oder-Logik: der MHz-Wert greift damit
+  // weiterhin für VMs ohne bekannte Kapazität, für die kein Anteil berechenbar ist.
+  const isLowUtilization =
+    p95 < thresholds.lowUtilizationP95MaxMHz ||
+    (utilizationP95Pct !== null && utilizationP95Pct < thresholds.lowUtilizationP95CapacityMaxPct);
+
+  return { shape, intensity, behaviorClass: deriveBehaviorClass(shape, isLowUtilization), signals };
+}
+
+interface ShapeInput {
+  samples: number;
+  coverageRatio: number;
+  coefficientOfVariation: number | null;
+  median: number;
+  p95: number;
+  dailyRepeatability: number | null;
+  businessHoursConcentration: number | null;
+  nightConcentration: number | null;
+  weekendConcentration: number | null;
+}
+
+/**
+ * Bestimmt das zeitliche Muster ausschließlich aus niveauunabhängigen Signalen.
+ * Enthält absichtlich keine Auslastungsschwelle – sonst verlöre eine schwach
+ * ausgelastete VM wieder ihr Muster.
+ *
+ * Die früheren Zusatzbedingungen über `activeHourSharePct` sind entfallen: an
+ * 3.950 VMs gemessen änderten sie kein einziges Ergebnis, weil die Kennzahl bei
+ * stündlich gemittelten Werten fast immer 100 % erreicht.
+ */
+function determineShape(input: ShapeInput, thresholds: VmBehaviorThresholds): VmWorkloadShape {
+  const { coefficientOfVariation: cv, median, p95, dailyRepeatability } = input;
+  if (input.samples < thresholds.classificationMinSamples || input.coverageRatio < thresholds.classificationMinCoverageRatio) {
+    return "unclassified";
   }
-  if (p95 < LOW_UTILIZATION_P95_MAX_MHZ || (utilizationP95Pct !== null && utilizationP95Pct < LOW_UTILIZATION_P95_CAPACITY_MAX_PCT)) {
-    return { behaviorClass: "low-utilization", signals };
-  }
-  if (coefficientOfVariation !== null && coefficientOfVariation <= CONSTANT_LOAD_CV_MAX && activeHourSharePct >= CONSTANT_LOAD_ACTIVE_HOUR_SHARE_MIN_PCT) {
-    return { behaviorClass: "constant-load", signals };
-  }
+  if (cv !== null && cv <= thresholds.constantLoadCvMax) return "constant";
 
   // Das stärkste Kalenderfenster gewinnt nur mit ausreichendem Abstand. So entscheidet
   // bei Mischmustern nicht mehr die Reihenfolge der if-Zweige.
   const calendarPatterns = [
-    { behaviorClass: "business-hours" as const, concentration: businessHoursConcentration ?? 0 },
-    { behaviorClass: "night-batch" as const, concentration: nightConcentration ?? 0 },
-    { behaviorClass: "weekend-load" as const, concentration: weekendConcentration ?? 0 },
+    { shape: "business-hours" as const, concentration: input.businessHoursConcentration ?? 0 },
+    { shape: "night-batch" as const, concentration: input.nightConcentration ?? 0 },
+    { shape: "weekend" as const, concentration: input.weekendConcentration ?? 0 },
   ].sort((left, right) => right.concentration - left.concentration);
   if (
-    calendarPatterns[0].concentration >= CALENDAR_CONCENTRATION_MIN &&
-    calendarPatterns[0].concentration - calendarPatterns[1].concentration >= CALENDAR_DOMINANCE_MARGIN_MIN
+    calendarPatterns[0].concentration >= thresholds.calendarConcentrationMin &&
+    calendarPatterns[0].concentration - calendarPatterns[1].concentration >= thresholds.calendarDominanceMarginMin
   ) {
-    return { behaviorClass: calendarPatterns[0].behaviorClass, signals };
+    return calendarPatterns[0].shape;
   }
-  if (
-    coefficientOfVariation !== null &&
-    coefficientOfVariation >= BURSTY_CV_MIN &&
-    (activeHourSharePct < BURSTY_ACTIVE_HOUR_SHARE_MAX_PCT || (p95 > 0 && median < p95 * BURSTY_MEDIAN_TO_P95_MAX))
-  ) {
-    return { behaviorClass: "bursty", signals };
+  if (cv !== null && cv >= thresholds.burstyCvMin && p95 > 0 && median < p95 * thresholds.burstyMedianToP95Max) {
+    return "bursty";
   }
-  if (
-    coefficientOfVariation !== null &&
-    coefficientOfVariation >= IRREGULAR_CV_MIN &&
-    dailyRepeatability !== null &&
-    dailyRepeatability < IRREGULAR_DAILY_REPEATABILITY_MAX
-  ) {
-    return { behaviorClass: "irregular", signals };
+  if (cv !== null && cv >= thresholds.irregularCvMin && dailyRepeatability !== null && dailyRepeatability < thresholds.irregularDailyRepeatabilityMax) {
+    return "irregular";
   }
-  return { behaviorClass: "variable-load", signals };
+  return "variable";
+}
+
+/** Stuft das Auslastungsniveau anhand des P95-Anteils an der konfigurierten Kapazität ein. */
+function determineIntensity(utilizationP95Pct: number | null): VmWorkloadIntensity {
+  if (utilizationP95Pct === null) return "unknown";
+  if (utilizationP95Pct < VM_WORKLOAD_INTENSITY_RANGE.idle) return "idle";
+  if (utilizationP95Pct < VM_WORKLOAD_INTENSITY_RANGE["very-low"]) return "very-low";
+  if (utilizationP95Pct < VM_WORKLOAD_INTENSITY_RANGE.low) return "low";
+  if (utilizationP95Pct < VM_WORKLOAD_INTENSITY_RANGE.moderate) return "moderate";
+  if (utilizationP95Pct < VM_WORKLOAD_INTENSITY_RANGE.elevated) return "elevated";
+  return "high";
+}
+
+const SHAPE_TO_BEHAVIOR_CLASS: Record<Exclude<VmWorkloadShape, "unclassified">, VmBehaviorClass> = {
+  constant: "constant-load",
+  "business-hours": "business-hours",
+  "night-batch": "night-batch",
+  weekend: "weekend-load",
+  bursty: "bursty",
+  irregular: "irregular",
+  variable: "variable-load",
+};
+
+/**
+ * Faltet beide Achsen auf die frühere Einzelklasse zurück. Ein niedriges Niveau
+ * überschreibt das Muster – genau die Reihenfolge der alten Kaskade, damit
+ * bestehende Auswertungen unveränderte Ergebnisse sehen.
+ */
+function deriveBehaviorClass(shape: VmWorkloadShape, isLowUtilization: boolean): VmBehaviorClass {
+  if (shape === "unclassified") return "unclassified";
+  if (isLowUtilization) return "low-utilization";
+  return SHAPE_TO_BEHAVIOR_CLASS[shape];
 }
 
 function calculateDailyRepeatability(samples: readonly (HourGridEntry & { value: number })[]): number | null {

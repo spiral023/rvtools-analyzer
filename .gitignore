@@ -34,3 +34,4 @@ referenzdaten/
 tmp/
 .worktrees/
 .superpowers/
+rvtools-export*.csv

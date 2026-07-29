@@ -21,9 +21,11 @@ function profile(overrides: Partial<VmWorkloadProfile> & { objectKey: string }):
     hourly: [],
     demand: metricStats({}),
     ready: metricStats({}),
+    shape: "constant",
+    intensity: "moderate",
     behaviorClass: "constant-load",
     confidence: "high",
-    signals: { coefficientOfVariation: null, activeHourSharePct: null, utilizationP95Pct: null, dailyRepeatability: null, businessHoursConcentration: null, nightConcentration: null, weekendConcentration: null },
+    signals: { coefficientOfVariation: null, activeHourSharePct: null, dutyCyclePct: null, baselineRatio: null, utilizationP95Pct: null, dailyRepeatability: null, businessHoursConcentration: null, nightConcentration: null, weekendConcentration: null },
     ...overrides,
   };
 }

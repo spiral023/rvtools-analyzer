@@ -94,6 +94,77 @@ describe("classifyVmBehavior", () => {
   });
 });
 
+describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
+  /**
+   * Der Kern des zweiachsigen Modells: früher überschrieb ein niedriges Niveau das
+   * Muster ersatzlos. Eine schwach ausgelastete VM mit klarem Tagesrhythmus – etwa ein
+   * sparsamer Nachtjob – muss ihr Muster behalten.
+   */
+  it("behält das Business-Hours-Muster trotz niedriger Auslastung", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 3_000 : 200]));
+    const result = classifyVmBehavior(grid, demand, { configuredCpuCapacityMHz: 100_000 });
+
+    expect(result.shape).toBe("business-hours");
+    expect(result.intensity).toBe("very-low");
+    // Die abgeleitete Einzelklasse verhält sich weiterhin wie früher.
+    expect(result.behaviorClass).toBe("low-utilization");
+  });
+
+  it("behält das nächtliche Batch-Muster trotz niedriger Auslastung", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour < 6 ? 3_000 : 200]));
+    const result = classifyVmBehavior(grid, demand, { configuredCpuCapacityMHz: 100_000 });
+
+    expect(result.shape).toBe("night-batch");
+    expect(result.behaviorClass).toBe("low-utilization");
+  });
+
+  it("stuft das Auslastungsniveau anhand des P95-Kapazitätsanteils ein", () => {
+    const grid = buildSyntheticWeek();
+    const intensityOf = (demandMHz: number) =>
+      classifyVmBehavior(grid, new Map(grid.map((entry) => [entry.timestampUtc, demandMHz])), { configuredCpuCapacityMHz: 10_000 }).intensity;
+
+    expect(intensityOf(100)).toBe("idle"); // 1 %
+    expect(intensityOf(300)).toBe("very-low"); // 3 %
+    expect(intensityOf(700)).toBe("low"); // 7 %
+    expect(intensityOf(2_000)).toBe("moderate"); // 20 %
+    expect(intensityOf(4_000)).toBe("elevated"); // 40 %
+    expect(intensityOf(9_000)).toBe("high"); // 90 %
+  });
+
+  it("liefert „unknown“ als Niveau, solange die konfigurierte Kapazität fehlt", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, 5_000]));
+    const result = classifyVmBehavior(grid, demand);
+
+    expect(result.intensity).toBe("unknown");
+    expect(result.shape).toBe("constant");
+  });
+
+  it("berechnet Arbeitsstunden-Anteil und Grundlastanteil", () => {
+    const grid = buildSyntheticWeek();
+    // Konstant 600 MHz bei 10.000 MHz Kapazität: Schwelle 5 % = 500 MHz, alle Stunden darüber.
+    const constant = classifyVmBehavior(grid, new Map(grid.map((entry) => [entry.timestampUtc, 600])), { configuredCpuCapacityMHz: 10_000 });
+    expect(constant.signals.dutyCyclePct).toBe(100);
+    expect(constant.signals.baselineRatio).toBe(1);
+
+    // Ohne Kapazität ist der Arbeitsstunden-Anteil nicht berechenbar, der Grundlastanteil schon.
+    const withoutCapacity = classifyVmBehavior(grid, new Map(grid.map((entry) => [entry.timestampUtc, 600])));
+    expect(withoutCapacity.signals.dutyCyclePct).toBeNull();
+    expect(withoutCapacity.signals.baselineRatio).toBe(1);
+  });
+
+  it("meldet Muster und Niveau als nicht berechenbar, wenn die Datenbasis fehlt", () => {
+    const grid = buildSyntheticWeek();
+    const result = classifyVmBehavior(grid, new Map());
+
+    expect(result.shape).toBe("unclassified");
+    expect(result.intensity).toBe("unknown");
+    expect(result.behaviorClass).toBe("unclassified");
+  });
+});
+
 describe("determineProfileConfidence", () => {
   it("ist nicht berechenbar ohne Messwerte", () => {
     expect(determineProfileConfidence(0, 0)).toBe("not-computable");
