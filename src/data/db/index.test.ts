@@ -498,6 +498,72 @@ describe("deleteSnapshot", () => {
   });
 });
 
+describe("deleteSystemData and deleteUserData", () => {
+  const seedSystemAndUserData = async (dbModule: typeof import("./index")) => {
+    const { putSnapshot, putScenario, putVcenterGroup, putMaintenanceSettings } = dbModule;
+    await putSnapshot({
+      snapshotId: "snap-1",
+      vcenterId: "vc-1",
+      vcenterDisplayName: "Test vCenter",
+      exportTs: "2026-01-01T00:00:00.000Z",
+      importedAt: "2026-01-01T00:00:00.000Z",
+      fileName: "snap-1.xlsx",
+      fileChecksum: "chk-snap-1",
+      sheetStats: { vInfo: { rowCount: 1, columnCount: 2 } },
+    });
+    await putScenario({
+      id: "scenario-1",
+      name: "Migration",
+      type: "cluster-migration",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      vcenterScope: [],
+      groups: [],
+      notes: null,
+    });
+    await putVcenterGroup({
+      id: "group-1",
+      name: "Standort A",
+      vcenterIds: ["vc-1"],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await putMaintenanceSettings({
+      id: "default",
+      firstName: "Max",
+      lastName: "Mustermann",
+      companyName: "Raitec",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+  };
+
+  it("deleteSystemData removes RVTools data but keeps backup-exported user data", async () => {
+    const dbModule = await import("./index");
+    await seedSystemAndUserData(dbModule);
+
+    await dbModule.deleteSystemData();
+
+    await expect(dbModule.getSnapshots()).resolves.toHaveLength(0);
+    await expect(dbModule.getScenarios()).resolves.toHaveLength(1);
+    await expect(dbModule.getVcenterGroups()).resolves.toHaveLength(1);
+    await expect(dbModule.getMaintenanceSettings()).resolves.not.toBeNull();
+  });
+
+  it("deleteUserData removes only backup-exported user data and keeps RVTools data", async () => {
+    const dbModule = await import("./index");
+    await seedSystemAndUserData(dbModule);
+
+    const percents: number[] = [];
+    await dbModule.deleteUserData((p) => percents.push(p.percent));
+    expect(percents.at(-1)).toBe(100);
+
+    await expect(dbModule.getSnapshots()).resolves.toHaveLength(1);
+    await expect(dbModule.getScenarios()).resolves.toHaveLength(0);
+    await expect(dbModule.getVcenterGroups()).resolves.toHaveLength(0);
+    await expect(dbModule.getMaintenanceSettings()).resolves.toBeUndefined();
+  });
+});
+
 describe("Tech-Info import listing and deletion", () => {
   it("lists Tech-Info imports and restores older latest rows after deleting the newest import", async () => {
     const {

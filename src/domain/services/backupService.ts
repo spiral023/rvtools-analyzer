@@ -10,9 +10,11 @@ import {
   putVcenterGroup,
   upsertMaintenanceWindows,
   validateMaintenanceWindowUpsertInput,
+  deleteUserData as deleteUserDataStores,
+  type DeleteProgressCallback,
 } from "@/data/db";
 import { buildUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
-import { getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
+import { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
 export interface UserDataImportResult {
   settingsImported: boolean;
@@ -69,4 +71,13 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     vcenterGroupsImported: backup.vcenterGroups.length,
     vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
   };
+}
+
+/**
+ * Löscht alle Benutzerdaten (die exakte Menge, die `collectUserDataBackup` exportiert):
+ * IndexedDB-Stores plus die im localStorage gehaltenen VM-Scope-Einstellungen.
+ */
+export async function deleteUserData(onProgress?: DeleteProgressCallback): Promise<void> {
+  await deleteUserDataStores(onProgress);
+  saveVmScopeSettings(DEFAULT_VM_SCOPE_SETTINGS);
 }

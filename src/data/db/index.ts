@@ -1765,22 +1765,49 @@ async function deleteBySnapshotIdIndex(
   });
 }
 
-export async function deleteAllData(onProgress?: DeleteProgressCallback): Promise<void> {
+async function clearStores(
+  stores: readonly StoreName[],
+  stepLabel: string,
+  onProgress?: DeleteProgressCallback,
+): Promise<void> {
   const db = await getDb();
-  const counts = await Promise.all(ALL_STORES.map((s) => db.count(s)));
+  const counts = await Promise.all(stores.map((s) => db.count(s)));
   const totalRows = counts.reduce((sum, c) => sum + c, 0);
   let clearedRows = 0;
 
-  await runSequential(ALL_STORES, async (storeName, i) => {
+  await runSequential(stores, async (storeName, i) => {
     onProgress?.({
-      step: "Alle Daten löschen",
+      step: stepLabel,
       percent: totalRows === 0 ? 0 : Math.min(99, Math.round((clearedRows / totalRows) * 100)),
       detail: `${STORE_DELETE_LABELS[storeName]} (${counts[i].toLocaleString("de-DE")} Einträge)`,
     });
     await db.clear(storeName);
     clearedRows += counts[i];
   });
-  onProgress?.({ step: "Alle Daten löschen", percent: 100, detail: "Abgeschlossen" });
+  onProgress?.({ step: stepLabel, percent: 100, detail: "Abgeschlossen" });
+}
+
+/**
+ * Die Stores, deren Inhalt vollständig im Backup-Export (`collectUserDataBackup`)
+ * enthalten ist. Definiert die Grenze zwischen `deleteSystemData` und `deleteUserData`.
+ */
+const USER_DATA_STORES: readonly StoreName[] = [
+  "maintenance_settings", "maintenance_cluster_assignments", "maintenance_windows", "scenarios", "vcenter_groups",
+];
+const SYSTEM_DATA_STORES: readonly StoreName[] = ALL_STORES.filter((s) => !USER_DATA_STORES.includes(s));
+
+export async function deleteAllData(onProgress?: DeleteProgressCallback): Promise<void> {
+  await clearStores(ALL_STORES, "Alle Daten löschen", onProgress);
+}
+
+/** Löscht alle Daten außer denen, die beim Backup-Export gesichert werden (RVTools-/Tech-Info-/Netzwerkdaten etc.). */
+export async function deleteSystemData(onProgress?: DeleteProgressCallback): Promise<void> {
+  await clearStores(SYSTEM_DATA_STORES, "Systemdaten löschen", onProgress);
+}
+
+/** Löscht nur die Daten, die beim Backup-Export gesichert werden (Wartungseinstellungen, Szenarien, vCenter-Gruppen etc.). */
+export async function deleteUserData(onProgress?: DeleteProgressCallback): Promise<void> {
+  await clearStores(USER_DATA_STORES, "Userdaten löschen", onProgress);
 }
 
 export async function deleteSnapshot(snapshotId: string, onProgress?: DeleteProgressCallback): Promise<void> {

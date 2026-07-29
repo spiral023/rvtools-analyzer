@@ -335,6 +335,24 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
     await expect(getMaintenanceWindows()).resolves.toEqual([]);
     await expect(getScenarios()).resolves.toEqual([]);
   });
+
+  it("deleteUserData löscht sowohl die gesicherten IndexedDB-Stores als auch die lokalen VM-Scope-Vorgaben", async () => {
+    const { getMaintenanceSettings, getScenarios, getVcenterGroups, putScenario, putVcenterGroup, putMaintenanceSettings } = await import("@/data/db");
+    const { deleteUserData } = await import("@/domain/services/backupService");
+    const { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } = await import("@/lib/vmScopeSettings");
+
+    await putMaintenanceSettings(settings);
+    await putScenario(scenario);
+    await putVcenterGroup(vcenterGroup);
+    saveVmScopeSettings({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: false });
+
+    await deleteUserData();
+
+    await expect(getMaintenanceSettings()).resolves.toBeUndefined();
+    await expect(getScenarios()).resolves.toEqual([]);
+    await expect(getVcenterGroups()).resolves.toEqual([]);
+    expect(getStoredVmScopeSettings()).toEqual(DEFAULT_VM_SCOPE_SETTINGS);
+  });
 });
 
 describe("buildBackupFileName", () => {

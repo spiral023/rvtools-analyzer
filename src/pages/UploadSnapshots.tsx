@@ -2,7 +2,7 @@ import { useCallback, useMemo, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  getSnapshots, deleteSnapshot, deleteAllData, getTechInfoImports, deleteTechInfoImport,
+  getSnapshots, deleteSnapshot, deleteSystemData, getTechInfoImports, deleteTechInfoImport,
   getTechInfoClientImports, deleteTechInfoClientImport,
   getCdpImports, deleteCdpImport,
   getIpamImports, deleteIpamImport,
@@ -16,6 +16,7 @@ import {
   estimateVropsTimeSeriesImportSizesBytes,
 } from "@/data/db";
 import type { DeleteProgress, DeleteProgressCallback } from "@/data/db";
+import { deleteUserData } from "@/domain/services/backupService";
 import { fileKindLabel, useImportController } from "@/hooks/useImportController";
 import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -97,14 +98,16 @@ function uploadDeleteLabel(kind: StoredUpload["kind"]): string {
 
 type UploadState = {
   dragOver: boolean;
-  deleteAllOpen: boolean;
+  deleteSystemOpen: boolean;
+  deleteUserOpen: boolean;
   deleting: boolean;
   deleteProgress: DeleteProgress | null;
 };
 
 type UploadAction =
   | { type: "set-drag-over"; value: boolean }
-  | { type: "set-delete-all-open"; value: boolean }
+  | { type: "set-delete-system-open"; value: boolean }
+  | { type: "set-delete-user-open"; value: boolean }
   | { type: "set-deleting"; value: boolean }
   | { type: "set-delete-progress"; value: DeleteProgress | null };
 
@@ -112,8 +115,10 @@ function uploadReducer(state: UploadState, action: UploadAction): UploadState {
   switch (action.type) {
     case "set-drag-over":
       return { ...state, dragOver: action.value };
-    case "set-delete-all-open":
-      return { ...state, deleteAllOpen: action.value };
+    case "set-delete-system-open":
+      return { ...state, deleteSystemOpen: action.value };
+    case "set-delete-user-open":
+      return { ...state, deleteUserOpen: action.value };
     case "set-deleting":
       return { ...state, deleting: action.value };
     case "set-delete-progress":
@@ -172,11 +177,12 @@ function useUploadSnapshotsView() {
   const { importing, items, importFiles } = useImportController();
   const [uploadState, dispatch] = useReducer(uploadReducer, {
     dragOver: false,
-    deleteAllOpen: false,
+    deleteSystemOpen: false,
+    deleteUserOpen: false,
     deleting: false,
     deleteProgress: null,
   });
-  const { dragOver, deleteAllOpen, deleting, deleteProgress } = uploadState;
+  const { dragOver, deleteSystemOpen, deleteUserOpen, deleting, deleteProgress } = uploadState;
   const activeItem = items.find((item) => item.status === "running") ?? items.at(-1) ?? null;
   const progress = activeItem?.progress ?? null;
   const lastResult = [...items].reverse().find((item) => item.result)?.result ?? null;
@@ -285,9 +291,14 @@ function useUploadSnapshotsView() {
     await runDelete(() => deleteVropsImport(vropsImportId), "vROps-Daten gelöscht.");
   }, [runDelete]);
 
-  const handleDeleteAll = useCallback(async () => {
-    dispatch({ type: "set-delete-all-open", value: false });
-    await runDelete((onProgress) => deleteAllData(onProgress), "Alle lokalen Daten wurden gelöscht.");
+  const handleDeleteSystemData = useCallback(async () => {
+    dispatch({ type: "set-delete-system-open", value: false });
+    await runDelete((onProgress) => deleteSystemData(onProgress), "Alle Systemdaten wurden gelöscht.");
+  }, [runDelete]);
+
+  const handleDeleteUserData = useCallback(async () => {
+    dispatch({ type: "set-delete-user-open", value: false });
+    await runDelete((onProgress) => deleteUserData(onProgress), "Alle Userdaten wurden gelöscht.");
   }, [runDelete]);
 
   const handleDeleteVropsTimeSeriesImport = useCallback(async (importId: string) => {
@@ -381,20 +392,37 @@ function useUploadSnapshotsView() {
         title="Uploads"
         meta={(
           <div className="flex items-center gap-1">
-          <Dialog open={deleteAllOpen} onOpenChange={(open) => dispatch({ type: "set-delete-all-open", value: open })}>
+          <Dialog open={deleteSystemOpen} onOpenChange={(open) => dispatch({ type: "set-delete-system-open", value: open })}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
-                <Trash2 className="mr-1 h-4 w-4" />Alle Daten löschen
+                <Trash2 className="mr-1 h-4 w-4" />Systemdaten löschen
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Alle lokalen Daten löschen?</DialogTitle>
-                <DialogDescription>Dies löscht alle importierten Snapshots, Analysedaten und gespeicherten Einstellungen unwiderruflich aus Ihrem Browser.</DialogDescription>
+                <DialogTitle>Alle Systemdaten löschen?</DialogTitle>
+                <DialogDescription>Dies löscht alle importierten Snapshots und Analysedaten (RVTools, Tech-Info, Netzwerk, vROps etc.) unwiderruflich aus Ihrem Browser. Daten, die im Backup-Export enthalten sind (Wartungseinstellungen, Szenarien, vCenter-Gruppen), bleiben erhalten.</DialogDescription>
               </DialogHeader>
               <DialogFooter>
-                <Button variant="outline" onClick={() => dispatch({ type: "set-delete-all-open", value: false })}>Abbrechen</Button>
-                <Button variant="destructive" onClick={handleDeleteAll}>Endgültig löschen</Button>
+                <Button variant="outline" onClick={() => dispatch({ type: "set-delete-system-open", value: false })}>Abbrechen</Button>
+                <Button variant="destructive" onClick={handleDeleteSystemData}>Endgültig löschen</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={deleteUserOpen} onOpenChange={(open) => dispatch({ type: "set-delete-user-open", value: open })}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
+                <Trash2 className="mr-1 h-4 w-4" />Userdaten löschen
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Alle Userdaten löschen?</DialogTitle>
+                <DialogDescription>Dies löscht unwiderruflich genau die Daten, die auch der Backup-Export sichert: Wartungseinstellungen, Cluster-Zuordnungen, Wartungsfenster, Szenarien, vCenter-Gruppen und VM-Scope-Einstellungen. Importierte Snapshots und Analysedaten bleiben erhalten.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => dispatch({ type: "set-delete-user-open", value: false })}>Abbrechen</Button>
+                <Button variant="destructive" onClick={handleDeleteUserData}>Endgültig löschen</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
