@@ -86,7 +86,7 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit" }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration" }, { id: "nightConcentration", label: "Nacht-Konzentration" }, { id: "weekendConcentration", label: "Wochenend-Konzentration" },
     { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)" }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)" },
     { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)" }, { id: "rightsizingReadyP95", label: "CPU Ready P95" },
-    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
+    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
     { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }, { id: "rightsizingCandidate", label: "Rightsizing-Kandidat" },
     { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf" }, { id: "highCpuReady", label: "Auffälliges CPU Ready" },
   ];
@@ -123,6 +123,7 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
         rightsizingDemandP95: rightsizing ? number(rightsizing.demand.p95, 2) : "—",
         rightsizingReadyP95: rightsizing ? pct(rightsizing.ready.p95) : "—",
         usedVcpuEquivalentP95: rightsizing ? number(rightsizing.usedVcpuEquivalentP95, 2) : "—",
+        usedVcpuEquivalentPeak: rightsizing ? number(rightsizing.usedVcpuEquivalentPeak, 2) : "—",
         recommendedVcpu: rightsizing ? number(rightsizing.recommendedVcpu) : "—",
         reclaimableVcpu: rightsizing ? number(rightsizing.reclaimableVcpu) : "—",
         rightsizingCandidate: rightsizing ? (isNotableRightsizingCandidate(rightsizing) ? "Ja" : "Nein") : "—",

@@ -1001,6 +1001,12 @@ export interface VmRightsizingCandidate {
   mhzPerCore: number | null;
   /** Aus P95-Demand und `mhzPerCore` abgeleiteter, tatsächlich genutzter vCPU-Bedarf. */
   usedVcpuEquivalentP95: number | null;
+  /**
+   * Dasselbe für das beobachtete Maximum. Begrenzt die Empfehlung nach unten, damit
+   * kurze Lastspitzen nicht abgeschnitten werden – der P95 stündlicher Mittelwerte
+   * allein verbirgt sie.
+   */
+  usedVcpuEquivalentPeak: number | null;
   /** Empfohlene vCPU-Zielgröße mit Sicherheitsaufschlag; nur eine prüfpflichtige Kandidatengröße. */
   recommendedVcpu: number | null;
   /** `vcpu - recommendedVcpu`, nie negativ. */

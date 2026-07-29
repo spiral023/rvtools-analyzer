@@ -11,8 +11,9 @@
  */
 import { readFileSync } from "node:fs";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, classifyVmBehavior } from "@/domain/services/vmWorkloadProfileService";
+import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { percentile } from "@/lib/statistics";
-import type { VmBehaviorClass, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadShape } from "@/domain/models/types";
+import type { NormalizedHost, VmBehaviorClass, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -68,6 +69,11 @@ interface ParsedRow {
   /** Exportiertes Lastmuster bzw. Niveau; `null`, wenn der Export die Spalten noch nicht führt. */
   exportedShapeLabel: string | null;
   exportedIntensityLabel: string | null;
+  /** Rightsizing-Werte des Exports; `null`, wenn die Spalten fehlen. */
+  exportedUsedVcpuP95: number | null;
+  exportedRecommendedVcpu: number | null;
+  exportedReclaimableVcpu: number | null;
+  hasRightsizingColumns: boolean;
   configuredCpuCapacityMHz: number | null;
   /** Alle Slots des Exports, auch Lücken (Wert null) – nötig für coverageRatio. */
   slots: { timestampUtc: number; dayKey: string; hour: number; isWeekend: boolean; value: number | null }[];
@@ -121,6 +127,9 @@ function parseCsv(path: string): ParsedRow[] {
     behaviorClass: columnIndex("Verhaltensklasse"),
     shape: optionalColumnIndex("Lastmuster"),
     intensity: optionalColumnIndex("Auslastungsniveau"),
+    usedVcpuP95: optionalColumnIndex("Genutzt P95 (vCPU)"),
+    recommendedVcpu: optionalColumnIndex("Empfohlen (vCPU)"),
+    reclaimableVcpu: optionalColumnIndex("Rückgewinnbar (vCPU)"),
     capacity: columnIndex("Konfigurierte CPU-Kapazität (MHz)"),
     raw: columnIndex("CPU Demand Rohdaten (7 Tage)"),
   };
@@ -144,6 +153,10 @@ function parseCsv(path: string): ParsedRow[] {
       exportedClassLabel: fields[idx.behaviorClass] ?? "",
       exportedShapeLabel: idx.shape !== null ? fields[idx.shape] ?? "" : null,
       exportedIntensityLabel: idx.intensity !== null ? fields[idx.intensity] ?? "" : null,
+      exportedUsedVcpuP95: idx.usedVcpuP95 !== null ? parseGermanNumber(fields[idx.usedVcpuP95] ?? "") : null,
+      exportedRecommendedVcpu: idx.recommendedVcpu !== null ? parseGermanNumber(fields[idx.recommendedVcpu] ?? "") : null,
+      exportedReclaimableVcpu: idx.reclaimableVcpu !== null ? parseGermanNumber(fields[idx.reclaimableVcpu] ?? "") : null,
+      hasRightsizingColumns: idx.reclaimableVcpu !== null,
       configuredCpuCapacityMHz: parseGermanNumber(fields[idx.capacity] ?? ""),
       slots,
     });
@@ -484,6 +497,105 @@ function main(): void {
   for (const limit of [100, 250, 500, 1_000, 2_000]) {
     console.log(`    < ${String(limit).padStart(5)} MHz: ${String(belowAbsolute(limit)).padStart(5)}  (${((100 * belowAbsolute(limit)) / noisy.length).toFixed(1)} %)`);
   }
+
+  reportRightsizing(results);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Rightsizing                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rechnet das Rightsizing über die echte `buildVmRightsizingCandidates()` nach. Dazu
+ * genügt je VM ein synthetischer Host, dessen MHz/Core exakt der exportierten Kapazität
+ * pro vCPU entspricht – so bleibt die Formel an einer Stelle.
+ *
+ * P95 und Maximum stammen aus den Rohdaten der Zeitreihe, nicht aus den Exportspalten:
+ * das Maximum wird gar nicht exportiert, ist für die Empfehlung aber maßgeblich.
+ */
+function reportRightsizing(results: readonly Recomputed[]): void {
+  console.log(`\n=== 14. Rightsizing: Export (alte Formel) gegen aktuelle Logik ===`);
+  const usable = results.filter((entry) => entry.row.vcpu !== null && entry.row.vcpu > 0 && entry.row.configuredCpuCapacityMHz !== null);
+  if (usable.length === 0) {
+    console.log(`  Keine VMs mit vCPU und Kapazität – nicht auswertbar.`);
+    return;
+  }
+
+  const emptyStats = { expectedSlots: 168, sampleCount: 0, coverageRatio: 0, average: null, p50: null, p95: null, maximum: null };
+  const profiles: VmWorkloadProfile[] = [];
+  const hosts: NormalizedHost[] = [];
+  for (const entry of usable) {
+    const vcpu = entry.row.vcpu!;
+    const values = [...entry.demandByTimestamp.values()];
+    const hostKey = `host:${entry.row.server}`;
+    hosts.push({
+      snapshotId: "csv", vcenterId: "csv", hostKey, host: hostKey, cluster: null, datacenter: null,
+      cpuModel: null, cpuTotalMHz: entry.row.configuredCpuCapacityMHz, cpuCores: vcpu, cpuThreads: null, memoryTotalMiB: null,
+      version: null, build: null, vendor: null, model: null, connectionState: null, powerState: null, maintenanceMode: null, vmCount: null,
+    } as NormalizedHost);
+    profiles.push({
+      objectKey: entry.row.server, rvtoolsObjectKey: entry.row.server, vmName: entry.row.server,
+      clusterKey: null, clusterName: null, hostKey, host: hostKey, vcpu,
+      configuredMemoryMiB: null, powerState: entry.row.powerState, workloadClass: "unknown",
+      hourly: [],
+      demand: { ...emptyStats, sampleCount: values.length, coverageRatio: 1, p95: entry.p95, maximum: values.length ? Math.max(...values) : null },
+      ready: emptyStats,
+      shape: entry.shape, intensity: entry.intensity, behaviorClass: entry.behaviorClass,
+      confidence: "high", signals: entry.signals,
+    } as VmWorkloadProfile);
+  }
+
+  const candidates = new Map(buildVmRightsizingCandidates({ profiles, hosts }).map((candidate) => [candidate.objectKey, candidate]));
+
+  let oddReclaim = 0;
+  let sumOld = 0;
+  let sumNew = 0;
+  let lessAggressive = 0;
+  let unchanged = 0;
+  let moreAggressive = 0;
+  const deepCutsOld: number[] = [];
+  const deepCutsNew: number[] = [];
+  const reclaimShare: number[] = [];
+
+  for (const entry of usable) {
+    const candidate = candidates.get(entry.row.server);
+    if (!candidate) continue;
+    const vcpu = entry.row.vcpu!;
+    const newReclaim = candidate.reclaimableVcpu ?? 0;
+    const oldReclaim = entry.row.exportedReclaimableVcpu;
+    if (newReclaim % 2 !== 0) oddReclaim += 1;
+    sumNew += newReclaim;
+    reclaimShare.push(newReclaim / vcpu);
+    if (oldReclaim !== null) {
+      sumOld += oldReclaim;
+      if (newReclaim < oldReclaim) lessAggressive += 1;
+      else if (newReclaim > oldReclaim) moreAggressive += 1;
+      else unchanged += 1;
+      deepCutsOld.push(oldReclaim / vcpu);
+    }
+    deepCutsNew.push(newReclaim / vcpu);
+  }
+
+  console.log(`  Auswertbare VMs: ${usable.length}`);
+  console.log(`  Ungerade Rückgabewerte der neuen Logik: ${oddReclaim}   (muss 0 sein)`);
+  if (!usable[0].row.hasRightsizingColumns) {
+    console.log(`  Export führt keine Rightsizing-Spalten – nur die neuen Werte werden ausgewiesen.`);
+  } else {
+    console.log(`\n  Rückgewinnbare vCPU gesamt:`);
+    console.log(`    Export (alte Formel): ${sumOld}`);
+    console.log(`    aktuelle Logik:       ${sumNew}   (${sumOld > 0 ? (((sumNew - sumOld) / sumOld) * 100).toFixed(1) : "—"} % gegenüber Export)`);
+    console.log(`\n  Richtung der Änderung je VM:`);
+    console.log(`    zurückhaltender: ${lessAggressive}`);
+    console.log(`    unverändert:     ${unchanged}`);
+    console.log(`    aggressiver:     ${moreAggressive}   (sollte 0 sein)`);
+    console.log(`\n  Anteil der zurückgegebenen vCPU an der konfigurierten Größe:`);
+    console.log(`    Export:         ${quantileSummary(deepCutsOld)}`);
+    console.log(`    aktuelle Logik: ${quantileSummary(deepCutsNew)}`);
+  }
+
+  const notable = [...candidates.values()].filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0);
+  console.log(`\n  VMs mit Rückgabepotenzial: ${notable.length}  (${((100 * notable.length) / usable.length).toFixed(1)} %)`);
+  printDistribution("  Rückgabe je Muster (Summe vCPU)", [...candidates.values()].flatMap((candidate) => Array.from({ length: candidate.reclaimableVcpu ?? 0 }, () => VM_WORKLOAD_SHAPE_LABEL[candidate.shape])));
 }
 
 main();

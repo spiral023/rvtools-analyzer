@@ -135,14 +135,19 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
     description: "P95-CPU-Demand geteilt durch die MHz pro Core des aktuellen Hosts – wie viele vCPU der beobachtete Bedarf tatsächlich auslastet.",
     source: `berechnet · ${RV} · vInfo/vHost · „CPU MHz“ / „# Cores“`,
   },
+  usedVcpuEquivalentPeak: {
+    term: "Genutzt Maximum",
+    description: "Dasselbe für den höchsten beobachteten Stundenwert. Begrenzt die Empfehlung nach unten, denn der P95 stündlicher Mittelwerte verbirgt kurze Lastspitzen – vROps liefert Stundenmittel, keine Momentanwerte.",
+    source: "berechnet",
+  },
   recommendedVcpu: {
     term: "Empfohlen",
-    description: "Genutztes vCPU-Äquivalent hochgerechnet auf 65 % Zielauslastung, aufgerundet. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
+    description: "Kleinste gerade vCPU-Größe, die drei Bedingungen erfüllt: höchstens 65 % Auslastung beim P95-Bedarf, höchstens 90 % beim beobachteten Maximum, und mindestens die Hälfte der heutigen Größe. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
     source: "berechnet",
   },
   reclaimableVcpu: {
     term: "Rückgewinnbar",
-    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ.",
+    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ und immer eine gerade Zahl – vCPU werden paarweise zurückgegeben. Auf höchstens die Hälfte der konfigurierten Größe begrenzt, damit Rightsizing in überprüfbaren Schritten erfolgt statt in einem Sprung.",
     source: "berechnet",
   },
   shape: { term: "Lastmuster", description: "Zeitliches Lastmuster aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik. Unabhängig von der Auslastungshöhe, daher auch bei schwach ausgelasteten Kandidaten aussagekräftig.", source: "berechnet" },

@@ -39,7 +39,7 @@ const hosts: NormalizedHost[] = [{
 describe("buildVmRightsizingCandidates", () => {
   it("leitet mhzPerCore, genutztes vCPU-Äquivalent und rückgewinnbare vCPU ab", () => {
     // Host: 20 GHz / 20 Cores = 1000 MHz/Core. P95-Demand 2000 MHz => 2 genutzte vCPU-Äquivalente.
-    // Bei 65 % Zielauslastung ergibt das ceil(2 / 0.65) = 4 empfohlene vCPU.
+    // Bedarf aus P95 wäre 2 / 0.65 = 3.08, hier begrenzt die Halbierungsgrenze auf 4 vCPU.
     const candidates = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 8, demand: metricStats({ p95: 2_000 }) })],
       hosts,
@@ -80,6 +80,65 @@ describe("buildVmRightsizingCandidates", () => {
       hosts,
     });
     expect(candidates.map((candidate) => candidate.objectKey)).toEqual(["vm-big-gain", "vm-small-gain"]);
+  });
+});
+
+describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () => {
+  it("gibt vCPU ausschließlich in geraden Schritten zurück", () => {
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vm-8", vcpu: 8, demand: metricStats({ p95: 200 }) }),
+        profile({ objectKey: "vm-12", vcpu: 12, demand: metricStats({ p95: 200 }) }),
+        profile({ objectKey: "vm-16", vcpu: 16, demand: metricStats({ p95: 200 }) }),
+        // Ungerade konfigurierte Größe: die Rückgabe bleibt trotzdem gerade.
+        profile({ objectKey: "vm-9", vcpu: 9, demand: metricStats({ p95: 200 }) }),
+        profile({ objectKey: "vm-3", vcpu: 3, demand: metricStats({ p95: 200 }) }),
+      ],
+      hosts,
+    });
+
+    for (const candidate of candidates) {
+      expect(candidate.reclaimableVcpu! % 2).toBe(0);
+      // Empfehlung und Rückgabe ergeben zusammen immer die konfigurierte Anzahl.
+      expect(candidate.recommendedVcpu! + candidate.reclaimableVcpu!).toBe(candidate.vcpu);
+    }
+  });
+
+  it("gibt nie mehr als die Hälfte der konfigurierten vCPU auf einmal zurück", () => {
+    // Bedarf nahe null: ohne Begrenzung wären 15 der 16 vCPU rückgewinnbar.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }) })],
+      hosts,
+    });
+    expect(candidate.reclaimableVcpu).toBe(8);
+    expect(candidate.recommendedVcpu).toBe(8);
+  });
+
+  it("empfiehlt nie unter zwei vCPU", () => {
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-1", vcpu: 2, demand: metricStats({ p95: 10 }) })],
+      hosts,
+    });
+    expect(candidate.recommendedVcpu).toBe(2);
+    expect(candidate.reclaimableVcpu).toBe(0);
+  });
+
+  it("berücksichtigt das beobachtete Maximum, nicht nur den P95", () => {
+    // P95 stündlicher Mittelwerte verbirgt kurze Spitzen. 12.000 MHz Maximum entsprechen
+    // 12 vCPU-Äquivalenten, bei 90 % Zielauslastung also mindestens 14 empfohlene vCPU.
+    const [withPeak] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 1_000, maximum: 12_000 }) })],
+      hosts,
+    });
+    const [withoutPeak] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 1_000 }) })],
+      hosts,
+    });
+
+    expect(withPeak.usedVcpuEquivalentPeak).toBe(12);
+    expect(withPeak.reclaimableVcpu).toBe(2);
+    // Ohne bekanntes Maximum begrenzt allein die Halbierungsgrenze.
+    expect(withoutPeak.reclaimableVcpu).toBe(8);
   });
 });
 
