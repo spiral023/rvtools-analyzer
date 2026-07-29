@@ -59,7 +59,7 @@ export default function ExportStudio() {
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const { runs, isLoading: runsLoading } = useFillUpAnalysisRuns();
-  const { profiles: workloadProfiles, isLoading: workloadProfilesLoading } = useVmWorkloadProfiles(null);
+  const { profiles: workloadProfiles, hosts: workloadHosts, isLoading: workloadProfilesLoading } = useVmWorkloadProfiles(null);
   const [source, setSource] = useState<ExportStudioSource>("vms");
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const [pseudonymize, setPseudonymize] = useState(false);
@@ -103,8 +103,8 @@ export default function ExportStudio() {
     if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope);
     if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
-    return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles);
-  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadProfiles]);
+    return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts);
+  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadHosts, workloadProfiles]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
   const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
