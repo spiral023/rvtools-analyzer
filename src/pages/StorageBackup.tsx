@@ -12,7 +12,7 @@ import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { DatastoreCapacityDetails } from "@/components/storage/DatastoreCapacityDetails";
 import { calculateDatastoreCapacityStats } from "@/lib/datastoreCapacity";
-import { Database, AlertTriangle, Clock, FileWarning } from "lucide-react";
+import { Database, AlertTriangle, Camera, Clock, FileWarning, ShieldCheck } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "@/components/charts/recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
@@ -220,6 +220,7 @@ export default function StorageBackup() {
 
   const noBackup = backupData.filter((b) => b.risk === "kein Backup").length;
   const staleBackup = backupData.filter((b) => b.ageDays > 7).length;
+  const backupCoveragePct = filteredRawVInfo.length > 0 ? ((filteredRawVInfo.length - backupData.length) / filteredRawVInfo.length) * 100 : null;
 
   // SCSI/Controller Mapping
   const scsiMapping = useMemo<ScsiRow[]>(() =>
@@ -395,6 +396,7 @@ export default function StorageBackup() {
             <KpiCard title="Virtuelle Disks" value={formatNum(disks.length)} icon={<Database className="h-4 w-4" />} />
             <KpiCard title="Thin Disks" value={formatNum(thinDiskCount)} severity={thinDiskCount > 0 ? "warn" : "ok"} info={STORAGE_KPI.thinDisks} />
             <KpiCard title="RDMs" value={formatNum(rdmDiskCount)} severity={rdmDiskCount > 0 ? "warn" : "ok"} info={STORAGE_KPI.rdmDisks} />
+            <KpiCard title="SCSI-Zuordnungen" value={formatNum(scsiMapping.length)} icon={<Database className="h-4 w-4" />} info={STORAGE_KPI.scsiMappings} />
           </KpiGrid>
           {deadPathHosts.length > 0 && (
             <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
@@ -416,6 +418,8 @@ export default function StorageBackup() {
             <KpiCard title="Backup >7d" value={formatNum(staleBackup)} severity={staleBackup > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={STORAGE_KPI.staleBackup} />
             <KpiCard title="Backup-Risiken" value={formatNum(backupData.length)} severity={backupData.length > 0 ? "warn" : "ok"} info={STORAGE_KPI.backupRisks} />
             <KpiCard title="Snapshot + Backup" value={formatNum(snapshotBackupConflicts.length)} severity={snapshotBackupConflicts.length > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.snapshotBackupConflicts} />
+            <KpiCard title="Backup-Abdeckung" value={backupCoveragePct === null ? "—" : formatPct(backupCoveragePct)} severity={backupCoveragePct !== null && backupCoveragePct < 80 ? "warn" : "ok"} icon={<ShieldCheck className="h-4 w-4" />} info={STORAGE_KPI.backupCoverage} />
+            <KpiCard title="Snapshots gesamt" value={formatNum(filteredVmSnapshots.length)} icon={<Camera className="h-4 w-4" />} info={STORAGE_KPI.snapshotsTotal} />
           </KpiGrid>
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">
             <InfoTooltip entry={STORAGE_SECTIONS.backupChart} side="bottom">

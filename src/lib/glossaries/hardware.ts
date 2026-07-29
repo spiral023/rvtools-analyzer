@@ -35,6 +35,16 @@ export const HARDWARE_KPI: Record<string, GlossaryEntry> = {
       "Summe der auf den gefilterten Hosts laufenden VMs. Hilft, Konsolidierungsgrad und Last je Hardware-Variante einzuordnen.",
     source: `${RV} · vHost · „# VMs“`,
   },
+  totalCores: {
+    term: "CPU-Kerne gesamt",
+    description: "Summe der physischen CPU-Kerne über alle gefilterten Hosts. Zeigt die aggregierte Rechenkapazität der Hardware-Flotte.",
+    source: `${RV} · vHost · „# Cores“`,
+  },
+  totalRam: {
+    term: "RAM gesamt",
+    description: "Summe des physischen Arbeitsspeichers über alle gefilterten Hosts.",
+    source: `${RV} · vHost · „# Memory“`,
+  },
 };
 
 /* ------------------------------------------------------------------ */

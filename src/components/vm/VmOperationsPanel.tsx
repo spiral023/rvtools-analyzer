@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Disc, Unplug } from "lucide-react";
+import { Camera, Clock, Disc, Unplug } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
@@ -93,6 +93,11 @@ export function VmOperationsPanel() {
   const filteredSnapshots = useMemo(() => matchingVmJoinKeys
     ? vmSnapshots.filter((snapshot) => matchingVmJoinKeys.has(buildVmJoinKey(snapshot.snapshotId, snapshot.vmName)))
     : vmSnapshots, [matchingVmJoinKeys, vmSnapshots]);
+  const staleSnapshotCount = useMemo(() => filteredSnapshots.filter((snapshot) => {
+    const date = parseSnapshotDate(snapshot.dateTaken);
+    if (!date) return false;
+    return Math.max(0, Math.round((Date.now() - date.getTime()) / 86400000)) > 14;
+  }).length, [filteredSnapshots]);
   const filteredTools = useMemo(() => filterVmRows(rawVTools), [filterVmRows, rawVTools]);
   const filteredCd = useMemo(() => filterVmRows(rawVCD), [filterVmRows, rawVCD]);
   const filteredUsb = useMemo(() => filterVmRows(rawVUSB), [filterVmRows, rawVUSB]);
@@ -112,6 +117,8 @@ export function VmOperationsPanel() {
         <KpiCard title="Disconnected" value={formatNum(disconnectedVms.length)} severity={disconnectedVms.length > 0 ? "crit" : "ok"} icon={<Unplug className="h-4 w-4" />} info={DAILY_OPS_KPI.disconnected} />
         <KpiCard title="Tools Issues" value={formatNum(toolsIssues)} severity={toolsIssues > 0 ? "warn" : "ok"} info={DAILY_OPS_KPI.toolsIssues} />
         <KpiCard title="CD/USB verbunden" value={formatNum(connectedMedia)} severity={connectedMedia > 0 ? "warn" : "ok"} icon={<Disc className="h-4 w-4" />} info={DAILY_OPS_KPI.cdUsb} />
+        <KpiCard title="VM Snapshots" value={formatNum(filteredSnapshots.length)} icon={<Camera className="h-4 w-4" />} info={DAILY_OPS_KPI.vmSnapshots} />
+        <KpiCard title="Alte Snapshots" value={formatNum(staleSnapshotCount)} subtitle="> 14 Tage" severity={staleSnapshotCount > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={DAILY_OPS_KPI.staleSnapshots} />
       </KpiGrid>
 
       <div className="space-y-6">

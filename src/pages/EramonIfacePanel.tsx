@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { AlertCircle, Cable, CheckCircle2, Network, Router } from "lucide-react";
+import { AlertCircle, Cable, CheckCircle2, Gauge, Network, Router } from "lucide-react";
 import { useActiveSnapshotIds, useAllEramonIfaceLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -50,6 +50,8 @@ export function EramonIfacePanel() {
   const switchCount = useMemo(() => new Set(rows.map((r) => r.switchNorm)).size, [rows]);
   const activeCount = useMemo(() => rows.filter((r) => r.statusLabel === "aktiv").length, [rows]);
   const downCount = useMemo(() => rows.filter((r) => r.statusLabel === "down").length, [rows]);
+  const portsPerSwitch = switchCount > 0 ? rows.length / switchCount : 0;
+  const totalBandwidthBps = useMemo(() => rows.reduce((sum, r) => sum + (r.bandbreiteBps ?? 0), 0), [rows]);
 
   if (isLoading) return <PanelLoadingState />;
 
@@ -72,6 +74,8 @@ export function EramonIfacePanel() {
         <KpiCard title="Ports gesamt" value={formatNum(rows.length)} icon={<Cable className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.ports} />
         <KpiCard title="Aktive Ports" value={formatNum(activeCount)} icon={<CheckCircle2 className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.active} />
         <KpiCard title="Down-Ports" value={formatNum(downCount)} severity={downCount > 0 ? "warn" : "ok"} icon={<AlertCircle className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.down} />
+        <KpiCard title="Ø Ports/Switch" value={portsPerSwitch.toLocaleString("de-DE", { maximumFractionDigits: 1 })} icon={<Cable className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.portsPerSwitch} />
+        <KpiCard title="Bandbreite gesamt" value={formatBandwidth(totalBandwidthBps)} icon={<Gauge className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.totalBandwidth} />
       </KpiGrid>
       <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-switch-ports" />
     </div>

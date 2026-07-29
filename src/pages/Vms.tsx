@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { AlertTriangle, Monitor, Power } from "lucide-react";
+import { AlertTriangle, Cpu, Layers, Monitor, MemoryStick, Power } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -15,7 +15,7 @@ import { VmPerformancePanel } from "@/components/vm/VmPerformancePanel";
 import { VmComplianceLifecyclePanel } from "@/components/vm/VmComplianceLifecyclePanel";
 import { VmWorkloadProfilePanel } from "@/components/vm/VmWorkloadProfilePanel";
 import { VmRightsizingPanel } from "@/components/vm/VmRightsizingPanel";
-import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
 export default function Vms() {
@@ -37,6 +37,9 @@ export default function Vms() {
 
   const poweredOn = vms.filter((vm) => vm.powerState === "poweredOn").length;
   const configIssues = vms.filter((vm) => vm.configStatus === "yellow" || vm.configStatus === "red").length;
+  const totalVcpu = vms.reduce((sum, vm) => sum + (vm.cpuCount ?? 0), 0);
+  const totalRamMiB = vms.reduce((sum, vm) => sum + (vm.memoryMiB ?? 0), 0);
+  const clusterCount = new Set(vms.filter((vm) => vm.cluster).map((vm) => vm.cluster)).size;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -56,6 +59,9 @@ export default function Vms() {
             <KpiCard title="VMs gesamt" value={formatNum(vms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />
             <KpiCard title="Eingeschaltet" value={formatNum(poweredOn)} subtitle={`von ${formatNum(vms.length)}`} icon={<Power className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
             <KpiCard title="Konfigurationsprobleme" value={formatNum(configIssues)} severity={configIssues > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
+            <KpiCard title="vCPU gesamt" value={formatNum(totalVcpu)} icon={<Cpu className="h-4 w-4" />} info={OVERVIEW_KPI.vcpuTotal} />
+            <KpiCard title="RAM gesamt" value={formatBytes(totalRamMiB)} icon={<MemoryStick className="h-4 w-4" />} info={OVERVIEW_KPI.ramTotal} />
+            <KpiCard title="Cluster" value={formatNum(clusterCount)} icon={<Layers className="h-4 w-4" />} info={OVERVIEW_KPI.clusterCount} />
           </KpiGrid>
           <VmInventoryTable vms={vms} globalFilter={filters.search} onRowClick={openVmDetail} />
         </TabsContent>

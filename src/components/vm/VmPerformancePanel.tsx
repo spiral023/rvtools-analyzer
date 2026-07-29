@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Gauge, MemoryStick, Network, Zap } from "lucide-react";
+import { Gauge, MemoryStick, Network, Timer, Zap } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -146,6 +146,7 @@ export function VmPerformancePanel() {
         <KpiCard title="Entitlement Gaps" value={formatNum(entitlementFull.length)} severity={entitlementFull.length > 0 ? "warn" : "ok"} icon={<Zap className="h-4 w-4" />} info={PERFORMANCE_KPI.entitlementGaps} />
         <KpiCard title="FT VMs" value={formatNum(ftData.length)} severity={ftData.some((row) => row.risk === "hoch") ? "crit" : ftData.length > 0 ? "warn" : "ok"} info={PERFORMANCE_KPI.ftVms} />
         <KpiCard title="VM Netz-Anomalien" value={formatNum(vmNetAnomalies.length)} severity={vmNetAnomalies.length > 0 ? "warn" : "ok"} icon={<Network className="h-4 w-4" />} info={PERFORMANCE_KPI.vmNetAnomalies} />
+        <KpiCard title="Latency Sensitivity" value={formatNum(latencyCases.length)} severity={latencyCases.length > 0 ? "warn" : "ok"} icon={<Timer className="h-4 w-4" />} info={PERFORMANCE_KPI.latencyCases} />
       </KpiGrid>
 
       {topChart.length > 0 && <div className="rounded-lg border border-border/50 bg-card/30 p-4">

@@ -23,7 +23,7 @@ import {
 } from "@/components/charts/recharts";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import {
-  Server, Cpu, HardDrive, Network as NetworkIcon,
+  Server, Cpu, HardDrive, MemoryStick, Network as NetworkIcon,
   ChevronRight, Layers, MonitorCog, CircuitBoard, Info, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -997,6 +997,8 @@ export default function Hardware() {
   const totalHosts = filteredHosts.length;
   const totalVms = filteredHosts.reduce((s, h) => s + h.vmCount, 0);
   const uniqueVendors = new Set(filteredHosts.map((h) => h.vendor)).size;
+  const totalCores = filteredHosts.reduce((s, h) => s + (h.totalCores || 0), 0);
+  const totalMemoryMiB = filteredHosts.reduce((s, h) => s + (h.memoryMiB || 0), 0);
   const selectedCluster = clusters.find((cluster) => cluster.clusterKey === selectedClusterKey) ?? null;
 
   const openClusterDetail = (host: HostDetail) => {
@@ -1047,11 +1049,13 @@ export default function Hardware() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} info={HARDWARE_KPI.hosts} />
         <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} info={HARDWARE_KPI.variants} />
         <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} info={HARDWARE_KPI.vendors} />
         <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} info={HARDWARE_KPI.vms} />
+        <KpiCard title="CPU-Kerne gesamt" value={totalCores} icon={<Cpu className="h-4 w-4" />} info={HARDWARE_KPI.totalCores} />
+        <KpiCard title="RAM gesamt" value={formatMemory(totalMemoryMiB)} icon={<MemoryStick className="h-4 w-4" />} info={HARDWARE_KPI.totalRam} />
       </div>
 
       {/* Charts */}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Activity, Clock, Gauge, Layers } from "lucide-react";
+import { Activity, Clock, Gauge, HelpCircle, Layers, TrendingUp } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -77,6 +77,8 @@ export function VmWorkloadProfilePanel() {
   const lowConfidenceCount = useMemo(() => profiles.filter((profile) => profile.confidence === "low" || profile.confidence === "not-computable").length, [profiles]);
   const averageCoveragePct = useMemo(() => (average(profiles.map((profile) => profile.demand.coverageRatio)) ?? 0) * 100, [profiles]);
   const idleCount = useMemo(() => profiles.filter((profile) => profile.intensity === "idle").length, [profiles]);
+  const highIntensityCount = useMemo(() => profiles.filter((profile) => profile.intensity === "high").length, [profiles]);
+  const unclassifiedCount = useMemo(() => profiles.filter((profile) => profile.shape === "unclassified").length, [profiles]);
 
   const columns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
@@ -124,6 +126,8 @@ export function VmWorkloadProfilePanel() {
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />
           <KpiCard title="Niedriges Vertrauen" value={formatNum(lowConfidenceCount)} severity={lowConfidenceCount > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={VM_PROFILE_KPI.lowConfidence} />
           <KpiCard title="Ruhend (< 2 %)" value={formatNum(idleCount)} icon={<Activity className="h-4 w-4" />} info={VM_PROFILE_KPI.idle} />
+          <KpiCard title="Hohe Auslastung" value={formatNum(highIntensityCount)} icon={<TrendingUp className="h-4 w-4" />} info={VM_PROFILE_KPI.highIntensity} />
+          <KpiCard title="Nicht klassifizierbar" value={formatNum(unclassifiedCount)} severity={unclassifiedCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={VM_PROFILE_KPI.unclassified} />
         </KpiGrid>
 
         {profiles.length > 0 && <div className="grid gap-4 lg:grid-cols-2">

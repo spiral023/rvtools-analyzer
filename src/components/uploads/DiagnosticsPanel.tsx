@@ -12,11 +12,7 @@ export function DiagnosticsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Diagnose</h2>
-          <p className="text-sm text-muted-foreground">Technischer Überblick über lokale Daten, Speicher und Ladezeiten.</p>
-        </div>
+      <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={refresh} disabled={isFetching}>
           {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Aktualisieren

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Cable, FileCode2, HelpCircle, Router, Server } from "lucide-react";
+import { Cable, FileCode2, HelpCircle, Layers, Router, Server, WifiOff } from "lucide-react";
 import { useActiveSnapshotIds, useAllCdpLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -88,6 +88,11 @@ export function CdpPanel() {
     () => new Set(rows.map((r) => r.cdpDeviceId).filter((v): v is string => Boolean(v))).size,
     [rows],
   );
+  const linkDownCount = useMemo(() => rows.filter((r) => r.linkStatus && r.linkStatus.toLowerCase() !== "up").length, [rows]);
+  const platformCount = useMemo(
+    () => new Set(rows.map((r) => r.cdpPlatform).filter((v): v is string => Boolean(v))).size,
+    [rows],
+  );
 
   const scriptDialog = scriptOpen ? (
     <Suspense fallback={null}>
@@ -125,6 +130,8 @@ export function CdpPanel() {
         <KpiCard title="Physische Adapter" value={formatNum(rows.length)} icon={<Cable className="h-4 w-4" />} info={NET_CDP_KPI.adapters} />
         <KpiCard title="Adapter ohne CDP-Daten" value={formatNum(adaptersWithoutCdp)} severity={adaptersWithoutCdp > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_CDP_KPI.adaptersWithoutCdp} />
         <KpiCard title="Eindeutige Switches" value={formatNum(switchCount)} icon={<Router className="h-4 w-4" />} info={NET_CDP_KPI.switches} />
+        <KpiCard title="Link Down" value={formatNum(linkDownCount)} severity={linkDownCount > 0 ? "warn" : "ok"} icon={<WifiOff className="h-4 w-4" />} info={NET_CDP_KPI.linkDown} />
+        <KpiCard title="Eindeutige Plattformen" value={formatNum(platformCount)} icon={<Layers className="h-4 w-4" />} info={NET_CDP_KPI.platforms} />
       </KpiGrid>
 
       <div>

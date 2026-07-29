@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { Download, FileSpreadsheet, FileText, GripVertical, Plus, Save, Table2, Trash2 } from "lucide-react";
+import { BookmarkCheck, Clock, Columns3, Download, Eye, EyeOff, FileSpreadsheet, FileText, GripVertical, Plus, Save, Server, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -73,6 +75,10 @@ export default function ExportStudio() {
   const activeSnapshotIdSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
   const activeSnapshots = useMemo(() => snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId)), [activeSnapshotIdSet, snapshots]);
   const scope = useMemo(() => scopeLabel(activeSnapshots.length, filters.globalFilter !== null), [activeSnapshots.length, filters.globalFilter]);
+  const latestExportTs = useMemo(
+    () => activeSnapshots.reduce<string | null>((latest, snapshot) => (!latest || snapshot.exportTs > latest ? snapshot.exportTs : latest), null),
+    [activeSnapshots],
+  );
   // Der globale Filter wird fachlich auf VMs definiert. Für Host- und Cluster-Exporte
   // übernehmen wir ihn über die im Ergebnis verbliebenen VM-Zuordnungen.
   const globalVmPlacements = useMemo(() => {
@@ -193,6 +199,15 @@ export default function ExportStudio() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Export & Berichte" subtitle="Stellen Sie einen lokalen Export aus dem aktuell gefilterten Datenbestand zusammen." meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
+
+      <KpiGrid>
+        <KpiCard title="Datensätze im Scope" value={dataset.rows.length.toLocaleString("de-DE")} subtitle={sourceLabels[source]} icon={<Table2 className="h-4 w-4" />} />
+        <KpiCard title="Ausgewählte Spalten" value={columnIds.length} subtitle={`von ${dataset.columns.length} verfügbar`} severity={columnIds.length === 0 ? "warn" : undefined} icon={<Columns3 className="h-4 w-4" />} />
+        <KpiCard title="vCenter-Scope" value={activeSnapshots.length} subtitle={filters.globalFilter !== null ? "Globaler Filter aktiv" : undefined} icon={<Server className="h-4 w-4" />} />
+        <KpiCard title="Gespeicherte Vorlagen" value={templates.length} icon={<BookmarkCheck className="h-4 w-4" />} />
+        <KpiCard title="Pseudonymisierung" value={pseudonymize ? "Aktiv" : "Inaktiv"} icon={pseudonymize ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />} />
+        <KpiCard title="Jüngster Snapshot" value={latestExportTs ? new Date(latestExportTs).toLocaleDateString("de-DE") : "—"} subtitle={latestExportTs ? new Date(latestExportTs).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr" : undefined} icon={<Clock className="h-4 w-4" />} />
+      </KpiGrid>
 
       <section className="rounded-lg border border-primary/25 bg-primary/[0.045] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

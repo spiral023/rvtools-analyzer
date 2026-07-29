@@ -86,6 +86,21 @@ export const STORAGE_KPI: Record<string, GlossaryEntry> = {
     description: "VMs mit aktivem Snapshot und gleichzeitigem Backup-Problem. Diese Kombination erhöht Restore- und Kapazitätsrisiken.",
     source: `${RV} · vSnapshot / vInfo`,
   },
+  backupCoverage: {
+    term: "Backup-Abdeckung",
+    description: "Anteil der VMs mit aktuellem Backup (Status und Alter unauffällig) an allen bewerteten VMs. Ergänzt die Risikokennzahlen um eine positive Gesamtsicht.",
+    source: `${RV} · vInfo · „Backup Status“ / „Last Backup“`,
+  },
+  snapshotsTotal: {
+    term: "Snapshots gesamt",
+    description: "Anzahl offener VM-Snapshots im aktuellen Filter. Snapshots sind kein Backup und erhöhen bei gleichzeitigem Backup-Problem das Restore-Risiko.",
+    source: `${RV} · vSnapshot`,
+  },
+  scsiMappings: {
+    term: "SCSI-Zuordnungen",
+    description: "Anzahl der Disk-zu-Controller-Zuordnungen über SCSI-Unit-Nummern. Grundlage, um Controller-Engpässe oder falsch verteilte Disks zu erkennen.",
+    source: `${RV} · vDisk · „Controller“ / „SCSI Unit #“`,
+  },
 };
 
 /* ------------------------------------------------------------------ */

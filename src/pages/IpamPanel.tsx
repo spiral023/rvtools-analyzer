@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Fingerprint, MapPinned, Network, Radar, Server } from "lucide-react";
+import { Fingerprint, MapPinned, Network, Radar, Server, Wifi } from "lucide-react";
 import { useActiveSnapshotIds, useAllIpamLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -53,6 +53,7 @@ export function IpamPanel() {
     () => rows.filter((r) => Boolean(r.firstDiscovered) || Boolean(r.lastDiscovered)).length,
     [rows],
   );
+  const withMacCount = useMemo(() => rows.filter((r) => Boolean(r.macAddress)).length, [rows]);
 
   if (isLoading) return <PanelLoadingState />;
 
@@ -76,6 +77,7 @@ export function IpamPanel() {
         <KpiCard title="Unused" value={formatNum(unusedCount)} icon={<MapPinned className="h-4 w-4" />} info={NET_IPAM_KPI.unused} />
         <KpiCard title="Mit DNS-Namen" value={formatNum(withNameCount)} icon={<Fingerprint className="h-4 w-4" />} info={NET_IPAM_KPI.withDnsName} />
         <KpiCard title="Mit Discovery-Daten" value={formatNum(withDiscoveryCount)} icon={<Radar className="h-4 w-4" />} info={NET_IPAM_KPI.withDiscovery} />
+        <KpiCard title="Mit MAC-Adresse" value={formatNum(withMacCount)} icon={<Wifi className="h-4 w-4" />} info={NET_IPAM_KPI.withMac} />
       </KpiGrid>
 
       <div>

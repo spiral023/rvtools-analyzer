@@ -41,6 +41,12 @@ export const DAILY_OPS_KPI: Record<string, GlossaryEntry> = {
       "Anzahl offener VM-Snapshots im aktiven Datenbestand. Snapshots sind kein Backup und sollten nicht dauerhaft bestehen – ab etwa 20 offenen Snapshots lohnt ein Aufräumen.",
     source: `${RV} · vSnapshot`,
   },
+  staleSnapshots: {
+    term: "Alte Snapshots (>14 Tage)",
+    description:
+      "Snapshots, die seit mehr als 14 Tagen bestehen. Je länger ein Snapshot lebt, desto größer wird die Delta-Disk und desto riskanter ein Löschvorgang (I/O-Last, Konsolidierungsdauer).",
+    source: `${RV} · vSnapshot · „Date / Time“`,
+  },
   toolsIssues: {
     term: "Tools Issues",
     description:

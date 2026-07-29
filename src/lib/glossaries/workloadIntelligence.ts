@@ -65,6 +65,16 @@ export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
     description: "VMs mit einem CPU-Demand-P95 unter 2 % der konfigurierten Kapazität. Der engste und damit belastbarste Kandidatenkreis für Rückbau oder Zusammenlegung – im Gegensatz zu „gering genutzt“, das bis 10 % reicht und deutlich mehr VMs umfasst.",
     source: "berechnet",
   },
+  highIntensity: {
+    term: "Hohe Auslastung",
+    description: "VMs mit einem CPU-Demand-P95 auf dem höchsten Auslastungsniveau. Kandidaten, bei denen ein Rightsizing nach oben statt nach unten zu prüfen ist.",
+    source: "berechnet",
+  },
+  unclassified: {
+    term: "Nicht klassifizierbar",
+    description: "VMs, deren Zeitreihe für eine Muster- oder Niveaueinordnung nicht ausreicht (z.B. zu wenige verwertbare Stunden). Ergebnis ist keine Aussage, kein „unauffällig“.",
+    source: "berechnet",
+  },
 };
 
 export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
@@ -124,6 +134,16 @@ export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
     term: "Auffälliges CPU Ready",
     description: "VMs mit CPU Ready P95 über 5 %. Rightsizing kann Ready hier sogar verschlechtern – vor einer Reduktion die Ursache prüfen.",
     source: VROPS,
+  },
+  withheldRecommendation: {
+    term: "Ohne Empfehlung",
+    description: "VMs, für die aus Vorsicht keine Verkleinerung vorgeschlagen wird – zu dünne Datenbasis oder ein Lastmuster, dessen Spitzen in sieben Tagen nicht verlässlich erfasst sind.",
+    source: "berechnet",
+  },
+  lowConfidence: {
+    term: "Niedriges Vertrauen",
+    description: "Kandidaten, deren Klassifikation wegen geringer Datenabdeckung oder zu kurzer Zeitreihe als unsicher gilt. Empfehlungen hier besonders sorgfältig prüfen.",
+    source: "berechnet · Datenabdeckung",
   },
 };
 

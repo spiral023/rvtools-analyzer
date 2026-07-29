@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Network, Layers, Server, HelpCircle } from "lucide-react";
+import { Network, Layers, Server, HelpCircle, Tags } from "lucide-react";
 import { useActiveSnapshotIds, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -54,6 +54,11 @@ export function VlanUsagePanel() {
     () => rows.filter((r) => r.vlan === "?").reduce((sum, r) => sum + r.vmCount, 0),
     [rows],
   );
+  const portgroupCount = useMemo(
+    () => new Set(rows.flatMap((r) => r.portgroups.split(", ").filter(Boolean))).size,
+    [rows],
+  );
+  const avgVlansPerCluster = clusterCount > 0 ? rows.filter((r) => r.vlan !== "?").length / clusterCount : 0;
   const connectedVms = useMemo(() => {
     const set = new Set<string>();
     for (const r of rawVNetwork) {
@@ -74,6 +79,8 @@ export function VlanUsagePanel() {
         <KpiCard title="Cluster" value={formatNum(clusterCount)} icon={<Network className="h-4 w-4" />} info={NET_VLANUSAGE_KPI.clusters} />
         <KpiCard title="Verbundene VMs" value={formatNum(connectedVms)} icon={<Server className="h-4 w-4" />} info={NET_VLANUSAGE_KPI.connectedVms} />
         <KpiCard title="Ohne Portgruppen-Match" value={formatNum(unmatchedVms)} severity={unmatchedVms > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_VLANUSAGE_KPI.unmatched} />
+        <KpiCard title="Portgruppen" value={formatNum(portgroupCount)} icon={<Tags className="h-4 w-4" />} info={NET_VLANUSAGE_KPI.portgroups} />
+        <KpiCard title="Ø VLANs/Cluster" value={avgVlansPerCluster.toLocaleString("de-DE", { maximumFractionDigits: 1 })} icon={<Layers className="h-4 w-4" />} info={NET_VLANUSAGE_KPI.vlansPerCluster} />
       </KpiGrid>
 
       <div>

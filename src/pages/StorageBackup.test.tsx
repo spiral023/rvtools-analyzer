@@ -82,6 +82,7 @@ describe("StorageBackup KPI-Kacheln", () => {
       "Virtuelle Disks",
       "Thin Disks",
       "RDMs",
+      "SCSI-Zuordnungen",
     ]);
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Backup & Recovery" }), { button: 0 });
@@ -90,6 +91,8 @@ describe("StorageBackup KPI-Kacheln", () => {
       "Backup >7d",
       "Backup-Risiken",
       "Snapshot + Backup",
+      "Backup-Abdeckung",
+      "Snapshots gesamt",
     ]);
   });
 

@@ -98,7 +98,6 @@ export function NetworkSecurityPanel() {
     rawVmk.map((r) => ({ host: String(r.data["Host"] || ""), portGroup: String(r.data["Port Group"] || ""), device: String(r.data["Device"] || ""), ip: String(r.data["IP Address"] || ""), subnet: String(r.data["Subnet mask"] || ""), mtu: Number(String(r.data["MTU"] || "0").replace(/,/g, "")), dhcp: String(r.data["DHCP"] || "").toLowerCase() === "true" })), [rawVmk]);
 
   const mtuValues = new Set(vmkAdapters.map((v) => v.mtu)).size;
-  const dhcpVmk = vmkAdapters.filter((v) => v.dhcp).length;
 
   const nics = useMemo<NicRow[]>(() =>
     rawNIC.map((r) => ({ host: String(r.data["Host"] || ""), device: String(r.data["Network Device"] || ""), speed: Number(String(r.data["Speed"] || "0").replace(/,/g, "")), duplex: String(r.data["Duplex"] || "").toLowerCase() === "true", driver: String(r.data["Driver"] || ""), mac: String(r.data["MAC"] || "") })), [rawNIC]);
@@ -192,7 +191,6 @@ export function NetworkSecurityPanel() {
         <KpiCard title="Security Drift" value={formatNum(securityDrift.length)} severity={securityDrift.length > 0 ? "warn" : "ok"} icon={<ShieldAlert className="h-4 w-4" />} info={NET_SECURITY_KPI.securityDrift} />
         <KpiCard title="Promiscuous" value={formatNum(promiscuousCount)} severity={promiscuousCount > 0 ? "crit" : "ok"} info={NET_SECURITY_KPI.promiscuous} />
         <KpiCard title="MTU Varianten" value={formatNum(mtuValues)} severity={mtuValues > 2 ? "warn" : "ok"} icon={<Router className="h-4 w-4" />} info={NET_SECURITY_KPI.mtuVariants} />
-        <KpiCard title="VMK DHCP" value={formatNum(dhcpVmk)} severity={dhcpVmk > 0 ? "warn" : "ok"} info={NET_SECURITY_KPI.vmkDhcp} />
         <KpiCard title="Uplink SPOF" value={formatNum(uplinkData.length)} severity={uplinkData.length > 0 ? "warn" : "ok"} icon={<Cable className="h-4 w-4" />} info={NET_SECURITY_KPI.uplinkSpof} />
         <KpiCard title="Teaming Issues" value={formatNum(teamingData.length)} severity={teamingData.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={NET_SECURITY_KPI.teamingIssues} />
       </KpiGrid>

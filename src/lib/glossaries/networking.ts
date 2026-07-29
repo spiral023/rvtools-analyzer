@@ -86,6 +86,11 @@ export const NET_IPAM_KPI: Record<string, GlossaryEntry> = {
     description: "Adressen mit mindestens einem erfassten Discovery-Zeitpunkt. Sie wurden durch die IPAM-Erkennung beobachtet.",
     source: "IPAM-CSV · First/Last Discovered",
   },
+  withMac: {
+    term: "Mit MAC-Adresse",
+    description: "Adressen, für die im IPAM eine MAC-Adresse hinterlegt ist. Grundlage für den Abgleich mit Eramon-MAC-Tabellen und CDP-Daten.",
+    source: "IPAM-CSV · MAC Address",
+  },
 };
 
 export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
@@ -216,12 +221,6 @@ export const NET_SECURITY_KPI: Record<string, GlossaryEntry> = {
     description:
       "Anzahl unterschiedlicher MTU-Werte über alle VMkernel-Adapter. Mehr als ein bis zwei Werte deuten auf inkonsistente Jumbo-Frame-Konfiguration hin (Risiko für vMotion/iSCSI/NFS).",
     source: `${RV} · vSC_VMK · „MTU“`,
-  },
-  vmkDhcp: {
-    term: "VMK DHCP",
-    description:
-      "VMkernel-Adapter, die ihre IP per DHCP beziehen. Für Management/vMotion/Storage untypisch – meist sind statische Adressen gewünscht.",
-    source: `${RV} · vSC_VMK · „DHCP“`,
   },
   uplinkSpof: {
     term: "Uplink SPOF",
@@ -674,6 +673,16 @@ export const NET_VLANUSAGE_KPI: Record<string, GlossaryEntry> = {
       "VMs, deren verbundene Portgruppe in vPort/dvPort keiner VLAN-ID zugeordnet werden konnte (VLAN „?“). Hinweis auf fehlende/uneinheitliche Portgruppen-Daten.",
     source: `${RV} · vNetwork · „Network“ ohne Treffer in vPort/dvPort`,
   },
+  portgroups: {
+    term: "Portgruppen",
+    description: "Anzahl unterschiedlicher Portgruppen, über die die gefundenen VLAN-Zuordnungen laufen.",
+    source: `${RV} · vNetwork · „Network“`,
+  },
+  vlansPerCluster: {
+    term: "Ø VLANs/Cluster",
+    description: "Durchschnittliche Anzahl unterschiedlicher VLANs je Cluster (ohne „?“-Zeilen ohne Portgruppen-Match). Hoher Wert deutet auf VLAN-Sprawl hin.",
+    source: "berechnet",
+  },
 };
 
 export const NET_VLANUSAGE_COLUMNS: Record<string, GlossaryEntry> = {
@@ -743,6 +752,16 @@ export const NET_CDP_KPI: Record<string, GlossaryEntry> = {
     description:
       "Anzahl unterschiedlicher physischer Switches (CDP Device ID), an denen die gefilterten Hosts angeschlossen sind.",
     source: `${CDP} · „CDPDeviceID“`,
+  },
+  linkDown: {
+    term: "Link Down",
+    description: "Adapter mit CDP-Daten, deren Link-Status nicht „Up“ ist. Ein inaktiver Link an einem sonst per CDP erkannten Port ist untypisch und einen Blick wert.",
+    source: `${CDP} · „LinkStatus“`,
+  },
+  platforms: {
+    term: "Eindeutige Plattformen",
+    description: "Anzahl unterschiedlicher Switch-Hardware-Plattformen laut CDP. Zeigt die Heterogenität der angeschlossenen Switch-Infrastruktur.",
+    source: `${CDP} · „CDPHardwarePlatform“`,
   },
 };
 
@@ -836,6 +855,16 @@ export const NET_ERAMON_IFACE_KPI: Record<string, GlossaryEntry> = {
     description: "Ports mit Status 2 (down).",
     source: `${ERAMON} · „port_status“`,
   },
+  portsPerSwitch: {
+    term: "Ø Ports/Switch",
+    description: "Durchschnittliche Anzahl erfasster Ports je Switch. Ein grober Indikator für die Switch-Größe im Bestand.",
+    source: "berechnet",
+  },
+  totalBandwidth: {
+    term: "Bandbreite gesamt",
+    description: "Summe der Port-Bandbreiten über alle erfassten Ports. Theoretisches Maximum, keine tatsächliche Auslastung.",
+    source: `${ERAMON} · „bandbreite“`,
+  },
 };
 
 export const NET_ERAMON_IFACE_COLUMNS: Record<string, GlossaryEntry> = {
@@ -865,6 +894,16 @@ export const NET_ERAMON_L2_KPI: Record<string, GlossaryEntry> = {
   vlans: {
     term: "VLANs",
     description: "Anzahl unterschiedlicher VLAN-IDs (nicht-leer).",
+    source: `${ERAMON} · „vlan“`,
+  },
+  switches: {
+    term: "Eindeutige Switches",
+    description: "Anzahl unterschiedlicher Switches, aus denen die L2-Einträge stammen.",
+    source: `${ERAMON} · „name“`,
+  },
+  withoutVlan: {
+    term: "Ohne VLAN",
+    description: "L2-Einträge ohne erfasste VLAN-ID. Erschwert die VLAN-Zuordnung des Endgeräts beim Abgleich mit anderen Quellen.",
     source: `${ERAMON} · „vlan“`,
   },
 };

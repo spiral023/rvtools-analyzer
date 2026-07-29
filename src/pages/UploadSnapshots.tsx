@@ -33,7 +33,7 @@ import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, FileCheck2, HardDrive, Layers3 } from "lucide-react";
+import { Clock, Database, FileCheck2, HardDrive, Layers3, PackagePlus } from "lucide-react";
 import { formatIsoDateTime } from "@/lib/clientDetail";
 
 type StoredUpload =
@@ -379,6 +379,9 @@ function useUploadSnapshotsView() {
   const totalRows = uploadRows.reduce((sum, row) => sum + row.rows, 0);
   const totalSheets = uploadRows.reduce((sum, row) => sum + row.sheets, 0);
   const snapshotCount = uploadRows.filter((row) => row.kind === "rvtools").length;
+  const additionalImportsCount = uploads.length - snapshotCount;
+  // `uploads` ist bereits absteigend nach `importedAt` sortiert (siehe buildStoredUploads).
+  const latestUpload = uploads[0] ?? null;
 
   return (
     <Tabs
@@ -439,11 +442,13 @@ function useUploadSnapshotsView() {
 
       {activeTab === "uploads" && (
         <section aria-label="Upload-Kennzahlen">
-          <KpiGrid className="grid-cols-2 sm:grid-cols-4 md:grid-cols-4">
+          <KpiGrid>
             <KpiCard title="Gespeichert" value={uploads.length.toLocaleString("de-DE")} subtitle="Importe in IndexedDB" icon={<Database aria-hidden="true" className="h-4 w-4" />} severity={uploads.length > 0 ? "ok" : undefined} />
             <KpiCard title="RVTools-Snapshots" value={snapshotCount.toLocaleString("de-DE")} subtitle="vCenter-Exporte" icon={<FileCheck2 aria-hidden="true" className="h-4 w-4" />} severity={snapshotCount > 0 ? "ok" : undefined} />
+            <KpiCard title="Zusatzimporte" value={additionalImportsCount.toLocaleString("de-DE")} subtitle="Tech-Info, Netzwerk, vROps" icon={<PackagePlus aria-hidden="true" className="h-4 w-4" />} />
             <KpiCard title="Datenzeilen" value={totalRows.toLocaleString("de-DE")} subtitle={`${totalSheets.toLocaleString("de-DE")} Sheets erfasst`} icon={<Layers3 aria-hidden="true" className="h-4 w-4" />} />
             <KpiCard title="Speicherbedarf" value={totalSizeBytes === null ? "—" : formatBytes(totalSizeBytes)} subtitle="geschätzt in IndexedDB" icon={<HardDrive aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Letzter Import" value={latestUpload ? formatIsoDateTime(latestUpload.importedAt) : "—"} subtitle={latestUpload ? fileKindLabel(latestUpload.kind) : undefined} icon={<Clock aria-hidden="true" className="h-4 w-4" />} />
           </KpiGrid>
         </section>
       )}

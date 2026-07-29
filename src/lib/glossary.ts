@@ -150,6 +150,21 @@ export const OVERVIEW_KPI: Record<string, GlossaryEntry> = {
       "Von vCenter gemeldete Health- und Konfigurationswarnungen. Ein Wert > 0 verdient einen Blick in die Detailbereiche.",
     source: `${RV} · vHealth`,
   },
+  vcpuTotal: {
+    term: "vCPU gesamt",
+    description: "Summe der konfigurierten vCPU über alle VMs im aktiven Filter.",
+    source: `${RV} · vInfo · „CPUs“`,
+  },
+  ramTotal: {
+    term: "RAM gesamt",
+    description: "Summe des konfigurierten Arbeitsspeichers über alle VMs im aktiven Filter.",
+    source: `${RV} · vInfo · „Memory“`,
+  },
+  clusterCount: {
+    term: "Cluster",
+    description: "Anzahl unterschiedlicher Cluster, denen die gefilterten VMs zugeordnet sind.",
+    source: `${RV} · vInfo · „Cluster“`,
+  },
 };
 
 /* ------------------------------------------------------------------ */

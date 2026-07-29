@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Fingerprint, Network, Router, Tags } from "lucide-react";
+import { Fingerprint, HelpCircle, Network, Router, Server, Tags } from "lucide-react";
 import { useActiveSnapshotIds, useAllEramonL2Latest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -31,6 +31,8 @@ export function EramonL2Panel() {
   const macCount = useMemo(() => new Set(rows.map((r) => r.mac).filter(Boolean)).size, [rows]);
   const ipCount = useMemo(() => new Set(rows.map((r) => r.ip).filter((v): v is string => Boolean(v))).size, [rows]);
   const vlanCount = useMemo(() => new Set(rows.map((r) => r.vlan).filter(Boolean)).size, [rows]);
+  const switchCount = useMemo(() => new Set(rows.map((r) => r.switchName).filter(Boolean)).size, [rows]);
+  const withoutVlanCount = useMemo(() => rows.filter((r) => !r.vlan).length, [rows]);
 
   if (isLoading) return <PanelLoadingState />;
 
@@ -53,6 +55,8 @@ export function EramonL2Panel() {
         <KpiCard title="Eindeutige MACs" value={formatNum(macCount)} icon={<Fingerprint className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.macs} />
         <KpiCard title="Eindeutige IPs" value={formatNum(ipCount)} icon={<Router className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.ips} />
         <KpiCard title="VLANs" value={formatNum(vlanCount)} icon={<Tags className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.vlans} />
+        <KpiCard title="Eindeutige Switches" value={formatNum(switchCount)} icon={<Server className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.switches} />
+        <KpiCard title="Ohne VLAN" value={formatNum(withoutVlanCount)} severity={withoutVlanCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.withoutVlan} />
       </KpiGrid>
       <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-mac-tabelle" />
     </div>

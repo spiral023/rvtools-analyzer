@@ -41,6 +41,12 @@ export const PERFORMANCE_KPI: Record<string, GlossaryEntry> = {
       "Eingeschaltete VMs mit auffälliger Netzanbindung: getrennte NIC oder fehlende IPv4-Adresse. Typische Ursache für nicht erreichbare Dienste.",
     source: `${RV} · vNetwork · „Connected“ / „IPv4 Address“`,
   },
+  latencyCases: {
+    term: "Latency Sensitivity",
+    description:
+      "VMs mit einer von „normal“ abweichenden Latency-Sensitivity-Einstellung (z.B. „high“). Reserviert dedizierte CPU-Kerne und schränkt vMotion/DRS-Flexibilität ein – nur für latenzkritische Workloads sinnvoll.",
+    source: `${RV} · vInfo · „Latency Sensitivity“`,
+  },
 };
 
 /* ------------------------------------------------------------------ */
