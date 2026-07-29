@@ -8,6 +8,7 @@ import type {
   VmWorkloadProfile,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
+import { buildVmRightsizingCandidates, isNotableRightsizingCandidate } from "@/domain/services/vmRightsizingService";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
@@ -64,6 +65,7 @@ function serializeHourlyCpuDemand(hourly: VmWorkloadProfile["hourly"]): string {
 export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMeta[], scope: string, workloadProfiles: readonly VmWorkloadProfile[] = [], workloadHosts: readonly NormalizedHost[] = []): ExportStudioDataset {
   const names = vcenterNames(snapshots);
   const profileByVmKey = new Map(workloadProfiles.flatMap((profile) => profile.rvtoolsObjectKey ? [[profile.rvtoolsObjectKey, profile] as const] : []));
+  const rightsizingByProfileKey = new Map(buildVmRightsizingCandidates({ profiles: workloadProfiles, hosts: workloadHosts }).map((candidate) => [candidate.objectKey, candidate]));
   const hostByKey = new Map(workloadHosts.map((host) => [host.hostKey, host]));
   const configuredCpuCapacityMHz = (profile: VmWorkloadProfile): number | null => {
     const host = profile.hostKey ? hostByKey.get(profile.hostKey) : undefined;
@@ -76,22 +78,32 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "powerState", label: "Power-Status" }, { id: "vcpus", label: "vCPU" }, { id: "memory", label: "RAM" },
     { id: "os", label: "Betriebssystem" }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool" },
     { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" }, { id: "tools", label: "VMware Tools" }, { id: "annotation", label: "Notiz" },
+    { id: "hwVersion", label: "HW-Version" }, { id: "toolsVersion", label: "Tools-Version" }, { id: "secureBoot", label: "Secure Boot" },
     { id: "shape", label: "Lastmuster" }, { id: "intensity", label: "Auslastungsniveau" },
     { id: "behaviorClass", label: "Verhaltensklasse" }, { id: "profileConfidence", label: "Vertrauen (Profil)" }, { id: "profileCoverage", label: "Datenabdeckung (Profil)" },
     { id: "coefficientOfVariation", label: "Variationskoeffizient" }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil" }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)" },
     { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil" }, { id: "baselineRatio", label: "Grundlastanteil" },
     { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit" }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration" }, { id: "nightConcentration", label: "Nacht-Konzentration" }, { id: "weekendConcentration", label: "Wochenend-Konzentration" },
     { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)" }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)" },
+    { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)" }, { id: "rightsizingReadyP95", label: "CPU Ready P95" },
+    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
+    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }, { id: "rightsizingCandidate", label: "Rightsizing-Kandidat" },
+    { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf" }, { id: "highCpuReady", label: "Auffälliges CPU Ready" },
   ];
+  const rightsizingCandidates = [...rightsizingByProfileKey.values()];
   return {
     source: "vms", title: "VM", columns, scope,
     dataStatus: latestSnapshotStatus(snapshots),
-    kpis: [{ label: "VMs", value: number(vms.length) }, { label: "Eingeschaltet", value: number(vms.filter((vm) => vm.powerState?.toLowerCase() === "poweredon").length) }, { label: "Konfigurierter RAM", value: gib(vms.reduce((sum, vm) => sum + (vm.memoryMiB ?? 0), 0)) }, { label: "Profilierte VMs", value: number(vms.filter((vm) => profileByVmKey.has(vm.vmKey)).length) }],
+    kpis: [{ label: "VMs", value: number(vms.length) }, { label: "Eingeschaltet", value: number(vms.filter((vm) => vm.powerState?.toLowerCase() === "poweredon").length) }, { label: "Konfigurierter RAM", value: gib(vms.reduce((sum, vm) => sum + (vm.memoryMiB ?? 0), 0)) }, { label: "Profilierte VMs", value: number(vms.filter((vm) => profileByVmKey.has(vm.vmKey)).length) }, { label: "Rightsizing-Kandidaten", value: number(rightsizingCandidates.filter(isNotableRightsizingCandidate).length) }, { label: "Rückgewinnbare vCPU", value: number(rightsizingCandidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0)) }],
     rows: vms.map((vm) => {
       const profile = profileByVmKey.get(vm.vmKey);
+      const rightsizing = profile ? rightsizingByProfileKey.get(profile.objectKey) : undefined;
       const signals = profile?.signals ?? null;
       return {
         vcenter: names.get(vm.vcenterId) ?? vm.vcenterId, server: vm.vmName, cluster: text(vm.cluster), host: text(vm.host), powerState: text(vm.powerState), vcpus: number(vm.cpuCount), memory: gib(vm.memoryMiB), os: text(vm.osConfig ?? vm.osTools), resourcePool: text(vm.resourcePool), datacenter: text(vm.datacenter), tools: text(vm.toolsStatus), annotation: text(vm.annotation),
+        hwVersion: text(vm.hwVersion),
+        toolsVersion: text(vm.toolsVersion),
+        secureBoot: vm.efiSecureBoot === null ? "—" : vm.efiSecureBoot ? "Ja" : "Nein",
         shape: profile ? VM_WORKLOAD_SHAPE_LABEL[profile.shape] : "—",
         intensity: profile ? VM_WORKLOAD_INTENSITY_LABEL[profile.intensity] : "—",
         behaviorClass: profile ? VM_BEHAVIOR_CLASS_LABEL[profile.behaviorClass] : "—",
@@ -108,18 +120,53 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
         weekendConcentration: signals ? ratio(signals.weekendConcentration) : "—",
         configuredCpuCapacity: profile ? number(configuredCpuCapacityMHz(profile)) : "—",
         cpuDemandRaw: profile ? serializeHourlyCpuDemand(profile.hourly) : "—",
+        rightsizingDemandP95: rightsizing ? number(rightsizing.demand.p95, 2) : "—",
+        rightsizingReadyP95: rightsizing ? pct(rightsizing.ready.p95) : "—",
+        usedVcpuEquivalentP95: rightsizing ? number(rightsizing.usedVcpuEquivalentP95, 2) : "—",
+        recommendedVcpu: rightsizing ? number(rightsizing.recommendedVcpu) : "—",
+        reclaimableVcpu: rightsizing ? number(rightsizing.reclaimableVcpu) : "—",
+        rightsizingCandidate: rightsizing ? (isNotableRightsizingCandidate(rightsizing) ? "Ja" : "Nein") : "—",
+        manyVcpuLowDemand: rightsizing ? (rightsizing.flags.manyVcpuLowDemand ? "Ja" : "Nein") : "—",
+        highCpuReady: rightsizing ? (rightsizing.flags.highCpuReady ? "Ja" : "Nein") : "—",
       };
     }),
   };
 }
 
-export function buildHostExportDataset(hosts: NormalizedHost[], snapshots: SnapshotMeta[], scope: string): ExportStudioDataset {
+export function buildHostExportDataset(hosts: NormalizedHost[], snapshots: SnapshotMeta[], scope: string, vms: readonly NormalizedVm[] = []): ExportStudioDataset {
   const names = vcenterNames(snapshots);
+  const hostDensity = new Map<string, { vms: number; poweredOnVcpus: number }>();
+  for (const vm of vms) {
+    if (!vm.host) continue;
+    const key = `${vm.vcenterId}\u0000${vm.host.trim().toLocaleLowerCase("de-DE")}`;
+    const aggregate = hostDensity.get(key) ?? { vms: 0, poweredOnVcpus: 0 };
+    aggregate.vms += 1;
+    if (vm.powerState?.toLowerCase() === "poweredon") aggregate.poweredOnVcpus += vm.cpuCount ?? 0;
+    hostDensity.set(key, aggregate);
+  }
   const columns: ExportStudioColumn[] = [
     { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" }, { id: "host", label: "Host", pseudonymKind: "host" }, { id: "cluster", label: "Cluster", pseudonymKind: "cluster" }, { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" },
-    { id: "cpuModel", label: "CPU-Modell" }, { id: "cores", label: "CPU-Kerne" }, { id: "cpu", label: "CPU-Leistung" }, { id: "memory", label: "RAM" }, { id: "vms", label: "VMs" }, { id: "esxi", label: "ESXi-Version" }, { id: "model", label: "Hardware-Modell" }, { id: "maintenance", label: "Wartung" },
+    { id: "cpuModel", label: "CPU-Modell" }, { id: "cores", label: "CPU-Kerne" }, { id: "cpu", label: "CPU-Leistung" }, { id: "mhzPerCore", label: "MHz pro Core" }, { id: "memory", label: "RAM" }, { id: "vms", label: "VMs" }, { id: "vmsPerCore", label: "VMs pro Core" }, { id: "vcpuPerCore", label: "vCPU/Core" }, { id: "esxi", label: "ESXi-Version" }, { id: "vendor", label: "Hersteller" }, { id: "model", label: "Hardware-Modell" }, { id: "maintenance", label: "Wartung" },
   ];
-  return { source: "hosts", title: "Host-Inventar", columns, scope, dataStatus: latestSnapshotStatus(snapshots), kpis: [{ label: "Hosts", value: number(hosts.length) }, { label: "CPU-Kerne", value: number(hosts.reduce((sum, host) => sum + (host.cpuCores ?? 0), 0)) }, { label: "RAM", value: gib(hosts.reduce((sum, host) => sum + (host.memoryTotalMiB ?? 0), 0)) }], rows: hosts.map((host) => ({ vcenter: names.get(host.vcenterId) ?? host.vcenterId, host: host.host, cluster: text(host.cluster), datacenter: text(host.datacenter), cpuModel: text(host.cpuModel), cores: number(host.cpuCores), cpu: host.cpuTotalMHz === null ? "—" : `${(host.cpuTotalMHz / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GHz`, memory: gib(host.memoryTotalMiB), vms: number(host.vmCount), esxi: text(host.version), model: text(host.model), maintenance: text(host.maintenanceMode) })) };
+  return {
+    source: "hosts", title: "Host-Inventar", columns, scope,
+    dataStatus: latestSnapshotStatus(snapshots),
+    kpis: [{ label: "Hosts", value: number(hosts.length) }, { label: "CPU-Kerne", value: number(hosts.reduce((sum, host) => sum + (host.cpuCores ?? 0), 0)) }, { label: "RAM", value: gib(hosts.reduce((sum, host) => sum + (host.memoryTotalMiB ?? 0), 0)) }],
+    rows: hosts.map((host) => {
+      const density = hostDensity.get(`${host.vcenterId}\u0000${host.host.trim().toLocaleLowerCase("de-DE")}`);
+      const vmCount = density?.vms ?? host.vmCount;
+      return {
+        vcenter: names.get(host.vcenterId) ?? host.vcenterId, host: host.host, cluster: text(host.cluster), datacenter: text(host.datacenter),
+        cpuModel: text(host.cpuModel), cores: number(host.cpuCores),
+        cpu: host.cpuTotalMHz === null ? "—" : `${(host.cpuTotalMHz / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GHz`,
+        mhzPerCore: host.cpuTotalMHz !== null && host.cpuCores ? number(host.cpuTotalMHz / host.cpuCores, 2) : "—",
+        memory: gib(host.memoryTotalMiB), vms: number(vmCount),
+        vmsPerCore: vmCount !== null && host.cpuCores ? ratio(vmCount / host.cpuCores) : "—",
+        vcpuPerCore: density && host.cpuCores ? ratio(density.poweredOnVcpus / host.cpuCores) : "—",
+        esxi: text(host.version), vendor: text(host.vendor), model: text(host.model), maintenance: text(host.maintenanceMode),
+      };
+    }),
+  };
 }
 
 export function buildClusterExportDataset(clusters: NormalizedCluster[], snapshots: SnapshotMeta[], scope: string, capacityRows: ClusterCapacityRow[] = []): ExportStudioDataset {
@@ -133,7 +180,7 @@ export function buildClusterExportDataset(clusters: NormalizedCluster[], snapsho
       ?? null;
   };
   const columns: ExportStudioColumn[] = [
-    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" }, { id: "cluster", label: "Cluster", pseudonymKind: "cluster" }, { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" }, { id: "hosts", label: "Hosts" }, { id: "cores", label: "CPU-Kerne" }, { id: "cpu", label: "CPU-Leistung" }, { id: "memory", label: "RAM" }, { id: "ha", label: "HA" }, { id: "drs", label: "DRS" },
+    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" }, { id: "cluster", label: "Cluster", pseudonymKind: "cluster" }, { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" }, { id: "hosts", label: "Hosts" }, { id: "vms", label: "VM-Anzahl" }, { id: "vmsPerHost", label: "VMs pro Host" }, { id: "cores", label: "CPU-Kerne" }, { id: "cpu", label: "CPU-Leistung" }, { id: "memory", label: "RAM" }, { id: "ha", label: "HA" }, { id: "drs", label: "DRS" },
     { id: "cpuUsagePct", label: "CPU-Auslastung" }, { id: "memoryUsagePct", label: "RAM-Auslastung" }, { id: "vcpuPerCore", label: "vCPU/Core" }, { id: "ramCommitPct", label: "RAM Commit" }, { id: "ramActivePct", label: "RAM Active" }, { id: "swapBalloonPct", label: "Swap/Balloon" }, { id: "hotHosts", label: "Hot Hosts" }, { id: "maxHostFailures", label: "Ausfallskapazität (Hosts)" }, { id: "siteFailoverRisk", label: "Site-Failover-Risiko" }, { id: "riskScore", label: "Risk Score" }, { id: "risk", label: "Risiko" }, { id: "vropsMissing", label: "vROps fehlt" },
   ];
   return {
@@ -155,6 +202,8 @@ export function buildClusterExportDataset(clusters: NormalizedCluster[], snapsho
         cluster: cluster.name,
         datacenter: text(cluster.datacenter),
         hosts: number(cluster.numHosts),
+        vms: capacity ? number(capacity.totalVms) : "—",
+        vmsPerHost: capacity && capacity.hosts > 0 ? ratio(capacity.totalVms / capacity.hosts) : "—",
         cores: number(cluster.numCpuCores),
         cpu: cluster.totalCpuMHz === null ? "—" : `${(cluster.totalCpuMHz / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GHz`,
         memory: gib(cluster.totalMemoryMiB),

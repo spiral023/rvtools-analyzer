@@ -53,7 +53,7 @@ function scopeLabel(vcenterCount: number, hasVmGlobalFilter: boolean) {
 
 export default function ExportStudio() {
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
-  const { vms, isLoading: vmsLoading } = useVms();
+  const { vms, allVms, isLoading: vmsLoading } = useVms();
   const hostsQuery = useHosts();
   const clustersQuery = useClusters();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
@@ -100,11 +100,11 @@ export default function ExportStudio() {
   );
 
   const baseDataset = useMemo(() => {
-    if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope);
+    if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope, allVms);
     if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
     return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts);
-  }, [activeSnapshots, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadHosts, workloadProfiles]);
+  }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadHosts, workloadProfiles]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
   const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
