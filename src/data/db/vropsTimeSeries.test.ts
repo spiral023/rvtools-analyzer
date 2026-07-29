@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import { createInitialCapacityPolicies } from "@/domain/services/capacityPolicyService";
-import type { FillUpAnalysisRun } from "@/domain/models/types";
+import type { FillUpAnalysisRun, VropsTimeSeriesImport } from "@/domain/models/types";
 
 beforeEach(() => {
   vi.resetModules();
@@ -11,7 +11,7 @@ beforeEach(() => {
 describe("vROps time-series persistence", () => {
   it("speichert und löscht Dateisatz, Objektverzeichnis, Chunk und Summary atomar", async () => {
     const db = await import("./index");
-    const meta = {
+    const meta: VropsTimeSeriesImport = {
       id: "ts-1", importedAt: "2026-07-28T10:00:00.000Z", timezone: "Europe/Vienna" as const,
       intervalMinutes: 60 as const, rangeStartUtc: 1, rangeEndUtc: 1, expectedSlots: 1,
       rvtoolsSnapshotIds: ["snap-1"], fileSetChecksum: "set-1", schemaVersion: 1,
@@ -48,7 +48,7 @@ describe("vROps time-series persistence", () => {
 
   it("hängt rvtoolsSnapshotIds und rvtoolsSnapshotId auf eine neue snapshotId um, ohne fremde vCenter-IDs zu berühren", async () => {
     const db = await import("./index");
-    const meta = {
+    const meta: VropsTimeSeriesImport = {
       id: "ts-1", importedAt: "2026-07-28T10:00:00.000Z", timezone: "Europe/Vienna" as const,
       intervalMinutes: 60 as const, rangeStartUtc: 1, rangeEndUtc: 1, expectedSlots: 1,
       rvtoolsSnapshotIds: ["snap-old", "snap-other-vcenter"], fileSetChecksum: "set-1", schemaVersion: 1,
@@ -74,7 +74,7 @@ describe("vROps time-series persistence", () => {
 
   it("lässt Importe unberührt, deren rvtoolsSnapshotIds keine der ersetzten IDs enthalten", async () => {
     const db = await import("./index");
-    const meta = {
+    const meta: VropsTimeSeriesImport = {
       id: "ts-2", importedAt: "2026-07-28T10:00:00.000Z", timezone: "Europe/Vienna" as const,
       intervalMinutes: 60 as const, rangeStartUtc: 1, rangeEndUtc: 1, expectedSlots: 1,
       rvtoolsSnapshotIds: ["snap-unrelated"], fileSetChecksum: "set-2", schemaVersion: 1,
