@@ -20,7 +20,12 @@ export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
   shape: {
     term: "Lastmuster",
     description:
-      "Zeitlicher Verlauf der CPU-Last über sieben Tage, bewusst unabhängig von der Höhe der Auslastung: Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, unregelmäßig oder variabel. Eine schwach ausgelastete VM behält damit ihr erkennbares Muster – etwa ein Nachtjob, der nur wenig CPU braucht.",
+      "Zeitlicher Verlauf der CPU-Last über sieben Tage, bewusst unabhängig von der Höhe der Auslastung: Dauerlast, Grundlast mit Lastfenster, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, unregelmäßig oder variabel. Eine schwach ausgelastete VM behält damit ihr erkennbares Muster – etwa ein Nachtjob, der nur wenig CPU braucht.",
+  },
+  shapeConstantWithPeak: {
+    term: "Grundlast mit Lastfenster",
+    description:
+      "Gleichmäßige Last mit einem zusätzlich erkennbaren Zeitfenster erhöhter Nutzung. Diese VMs fallen außerhalb des Fensters nie unter etwa ein Drittel ihrer Spitzenlast – anders als bei Business-Hours oder nächtlichem Batch lassen sie sich deshalb nicht abschalten oder verschieben, wohl aber in der Kapazitätsplanung berücksichtigen. Welches Fenster überwiegt, zeigen die Konzentrationskennzahlen.",
   },
   intensity: {
     term: "Auslastungsniveau",

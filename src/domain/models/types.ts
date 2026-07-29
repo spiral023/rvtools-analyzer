@@ -876,6 +876,14 @@ export type VmBehaviorClass =
 export type VmWorkloadShape =
   | "unclassified"
   | "constant"
+  /**
+   * Geringe Streuung *und* dominantes Kalenderfenster. Gemessen an 3.950 VMs bildet das
+   * eine eigene Population: Grundlastanteil 0,30–0,44 gegenüber 0,60 bei reiner Dauerlast
+   * und 0,16 bei echten Kalenderlasten. Diese VMs haben einen belastbaren Rhythmus, fallen
+   * aber nie unter etwa ein Drittel ihres P95 – „business-hours“ würde eine Parkbarkeit
+   * suggerieren, die nicht besteht, „constant“ würde den Rhythmus verschweigen.
+   */
+  | "constant-with-peak"
   | "business-hours"
   | "night-batch"
   | "weekend"

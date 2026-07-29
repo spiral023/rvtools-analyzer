@@ -447,7 +447,7 @@ function main(): void {
   console.log(`\n=== 11. Kreuztabelle: Lastmuster x Auslastungsniveau ===`);
   console.log(`  Die eigentliche Auswertung des zweiachsigen Modells. Jede Zelle war zuvor`);
   console.log(`  unsichtbar, weil ein niedriges Niveau das Muster überschrieb.`);
-  const shapeOrder: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+  const shapeOrder: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
   const intensityOrder: VmWorkloadIntensity[] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
   const cell = (shape: VmWorkloadShape, intensity: VmWorkloadIntensity): number =>
     results.filter((entry) => entry.shape === shape && entry.intensity === intensity).length;
@@ -496,6 +496,39 @@ function main(): void {
   console.log(`\n  Von ${noisy.length} VMs mit "Unregelmäßig"/"Variable Last" liegen unter absoluten P95-Grenzen:`);
   for (const limit of [100, 250, 500, 1_000, 2_000]) {
     console.log(`    < ${String(limit).padStart(5)} MHz: ${String(belowAbsolute(limit)).padStart(5)}  (${((100 * belowAbsolute(limit)) / noisy.length).toFixed(1)} %)`);
+  }
+
+  /* --- 15. Verdeckt die constant-Regel Kalendermuster? -------------- */
+  console.log(`\n=== 15. Reihenfolge: "constant" wird vor den Kalenderregeln geprüft ===`);
+  console.log(`  Betroffen sind VMs mit CV <= 0,5 (daher "Dauerlast"), die zugleich ein`);
+  console.log(`  dominantes Kalenderfenster haben und ohne die Vorrangregel dort landen würden.`);
+  const calendarMasked = results.filter((entry) => {
+    if (entry.shape !== "constant") return false;
+    const values = [
+      { name: "Business-Hours", value: entry.signals.businessHoursConcentration ?? 0 },
+      { name: "Nächtlicher Batch", value: entry.signals.nightConcentration ?? 0 },
+      { name: "Wochenendlast", value: entry.signals.weekendConcentration ?? 0 },
+    ].sort((left, right) => right.value - left.value);
+    return values[0].value >= 1.35 && values[0].value - values[1].value >= 0.15;
+  });
+  console.log(`  Betroffene VMs: ${calendarMasked.length}  (${((100 * calendarMasked.length) / results.length).toFixed(1)} % des Bestands)`);
+  if (calendarMasked.length) {
+    printDistribution("  Würden stattdessen erkannt als", calendarMasked.map((entry) => {
+      const values = [
+        { name: "Business-Hours", value: entry.signals.businessHoursConcentration ?? 0 },
+        { name: "Nächtlicher Batch", value: entry.signals.nightConcentration ?? 0 },
+        { name: "Wochenendlast", value: entry.signals.weekendConcentration ?? 0 },
+      ].sort((left, right) => right.value - left.value);
+      return values[0].name;
+    }));
+    console.log(`  Variationskoeffizient dieser VMs: ${quantileSummary(calendarMasked.map((entry) => entry.signals.coefficientOfVariation))}`);
+    console.log(`  Stärkste Konzentration:           ${quantileSummary(calendarMasked.map((entry) => Math.max(entry.signals.businessHoursConcentration ?? 0, entry.signals.nightConcentration ?? 0, entry.signals.weekendConcentration ?? 0)))}`);
+    // Der Grundlastanteil entscheidet: nahe 0 fällt die VM nachts wirklich ab (dann ist das
+    // Kalenderlabel richtig), nahe 1 liegt nur eine Tagesspitze über durchgehender Last.
+    console.log(`  Grundlastanteil p10/p95:          ${quantileSummary(calendarMasked.map((entry) => entry.baselineRatio))}`);
+    console.log(`  Vergleich Dauerlast insgesamt:    ${quantileSummary(results.filter((entry) => entry.shape === "constant").map((entry) => entry.baselineRatio))}`);
+    console.log(`  Vergleich echte Business-Hours:   ${quantileSummary(results.filter((entry) => entry.shape === "business-hours").map((entry) => entry.baselineRatio))}`);
+    printDistribution("  Niveau dieser VMs", calendarMasked.map((entry) => VM_WORKLOAD_INTENSITY_LABEL[entry.intensity]));
   }
 
   reportRightsizing(results);

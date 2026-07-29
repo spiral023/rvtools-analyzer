@@ -120,6 +120,30 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
     expect(result.behaviorClass).toBe("low-utilization");
   });
 
+  /**
+   * Eigene Population laut Messung an 3.950 VMs: geringe Streuung, aber dominantes
+   * Kalenderfenster. Weder „constant“ (verschweigt den Rhythmus) noch „business-hours“
+   * (suggeriert Abschaltbarkeit) trifft es.
+   */
+  it("unterscheidet Grundlast mit Lastfenster von reiner Dauerlast", () => {
+    const grid = buildSyntheticWeek();
+    // Grundlast 1.000 MHz, während der Geschäftszeiten 1.800 MHz. Das ergibt eine
+    // Business-Hours-Konzentration von 1,45 – wie der Median der gemessenen Population –
+    // bei einem Variationskoeffizienten von 0,30 und damit unterhalb der Dauerlast-Schwelle.
+    const withPeak = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 1_800 : 1_000]));
+    const result = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000 });
+
+    expect(result.signals.coefficientOfVariation).toBeLessThanOrEqual(0.5);
+    expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThanOrEqual(1.35);
+    expect(result.shape).toBe("constant-with-peak");
+    // Die Altklasse bleibt unverändert „Dauerlast“, damit bestehende Auswertungen tragen.
+    expect(result.behaviorClass).toBe("constant-load");
+
+    // Ohne Lastfenster bleibt es reine Dauerlast.
+    const flat = new Map(grid.map((entry) => [entry.timestampUtc, 2_000]));
+    expect(classifyVmBehavior(grid, flat, { configuredCpuCapacityMHz: 10_000 }).shape).toBe("constant");
+  });
+
   it("stuft das Auslastungsniveau anhand des P95-Kapazitätsanteils ein", () => {
     const grid = buildSyntheticWeek();
     const intensityOf = (demandMHz: number) =>

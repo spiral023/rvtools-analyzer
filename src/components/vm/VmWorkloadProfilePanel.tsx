@@ -21,7 +21,7 @@ import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
-const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
 /** Aufsteigend nach Auslastung, damit die Achse als Skala lesbar bleibt. */
 const INTENSITY_ORDER: VmWorkloadIntensity[] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
 
