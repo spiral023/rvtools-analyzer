@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatFillUpValue, fromFillUpDisplayValue, toFillUpDisplayValue, toFillUpPreciseDisplayValue } from "./fillUpUnits";
+import { formatFillUpValue, fromFillUpDisplayValue, toFillUpDisplayValue, toFillUpPreciseDisplayValue, toFillUpPreciseDisplayValueDe } from "./fillUpUnits";
 
 describe("Fill-Up-Einheiten", () => {
   it("formatiert interne MHz und MiB als GHz und GiB mit zwei Nachkommastellen", () => {
@@ -18,5 +18,18 @@ describe("Fill-Up-Einheiten", () => {
     expect(toFillUpPreciseDisplayValue(8_388.6, "MiB")).toBe("8.192");
     expect(toFillUpPreciseDisplayValue(8_192, "MiB")).toBe("8");
     expect(toFillUpPreciseDisplayValue(null, "MHz")).toBe("");
+    expect(toFillUpPreciseDisplayValue(7.75, "vCPU")).toBe("7.75");
+  });
+
+  it("zeigt Präzisionswerte mit Komma statt Punkt für Text-Inputs im deutschen Format", () => {
+    expect(toFillUpPreciseDisplayValueDe(7.75, "vCPU")).toBe("7,75");
+    expect(toFillUpPreciseDisplayValueDe(8_388.6, "MiB")).toBe("8,192");
+    expect(toFillUpPreciseDisplayValueDe(8_192, "MiB")).toBe("8");
+    expect(toFillUpPreciseDisplayValueDe(null, "MHz")).toBe("");
+  });
+
+  it("parst vCPU-Eingaben mit Komma oder Punkt unverändert (Faktor 1)", () => {
+    expect(fromFillUpDisplayValue("7,75", "vCPU")).toBe(7.75);
+    expect(fromFillUpDisplayValue("7.75", "vCPU")).toBe(7.75);
   });
 });

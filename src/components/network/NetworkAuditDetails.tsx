@@ -4,6 +4,8 @@ import { AuditDetailView } from "@/components/network/AuditDetailView";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import type { GlossaryEntry } from "@/lib/glossary";
 import {
   NET_AUDIT_COLUMNS,
   NET_HOST_QUALITY_RVTOOLS_COLUMNS,
@@ -74,6 +76,50 @@ function matchStatusBadge(status: PortMatchStatus) {
   return <Badge variant="secondary">{label}</Badge>;
 }
 
+const MATCHED_SOURCE_LABELS: Record<NonNullable<PortAuditRow["matchedSource"]>, string> = {
+  cdp: "CDP",
+  rvtools: "RVTools",
+  techinfo: "Tech-Info",
+  ipam: "IPAM",
+};
+
+/** Baut aus den tatsächlichen Zeilendaten eine Tooltip-Erklärung, statt nur die generische Glossar-Definition zu wiederholen. */
+function matchStatusTooltipEntry(row: PortAuditRow): GlossaryEntry {
+  const port = `${row.switchHostname}/${row.interface}`;
+  if (row.matchStatus === "confirmed-cdp") {
+    return {
+      term: "CDP bestätigt",
+      description: `Der CDP-Nachbar an ${port} meldet sich als Host „${row.matchedHost}"${row.description ? `; Portbeschriftung lautet „${row.description}"` : ""}.`,
+      source: `CDP · ${port}`,
+    };
+  }
+  if (row.matchStatus === "text-match" || row.matchStatus === "documented-only") {
+    return {
+      term: MATCH_STATUS_LABELS[row.matchStatus],
+      description: `Kein CDP-Nachbar an ${port} verfügbar; die Portbeschriftung „${row.description}" wurde stattdessen als Host „${row.matchedHost}" in ${row.matchedSource ? MATCHED_SOURCE_LABELS[row.matchedSource] : "einer Quelle"} gefunden.`,
+      source: row.matchedSource ? MATCHED_SOURCE_LABELS[row.matchedSource] : undefined,
+    };
+  }
+  if (row.matchStatus === "unknown") {
+    return {
+      term: "Unbekannt",
+      description: `Portbeschriftung „${row.description ?? "(keine)"}" an ${port} konnte weder per CDP noch über RVTools, Tech-Info oder IPAM einem Host zugeordnet werden.`,
+      source: port,
+    };
+  }
+  return {
+    term: "Kein Ziel",
+    description: `${port} hat keine auswertbare Portbeschriftung und keinen CDP-Nachbarn.`,
+    source: port,
+  };
+}
+
+function portStatusBadge(status: string | null) {
+  if (status === "aktiv") return <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">aktiv</Badge>;
+  if (status === "down") return <Badge variant="destructive">down</Badge>;
+  return textCell(status);
+}
+
 function presenceBadge(present: boolean) {
   return present
     ? <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">vorhanden</Badge>
@@ -86,10 +132,10 @@ function listCell(values: string[]) {
 }
 
 const portColumns: ColumnDef<PortAuditRow, unknown>[] = [
-  { accessorKey: "switchHostname", header: "Switch", meta: { info: NET_AUDIT_COLUMNS.switchHostname }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "switchHostname", header: "Switch", meta: { info: NET_AUDIT_COLUMNS.switchHostname }, cell: ({ getValue }) => <span className="font-mono-data">{shortHostname(getValue() as string)}</span> },
   { accessorKey: "interface", header: "Interface", meta: { info: NET_AUDIT_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "description", header: "Beschreibung", meta: { info: NET_AUDIT_COLUMNS.description }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "status", header: "Status", meta: { info: NET_AUDIT_COLUMNS.status }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "status", header: "Status", meta: { info: NET_AUDIT_COLUMNS.status }, cell: ({ getValue }) => portStatusBadge(getValue() as string | null) },
   {
     id: "bandwidth",
     header: "Bandbreite",
@@ -105,9 +151,9 @@ const portColumns: ColumnDef<PortAuditRow, unknown>[] = [
     header: "Match-Status",
     meta: { info: NET_AUDIT_COLUMNS.matchStatus },
     accessorFn: (row) => `${MATCH_STATUS_LABELS[row.matchStatus]} ${row.matchStatus}`,
-    cell: ({ row }) => matchStatusBadge(row.original.matchStatus),
+    cell: ({ row }) => <InfoTooltip entry={matchStatusTooltipEntry(row.original)} side="left">{matchStatusBadge(row.original.matchStatus)}</InfoTooltip>,
   },
-  { accessorKey: "matchedHost", header: "Vermuteter Host", meta: { info: NET_AUDIT_COLUMNS.matchedHost }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "matchedHost", header: "Vermuteter Host", meta: { info: NET_AUDIT_COLUMNS.matchedHost }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? <span className="font-mono-data">{shortHostname(value)}</span> : textCell(value); } },
   {
     accessorKey: "finding",
     header: "Auffälligkeit",
@@ -121,7 +167,7 @@ const portColumns: ColumnDef<PortAuditRow, unknown>[] = [
 ];
 
 const rvtoolsHostColumns: ColumnDef<RvtoolsHostQualityRow, unknown>[] = [
-  { accessorKey: "host", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.host }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "host", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.host }, cell: ({ getValue }) => <span className="font-mono-data">{shortHostname(getValue() as string)}</span> },
   { accessorKey: "cluster", header: "Cluster", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.cluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { accessorKey: "version", header: "ESXi-Version", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.version }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { id: "techInfoPresent", header: "Tech-Info", meta: { info: NET_HOST_QUALITY_RVTOOLS_COLUMNS.techInfoPresent }, accessorFn: (row) => row.techInfoPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.techInfoPresent) },
@@ -136,7 +182,7 @@ const rvtoolsHostColumns: ColumnDef<RvtoolsHostQualityRow, unknown>[] = [
 const techInfoHostColumns: ColumnDef<TechInfoHostQualityRow, unknown>[] = [
   { accessorKey: "techInfoName", header: "Objekt (Tech-Info)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.techInfoName }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { id: "rvtoolsPresent", header: "RVTools", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsPresent }, accessorFn: (row) => row.rvtoolsPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.rvtoolsPresent) },
-  { accessorKey: "rvtoolsHost", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsHost }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "rvtoolsHost", header: "ESXi-Host (RVTools)", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsHost }, cell: ({ getValue }) => { const value = getValue() as string | null; return <span className="font-mono-data">{value ? shortHostname(value) : textCell(value)}</span>; } },
   { accessorKey: "rvtoolsCluster", header: "Cluster", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.rvtoolsCluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { id: "ipamPresent", header: "IPAM", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamPresent }, accessorFn: (row) => row.ipamPresent ? "vorhanden" : "fehlt", cell: ({ row }) => presenceBadge(row.original.ipamPresent) },
   { id: "ipamAddresses", header: "IP-Adressen", meta: { info: NET_HOST_QUALITY_TECHINFO_COLUMNS.ipamAddresses }, accessorFn: (row) => row.ipamAddresses.join(" "), cell: ({ row }) => listCell(row.original.ipamAddresses) },
@@ -156,7 +202,7 @@ function classificationBadge(classification: L2Classification) {
 }
 
 const cdpMacColumns: ColumnDef<CdpMacRow, unknown>[] = [
-  { accessorKey: "host", header: "Host", meta: { info: NET_MAC_CDP_COLUMNS.host }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
+  { accessorKey: "host", header: "Host", meta: { info: NET_MAC_CDP_COLUMNS.host }, cell: ({ getValue }) => <span className="font-mono-data">{shortHostname(getValue() as string)}</span> },
   { accessorKey: "adapter", header: "vmnic", meta: { info: NET_MAC_CDP_COLUMNS.adapter }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "mac", header: "MAC", meta: { info: NET_MAC_CDP_COLUMNS.mac }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
   { id: "inL2", header: "In L2?", meta: { info: NET_MAC_CDP_COLUMNS.inL2 }, accessorFn: (row) => (row.inL2 ? "ja" : "nein"), cell: ({ row }) => (row.original.inL2 ? presenceBadge(true) : <Badge variant="destructive">fehlt</Badge>) },

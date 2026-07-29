@@ -7,7 +7,7 @@ import type { FillUpWorkloadProfile } from "@/domain/models/types";
 import { Plus, Trash2 } from "lucide-react";
 import type { GlossaryEntry } from "@/lib/glossary";
 import { FILL_UP_UI } from "@/lib/glossaries/planning";
-import { formatFillUpValue, fromFillUpDisplayValue, toFillUpPreciseDisplayValue } from "@/lib/fillUpUnits";
+import { formatFillUpValue, fromFillUpDisplayValue, toFillUpPreciseDisplayValueDe } from "@/lib/fillUpUnits";
 import { resolveCpuDemandMHz } from "@/domain/services/fillUpRecommendationEngine";
 
 export function FillUpWorkloadProfileEditor({ profiles, onChange, cpuDemandConcurrencyPct }: { profiles: readonly FillUpWorkloadProfile[]; onChange: (profiles: FillUpWorkloadProfile[]) => void; cpuDemandConcurrencyPct: number }) {
@@ -20,10 +20,10 @@ export function FillUpWorkloadProfileEditor({ profiles, onChange, cpuDemandConcu
         {profiles.map((profile) => <div key={profile.id} className="grid gap-2 rounded-md border bg-background/50 p-2.5 sm:grid-cols-[minmax(8rem,1fr)_7rem_4.5rem_6rem_6rem_6rem_auto] sm:items-end">
           <Field label="Name" info={FILL_UP_UI.profileName}><Input value={profile.name} onChange={(event) => update(profile.id, { name: event.target.value })} /></Field>
           <Field label="Klasse" info={FILL_UP_UI.profileClass}><Select value={profile.workloadClass} onValueChange={(value) => update(profile.id, { workloadClass: value as FillUpWorkloadProfile["workloadClass"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">HIGH</SelectItem><SelectItem value="std">STD</SelectItem></SelectContent></Select></Field>
-          <Field label="vCPU" info={FILL_UP_UI.profileVcpu}><Input type="number" min="0.01" step="0.01" value={profile.vcpu} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) update(profile.id, { vcpu: value }); }} /></Field>
-          <Field label="RAM GiB" info={FILL_UP_UI.profileMemory}><Input type="number" min="0.01" step="0.001" value={toFillUpPreciseDisplayValue(profile.memoryMiB, "MiB")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MiB"); if (value !== null) update(profile.id, { memoryMiB: value }); }} /></Field>
-          <Field label="Ø GHz" info={FILL_UP_UI.profileAverage}><Input type="number" min="0" step="0.001" value={toFillUpPreciseDisplayValue(profile.cpuDemandAverageMHz, "MHz")} onChange={(event) => update(profile.id, { cpuDemandAverageMHz: event.target.value.trim() === "" ? null : fromFillUpDisplayValue(event.target.value, "MHz") })} /></Field>
-          <Field label="P95 GHz" info={FILL_UP_UI.profileP95}><Input type="number" min="0.01" step="0.001" value={toFillUpPreciseDisplayValue(profile.cpuDemandP95MHz, "MHz")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MHz"); if (value !== null) update(profile.id, { cpuDemandP95MHz: value }); }} /></Field>
+          <Field label="vCPU" info={FILL_UP_UI.profileVcpu}><Input type="text" inputMode="decimal" value={toFillUpPreciseDisplayValueDe(profile.vcpu, "vCPU")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "vCPU"); if (value !== null) update(profile.id, { vcpu: value }); }} /></Field>
+          <Field label="RAM GiB" info={FILL_UP_UI.profileMemory}><Input type="text" inputMode="decimal" value={toFillUpPreciseDisplayValueDe(profile.memoryMiB, "MiB")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MiB"); if (value !== null) update(profile.id, { memoryMiB: value }); }} /></Field>
+          <Field label="Ø GHz" info={FILL_UP_UI.profileAverage}><Input type="text" inputMode="decimal" value={toFillUpPreciseDisplayValueDe(profile.cpuDemandAverageMHz, "MHz")} onChange={(event) => update(profile.id, { cpuDemandAverageMHz: event.target.value.trim() === "" ? null : fromFillUpDisplayValue(event.target.value, "MHz") })} /></Field>
+          <Field label="P95 GHz" info={FILL_UP_UI.profileP95}><Input type="text" inputMode="decimal" value={toFillUpPreciseDisplayValueDe(profile.cpuDemandP95MHz, "MHz")} onChange={(event) => { const value = fromFillUpDisplayValue(event.target.value, "MHz"); if (value !== null) update(profile.id, { cpuDemandP95MHz: value }); }} /></Field>
           <Button type="button" variant="ghost" size="icon" aria-label={`${profile.name} entfernen`} disabled={profiles.length < 3} onClick={() => onChange(profiles.filter((entry) => entry.id !== profile.id))}><Trash2 className="h-4 w-4" /></Button>
           <AppliedDemand profile={profile} cpuDemandConcurrencyPct={cpuDemandConcurrencyPct} />
         </div>)}

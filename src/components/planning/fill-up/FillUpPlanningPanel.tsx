@@ -18,7 +18,7 @@ import {
   DEFAULT_FILL_UP_WORKLOAD_PROFILES,
   type FillUpPlanningClusterResult,
 } from "@/domain/services/fillUpPlanningService";
-import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
+import { DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
 import type { FillUpObservedVmProfile, FillUpWorkloadProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
 import { FILL_UP_KPI, FILL_UP_UI } from "@/lib/glossaries/planning";
 import { toast } from "sonner";
@@ -54,7 +54,7 @@ export function FillUpPlanningPanel() {
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>([...DEFAULT_FILL_UP_WORKLOAD_PROFILES]);
   const [highSharePct, setHighSharePct] = useState(DEFAULT_FILL_UP_HIGH_SHARE_PCT);
-  const [cpuDemandConcurrencyPct, setCpuDemandConcurrencyPct] = useState(DEFAULT_CPU_DEMAND_CONCURRENCY_PCT);
+  const [cpuDemandConcurrencyPct, setCpuDemandConcurrencyPct] = useState(DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT);
   const [includeN2, setIncludeN2] = useState(false);
   const [selectedClusterKey, setSelectedClusterKey] = useState<string | null>(null);
   const highProfile = profiles.find((profile) => profile.workloadClass === "high");

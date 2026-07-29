@@ -27,6 +27,9 @@ export interface FillUpRecommendationEngineInput {
 /** Reiner P95-Ansatz; er hält bestehende Ergebnisse ohne gesetzten Faktor unverändert. */
 export const DEFAULT_CPU_DEMAND_CONCURRENCY_PCT = 100;
 
+/** Startwert des UI-Schiebereglers bei neuen Planungen; ändert nicht den konservativen Engine-Fallback oben. */
+export const DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT = 50;
+
 type ProjectableMetric = FillUpGuardrailHeadroom["metricKey"];
 
 /**
