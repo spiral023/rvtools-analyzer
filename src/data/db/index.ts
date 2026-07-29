@@ -1303,6 +1303,44 @@ export async function persistVropsTimeSeriesImport(
   }
 }
 
+/**
+ * Hängt bestehende vROps-Zeitreihenimporte auf eine neue RVTools-snapshotId um, nachdem
+ * ein Re-Import derselben vCenter den alten Snapshot gelöscht hat. `rvtoolsObjectKey` ist
+ * namens-/vCenter-basiert und bleibt stabil; nur die eingefrorene snapshotId-Referenz muss
+ * nachgezogen werden, damit Workload-Profile/Fill-Up-Planung nicht ins Leere zeigen.
+ */
+export async function relinkVropsTimeSeriesSnapshotIds(replacedSnapshotIds: readonly string[], newSnapshotId: string): Promise<number> {
+  if (replacedSnapshotIds.length === 0) return 0;
+  const oldIds = new Set(replacedSnapshotIds);
+  const db = await getDb();
+  const imports = await db.getAll("vrops_timeseries_imports");
+  const affected = imports.filter((imp) => imp.rvtoolsSnapshotIds.some((id) => oldIds.has(id)));
+  if (affected.length === 0) return 0;
+
+  const transaction = db.transaction(["vrops_timeseries_imports", "vrops_timeseries_objects"], "readwrite");
+  try {
+    for (const imp of affected) {
+      const rvtoolsSnapshotIds = [...new Set(imp.rvtoolsSnapshotIds.map((id) => oldIds.has(id) ? newSnapshotId : id))];
+      await transaction.objectStore("vrops_timeseries_imports").put({ ...imp, rvtoolsSnapshotIds });
+      const objects = await transaction.objectStore("vrops_timeseries_objects").index("importId").getAll(imp.id);
+      for (const object of objects) {
+        if (object.rvtoolsSnapshotId !== null && oldIds.has(object.rvtoolsSnapshotId)) {
+          await transaction.objectStore("vrops_timeseries_objects").put({ ...object, rvtoolsSnapshotId: newSnapshotId });
+        }
+      }
+    }
+    await transaction.done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // Bei einem fehlgeschlagenen Request ist die IndexedDB-Transaktion bereits abgebrochen.
+    }
+    throw error;
+  }
+  return affected.length;
+}
+
 export async function deleteVropsTimeSeriesImport(importId: string): Promise<void> {
   const db = await getDb();
   const transaction = db.transaction([

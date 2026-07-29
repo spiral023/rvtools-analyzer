@@ -5,6 +5,8 @@ import {
   buildPortAuditRows,
   canonicalMac,
   extractCdpDeviceHostname,
+  extractLabelHostCore,
+  hostCoresMatch,
   normalizeInterfaceName,
   shortHostname,
   stripPortSuffix,
@@ -56,6 +58,26 @@ describe("Netzwerk-Helfer", () => {
     expect(normalizeInterfaceName("Ethernet1/1")).toBe("eth1/1");
     expect(canonicalMac("00:50:56:AB:CD:EF")).toBe("005056abcdef");
   });
+
+  it("extrahiert den Hostnamen-Kern aus dekorierten Portbeschriftungen", () => {
+    expect(extractLabelHostCore("esxivdi1185(Trunk Prod) [E:0010]")).toBe("esxivdi1185");
+    expect(extractLabelHostCore("esxivdi1193 vSAN [E:0010]")).toBe("esxivdi1193");
+    expect(extractLabelHostCore("esxivdi2168_itsp(Trunk-Prod) - (igrznx93oc18-13 - Eth118)")).toBe("esxivdi2168_itsp");
+    expect(extractLabelHostCore("esxivdixy(vMotion, MGMT) (110.118.51.x)")).toBe("esxivdixy");
+  });
+
+  it("erkennt einen an den Hostnamen angehängten Zusatz als Übereinstimmung", () => {
+    expect(hostCoresMatch("esxivdi1185", "esxivdi1185")).toBe(true);
+    expect(hostCoresMatch("esxivdi2168_itsp", "esxivdi2168")).toBe(true);
+  });
+
+  it("lehnt abweichende oder nur zufällig präfixgleiche Hostnamen ab", () => {
+    expect(hostCoresMatch("esxivdixy", "esxivdi1200")).toBe(false);
+    expect(hostCoresMatch("esxivdi2154", "esxivdi2153")).toBe(false);
+    expect(hostCoresMatch("esxivdi2114-dell", "esxivdi2113")).toBe(false);
+    // "esxivdi216" wäre ein reiner Zeichen-Präfix von "esxivdi2168", aber kein Zusatz-Suffix (kein Trenner danach) -> kein Treffer.
+    expect(hostCoresMatch("esxivdi2168", "esxivdi216")).toBe(false);
+  });
 });
 
 describe("buildPortAuditRows", () => {
@@ -71,6 +93,38 @@ describe("buildPortAuditRows", () => {
 
     expect(row.labelConflict).toBe(true);
     expect(row.finding).toContain("altserver");
+  });
+
+  it("meldet keine Auffälligkeit bei einer dekorierten, aber passenden Beschriftung", () => {
+    const [row] = buildPortAuditRows({
+      eramonIfaceRows: [eramon({ portDesc: "esxivdi1185(Trunk Prod) [E:0010]" })],
+      cdpRows: [cdp({ host: "esxivdi1185.domain.at", cdpDeviceId: "sw01.domain.at(SERIAL1)" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+
+    expect(row.labelConflict).toBe(false);
+    expect(row.finding).toBeNull();
+  });
+
+  it("meldet keine Auffälligkeit, wenn die Beschriftung nur ein Team-Kürzel an den echten Hostnamen anhängt", () => {
+    const [row] = buildPortAuditRows({
+      eramonIfaceRows: [eramon({ portDesc: "esxivdi2168_itsp(Trunk-Prod) - (igrznx93oc18-13 - Eth118)" })],
+      cdpRows: [cdp({ host: "esxivdi2168.domain.at", cdpDeviceId: "sw01.domain.at(SERIAL1)" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+
+    expect(row.labelConflict).toBe(false);
+  });
+
+  it("meldet eine Auffälligkeit, wenn eine dekorierte Beschriftung einen anderen Host als CDP nennt", () => {
+    const [row] = buildPortAuditRows({
+      eramonIfaceRows: [eramon({ portDesc: "esxivdixy(vMotion, MGMT) (110.118.51.x)" })],
+      cdpRows: [cdp({ host: "esxivdi1200.domain.at", cdpDeviceId: "sw01.domain.at(SERIAL1)" })],
+      hosts: [], techInfo: [], ipam: [],
+    });
+
+    expect(row.labelConflict).toBe(true);
+    expect(row.finding).toContain("esxivdixy");
   });
 
   it("ordnet einen Eramon-Port ohne CDP über RVTools zu", () => {

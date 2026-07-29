@@ -5,6 +5,7 @@ import {
   batchPut,
   putRawSheetBlob,
   deleteSnapshot,
+  relinkVropsTimeSeriesSnapshotIds,
   getTechInfoImportByChecksum,
   putTechInfoImport,
   batchPutTechInfoRows,
@@ -406,6 +407,9 @@ function normalizeHosts(sheet: ParsedSheetData | undefined, snapshotId: string, 
     const host = String(row["Host"] || row["Name"] || "unknown");
     const esxVersion = toStr(row["ESX Version"]);
     const parsedEsx = parseEsxVersionBuild(esxVersion);
+    // RVTools liefert in "Speed" den Takt pro Core (MHz), keine Host-Gesamtkapazität.
+    const cpuClockMHz = toNumber(row["Speed"] || row["CPU Speed"]);
+    const cpuCores = toNumber(row["# Cores"] || row["Cores"]);
     return {
       snapshotId,
       vcenterId,
@@ -414,8 +418,8 @@ function normalizeHosts(sheet: ParsedSheetData | undefined, snapshotId: string, 
       cluster: toStr(row["Cluster"]),
       datacenter: toStr(row["Datacenter"]),
       cpuModel: toStr(row["CPU Model"]),
-      cpuTotalMHz: toNumber(row["Speed"] || row["CPU Speed"]),
-      cpuCores: toNumber(row["# Cores"] || row["Cores"]),
+      cpuTotalMHz: cpuClockMHz !== null && cpuCores !== null ? cpuClockMHz * cpuCores : null,
+      cpuCores,
       cpuThreads: toNumber(row["# Threads"]),
       memoryTotalMiB: toNumber(row["Memory"] || row["# Memory"]),
       version: toStr(row["Version"]) || parsedEsx.version,
@@ -707,6 +711,13 @@ async function importRvtoolsParsed(
       ...snapshotMeta,
       importDurationMs: Math.round(performance.now() - importStartedAt),
     });
+
+    if (replacedSnapshots.length > 0) {
+      const relinkedImports = await relinkVropsTimeSeriesSnapshotIds(replacedSnapshots.map((snapshot) => snapshot.snapshotId), snapshotId);
+      if (relinkedImports > 0) {
+        report("vROps-Zeitreihenimporte verknüpft", 100, `${relinkedImports} bestehende vROps-Zeitreihenimport${relinkedImports === 1 ? "" : "e"} auf den neuen Snapshot umgehängt`);
+      }
+    }
 
     report("Abgeschlossen", 100, `${vcenterDisplayName}: ${vms.length.toLocaleString("de-DE")} VMs, ${hosts.length} Hosts`);
 

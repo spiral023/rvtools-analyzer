@@ -46,6 +46,51 @@ describe("vROps time-series persistence", () => {
     await expect(db.getVropsTimeSeriesSummaries("ts-1")).resolves.toEqual([]);
   });
 
+  it("hängt rvtoolsSnapshotIds und rvtoolsSnapshotId auf eine neue snapshotId um, ohne fremde vCenter-IDs zu berühren", async () => {
+    const db = await import("./index");
+    const meta = {
+      id: "ts-1", importedAt: "2026-07-28T10:00:00.000Z", timezone: "Europe/Vienna" as const,
+      intervalMinutes: 60 as const, rangeStartUtc: 1, rangeEndUtc: 1, expectedSlots: 1,
+      rvtoolsSnapshotIds: ["snap-old", "snap-other-vcenter"], fileSetChecksum: "set-1", schemaVersion: 1,
+      validationStatus: "relationships-partial" as const,
+      qualitySummary: { objectCountByType: { vm: 1, cluster: 0, host: 0 }, expectedSlots: 1, errorCount: 0, warningCount: 0, missingValueCount: 0 },
+      files: [{ objectType: "vm" as const, fileName: "vm.csv", fileSizeBytes: 10, fileChecksum: "vm", rowCount: 1, columnCount: 4, detectedColumns: ["Name"], status: "accepted" as const }],
+    };
+    await db.persistVropsTimeSeriesImport(meta, [{
+      importId: "ts-1", objectKey: "vm:vm-01", objectType: "vm", vropsName: "vm-01",
+      vcenterId: "vc-1", rvtoolsSnapshotId: "snap-old", rvtoolsObjectKey: "vm-key", clusterKey: null, hostKey: null,
+      workloadClass: "high", powerState: "poweredOn", siteId: null,
+      matchStatus: "matched", matchMethod: "name",
+    }], [], []);
+
+    const relinkedCount = await db.relinkVropsTimeSeriesSnapshotIds(["snap-old"], "snap-new");
+
+    expect(relinkedCount).toBe(1);
+    const [updatedImport] = await db.getVropsTimeSeriesImports();
+    expect(updatedImport.rvtoolsSnapshotIds).toEqual(["snap-new", "snap-other-vcenter"]);
+    const [updatedObject] = await db.getVropsTimeSeriesObjects("ts-1");
+    expect(updatedObject.rvtoolsSnapshotId).toBe("snap-new");
+  });
+
+  it("lässt Importe unberührt, deren rvtoolsSnapshotIds keine der ersetzten IDs enthalten", async () => {
+    const db = await import("./index");
+    const meta = {
+      id: "ts-2", importedAt: "2026-07-28T10:00:00.000Z", timezone: "Europe/Vienna" as const,
+      intervalMinutes: 60 as const, rangeStartUtc: 1, rangeEndUtc: 1, expectedSlots: 1,
+      rvtoolsSnapshotIds: ["snap-unrelated"], fileSetChecksum: "set-2", schemaVersion: 1,
+      validationStatus: "relationships-partial" as const,
+      qualitySummary: { objectCountByType: { vm: 0, cluster: 0, host: 0 }, expectedSlots: 1, errorCount: 0, warningCount: 0, missingValueCount: 0 },
+      files: [],
+    };
+    await db.persistVropsTimeSeriesImport(meta, [], [], []);
+
+    const relinkedCount = await db.relinkVropsTimeSeriesSnapshotIds(["snap-old"], "snap-new");
+
+    expect(relinkedCount).toBe(0);
+    const [untouchedImport] = await db.getVropsTimeSeriesImports();
+    expect(untouchedImport.rvtoolsSnapshotIds).toEqual(["snap-unrelated"]);
+  });
+
   it("persistiert Policy-Versionen und explizite Clusterzuweisungen getrennt", async () => {
     const db = await import("./index");
     const policy = createInitialCapacityPolicies("2026-07-28T10:00:00.000Z")[0];

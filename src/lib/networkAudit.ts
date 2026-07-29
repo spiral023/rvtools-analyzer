@@ -32,6 +32,33 @@ export function stripPortSuffix(description: string): string {
   return description.trim().replace(PORT_SUFFIX_REGEX, "").trim();
 }
 
+const LABEL_HOST_CORE_REGEX = /^[\w.-]+/;
+
+/**
+ * Extrahiert den führenden Hostnamen-Kandidaten aus oft dekorierten Portbeschriftungen wie
+ * "esxivdi1185(Trunk Prod) [E:0010]" oder "esxivdi1193 vSAN [E:0010]" -> "esxivdi1185"/"esxivdi1193".
+ * Bricht am ersten Zeichen ab, das kein Bestandteil eines Hostnamens ist (Leerzeichen, Klammern etc.).
+ */
+export function extractLabelHostCore(description: string): string {
+  const match = description.trim().match(LABEL_HOST_CORE_REGEX);
+  return match ? shortHostname(match[0]) : "";
+}
+
+/**
+ * Vergleicht Label- und CDP-Hostkern tolerant gegenüber angehängten Zusätzen: Beschriftungen
+ * hängen manchmal ein Team-/Standort-Kürzel direkt an den echten Hostnamen an (z. B.
+ * "esxivdi2168_itsp" für Host "esxivdi2168"). Das gilt nur als Zusatz, wenn direkt nach dem
+ * gemeinsamen Präfix eine Nicht-alphanumerische Grenze folgt — sonst wäre z. B. "esxivdi216"
+ * fälschlich ein Präfix-Treffer für den eigentlich anderen Host "esxivdi2168".
+ */
+export function hostCoresMatch(labelCore: string, cdpCore: string): boolean {
+  if (!labelCore || !cdpCore) return false;
+  if (labelCore === cdpCore) return true;
+  if (!labelCore.startsWith(cdpCore)) return false;
+  const boundary = labelCore[cdpCore.length];
+  return boundary !== undefined && !/[a-z0-9]/i.test(boundary);
+}
+
 /** "grznx93oc18-8.domain.at(SERIAL)" -> "grznx93oc18-8" — Seriennummer in Klammern und Domain abschneiden. */
 export function extractCdpDeviceHostname(cdpDeviceId: string): string {
   const withoutSerial = cdpDeviceId.replace(/\([^)]*\)\s*$/, "").trim();
@@ -105,7 +132,7 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
   return [...merged.values()].map((port): PortAuditRow => {
     const cdp = cdpByPort.get(port.key);
     const candidate = port.description && port.description !== "--" ? stripPortSuffix(port.description) : "";
-    const candidateShort = candidate ? shortHostname(candidate) : "";
+    const candidateCore = candidate ? extractLabelHostCore(candidate) : "";
     const switchConnected = port.status === "aktiv";
 
     let matchStatus: PortMatchStatus;
@@ -116,17 +143,17 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
       matchStatus = "confirmed-cdp";
       matchedHost = cdp.host;
       matchedSource = "cdp";
-    } else if (!candidateShort) {
+    } else if (!candidateCore) {
       matchStatus = "no-target";
-    } else if (rvtoolsHostSet.has(candidateShort)) {
+    } else if (rvtoolsHostSet.has(candidateCore)) {
       matchStatus = "text-match";
       matchedHost = candidate;
       matchedSource = "rvtools";
-    } else if (techInfoNameSet.has(candidateShort)) {
+    } else if (techInfoNameSet.has(candidateCore)) {
       matchStatus = "documented-only";
       matchedHost = candidate;
       matchedSource = "techinfo";
-    } else if (ipamNameSet.has(candidateShort)) {
+    } else if (ipamNameSet.has(candidateCore)) {
       matchStatus = "documented-only";
       matchedHost = candidate;
       matchedSource = "ipam";
@@ -139,7 +166,7 @@ export function buildPortAuditRows(input: BuildPortAuditRowsInput): PortAuditRow
     let statusConflict = false;
 
     if (cdp) {
-      if (candidateShort && candidateShort !== shortHostname(cdp.host)) {
+      if (candidateCore && !hostCoresMatch(candidateCore, shortHostname(cdp.host))) {
         labelConflict = true;
         labelConflictHost = cdp.host;
       }
