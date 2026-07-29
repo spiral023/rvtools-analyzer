@@ -5,6 +5,9 @@ import type { NormalizedVm, SheetRow } from "@/domain/models/types";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { formatRvtoolsDate, summarizeSnapshots, summarizeStorage } from "@/lib/vmDetail";
 import { boolLabel, sheetRowKey, str, toNumber } from "@/lib/vmDetailFormat";
+import { useHosts } from "@/hooks/useActiveSnapshots";
+import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
+import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 
 // RVTools kodiert "kein Limit" als -1; das rohe -1 wäre in der UI irreführend.
 function limitLabel(value: number | null): string {
@@ -58,8 +61,25 @@ export function VmTechnicalSections({
   const storageSummary = useMemo(() => summarizeStorage(diskRows), [diskRows]);
   const snapshotSummary = useMemo(() => summarizeSnapshots(snapshotRows), [snapshotRows]);
 
+  const { data: hosts = [] } = useHosts();
+  const matchedHost = useMemo(
+    () => hosts.find((host) => host.host === vm.host && host.vcenterId === vm.vcenterId) ?? null,
+    [hosts, vm.host, vm.vcenterId],
+  );
+  const cpuCapacityMHz = matchedHost?.cpuTotalMHz && matchedHost.cpuCores && vm.cpuCount
+    ? (matchedHost.cpuTotalMHz / matchedHost.cpuCores) * vm.cpuCount
+    : null;
+  const vropsSeries = useVropsObjectSeries({
+    objectType: "vm",
+    rvtoolsObjectKey: vm.vmKey,
+    cpuCapacityMHz,
+    secondaryCapacity: null,
+  });
+
   return (
     <>
+      <VropsTrendChart {...vropsSeries} secondaryUnit="pct" secondaryLabel="CPU Ready" />
+
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
           <Cpu className="h-3.5 w-3.5" /> CPU & Arbeitsspeicher

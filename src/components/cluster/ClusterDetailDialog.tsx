@@ -14,6 +14,8 @@ import { toBoolLoose, toNumLoose } from "@/lib/conversion";
 import { clusterScopeKey, isSameCluster, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterDetailMarkdown } from "@/lib/detailMarkdown";
 import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
+import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
+import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 import type {
   NormalizedCluster,
   NormalizedDatastore,
@@ -310,6 +312,13 @@ function useClusterDetailDialogView({
   const drsState = aggregateBoolean(scopedClusters.map((cluster) => cluster.drsEnabled));
   const uniqueSnapshots = new Set(scopedClusters.map((cluster) => cluster.snapshotId)).size;
 
+  const vropsSeries = useVropsObjectSeries({
+    objectType: "cluster",
+    rvtoolsObjectKey: selectedCluster?.clusterKey ?? null,
+    cpuCapacityMHz: selectedCluster?.totalCpuMHz ?? null,
+    secondaryCapacity: selectedCluster?.totalMemoryMiB ?? null,
+  });
+
   if (!selectedCluster) return null;
 
   const copyMarkdown = async () => {
@@ -378,6 +387,8 @@ function useClusterDetailDialogView({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="p-6 space-y-6">
+            <VropsTrendChart {...vropsSeries} secondaryUnit="MiB" secondaryLabel="Memory Util." />
+
             <section>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5" /> Cluster-Metriken

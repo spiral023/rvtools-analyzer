@@ -43,6 +43,8 @@ import { HARDWARE_KPI, HARDWARE_SECTIONS, HARDWARE_VARIANT_COLUMNS } from "@/lib
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { findClusterForHost } from "@/lib/hardwareClusterSelection";
+import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
+import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export type { HostDetail } from "@/lib/conversion";
@@ -648,6 +650,18 @@ export function HostDetailDialog({
   onClose: () => void;
   onVmClick?: (vm: NormalizedVm) => void;
 }) {
+  const { data: normalizedHosts = [] } = useHosts();
+  const matchedHost = useMemo(
+    () => normalizedHosts.find((entry) => entry.host === host?.host) ?? null,
+    [normalizedHosts, host?.host],
+  );
+  const vropsSeries = useVropsObjectSeries({
+    objectType: "host",
+    rvtoolsObjectKey: matchedHost?.hostKey ?? null,
+    cpuCapacityMHz: matchedHost?.cpuTotalMHz ?? null,
+    secondaryCapacity: matchedHost?.memoryTotalMiB ?? null,
+  });
+
   if (!host) return null;
 
   const hbas = buildHbaEntries(hbaRows, host.host);
@@ -712,6 +726,7 @@ export function HostDetailDialog({
 
         <ScrollArea className="max-h-[calc(85vh-100px)]">
           <div className="p-6 space-y-6">
+            <VropsTrendChart {...vropsSeries} secondaryUnit="MiB" secondaryLabel="Memory Util." />
 
             {/* Identity */}
             <section>
