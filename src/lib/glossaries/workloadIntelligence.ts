@@ -145,14 +145,24 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Dasselbe für den höchsten beobachteten Stundenwert. Begrenzt die Empfehlung nach unten, denn der P95 stündlicher Mittelwerte verbirgt kurze Lastspitzen – vROps liefert Stundenmittel, keine Momentanwerte.",
     source: "berechnet",
   },
+  demandBasedVcpu: {
+    term: "Bedarfsgerecht",
+    description: "Zielgröße, die der gemessene Bedarf allein hergibt: kleinste gerade vCPU-Zahl mit höchstens 65 % Auslastung beim P95 und höchstens 90 % beim beobachteten Maximum. Das Endziel der Planung, nicht der nächste Schritt – und bewusst auch dort ausgewiesen, wo keine Empfehlung ausgesprochen wird.",
+    source: "berechnet",
+  },
   recommendedVcpu: {
     term: "Empfohlen",
-    description: "Kleinste gerade vCPU-Größe, die drei Bedingungen erfüllt: höchstens 65 % Auslastung beim P95-Bedarf, höchstens 90 % beim beobachteten Maximum, und mindestens die Hälfte der heutigen Größe. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
+    description: "Nächster überprüfbarer Schritt in Richtung der bedarfsgerechten Größe, begrenzt auf ein Viertel der heutigen vCPU pro Runde. Nach der Umsetzung zeigt die nächste Messung, ob ein weiterer Schritt tragfähig ist. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
     source: "berechnet",
   },
   reclaimableVcpu: {
     term: "Rückgewinnbar",
-    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ und immer eine gerade Zahl – vCPU werden paarweise zurückgegeben. Auf höchstens die Hälfte der konfigurierten Größe begrenzt, damit Rightsizing in überprüfbaren Schritten erfolgt statt in einem Sprung.",
+    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ und immer eine gerade Zahl – vCPU werden paarweise zurückgegeben. Null, solange keine Empfehlung ausgesprochen wird.",
+    source: "berechnet",
+  },
+  recommendationWithheld: {
+    term: "Keine Empfehlung, weil",
+    description: "Eine Verkleinerung greift in ein laufendes System ein und wird nur bei belastbarer Grundlage vorgeschlagen. Zurückgehalten wird sie bei zu dünner Datenbasis (Vertrauen unter „hoch“) und bei den Mustern bursty, unregelmäßig und nicht berechenbar – dort kann eine Woche den Spitzenbedarf deutlich unterschätzen. Die Kennzahlen bleiben zur eigenen Beurteilung sichtbar.",
     source: "berechnet",
   },
   shape: { term: "Lastmuster", description: "Zeitliches Lastmuster aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik. Unabhängig von der Auslastungshöhe, daher auch bei schwach ausgelasteten Kandidaten aussagekräftig.", source: "berechnet" },

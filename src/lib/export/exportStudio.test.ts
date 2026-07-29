@@ -112,7 +112,11 @@ describe("buildVmExportDataset", () => {
       configuredCpuCapacity: "9.600",
       hwVersion: "vmx-21", toolsVersion: "12.5.0", secureBoot: "Ja",
       rightsizingDemandP95: "2.400,00", rightsizingReadyP95: "6,2 %",
-      usedVcpuEquivalentP95: "1,00", recommendedVcpu: "2", reclaimableVcpu: "2",
+      // Das Profil ist "bursty": die bedarfsgerechte Größe wird ausgewiesen, eine
+      // Verkleinerung aber zurückgehalten, weil sieben Tage seltene Spitzen verfehlen können.
+      usedVcpuEquivalentP95: "1,00", demandBasedVcpu: "2",
+      recommendationWithheld: "Muster in 7 Tagen nicht verlässlich",
+      recommendedVcpu: "4", reclaimableVcpu: "0",
       rightsizingCandidate: "Ja", manyVcpuLowDemand: "Ja", highCpuReady: "Ja",
     });
   });
@@ -128,14 +132,22 @@ describe("buildVmExportDataset", () => {
   });
 
   it("bietet Rightsizing-Metriken als auswählbare Exportspalten und Kennzahlen an", () => {
-    const result = buildVmExportDataset([vm()], [snapshot], "1 vCenter-Scope", [profile()], [host()]);
+    // Dauerlast mit 16 vCPU: empfehlungsfähiges Muster und groß genug, dass ein Viertel
+    // der Größe eine gerade Rückgabe zulässt (16 * 0,25 = 4).
+    const result = buildVmExportDataset(
+      [vm({ cpuCount: 16 })], [snapshot], "1 vCenter-Scope",
+      [profile({ shape: "constant", behaviorClass: "constant-load", vcpu: 16 })], [host()],
+    );
     expect(result.columns).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)" }),
       expect.objectContaining({ id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }),
       expect.objectContaining({ id: "recommendedVcpu", label: "Empfohlen (vCPU)" }),
+      expect.objectContaining({ id: "recommendationWithheld", label: "Keine Empfehlung, weil" }),
       expect.objectContaining({ id: "rightsizingCandidate", label: "Rightsizing-Kandidat" }),
     ]));
+    expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "12", reclaimableVcpu: "4", recommendationWithheld: "—" });
     expect(result.kpis.find((kpi) => kpi.label === "Rightsizing-Kandidaten")?.value).toBe("1");
-    expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("2");
+    expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("4");
   });
 });
 

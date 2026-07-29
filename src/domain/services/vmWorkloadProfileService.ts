@@ -336,7 +336,9 @@ export function classifyVmBehavior(
   };
 
   const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration }, thresholds);
-  const intensity = determineIntensity(utilizationP95Pct);
+  // Reicht die Datenbasis nicht für eine Formaussage, trägt sie auch keine Niveauaussage.
+  // Beide Achsen behandeln dieselbe Datenlücke damit gleich.
+  const intensity = shape === "unclassified" ? "unknown" : determineIntensity(utilizationP95Pct);
   // Niveauurteil bewusst mit der bisherigen Oder-Logik: der MHz-Wert greift damit
   // weiterhin für VMs ohne bekannte Kapazität, für die kein Anteil berechenbar ist.
   const isLowUtilization =

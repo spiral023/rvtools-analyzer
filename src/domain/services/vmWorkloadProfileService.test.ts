@@ -157,6 +157,27 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
     expect(intensityOf(9_000)).toBe("high"); // 90 %
   });
 
+  /**
+   * Ohne Hostzuordnung ist kein Kapazitätsanteil berechenbar, dann greift allein der
+   * absolute MHz-Schwellwert. In zwei aufeinanderfolgenden Live-Exporten kam dieser Fall
+   * nicht vor (alle VMs hatten Kapazitätsangaben), deshalb hier gezielt abgedeckt.
+   */
+  it("stuft ohne bekannte Kapazität allein über den absoluten P95 als gering genutzt ein", () => {
+    const grid = buildSyntheticWeek();
+    const belowThreshold = new Map(grid.map((entry) => [entry.timestampUtc, 50]));
+    const withoutCapacity = classifyVmBehavior(grid, belowThreshold);
+
+    expect(withoutCapacity.signals.utilizationP95Pct).toBeNull();
+    expect(withoutCapacity.intensity).toBe("unknown");
+    expect(withoutCapacity.behaviorClass).toBe("low-utilization");
+    // Das Muster bleibt trotzdem erkennbar – die Trennung der Achsen gilt auch hier.
+    expect(withoutCapacity.shape).toBe("constant");
+
+    // Oberhalb des absoluten Schwellwerts greift ohne Kapazität keine Low-Utilization-Regel.
+    const aboveThreshold = new Map(grid.map((entry) => [entry.timestampUtc, 5_000]));
+    expect(classifyVmBehavior(grid, aboveThreshold).behaviorClass).toBe("constant-load");
+  });
+
   it("liefert „unknown“ als Niveau, solange die konfigurierte Kapazität fehlt", () => {
     const grid = buildSyntheticWeek();
     const demand = new Map(grid.map((entry) => [entry.timestampUtc, 5_000]));

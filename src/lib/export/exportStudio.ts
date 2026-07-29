@@ -38,6 +38,10 @@ const pct = (value: number | null) => value === null ? "—" : `${value.toLocale
 const ratio = (value: number | null) => value === null ? "—" : value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const SITE_FAILOVER_RISK_LABEL: Record<string, string> = { ok: "OK", warn: "Warnung", crit: "Kritisch" };
 const CONFIDENCE_LABEL: Record<VropsTimeSeriesConfidenceLevel, string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
+const RECOMMENDATION_WITHHELD_LABEL: Record<"low-confidence" | "unreliable-shape", string> = {
+  "low-confidence": "Datenbasis zu dünn",
+  "unreliable-shape": "Muster in 7 Tagen nicht verlässlich",
+};
 
 function vcenterNames(snapshots: SnapshotMeta[]) {
   return new Map(snapshots.map((snapshot) => [snapshot.vcenterId, snapshot.vcenterDisplayName]));
@@ -86,8 +90,10 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit" }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration" }, { id: "nightConcentration", label: "Nacht-Konzentration" }, { id: "weekendConcentration", label: "Wochenend-Konzentration" },
     { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)" }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)" },
     { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)" }, { id: "rightsizingReadyP95", label: "CPU Ready P95" },
-    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
-    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }, { id: "rightsizingCandidate", label: "Rightsizing-Kandidat" },
+    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)" },
+    { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
+    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil" },
+    { id: "rightsizingCandidate", label: "Rightsizing-Kandidat" },
     { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf" }, { id: "highCpuReady", label: "Auffälliges CPU Ready" },
   ];
   const rightsizingCandidates = [...rightsizingByProfileKey.values()];
@@ -124,6 +130,8 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
         rightsizingReadyP95: rightsizing ? pct(rightsizing.ready.p95) : "—",
         usedVcpuEquivalentP95: rightsizing ? number(rightsizing.usedVcpuEquivalentP95, 2) : "—",
         usedVcpuEquivalentPeak: rightsizing ? number(rightsizing.usedVcpuEquivalentPeak, 2) : "—",
+        demandBasedVcpu: rightsizing ? number(rightsizing.demandBasedVcpu) : "—",
+        recommendationWithheld: rightsizing ? (rightsizing.recommendationWithheldReason === null ? "—" : RECOMMENDATION_WITHHELD_LABEL[rightsizing.recommendationWithheldReason]) : "—",
         recommendedVcpu: rightsizing ? number(rightsizing.recommendedVcpu) : "—",
         reclaimableVcpu: rightsizing ? number(rightsizing.reclaimableVcpu) : "—",
         rightsizingCandidate: rightsizing ? (isNotableRightsizingCandidate(rightsizing) ? "Ja" : "Nein") : "—",

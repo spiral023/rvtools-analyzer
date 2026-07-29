@@ -1,4 +1,4 @@
-import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile } from "@/domain/models/types";
+import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 
 /** Zielauslastung der empfohlenen vCPU-Größe beim P95-Bedarf. */
@@ -14,10 +14,18 @@ const TARGET_UTILIZATION_PEAK = 0.9;
 const MIN_RECOMMENDED_VCPU = 2;
 /**
  * Höchstens dieser Anteil der konfigurierten vCPU wird auf einmal zur Rückgabe
- * vorgeschlagen. Rightsizing bleibt damit ein schrittweiser Vorgang: eine Halbierung
- * ist überprüfbar, ein Sprung von 16 auf 3 vCPU ist in der Praxis nicht umsetzbar.
+ * vorgeschlagen. Rightsizing bleibt damit ein schrittweiser Vorgang mit überprüfbaren
+ * Schritten; die bedarfsgerechte Zielgröße bleibt als `demandBasedVcpu` sichtbar.
  */
-const MAX_RECLAIM_RATIO = 0.5;
+const MAX_RECLAIM_RATIO = 0.25;
+/**
+ * Muster, deren Spitzenlast in einem Sieben-Tage-Fenster nicht verlässlich erfasst ist:
+ * `bursty` lebt von seltenen Ausschlägen, `irregular` hat per Definition keinen
+ * reproduzierbaren Tagesverlauf, `unclassified` hat zu wenig Datenbasis. Für diese VMs
+ * kann eine Woche den Jahresspitzenbedarf deutlich unterschätzen, deshalb wird keine
+ * Verkleinerung vorgeschlagen – die Kennzahlen bleiben zur Beurteilung sichtbar.
+ */
+const SHAPES_WITHOUT_RECOMMENDATION: readonly VmWorkloadShape[] = ["bursty", "irregular", "unclassified"];
 const MANY_VCPU_MIN = 4;
 /** Ab dieser Anzahl vCPU gilt eine VM als „viele vCPU“, falls sie zugleich nur einen Bruchteil davon nutzt. */
 const MANY_VCPU_LOW_DEMAND_RATIO_MAX = 0.3;
@@ -27,6 +35,11 @@ const HIGH_CPU_READY_PCT = 5;
 /** Rundet auf die nächstkleinere gerade Zahl ab – vCPU werden paarweise zurückgegeben. */
 function floorToEven(value: number): number {
   return Math.max(0, Math.floor(value / 2) * 2);
+}
+
+/** Rundet auf die nächstgrößere gerade Zahl auf – für Zielgrößen, die nicht zu klein sein dürfen. */
+function ceilToEven(value: number): number {
+  return Math.ceil(value / 2) * 2;
 }
 
 export interface BuildVmRightsizingCandidatesInput {
@@ -49,16 +62,33 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     const usedVcpuEquivalentP95 = mhzPerCore !== null && profile.demand.p95 !== null ? profile.demand.p95 / mhzPerCore : null;
     const usedVcpuEquivalentPeak = mhzPerCore !== null && profile.demand.maximum !== null ? profile.demand.maximum / mhzPerCore : null;
 
+    // Bedarfsgerechte Zielgröße: was die Messung allein hergibt, ohne Zurückhaltung.
+    // Bleibt auch dann sichtbar, wenn keine Empfehlung ausgesprochen wird.
+    const demandBasedVcpu = usedVcpuEquivalentP95 === null ? null : Math.min(
+      profile.vcpu,
+      ceilToEven(Math.max(
+        usedVcpuEquivalentP95 / TARGET_UTILIZATION_P95,
+        (usedVcpuEquivalentPeak ?? 0) / TARGET_UTILIZATION_PEAK,
+        MIN_RECOMMENDED_VCPU,
+      )),
+    );
+
+    // Eine Verkleinerung ist ein Eingriff in ein laufendes System. Sie wird nur
+    // vorgeschlagen, wenn die Datenbasis belastbar ist und das Muster in sieben Tagen
+    // verlässlich beobachtbar war.
+    const recommendationWithheldReason = profile.confidence !== "high"
+      ? "low-confidence" as const
+      : SHAPES_WITHOUT_RECOMMENDATION.includes(profile.shape)
+        ? "unreliable-shape" as const
+        : null;
+
     // Die Rückgabe ist die primäre Größe und immer gerade; die Empfehlung folgt daraus,
     // damit Empfehlung + Rückgabe stets die konfigurierte Anzahl ergeben.
-    const minimumFromDemand = usedVcpuEquivalentP95 === null ? null : Math.max(
-      usedVcpuEquivalentP95 / TARGET_UTILIZATION_P95,
-      (usedVcpuEquivalentPeak ?? 0) / TARGET_UTILIZATION_PEAK,
-      MIN_RECOMMENDED_VCPU,
-      // Nie mehr als MAX_RECLAIM_RATIO auf einmal zurückgeben.
-      profile.vcpu * (1 - MAX_RECLAIM_RATIO),
-    );
-    const reclaimableVcpu = minimumFromDemand === null ? null : floorToEven(Math.max(0, profile.vcpu - Math.ceil(minimumFromDemand)));
+    const reclaimableVcpu = demandBasedVcpu === null
+      ? null
+      : recommendationWithheldReason !== null
+        ? 0
+        : floorToEven(Math.min(profile.vcpu - demandBasedVcpu, profile.vcpu * MAX_RECLAIM_RATIO));
     const recommendedVcpu = reclaimableVcpu === null ? null : profile.vcpu - reclaimableVcpu;
     const manyVcpuLowDemand = profile.vcpu >= MANY_VCPU_MIN && usedVcpuEquivalentP95 !== null && usedVcpuEquivalentP95 <= profile.vcpu * MANY_VCPU_LOW_DEMAND_RATIO_MAX;
     const highCpuReady = profile.ready.p95 !== null && profile.ready.p95 > HIGH_CPU_READY_PCT;
@@ -78,6 +108,8 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       mhzPerCore,
       usedVcpuEquivalentP95,
       usedVcpuEquivalentPeak,
+      demandBasedVcpu,
+      recommendationWithheldReason,
       recommendedVcpu,
       reclaimableVcpu,
       flags: { manyVcpuLowDemand, highCpuReady },

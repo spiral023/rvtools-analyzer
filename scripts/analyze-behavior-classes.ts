@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, classifyVmBehavior } from "@/domain/services/vmWorkloadProfileService";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { percentile } from "@/lib/statistics";
-import type { NormalizedHost, VmBehaviorClass, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
+import type { NormalizedHost, VmBehaviorClass, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape, VropsTimeSeriesConfidenceLevel } from "@/domain/models/types";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -52,6 +52,14 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+/** Spiegelt CONFIDENCE_LABEL aus dem Export zurück auf die Aufzählung. */
+const CONFIDENCE_BY_LABEL = new Map<string, VropsTimeSeriesConfidenceLevel>([
+  ["hoch", "high"],
+  ["mittel", "medium"],
+  ["niedrig", "low"],
+  ["nicht berechenbar", "not-computable"],
+]);
+
 /** de-DE-Zahl aus dem Export: "31.128" -> 31128, "0,07" -> 0.07, "69,9 %" -> 69.9, "—" -> null. */
 function parseGermanNumber(raw: string): number | null {
   const cleaned = raw.replace(/\s|%| /g, "").replace(/\./g, "").replace(",", ".");
@@ -69,6 +77,8 @@ interface ParsedRow {
   /** Exportiertes Lastmuster bzw. Niveau; `null`, wenn der Export die Spalten noch nicht führt. */
   exportedShapeLabel: string | null;
   exportedIntensityLabel: string | null;
+  /** Vertrauensniveau des Exports – steuert im Rightsizing, ob überhaupt empfohlen wird. */
+  confidence: VropsTimeSeriesConfidenceLevel;
   /** Rightsizing-Werte des Exports; `null`, wenn die Spalten fehlen. */
   exportedUsedVcpuP95: number | null;
   exportedRecommendedVcpu: number | null;
@@ -127,6 +137,7 @@ function parseCsv(path: string): ParsedRow[] {
     behaviorClass: columnIndex("Verhaltensklasse"),
     shape: optionalColumnIndex("Lastmuster"),
     intensity: optionalColumnIndex("Auslastungsniveau"),
+    confidence: optionalColumnIndex("Vertrauen (Profil)"),
     usedVcpuP95: optionalColumnIndex("Genutzt P95 (vCPU)"),
     recommendedVcpu: optionalColumnIndex("Empfohlen (vCPU)"),
     reclaimableVcpu: optionalColumnIndex("Rückgewinnbar (vCPU)"),
@@ -153,6 +164,7 @@ function parseCsv(path: string): ParsedRow[] {
       exportedClassLabel: fields[idx.behaviorClass] ?? "",
       exportedShapeLabel: idx.shape !== null ? fields[idx.shape] ?? "" : null,
       exportedIntensityLabel: idx.intensity !== null ? fields[idx.intensity] ?? "" : null,
+      confidence: CONFIDENCE_BY_LABEL.get(idx.confidence !== null ? fields[idx.confidence] ?? "" : "") ?? "high",
       exportedUsedVcpuP95: idx.usedVcpuP95 !== null ? parseGermanNumber(fields[idx.usedVcpuP95] ?? "") : null,
       exportedRecommendedVcpu: idx.recommendedVcpu !== null ? parseGermanNumber(fields[idx.recommendedVcpu] ?? "") : null,
       exportedReclaimableVcpu: idx.reclaimableVcpu !== null ? parseGermanNumber(fields[idx.reclaimableVcpu] ?? "") : null,
@@ -574,7 +586,7 @@ function reportRightsizing(results: readonly Recomputed[]): void {
       demand: { ...emptyStats, sampleCount: values.length, coverageRatio: 1, p95: entry.p95, maximum: values.length ? Math.max(...values) : null },
       ready: emptyStats,
       shape: entry.shape, intensity: entry.intensity, behaviorClass: entry.behaviorClass,
-      confidence: "high", signals: entry.signals,
+      confidence: entry.row.confidence, signals: entry.signals,
     } as VmWorkloadProfile);
   }
 
@@ -626,9 +638,37 @@ function reportRightsizing(results: readonly Recomputed[]): void {
     console.log(`    aktuelle Logik: ${quantileSummary(deepCutsNew)}`);
   }
 
-  const notable = [...candidates.values()].filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0);
-  console.log(`\n  VMs mit Rückgabepotenzial: ${notable.length}  (${((100 * notable.length) / usable.length).toFixed(1)} %)`);
-  printDistribution("  Rückgabe je Muster (Summe vCPU)", [...candidates.values()].flatMap((candidate) => Array.from({ length: candidate.reclaimableVcpu ?? 0 }, () => VM_WORKLOAD_SHAPE_LABEL[candidate.shape])));
+  const all = [...candidates.values()];
+  const notable = all.filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0);
+  console.log(`\n  VMs mit Empfehlung zur Verkleinerung: ${notable.length}  (${((100 * notable.length) / usable.length).toFixed(1)} %)`);
+
+  /* --- Zurückhaltung: warum wird nichts empfohlen? ------------------ */
+  printDistribution("  Grund der Zurückhaltung", all.map((candidate) => {
+    if (candidate.recommendationWithheldReason === "low-confidence") return "Datenbasis zu dünn";
+    if (candidate.recommendationWithheldReason === "unreliable-shape") return "Muster nicht verlässlich";
+    if ((candidate.reclaimableVcpu ?? 0) > 0) return "– Empfehlung ausgesprochen";
+    // Unterscheidet echte Bedarfsdeckung von reiner Schrittweiten-Granularität: bei
+    // weniger als 8 vCPU rundet ein Viertel der Größe auf null gerade vCPU ab.
+    if ((candidate.demandBasedVcpu ?? candidate.vcpu) === candidate.vcpu) return "bereits bedarfsgerecht";
+    return "Potenzial, aber zu klein für einen Schritt";
+  }));
+  const tooSmall = all.filter((candidate) =>
+    candidate.recommendationWithheldReason === null &&
+    (candidate.reclaimableVcpu ?? 0) === 0 &&
+    (candidate.demandBasedVcpu ?? candidate.vcpu) !== candidate.vcpu);
+  printDistribution("  Konfigurierte vCPU der zu kleinen VMs", tooSmall.map((candidate) => `${String(candidate.vcpu).padStart(3)} vCPU`));
+
+  /* --- Abstand zwischen Schritt und Endziel ------------------------- */
+  console.log(`\n  Bedarfsgerechte Zielgröße gegen empfohlenen Schritt:`);
+  const demandTotal = all.reduce((sum, candidate) => sum + (candidate.vcpu ?? 0) - (candidate.demandBasedVcpu ?? candidate.vcpu ?? 0), 0);
+  const stepTotal = all.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0);
+  console.log(`    bedarfsgerecht rückgewinnbar (Endziel): ${demandTotal} vCPU`);
+  console.log(`    im ersten Schritt empfohlen:            ${stepTotal} vCPU  (${demandTotal > 0 ? ((100 * stepTotal) / demandTotal).toFixed(1) : "—"} % des Endziels)`);
+  console.log(`    verbleibt für weitere Runden:           ${demandTotal - stepTotal} vCPU`);
+
+  console.log(`\n  Anteil der Rückgabe an der konfigurierten Größe:`);
+  console.log(`    ${quantileSummary(all.map((candidate) => (candidate.vcpu ? (candidate.reclaimableVcpu ?? 0) / candidate.vcpu : null)))}`);
+  printDistribution("  Rückgabe je Muster (Summe vCPU)", all.flatMap((candidate) => Array.from({ length: candidate.reclaimableVcpu ?? 0 }, () => VM_WORKLOAD_SHAPE_LABEL[candidate.shape])));
 }
 
 main();

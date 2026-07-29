@@ -39,14 +39,15 @@ const hosts: NormalizedHost[] = [{
 describe("buildVmRightsizingCandidates", () => {
   it("leitet mhzPerCore, genutztes vCPU-Äquivalent und rückgewinnbare vCPU ab", () => {
     // Host: 20 GHz / 20 Cores = 1000 MHz/Core. P95-Demand 2000 MHz => 2 genutzte vCPU-Äquivalente.
-    // Bedarf aus P95 wäre 2 / 0.65 = 3.08, hier begrenzt die Halbierungsgrenze auf 4 vCPU.
+    // Bedarfsgerecht sind ceil(2 / 0.65) = 3, aufgerundet auf gerade 4 vCPU. Pro Runde geht
+    // aber nur ein Viertel von 8, also 2 vCPU zurück.
     const candidates = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 8, demand: metricStats({ p95: 2_000 }) })],
       hosts,
     });
 
     expect(candidates).toHaveLength(1);
-    expect(candidates[0]).toMatchObject({ mhzPerCore: 1_000, usedVcpuEquivalentP95: 2, recommendedVcpu: 4, reclaimableVcpu: 4 });
+    expect(candidates[0]).toMatchObject({ mhzPerCore: 1_000, usedVcpuEquivalentP95: 2, demandBasedVcpu: 4, recommendedVcpu: 6, reclaimableVcpu: 2 });
     expect(candidates[0].flags.manyVcpuLowDemand).toBe(true);
   });
 
@@ -104,14 +105,50 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     }
   });
 
-  it("gibt nie mehr als die Hälfte der konfigurierten vCPU auf einmal zurück", () => {
-    // Bedarf nahe null: ohne Begrenzung wären 15 der 16 vCPU rückgewinnbar.
+  it("gibt nie mehr als ein Viertel der konfigurierten vCPU auf einmal zurück", () => {
+    // Bedarf nahe null: bedarfsgerecht wären 2 vCPU, pro Runde geht aber nur ein Viertel.
     const [candidate] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }) })],
       hosts,
     });
-    expect(candidate.reclaimableVcpu).toBe(8);
-    expect(candidate.recommendedVcpu).toBe(8);
+    expect(candidate.demandBasedVcpu).toBe(2);
+    expect(candidate.reclaimableVcpu).toBe(4);
+    expect(candidate.recommendedVcpu).toBe(12);
+  });
+
+  it("hält die Empfehlung bei zu dünner Datenbasis zurück, weist den Bedarf aber aus", () => {
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }), confidence: "medium" })],
+      hosts,
+    });
+    expect(candidate.recommendationWithheldReason).toBe("low-confidence");
+    expect(candidate.reclaimableVcpu).toBe(0);
+    expect(candidate.recommendedVcpu).toBe(16);
+    // Die bedarfsgerechte Zielgröße bleibt sichtbar, damit die Planung sie beurteilen kann.
+    expect(candidate.demandBasedVcpu).toBe(2);
+  });
+
+  it("hält die Empfehlung bei Mustern zurück, deren Spitzen eine Woche nicht abbildet", () => {
+    const withheld = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vm-bursty", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "bursty" }),
+        profile({ objectKey: "vm-irregular", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "irregular" }),
+        profile({ objectKey: "vm-unclassified", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "unclassified" }),
+      ],
+      hosts,
+    });
+    for (const candidate of withheld) {
+      expect(candidate.recommendationWithheldReason).toBe("unreliable-shape");
+      expect(candidate.reclaimableVcpu).toBe(0);
+    }
+
+    // Wochenendlast bleibt empfehlungsfähig: das Fenster liegt im Beobachtungszeitraum.
+    const [weekend] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-weekend", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "weekend" })],
+      hosts,
+    });
+    expect(weekend.recommendationWithheldReason).toBeNull();
+    expect(weekend.reclaimableVcpu).toBe(4);
   });
 
   it("empfiehlt nie unter zwei vCPU", () => {
@@ -136,9 +173,11 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     });
 
     expect(withPeak.usedVcpuEquivalentPeak).toBe(12);
+    expect(withPeak.demandBasedVcpu).toBe(14);
     expect(withPeak.reclaimableVcpu).toBe(2);
-    // Ohne bekanntes Maximum begrenzt allein die Halbierungsgrenze.
-    expect(withoutPeak.reclaimableVcpu).toBe(8);
+    // Ohne bekanntes Maximum bleibt nur der P95, dann begrenzt die Schrittweite.
+    expect(withoutPeak.demandBasedVcpu).toBe(2);
+    expect(withoutPeak.reclaimableVcpu).toBe(4);
   });
 });
 

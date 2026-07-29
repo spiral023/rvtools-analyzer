@@ -1015,9 +1015,21 @@ export interface VmRightsizingCandidate {
    * allein verbirgt sie.
    */
   usedVcpuEquivalentPeak: number | null;
-  /** Empfohlene vCPU-Zielgröße mit Sicherheitsaufschlag; nur eine prüfpflichtige Kandidatengröße. */
+  /**
+   * Zielgröße, die der gemessene Bedarf allein hergibt – ohne Zurückhaltung wegen
+   * Schrittweite, Datengüte oder Muster. Sichtbar auch dort, wo keine Empfehlung
+   * ausgesprochen wird, damit das Endziel der Planung nicht verloren geht.
+   */
+  demandBasedVcpu: number | null;
+  /**
+   * Warum keine Verkleinerung vorgeschlagen wird: `low-confidence` bei zu dünner
+   * Datenbasis, `unreliable-shape` bei Mustern, deren Spitzen in sieben Tagen nicht
+   * verlässlich erfasst sind. `null`, wenn eine Empfehlung ausgesprochen wurde.
+   */
+  recommendationWithheldReason: "low-confidence" | "unreliable-shape" | null;
+  /** Empfohlene vCPU-Zielgröße als nächster überprüfbarer Schritt; nur eine prüfpflichtige Kandidatengröße. */
   recommendedVcpu: number | null;
-  /** `vcpu - recommendedVcpu`, nie negativ. */
+  /** `vcpu - recommendedVcpu`, nie negativ und immer gerade. */
   reclaimableVcpu: number | null;
   flags: {
     /** Viele vCPU bei gleichzeitig geringem genutztem vCPU-Äquivalent. */
