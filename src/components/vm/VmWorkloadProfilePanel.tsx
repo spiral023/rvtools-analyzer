@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Activity, Clock, Gauge, Layers } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
@@ -57,6 +57,7 @@ function Sparkline({ profile }: { profile: VmWorkloadProfile }) {
 
 export function VmWorkloadProfilePanel() {
   const { imports, profiles, isLoading } = useVmWorkloadProfiles(null);
+  const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
   const { filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
@@ -107,6 +108,7 @@ export function VmWorkloadProfilePanel() {
     { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
     { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline }, cell: ({ row }) => <Sparkline profile={row.original} /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
+    { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => formatPercent(row.original.signals.utilizationP95Pct) },
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
   ], []);
 
@@ -150,8 +152,8 @@ export function VmWorkloadProfilePanel() {
         </div>}
 
         <div>
-          <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({profiles.length})</h3></InfoTooltip>
-          <VirtualTable data={profiles} columns={columns} globalFilter={filters.search} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." />
+          <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({visibleProfileCount})</h3></InfoTooltip>
+          <VirtualTable data={profiles} columns={columns} globalFilter={filters.search} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." onFilteredCountChange={setVisibleProfileCount} />
         </div>
       </>}
       {vmDetailDialog}

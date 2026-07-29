@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -43,6 +43,8 @@ interface VirtualTableProps<T, TColumn = T> {
   onToggleAll?: (selectAll: boolean) => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Meldet die Anzahl der nach Filterung sichtbaren Zeilen, z.B. für einen Zähler im Panel-Titel. */
+  onFilteredCountChange?: (count: number) => void;
 }
 
 const ROW_HEIGHT = 36;
@@ -71,6 +73,7 @@ export function VirtualTable<T, TColumn = T>({
   onToggleAll,
   emptyTitle = "Keine Einträge",
   emptyDescription,
+  onFilteredCountChange,
 }: VirtualTableProps<T, TColumn>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -88,6 +91,10 @@ export function VirtualTable<T, TColumn = T>({
 
   const { rows } = table.getRowModel();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
+
+  useEffect(() => {
+    onFilteredCountChange?.(rows.length);
+  }, [rows.length, onFilteredCountChange]);
 
   const hasFooter = table
     .getVisibleLeafColumns()

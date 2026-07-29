@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getUiState, putUiState } from "@/data/db";
-import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { useFillUpAnalysisRuns } from "@/hooks/useFillUpAnalysisRuns";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import type { ExportStudioSource, ExportStudioTemplate } from "@/domain/models/types";
+import type { ExportStudioColumn } from "@/lib/export/exportStudio";
 import {
   buildClusterExportDataset,
   buildExportDataFromDataset,
@@ -60,6 +61,7 @@ export default function ExportStudio() {
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const { runs, isLoading: runsLoading } = useFillUpAnalysisRuns();
   const { profiles: workloadProfiles, hosts: workloadHosts, isLoading: workloadProfilesLoading } = useVmWorkloadProfiles(null);
+  const { data: techInfoLatest = [], isLoading: techInfoLoading } = useAllTechInfoLatest();
   const [source, setSource] = useState<ExportStudioSource>("vms");
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const [pseudonymize, setPseudonymize] = useState(false);
@@ -103,10 +105,21 @@ export default function ExportStudio() {
     if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope, allVms);
     if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
-    return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts);
-  }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredHosts, runs, scope, source, vms, workloadHosts, workloadProfiles]);
+    return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts, techInfoLatest);
+  }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredHosts, runs, scope, source, techInfoLatest, vms, workloadHosts, workloadProfiles]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
   const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
+  // Gruppiert nach `category` in erster Auftrittsreihenfolge; Quellen ohne Kategorien (Hosts/Clusters/Fill-Up) liefern eine einzige Gruppe ohne Titel.
+  const columnGroups = useMemo(() => {
+    const groups = new Map<string, ExportStudioColumn[]>();
+    for (const column of dataset.columns) {
+      const key = column.category ?? "";
+      const group = groups.get(key);
+      if (group) group.push(column);
+      else groups.set(key, [column]);
+    }
+    return [...groups.entries()];
+  }, [dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
 
   useEffect(() => {
@@ -173,7 +186,7 @@ export default function ExportStudio() {
     }
   };
 
-  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading;
+  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading || techInfoLoading;
   if (loading) return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Exportdaten werden vorbereitet…</div>;
   if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Laden Sie zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
 
@@ -191,7 +204,7 @@ export default function ExportStudio() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28.6rem]">
         <section className="space-y-4 rounded-lg border bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-4">
             <div className="space-y-1">
@@ -208,10 +221,15 @@ export default function ExportStudio() {
             <div className="rounded-md border border-border/70 bg-muted/15 p-3">
               <div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Verfügbare Spalten</p><span className="text-xs text-muted-foreground">{dataset.columns.length}</span></div>
               <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
-                {dataset.columns.map((column) => {
-                  const selected = columnIds.includes(column.id);
-                  return <button key={column.id} type="button" disabled={selected} onClick={() => addColumn(column.id)} className="flex w-full items-center justify-between rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-40"><span>{column.label}</span>{selected ? <span className="text-xs">hinzugefügt</span> : <Plus className="h-4 w-4 text-primary" />}</button>;
-                })}
+                {columnGroups.map(([category, columns]) => (
+                  <div key={category || "__ungrouped"} className="mt-2 first:mt-0">
+                    {category && <p className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>}
+                    {columns.map((column) => {
+                      const selected = columnIds.includes(column.id);
+                      return <button key={column.id} type="button" disabled={selected} onClick={() => addColumn(column.id)} className="flex w-full items-center justify-between rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-40"><span>{column.label}</span>{selected ? <span className="text-xs">hinzugefügt</span> : <Plus className="h-4 w-4 text-primary" />}</button>;
+                    })}
+                  </div>
+                ))}
               </div>
             </div>
             <div className="rounded-md border border-border/70 bg-muted/15 p-3">

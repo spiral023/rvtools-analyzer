@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Cpu, Gauge, Recycle, Server } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -50,6 +50,7 @@ export function VmRightsizingPanel() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
   const candidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
+  const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
   const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
   const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
   const manyVcpuLowDemandCount = useMemo(() => candidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [candidates]);
@@ -77,6 +78,13 @@ export function VmRightsizingPanel() {
       cell: ({ row }) => <Badge variant={row.original.intensity === "idle" ? "secondary" : "outline"}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
+    {
+      id: "demand-pct",
+      header: "CPU Demand P95 %",
+      meta: { info: RIGHTSIZING_COLUMNS.demandP95Pct },
+      accessorFn: (row) => (row.usedVcpuEquivalentP95 !== null && row.vcpu ? (row.usedVcpuEquivalentP95 / row.vcpu) * 100 : -1),
+      cell: ({ row }) => { const { usedVcpuEquivalentP95, vcpu } = row.original; return formatPercent(usedVcpuEquivalentP95 !== null && vcpu ? (usedVcpuEquivalentP95 / vcpu) * 100 : null); },
+    },
     {
       id: "ready-p95",
       header: "Ready P95",
@@ -126,8 +134,8 @@ export function VmRightsizingPanel() {
         </KpiGrid>
 
         <div>
-          <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({candidates.length})</h3></InfoTooltip>
-          <VirtualTable data={candidates} columns={candidateColumns} globalFilter={filters.search} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription="Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." />
+          <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({visibleCandidateCount})</h3></InfoTooltip>
+          <VirtualTable data={candidates} columns={candidateColumns} globalFilter={filters.search} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription="Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." onFilteredCountChange={setVisibleCandidateCount} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

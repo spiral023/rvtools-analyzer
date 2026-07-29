@@ -5,6 +5,7 @@ import type {
   NormalizedHost,
   NormalizedVm,
   SnapshotMeta,
+  TechInfoLatest,
   VmWorkloadProfile,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
@@ -19,7 +20,18 @@ export interface ExportStudioColumn {
   id: string;
   label: string;
   pseudonymKind?: PseudonymKind;
+  /** Gruppiert die Spalte in der Export-Studio-Auswahl; Quellen ohne Kategorien zeigen eine flache Liste. */
+  category?: string;
 }
+
+export const VM_EXPORT_CATEGORY = {
+  inventory: "Inventar",
+  techInfo: "Tech-Info",
+  classification: "Lastmuster & Klassifikation",
+  cpuMetrics: "CPU-Kennzahlen",
+  rightsizingRecommendation: "Rightsizing-Empfehlung",
+  rightsizingFlags: "Rightsizing-Flags",
+} as const;
 
 export interface ExportStudioDataset {
   source: ExportStudioSource;
@@ -66,8 +78,9 @@ function serializeHourlyCpuDemand(hourly: VmWorkloadProfile["hourly"]): string {
     .join(";");
 }
 
-export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMeta[], scope: string, workloadProfiles: readonly VmWorkloadProfile[] = [], workloadHosts: readonly NormalizedHost[] = []): ExportStudioDataset {
+export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMeta[], scope: string, workloadProfiles: readonly VmWorkloadProfile[] = [], workloadHosts: readonly NormalizedHost[] = [], techInfoLatest: readonly TechInfoLatest[] = []): ExportStudioDataset {
   const names = vcenterNames(snapshots);
+  const techInfoByVmNameNorm = new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry]));
   const profileByVmKey = new Map(workloadProfiles.flatMap((profile) => profile.rvtoolsObjectKey ? [[profile.rvtoolsObjectKey, profile] as const] : []));
   const rightsizingByProfileKey = new Map(buildVmRightsizingCandidates({ profiles: workloadProfiles, hosts: workloadHosts }).map((candidate) => [candidate.objectKey, candidate]));
   const hostByKey = new Map(workloadHosts.map((host) => [host.hostKey, host]));
@@ -76,25 +89,37 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
     return mhzPerCore !== null && profile.vcpu ? mhzPerCore * profile.vcpu : null;
   };
+  const inventory = VM_EXPORT_CATEGORY.inventory;
+  const techInfo = VM_EXPORT_CATEGORY.techInfo;
+  const classification = VM_EXPORT_CATEGORY.classification;
+  const cpuMetrics = VM_EXPORT_CATEGORY.cpuMetrics;
+  const rightsizingRecommendation = VM_EXPORT_CATEGORY.rightsizingRecommendation;
+  const rightsizingFlags = VM_EXPORT_CATEGORY.rightsizingFlags;
   const columns: ExportStudioColumn[] = [
-    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" }, { id: "server", label: "Server", pseudonymKind: "server" },
-    { id: "cluster", label: "Cluster", pseudonymKind: "cluster" }, { id: "host", label: "Host", pseudonymKind: "host" },
-    { id: "powerState", label: "Power-Status" }, { id: "vcpus", label: "vCPU" }, { id: "memory", label: "RAM" },
-    { id: "os", label: "Betriebssystem" }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool" },
-    { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter" }, { id: "tools", label: "VMware Tools" }, { id: "annotation", label: "Notiz" },
-    { id: "hwVersion", label: "HW-Version" }, { id: "toolsVersion", label: "Tools-Version" }, { id: "secureBoot", label: "Secure Boot" },
-    { id: "shape", label: "Lastmuster" }, { id: "intensity", label: "Auslastungsniveau" },
-    { id: "behaviorClass", label: "Verhaltensklasse" }, { id: "profileConfidence", label: "Vertrauen (Profil)" }, { id: "profileCoverage", label: "Datenabdeckung (Profil)" },
-    { id: "coefficientOfVariation", label: "Variationskoeffizient" }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil" }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)" },
-    { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil" }, { id: "baselineRatio", label: "Grundlastanteil" },
-    { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit" }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration" }, { id: "nightConcentration", label: "Nacht-Konzentration" }, { id: "weekendConcentration", label: "Wochenend-Konzentration" },
-    { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)" }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)" },
-    { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)" }, { id: "rightsizingReadyP95", label: "CPU Ready P95" },
-    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)" }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)" },
-    { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)" }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)" },
-    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)" }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil" },
-    { id: "rightsizingCandidate", label: "Rightsizing-Kandidat" },
-    { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf" }, { id: "highCpuReady", label: "Auffälliges CPU Ready" },
+    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter", category: inventory }, { id: "server", label: "Server", pseudonymKind: "server", category: inventory },
+    { id: "cluster", label: "Cluster", pseudonymKind: "cluster", category: inventory }, { id: "host", label: "Host", pseudonymKind: "host", category: inventory },
+    { id: "powerState", label: "Power-Status", category: inventory }, { id: "vcpus", label: "vCPU", category: inventory }, { id: "memory", label: "RAM", category: inventory },
+    { id: "os", label: "Betriebssystem", category: inventory }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool", category: inventory },
+    { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: inventory }, { id: "tools", label: "VMware Tools", category: inventory }, { id: "annotation", label: "Notiz", category: inventory },
+    { id: "hwVersion", label: "HW-Version", category: inventory }, { id: "toolsVersion", label: "Tools-Version", category: inventory }, { id: "secureBoot", label: "Secure Boot", category: inventory },
+    { id: "techInfoSysv", label: "Systemverantwortlicher", category: techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", category: techInfo },
+    { id: "techInfoSysvDeputy", label: "SysVStv", category: techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", category: techInfo },
+    { id: "techInfoServerType", label: "Servertyp (Tech-Info)", category: techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: techInfo },
+    { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", category: techInfo },
+    { id: "techInfoBz", label: "BZ", category: techInfo }, { id: "techInfoAz", label: "AZ", category: techInfo },
+    { id: "techInfoCvBackup", label: "CV-Backup", category: techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", category: techInfo },
+    { id: "shape", label: "Lastmuster", category: classification }, { id: "intensity", label: "Auslastungsniveau", category: classification },
+    { id: "behaviorClass", label: "Verhaltensklasse", category: classification }, { id: "profileConfidence", label: "Vertrauen (Profil)", category: classification }, { id: "profileCoverage", label: "Datenabdeckung (Profil)", category: classification },
+    { id: "coefficientOfVariation", label: "Variationskoeffizient", category: classification }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil", category: classification }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)", category: classification },
+    { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil", category: classification }, { id: "baselineRatio", label: "Grundlastanteil", category: classification },
+    { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit", category: classification }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration", category: classification }, { id: "nightConcentration", label: "Nacht-Konzentration", category: classification }, { id: "weekendConcentration", label: "Wochenend-Konzentration", category: classification },
+    { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)", category: cpuMetrics }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)", category: cpuMetrics },
+    { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)", category: cpuMetrics }, { id: "rightsizingReadyP95", label: "CPU Ready P95", category: cpuMetrics },
+    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)", category: rightsizingRecommendation }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)", category: rightsizingRecommendation },
+    { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)", category: rightsizingRecommendation }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)", category: rightsizingRecommendation },
+    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)", category: rightsizingRecommendation }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil", category: rightsizingRecommendation },
+    { id: "rightsizingCandidate", label: "Rightsizing-Kandidat", category: rightsizingFlags },
+    { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf", category: rightsizingFlags }, { id: "highCpuReady", label: "Auffälliges CPU Ready", category: rightsizingFlags },
   ];
   const rightsizingCandidates = [...rightsizingByProfileKey.values()];
   return {
@@ -105,11 +130,24 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
       const profile = profileByVmKey.get(vm.vmKey);
       const rightsizing = profile ? rightsizingByProfileKey.get(profile.objectKey) : undefined;
       const signals = profile?.signals ?? null;
+      const techInfoEntry = techInfoByVmNameNorm.get(vm.vmName.trim().toLowerCase()) ?? null;
       return {
         vcenter: names.get(vm.vcenterId) ?? vm.vcenterId, server: vm.vmName, cluster: text(vm.cluster), host: text(vm.host), powerState: text(vm.powerState), vcpus: number(vm.cpuCount), memory: gib(vm.memoryMiB), os: text(vm.osConfig ?? vm.osTools), resourcePool: text(vm.resourcePool), datacenter: text(vm.datacenter), tools: text(vm.toolsStatus), annotation: text(vm.annotation),
         hwVersion: text(vm.hwVersion),
         toolsVersion: text(vm.toolsVersion),
         secureBoot: vm.efiSecureBoot === null ? "—" : vm.efiSecureBoot ? "Ja" : "Nein",
+        techInfoSysv: text(techInfoEntry?.sysv ?? null),
+        techInfoSysvDepartment: text(techInfoEntry?.sysvDepartment ?? null),
+        techInfoSysvDeputy: text(techInfoEntry?.sysvDeputy ?? null),
+        techInfoSysvDeputyDepartment: text(techInfoEntry?.sysvDeputyDepartment ?? null),
+        techInfoServerType: text(techInfoEntry?.serverType ?? null),
+        techInfoMaintenanceWindow: text(techInfoEntry?.maintenanceWindow ?? null),
+        techInfoOperatingSystem: text(techInfoEntry?.operatingSystem ?? null),
+        techInfoCluster: text(techInfoEntry?.clusterFromTechInfo ?? null),
+        techInfoBz: text(techInfoEntry?.bz ?? null),
+        techInfoAz: text(techInfoEntry?.az ?? null),
+        techInfoCvBackup: techInfoEntry?.cvBackup === null || techInfoEntry?.cvBackup === undefined ? "—" : techInfoEntry.cvBackup ? "Ja" : "Nein",
+        techInfoComment: text(techInfoEntry?.comment ?? null),
         shape: profile ? VM_WORKLOAD_SHAPE_LABEL[profile.shape] : "—",
         intensity: profile ? VM_WORKLOAD_INTENSITY_LABEL[profile.intensity] : "—",
         behaviorClass: profile ? VM_BEHAVIOR_CLASS_LABEL[profile.behaviorClass] : "—",

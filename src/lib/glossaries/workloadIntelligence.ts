@@ -81,6 +81,7 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   demandAvg: { term: "Demand Ø", description: "Mittlerer CPU-Demand über alle verwertbaren Stunden.", source: VROPS },
   demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand – die „typische“ Stunde.", source: VROPS },
   demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – konservativer Planungswert, robust gegen einzelne Spitzen.", source: VROPS },
+  demandP95Pct: { term: "Demand P95 %", description: "95.-Perzentil des CPU-Demand relativ zur konfigurierten CPU-Kapazität der VM. Ohne bekannte Kapazität nicht berechenbar.", source: "berechnet" },
   demandMax: { term: "Demand Max", description: "Höchster beobachteter CPU-Demand innerhalb der sieben Tage.", source: VROPS },
   readyP95: { term: "Ready P95", description: "95.-Perzentil des CPU Ready – anhaltende Werte über 5 % deuten auf CPU-Contention hin.", source: VROPS },
 };
@@ -133,6 +134,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   vcpu: { term: "Konfiguriert", description: "Aktuell zugewiesene vCPU-Anzahl.", source: `${RV} · vInfo · „CPUs“` },
   demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand.", source: VROPS },
   demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – Basis der empfohlenen vCPU-Größe.", source: VROPS },
+  demandP95Pct: {
+    term: "Demand P95 %",
+    description: "Genutztes vCPU-Äquivalent bei P95 relativ zur konfigurierten vCPU-Anzahl – dieselbe Kennzahl wie „CPU Demand P95“, nur als Anteil statt in MHz.",
+    source: "berechnet",
+  },
   demandMax: { term: "Demand Max", description: "Höchster beobachteter CPU-Demand.", source: VROPS },
   readyP95: { term: "Ready P95", description: "95.-Perzentil des CPU Ready.", source: VROPS },
   usedVcpuEquivalent: {
