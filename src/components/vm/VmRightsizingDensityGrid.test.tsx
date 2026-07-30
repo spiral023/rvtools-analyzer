@@ -103,7 +103,7 @@ describe("VmRightsizingDensityDialog", () => {
         <VmRightsizingDensityDialog
           selection={populatedSelection(row)}
           candidates={[row]}
-          sysvByVmName={new Map([["vm-01", "Ada Admin"]])}
+          techInfoIndex={new Map([["vm-01", { sysv: "Ada Admin", sysvDepartment: "RAITEC/IN-VIA" }]])}
           onOpenChange={onOpenChange}
           onOpenVm={onOpenVm}
         />
@@ -118,6 +118,7 @@ describe("VmRightsizingDensityDialog", () => {
     expect(dialog).toHaveTextContent("Ready P95");
     expect(dialog).toHaveTextContent("Empfohlen");
     expect(dialog).toHaveTextContent("Rückgewinnbar");
+    expect(dialog).toHaveTextContent("Abteilung");
     fireEvent.click(screen.getByText("vm-01"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onOpenVm).toHaveBeenCalledWith(row);

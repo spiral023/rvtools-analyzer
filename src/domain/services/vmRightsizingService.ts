@@ -1,7 +1,6 @@
 import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
-import { normalizeVmName } from "@/lib/globalFilter";
-import { matchesSearchFields } from "@/lib/vmSearch";
+import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
 /** Zielauslastung der empfohlenen vCPU-Größe beim P95-Bedarf. */
 const TARGET_UTILIZATION_P95 = 0.65;
@@ -20,6 +19,15 @@ const MIN_RECOMMENDED_VCPU = 2;
  * Schritten; die bedarfsgerechte Zielgröße bleibt als `demandBasedVcpu` sichtbar.
  */
 const MAX_RECLAIM_RATIO = 0.25;
+/**
+ * Kleinster möglicher Schritt, weil vCPU paarweise zurückgegeben werden. Ohne diese
+ * Untergrenze löscht die Schrittweiten-Begrenzung jede Empfehlung unterhalb von acht
+ * konfigurierten vCPU wieder aus: ein Viertel von 4 bzw. 6 vCPU sind 1 bzw. 1,5 und runden
+ * auf die nächstkleinere gerade Zahl – also 0 – ab. Betroffen wäre gerade der Bereich, in
+ * dem die Mehrzahl der VMs liegt. Der gemessene Bedarf begrenzt den Schritt weiterhin, ein
+ * Paar wird also nur dort vorgeschlagen, wo die bedarfsgerechte Größe es auch hergibt.
+ */
+const MIN_RECLAIM_STEP = 2;
 /**
  * Muster, deren Spitzenlast in einem Sieben-Tage-Fenster nicht verlässlich erfasst ist:
  * `bursty` lebt von seltenen Ausschlägen, `irregular` hat per Definition keinen
@@ -86,11 +94,12 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
 
     // Die Rückgabe ist die primäre Größe und immer gerade; die Empfehlung folgt daraus,
     // damit Empfehlung + Rückgabe stets die konfigurierte Anzahl ergeben.
+    const maxReclaimPerRound = Math.max(profile.vcpu * MAX_RECLAIM_RATIO, MIN_RECLAIM_STEP);
     const reclaimableVcpu = demandBasedVcpu === null
       ? null
       : recommendationWithheldReason !== null
         ? 0
-        : floorToEven(Math.min(profile.vcpu - demandBasedVcpu, profile.vcpu * MAX_RECLAIM_RATIO));
+        : floorToEven(Math.min(profile.vcpu - demandBasedVcpu, maxReclaimPerRound));
     const recommendedVcpu = reclaimableVcpu === null ? null : profile.vcpu - reclaimableVcpu;
     const manyVcpuLowDemand = profile.vcpu >= MANY_VCPU_MIN && usedVcpuEquivalentP95 !== null && usedVcpuEquivalentP95 <= profile.vcpu * MANY_VCPU_LOW_DEMAND_RATIO_MAX;
     const highCpuReady = profile.ready.p95 !== null && profile.ready.p95 > HIGH_CPU_READY_PCT;
@@ -125,24 +134,25 @@ export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate)
 }
 
 /**
- * Wendet die Textsuche der Filterleiste auf die Kandidatenliste an – VM-Name, Cluster und
- * Systemverantwortliche:r. Der Filter greift bewusst an der Wurzel des Tabs: KPI-Kacheln,
- * Dichteraster, Diagramme und Zusammenfassungen leiten sich alle aus derselben Liste ab
- * und zeigen damit denselben Ausschnitt wie die Tabelle.
+ * Wendet die Textsuche der Filterleiste auf die Kandidatenliste an – VM-Name, Cluster,
+ * Systemverantwortliche:r und deren Abteilung. Der Filter greift bewusst an der Wurzel des
+ * Tabs: KPI-Kacheln, Dichteraster, Diagramme und Zusammenfassungen leiten sich alle aus
+ * derselben Liste ab und zeigen damit denselben Ausschnitt wie die Tabelle.
  *
- * `sysvByVmName` ist über den normalisierten VM-Namen verschlüsselt (siehe `vmNameNorm`),
- * weil Systemverantwortliche aus der Tech-Info stammen und nicht aus dem RVTools-Export.
+ * `techInfoIndex` ist über den normalisierten VM-Namen verschlüsselt (siehe `vmNameNorm`),
+ * weil Systemverantwortliche und Abteilung aus der Tech-Info stammen und nicht aus dem
+ * RVTools-Export.
  */
 export function filterRightsizingCandidatesBySearch(
   candidates: readonly VmRightsizingCandidate[],
   normalizedQuery: string,
-  sysvByVmName: ReadonlyMap<string, string | null>,
+  techInfoIndex: VmTechInfoSearchIndex,
 ): VmRightsizingCandidate[] {
   if (normalizedQuery === "") return [...candidates];
   return candidates.filter((candidate) => matchesSearchFields(normalizedQuery, [
     candidate.vmName,
     candidate.clusterName,
-    sysvByVmName.get(normalizeVmName(candidate.vmName)),
+    ...techInfoSearchValues(techInfoIndex, candidate.vmName),
   ]));
 }
 

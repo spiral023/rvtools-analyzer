@@ -30,7 +30,7 @@ import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOO
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
-import { normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -65,13 +65,13 @@ export function VmRightsizingPanel() {
 
   const allCandidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
   // Bewusst über den vollständigen Bestand: die Zuordnung trägt die Suche nach
-  // Systemverantwortlichen und darf deshalb nicht selbst von ihr abhängen.
+  // Systemverantwortlichen und Abteilungen und darf deshalb nicht selbst von ihr abhängen.
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allCandidates.map((candidate) => candidate.vmName));
-  const sysvByVmName = useMemo(() => new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry.sysv])), [techInfoLatest]);
+  const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
   const searchQuery = normalizeVmSearchTerm(filters.search.trim());
   const candidates = useMemo(
-    () => filterRightsizingCandidatesBySearch(allCandidates, searchQuery, sysvByVmName),
-    [allCandidates, searchQuery, sysvByVmName],
+    () => filterRightsizingCandidatesBySearch(allCandidates, searchQuery, techInfoIndex),
+    [allCandidates, searchQuery, techInfoIndex],
   );
   const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
   const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
@@ -91,7 +91,14 @@ export function VmRightsizingPanel() {
       id: "sysv",
       header: "Systemverantwortlicher",
       meta: { info: RIGHTSIZING_COLUMNS.sysv },
-      accessorFn: (row) => sysvByVmName.get(normalizeVmName(row.vmName)) ?? null,
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: RIGHTSIZING_COLUMNS.sysvDepartment },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
@@ -149,7 +156,7 @@ export function VmRightsizingPanel() {
         return labels.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : <span className="text-xs text-warning">{labels.join(", ")}</span>;
       },
     },
-  ], [sysvByVmName]);
+  ], [techInfoIndex]);
 
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Recycle className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="Rightsizing-Kandidaten benötigen einen vollständig gespeicherten vROps-Zeitreihenimport. Importieren Sie einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;
@@ -158,7 +165,7 @@ export function VmRightsizingPanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster und Systemverantwortliche:r" matched={candidates.length} total={allCandidates.length} />
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
           <KpiCard title="Rückgewinnbare vCPU" value={formatVcpu(totalReclaimableVcpu)} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_KPI.reclaimableVcpu} />
@@ -210,7 +217,7 @@ export function VmRightsizingPanel() {
       <VmRightsizingDensityDialog
         selection={densitySelection}
         candidates={candidates}
-        sysvByVmName={sysvByVmName}
+        techInfoIndex={techInfoIndex}
         onOpenChange={(open) => {
           if (!open) setDensitySelection(null);
         }}

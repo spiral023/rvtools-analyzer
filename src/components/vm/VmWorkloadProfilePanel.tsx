@@ -20,7 +20,7 @@ import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKL
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
 import { normalizeVmName } from "@/lib/globalFilter";
-import { normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -66,16 +66,16 @@ export function VmWorkloadProfilePanel() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
   // Die Tech-Info-Zuordnung wird über den vollständigen Bestand geladen, damit eine
-  // Suche nach Systemverantwortlichen nicht schon vor der Zuordnung leerläuft.
+  // Suche nach Systemverantwortlichen oder Abteilungen nicht schon vor der Zuordnung leerläuft.
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allProfiles.map((profile) => profile.vmName));
-  const sysvByVmName = useMemo(() => new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry.sysv])), [techInfoLatest]);
+  const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
 
   // Die Textsuche schränkt den gesamten Tab ein, nicht nur die Tabelle: KPI-Kacheln und
   // Verteilungsdiagramme leiten sich aus derselben gefilterten Liste ab.
   const searchQuery = normalizeVmSearchTerm(filters.search.trim());
   const profiles = useMemo(
-    () => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery, sysvByVmName),
-    [allProfiles, searchQuery, sysvByVmName],
+    () => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery, techInfoIndex),
+    [allProfiles, searchQuery, techInfoIndex],
   );
   const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
 
@@ -104,7 +104,14 @@ export function VmWorkloadProfilePanel() {
       id: "sysv",
       header: "Systemverantwortlicher",
       meta: { info: VM_PROFILE_COLUMNS.sysv },
-      accessorFn: (row) => sysvByVmName.get(normalizeVmName(row.vmName)) ?? null,
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: VM_PROFILE_COLUMNS.sysvDepartment },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
@@ -136,7 +143,7 @@ export function VmWorkloadProfilePanel() {
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
-  ], [sysvByVmName]);
+  ], [techInfoIndex]);
 
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Activity className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="VM-Profile benötigen einen vollständig gespeicherten vROps-Zeitreihenimport (VM/Cluster/Host, stündlich). Importieren Sie einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;
@@ -145,7 +152,7 @@ export function VmWorkloadProfilePanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host und Systemverantwortliche:r" matched={profiles.length} total={allProfiles.length} />
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host, Systemverantwortliche:r und Abteilung" matched={profiles.length} total={allProfiles.length} />
         <KpiGrid>
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />

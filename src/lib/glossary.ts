@@ -182,6 +182,12 @@ export const OVERVIEW_VM_COLUMNS: Record<string, GlossaryEntry> = {
       "Systemverantwortliche:r aus der ergänzenden Tech-Info/CMDB – kein RVTools-Feld, sondern über den VM-Namen verknüpft.",
     source: "Tech-Info",
   },
+  sysvDepartment: {
+    term: "Abteilung",
+    description:
+      "Abteilung der/des Systemverantwortlichen als Pfad „Organisation/Bereich-Abteilung“. Die Textsuche der Filterleiste greift auf dieses Feld zu: eine Suche nach der Abteilung filtert den gesamten Bestand auf deren VMs.",
+    source: "Tech-Info",
+  },
   powerState: {
     term: "Power",
     description: "Energiezustand der VM: eingeschaltet, ausgeschaltet oder pausiert.",

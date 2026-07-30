@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedVm, TechInfoLatest } from "@/domain/models/types";
-import { buildSysvSearchIndex, matchesVmSearch, normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { buildTechInfoSearchIndex, matchesVmSearch, normalizeVmSearchTerm } from "@/lib/vmSearch";
 
 function vm(overrides: Partial<NormalizedVm> & { vmName: string }): NormalizedVm {
   return {
@@ -21,7 +21,7 @@ function vm(overrides: Partial<NormalizedVm> & { vmName: string }): NormalizedVm
   } as NormalizedVm;
 }
 
-function techInfo(vmName: string, sysv: string | null): TechInfoLatest {
+function techInfo(vmName: string, sysv: string | null, sysvDepartment: string | null = null): TechInfoLatest {
   return {
     vmNameNorm: vmName.trim().toLowerCase(),
     vmName,
@@ -33,7 +33,7 @@ function techInfo(vmName: string, sysv: string | null): TechInfoLatest {
     operatingSystem: null,
     comment: null,
     sysv,
-    sysvDepartment: null,
+    sysvDepartment,
     sysvDeputy: null,
     sysvDeputyDepartment: null,
     bz: null,
@@ -43,16 +43,35 @@ function techInfo(vmName: string, sysv: string | null): TechInfoLatest {
   };
 }
 
-const sysvIndex = buildSysvSearchIndex([
-  techInfo("APP01", "Müller, Anna"),
-  techInfo("DB01", "Šimon Novák"),
+const sysvIndex = buildTechInfoSearchIndex([
+  techInfo("APP01", "Müller, Anna", "RAITEC/IN-VIA"),
+  techInfo("DB01", "Šimon Novák", "RAITEC/BS-DBA"),
   techInfo("WEB01", "   "),
+  techInfo("BATCH01", null, "RAITEC/IN-VIA"),
 ]);
 
-describe("buildSysvSearchIndex", () => {
-  it("übernimmt nur belegte Systemverantwortliche", () => {
-    expect(sysvIndex.get("app01")).toBe("müller, anna");
+describe("buildTechInfoSearchIndex", () => {
+  it("übernimmt Systemverantwortliche und Abteilung, überspringt leere Einträge", () => {
+    expect(sysvIndex.get("app01")).toEqual({ sysv: "Müller, Anna", sysvDepartment: "RAITEC/IN-VIA" });
     expect(sysvIndex.has("web01")).toBe(false);
+    // Eine Abteilung ohne benannte Person bleibt suchbar.
+    expect(sysvIndex.get("batch01")).toEqual({ sysv: null, sysvDepartment: "RAITEC/IN-VIA" });
+  });
+});
+
+describe("matchesVmSearch – Abteilung", () => {
+  it("filtert über die Abteilung auf die VMs dieser Abteilung", () => {
+    expect(matchesVmSearch(vm({ vmName: "APP01" }), normalizeVmSearchTerm("VIA"), sysvIndex)).toBe(true);
+    expect(matchesVmSearch(vm({ vmName: "DB01" }), normalizeVmSearchTerm("VIA"), sysvIndex)).toBe(false);
+    // Auch ohne hinterlegte Person trifft die Abteilung.
+    expect(matchesVmSearch(vm({ vmName: "BATCH01" }), normalizeVmSearchTerm("in-via"), sysvIndex)).toBe(true);
+  });
+
+  it("trifft ebenso über Bereich, Organisation und den vollständigen Pfad", () => {
+    const candidate = vm({ vmName: "DB01" });
+    expect(matchesVmSearch(candidate, normalizeVmSearchTerm("BS-"), sysvIndex)).toBe(true);
+    expect(matchesVmSearch(candidate, normalizeVmSearchTerm("raitec"), sysvIndex)).toBe(true);
+    expect(matchesVmSearch(candidate, normalizeVmSearchTerm("RAITEC/BS-DBA"), sysvIndex)).toBe(true);
   });
 });
 

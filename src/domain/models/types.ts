@@ -1029,7 +1029,11 @@ export interface VmRightsizingCandidate {
    * verlässlich erfasst sind. `null`, wenn eine Empfehlung ausgesprochen wurde.
    */
   recommendationWithheldReason: "low-confidence" | "unreliable-shape" | null;
-  /** Empfohlene vCPU-Zielgröße als nächster überprüfbarer Schritt; nur eine prüfpflichtige Kandidatengröße. */
+  /**
+   * Empfohlene vCPU-Zielgröße als nächster überprüfbarer Schritt; nur eine prüfpflichtige
+   * Kandidatengröße. Höchstens ein Viertel der konfigurierten vCPU pro Runde, mindestens
+   * jedoch ein vCPU-Paar, sofern der gemessene Bedarf es zulässt.
+   */
   recommendedVcpu: number | null;
   /** `vcpu - recommendedVcpu`, nie negativ und immer gerade. */
   reclaimableVcpu: number | null;

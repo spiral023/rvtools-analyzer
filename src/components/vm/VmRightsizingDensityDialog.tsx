@@ -12,6 +12,7 @@ import type { VmRightsizingCandidate } from "@/domain/models/types";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
+import type { VmTechInfoSearchIndex } from "@/lib/vmSearch";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = {
@@ -42,7 +43,7 @@ function demandPercent(candidate: VmRightsizingCandidate): number | null {
     : null;
 }
 
-function createColumns(sysvByVmName: ReadonlyMap<string, string | null>): ColumnDef<VmRightsizingCandidate, unknown>[] {
+function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRightsizingCandidate, unknown>[] {
   return [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
@@ -50,7 +51,14 @@ function createColumns(sysvByVmName: ReadonlyMap<string, string | null>): Column
       id: "sysv",
       header: "Systemverantwortlicher",
       meta: { info: RIGHTSIZING_COLUMNS.sysv },
-      accessorFn: (row) => sysvByVmName.get(normalizeVmName(row.vmName)) ?? null,
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: RIGHTSIZING_COLUMNS.sysvDepartment },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
@@ -120,13 +128,13 @@ function SummaryFact({
 export function VmRightsizingDensityDialog({
   selection,
   candidates,
-  sysvByVmName,
+  techInfoIndex,
   onOpenChange,
   onOpenVm,
 }: {
   selection: RightsizingDensitySelection | null;
   candidates: readonly VmRightsizingCandidate[];
-  sysvByVmName: ReadonlyMap<string, string | null>;
+  techInfoIndex: VmTechInfoSearchIndex;
   onOpenChange: (open: boolean) => void;
   onOpenVm: (candidate: VmRightsizingCandidate) => void;
 }) {
@@ -138,7 +146,7 @@ export function VmRightsizingDensityDialog({
       .filter((candidate): candidate is VmRightsizingCandidate => Boolean(candidate))
       .sort((left, right) => (right.reclaimableVcpu ?? -1) - (left.reclaimableVcpu ?? -1));
   }, [candidateByKey, selection]);
-  const columns = useMemo(() => createColumns(sysvByVmName), [sysvByVmName]);
+  const columns = useMemo(() => createColumns(techInfoIndex), [techInfoIndex]);
   const averageDemandPct = useMemo(() => {
     let sum = 0;
     let count = 0;

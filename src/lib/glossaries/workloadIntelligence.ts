@@ -81,6 +81,7 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   vmName: { term: "VM", description: "Anzeigename der VM in vCenter.", source: `${RV} · vInfo · „VM“` },
   cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
   sysv: { term: "Systemverantwortlicher", description: "Primär zuständige Person aus der ergänzenden Tech-Info/CMDB. Die Zuordnung erfolgt über den VM-Namen.", source: "Tech-Info" },
+  sysvDepartment: { term: "Abteilung", description: "Abteilung der/des Systemverantwortlichen als Pfad „Organisation/Bereich-Abteilung“. Die Textsuche der Filterleiste greift auf dieses Feld zu: eine Suche nach der Abteilung schränkt den gesamten Tab auf deren VMs ein.", source: "Tech-Info" },
   host: { term: "Host", description: "ESXi-Host, auf dem die VM zum Exportzeitpunkt lief.", source: `${RV} · vInfo · „Host“` },
   vcpu: { term: "vCPU", description: "Anzahl der konfigurierten virtuellen CPUs.", source: `${RV} · vInfo · „CPUs“` },
   shape: { term: "Lastmuster", description: "Zeitlicher Lastverlauf der letzten sieben Tage, unabhängig von der Höhe der Auslastung. Aus Variationskoeffizient, Kalenderkonzentrationen und Tageswiederholbarkeit abgeleitet.", source: "berechnet" },
@@ -157,6 +158,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Systemverantwortliche:r aus der ergänzenden Tech-Info/CMDB – kein RVTools-Feld, sondern über den VM-Namen verknüpft.",
     source: "Tech-Info",
   },
+  sysvDepartment: {
+    term: "Abteilung",
+    description: "Abteilung der/des Systemverantwortlichen als Pfad „Organisation/Bereich-Abteilung“. Die Textsuche der Filterleiste greift auf dieses Feld zu: eine Suche nach der Abteilung schränkt den gesamten Tab auf deren VMs ein.",
+    source: "Tech-Info",
+  },
   vcpu: { term: "Konfiguriert", description: "Aktuell zugewiesene vCPU-Anzahl.", source: `${RV} · vInfo · „CPUs“` },
   demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand.", source: VROPS },
   demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – Basis der empfohlenen vCPU-Größe.", source: VROPS },
@@ -184,7 +190,7 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
   recommendedVcpu: {
     term: "Empfohlen",
-    description: "Nächster überprüfbarer Schritt in Richtung der bedarfsgerechten Größe, begrenzt auf ein Viertel der heutigen vCPU pro Runde. Nach der Umsetzung zeigt die nächste Messung, ob ein weiterer Schritt tragfähig ist. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
+    description: "Nächster überprüfbarer Schritt in Richtung der bedarfsgerechten Größe, begrenzt auf ein Viertel der heutigen vCPU pro Runde – mindestens aber ein vCPU-Paar, weil kleinere Schritte nicht möglich sind. Nach der Umsetzung zeigt die nächste Messung, ob ein weiterer Schritt tragfähig ist. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
     source: "berechnet",
   },
   reclaimableVcpu: {

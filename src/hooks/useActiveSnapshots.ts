@@ -8,7 +8,7 @@ import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import { applyVmScopeToVms } from "@/lib/vmScope";
-import { buildSysvSearchIndex, matchesVmSearch, normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { buildTechInfoSearchIndex, matchesVmSearch, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { timeQuery } from "@/lib/queryTiming";
 import { QUERY_CACHE_DURATION_MS, RAW_QUERY_GC_MS } from "@/lib/queryCache";
 import type {
@@ -77,11 +77,12 @@ export function useVms() {
   const { filters } = useActiveSnapshotIds();
   const { allVms: vms, isLoading } = useBaseVms();
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine(hasGlobalFilterDefinition(filters.globalFilter));
-  // Systemverantwortliche stehen nicht im RVTools-Export. Für die Textsuche wird die
-  // Tech-Info-Zuordnung mitgeladen – nur bei aktiver Suche, damit Seiten ohne Suchbegriff
-  // keine zusätzliche Abfrage auslösen. Den Cache teilt sie mit allen Tech-Info-Nutzern.
+  // Systemverantwortliche und deren Abteilung stehen nicht im RVTools-Export. Für die
+  // Textsuche wird die Tech-Info-Zuordnung mitgeladen – nur bei aktiver Suche, damit Seiten
+  // ohne Suchbegriff keine zusätzliche Abfrage auslösen. Den Cache teilt sie mit allen
+  // Tech-Info-Nutzern.
   const { data: techInfoLatest = [] } = useAllTechInfoLatest(filters.search.trim() !== "");
-  const sysvIndex = useMemo(() => buildSysvSearchIndex(techInfoLatest), [techInfoLatest]);
+  const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
 
   const filtered = useMemo(() => {
     let result = vms;
@@ -99,10 +100,10 @@ export function useVms() {
     }
     if (filters.search) {
       const query = normalizeVmSearchTerm(filters.search);
-      result = result.filter((vm) => matchesVmSearch(vm, query, sysvIndex));
+      result = result.filter((vm) => matchesVmSearch(vm, query, techInfoIndex));
     }
     return result;
-  }, [filters, hasActiveFilter, matchingVmKeys, sysvIndex, vms]);
+  }, [filters, hasActiveFilter, matchingVmKeys, techInfoIndex, vms]);
 
   return { vms: filtered, allVms: vms, isLoading };
 }

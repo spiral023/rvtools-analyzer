@@ -106,6 +106,7 @@ export default function Overview() {
       ).map((vm) => ({
         ...vm,
         sysv: vm.techInfo?.sysv ?? null,
+        sysvDepartment: vm.techInfo?.sysvDepartment ?? null,
       })),
     [filteredVms],
   );

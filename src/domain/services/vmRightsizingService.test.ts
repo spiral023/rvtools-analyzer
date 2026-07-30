@@ -117,6 +117,38 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.recommendedVcpu).toBe(12);
   });
 
+  it("schlägt auch unter acht konfigurierten vCPU ein Paar vor, wenn der Bedarf es hergibt", () => {
+    // Regression: ein Viertel von 4 bzw. 6 vCPU (1 bzw. 1,5) rundet auf die nächstkleinere
+    // gerade Zahl – 0 – ab. Ohne Mindestschritt bliebe „Rückgewinnbar“ für die Mehrzahl der
+    // VMs 0, obwohl der Hinweis „Empfehlung berechenbar“ lautet.
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vm-4", vcpu: 4, demand: metricStats({ p95: 200 }) }),
+        profile({ objectKey: "vm-6", vcpu: 6, demand: metricStats({ p95: 200 }) }),
+        profile({ objectKey: "vm-7", vcpu: 7, demand: metricStats({ p95: 200 }) }),
+      ],
+      hosts,
+    });
+
+    for (const candidate of candidates) {
+      expect(candidate.recommendationWithheldReason).toBeNull();
+      expect(candidate.reclaimableVcpu).toBe(2);
+      expect(candidate.recommendedVcpu).toBe(candidate.vcpu! - 2);
+    }
+  });
+
+  it("bleibt bei 0, wenn schon der bedarfsgerechte Zielwert kein Paar freigibt", () => {
+    // 4 vCPU bei 1,8 genutzten vCPU-Äquivalenten: bedarfsgerecht sind bereits 4 vCPU,
+    // der Mindestschritt darf den gemessenen Bedarf nicht überschreiben.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-4", vcpu: 4, demand: metricStats({ p95: 1_800 }) })],
+      hosts,
+    });
+    expect(candidate.demandBasedVcpu).toBe(4);
+    expect(candidate.reclaimableVcpu).toBe(0);
+    expect(candidate.recommendedVcpu).toBe(4);
+  });
+
   it("hält die Empfehlung bei zu dünner Datenbasis zurück, weist den Bedarf aber aus", () => {
     const [candidate] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }), confidence: "medium" })],
@@ -218,22 +250,33 @@ describe("filterRightsizingCandidatesBySearch", () => {
     ],
     hosts,
   });
-  const sysvByVmName = new Map<string, string | null>([["app01", "Müller, Anna"], ["db01", null]]);
+  const techInfoIndex = new Map([
+    ["app01", { sysv: "Müller, Anna", sysvDepartment: "RAITEC/IN-VIA" }],
+    ["db01", { sysv: null, sysvDepartment: "RAITEC/BS-DBA" }],
+  ]);
+  const names = (query: string) => filterRightsizingCandidatesBySearch(candidates, query, techInfoIndex).map((entry) => entry.vmName);
 
   it("filtert nach VM-Name, Cluster und Systemverantwortlicher", () => {
-    const names = (query: string) => filterRightsizingCandidatesBySearch(candidates, query, sysvByVmName).map((entry) => entry.vmName);
     expect(names("app")).toEqual(["APP01"]);
     expect(names("cluster b")).toEqual(["DB01"]);
     expect(names("müller")).toEqual(["APP01"]);
     expect(names("cluster")).toHaveLength(2);
   });
 
+  it("filtert über die Abteilung aus der Tech-Info", () => {
+    expect(names("in-via")).toEqual(["APP01"]);
+    // Auch ohne benannte Person bleibt die Abteilung suchbar.
+    expect(names("dba")).toEqual(["DB01"]);
+    // Der gemeinsame Organisationsanteil trifft beide.
+    expect(names("raitec")).toHaveLength(2);
+  });
+
   it("liefert ohne Suchbegriff den vollständigen Bestand", () => {
-    expect(filterRightsizingCandidatesBySearch(candidates, "", sysvByVmName)).toHaveLength(candidates.length);
+    expect(filterRightsizingCandidatesBySearch(candidates, "", techInfoIndex)).toHaveLength(candidates.length);
   });
 
   it("greift nicht auf Felder zu, die nicht durchsucht werden sollen", () => {
     // „Dauerlast“ ist das Label des Lastmusters – bewusst kein Suchtreffer.
-    expect(filterRightsizingCandidatesBySearch(candidates, "dauerlast", sysvByVmName)).toHaveLength(0);
+    expect(filterRightsizingCandidatesBySearch(candidates, "dauerlast", techInfoIndex)).toHaveLength(0);
   });
 });

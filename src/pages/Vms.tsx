@@ -27,7 +27,7 @@ export default function Vms() {
   const vms = useMemo<OverviewVmRow[]>(() => (
     [...vmsWithTechInfo]
       .sort((a, b) => a.vmName.localeCompare(b.vmName))
-      .map((vm) => ({ ...vm, sysv: vm.techInfo?.sysv ?? null }))
+      .map((vm) => ({ ...vm, sysv: vm.techInfo?.sysv ?? null, sysvDepartment: vm.techInfo?.sysvDepartment ?? null }))
   ), [vmsWithTechInfo]);
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(vms);
   // Dieselbe Auswertung wie in der Overview – auf denselben gefilterten Bestand angewandt.

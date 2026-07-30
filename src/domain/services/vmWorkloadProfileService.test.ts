@@ -353,8 +353,11 @@ describe("filterVmWorkloadProfilesBySearch", () => {
     { vmName: "DB01", clusterName: "Cluster B", host: "esx02.example.local" },
     { vmName: "WEB01", clusterName: null, host: null },
   ] as unknown as VmWorkloadProfile[];
-  const sysvByVmName = new Map([["app01", "Mira Musterfrau"]]);
-  const names = (query: string) => filterVmWorkloadProfilesBySearch(profiles, query, sysvByVmName).map((profile) => profile.vmName);
+  const techInfoIndex = new Map([
+    ["app01", { sysv: "Mira Musterfrau", sysvDepartment: "RAITEC/IN-VIA" }],
+    ["db01", { sysv: null, sysvDepartment: "RAITEC/BS-DBA" }],
+  ]);
+  const names = (query: string) => filterVmWorkloadProfilesBySearch(profiles, query, techInfoIndex).map((profile) => profile.vmName);
 
   it("filtert nach VM-Name, Cluster, Host und Systemverantwortlichen", () => {
     expect(names("app")).toEqual(["APP01"]);
@@ -362,6 +365,12 @@ describe("filterVmWorkloadProfilesBySearch", () => {
     expect(names("esx02")).toEqual(["DB01"]);
     expect(names("esx")).toEqual(["APP01", "DB01"]);
     expect(names("musterfrau")).toEqual(["APP01"]);
+  });
+
+  it("filtert über die Abteilung aus der Tech-Info", () => {
+    expect(names("in-via")).toEqual(["APP01"]);
+    // Auch ohne benannte Person bleibt die Abteilung suchbar.
+    expect(names("dba")).toEqual(["DB01"]);
   });
 
   it("verträgt fehlende Cluster- und Hostangaben und liefert ohne Begriff alles", () => {
