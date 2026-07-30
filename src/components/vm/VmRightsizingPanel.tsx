@@ -10,10 +10,10 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
-import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
-import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadShape } from "@/domain/models/types";
+import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadIntensity, VmWorkloadShape } from "@/domain/models/types";
 import {
   buildVmRightsizingCandidates,
   isNotableRightsizingCandidate,
@@ -24,7 +24,6 @@ import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/s
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
-import { shortHostName } from "@/lib/utils";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 /** Dieselbe Reihenfolge wie im VM-Profile-Tab, damit die Farbzuordnung je Lastmuster app-weit konsistent bleibt. */
@@ -50,6 +49,17 @@ function formatVcpu(value: number | null): string {
 }
 
 const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
+
+/** Gering nach hoch: grün über gelb nach rot, damit die Auslastung auf einen Blick erkennbar ist. */
+const INTENSITY_BADGE_CLASS: Record<VmWorkloadIntensity, string> = {
+  idle: "border-success/40 text-success",
+  "very-low": "border-success/40 text-success",
+  low: "border-success/40 text-success",
+  moderate: "border-warning/40 text-warning",
+  elevated: "border-warning/40 text-warning",
+  high: "border-destructive/40 text-destructive",
+  unknown: "border-border text-muted-foreground",
+};
 
 function RightsizingScatterTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload?: RightsizingScatterPoint }> }) {
   const point = payload?.[0]?.payload;
@@ -82,6 +92,8 @@ export function VmRightsizingPanel() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
   const candidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(candidates.map((candidate) => candidate.vmName));
+  const sysvByVmName = useMemo(() => new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry.sysv])), [techInfoLatest]);
   const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
   const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
   const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
@@ -106,7 +118,13 @@ export function VmRightsizingPanel() {
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
-    { accessorKey: "hostName", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
+    {
+      id: "sysv",
+      header: "Systemverantwortlicher",
+      meta: { info: RIGHTSIZING_COLUMNS.sysv },
+      accessorFn: (row) => sysvByVmName.get(row.vmName.trim().toLowerCase()) ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
     {
       id: "shape",
@@ -120,7 +138,7 @@ export function VmRightsizingPanel() {
       header: "Niveau",
       meta: { info: RIGHTSIZING_COLUMNS.intensity },
       accessorFn: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity],
-      cell: ({ row }) => <Badge variant={row.original.intensity === "idle" ? "secondary" : "outline"}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
+      cell: ({ row }) => <Badge variant="outline" className={INTENSITY_BADGE_CLASS[row.original.intensity]}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
@@ -156,13 +174,13 @@ export function VmRightsizingPanel() {
     {
       id: "flags",
       header: "Auffällig",
-      enableSorting: false,
+      accessorFn: (row) => Number(row.flags.manyVcpuLowDemand) + Number(row.flags.highCpuReady),
       cell: ({ row }) => {
         const labels = [row.original.flags.manyVcpuLowDemand ? "Viele vCPU, geringer Bedarf" : null, row.original.flags.highCpuReady ? "Ready hoch" : null].filter(Boolean);
         return labels.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : <span className="text-xs text-warning">{labels.join(", ")}</span>;
       },
     },
-  ], []);
+  ], [sysvByVmName]);
 
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Recycle className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="Rightsizing-Kandidaten benötigen einen vollständig gespeicherten vROps-Zeitreihenimport. Importieren Sie einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;

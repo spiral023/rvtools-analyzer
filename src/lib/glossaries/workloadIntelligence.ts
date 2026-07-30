@@ -151,6 +151,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   vmName: { term: "VM", description: "Anzeigename der VM in vCenter.", source: `${RV} · vInfo · „VM“` },
   cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
   host: { term: "Host", description: "Aktueller ESXi-Host; Grundlage der MHz-pro-Core-Näherung.", source: `${RV} · vInfo · „Host“` },
+  sysv: {
+    term: "Systemverantwortlicher",
+    description: "Systemverantwortliche:r aus der ergänzenden Tech-Info/CMDB – kein RVTools-Feld, sondern über den VM-Namen verknüpft.",
+    source: "Tech-Info",
+  },
   vcpu: { term: "Konfiguriert", description: "Aktuell zugewiesene vCPU-Anzahl.", source: `${RV} · vInfo · „CPUs“` },
   demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand.", source: VROPS },
   demandP95: { term: "Demand P95", description: "95.-Perzentil des CPU-Demand – Basis der empfohlenen vCPU-Größe.", source: VROPS },
