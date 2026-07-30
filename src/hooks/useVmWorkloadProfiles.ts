@@ -10,17 +10,18 @@ import { buildVmWorkloadProfiles } from "@/domain/services/vmWorkloadProfileServ
  * Sitzungsfilter (vCenter-Auswahl): der Import bringt seine eigenen,
  * eingefrorenen Snapshot-IDs mit – analog zur Fill-Up-Planung.
  */
-export function useVmWorkloadProfiles(importId: string | null) {
-  const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
+export function useVmWorkloadProfiles(importId: string | null, enabled = true) {
+  const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000, enabled });
   const selectedImport = useMemo(() => {
+    if (!enabled) return null;
     const imports = importsQuery.data ?? [];
     if (importId !== null) return imports.find((entry) => entry.id === importId) ?? null;
     return imports[0] ?? null;
-  }, [importId, importsQuery.data]);
+  }, [enabled, importId, importsQuery.data]);
 
   const dataQuery = useQuery({
     queryKey: ["vmWorkloadProfiles", selectedImport?.id],
-    enabled: Boolean(selectedImport),
+    enabled: enabled && Boolean(selectedImport),
     queryFn: async () => {
       const importMeta = selectedImport!;
       const [objects, chunks, vms, hosts] = await Promise.all([

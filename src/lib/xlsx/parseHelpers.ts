@@ -472,6 +472,22 @@ export function toStr(v: unknown): string | null {
   return String(v).trim();
 }
 
+/**
+ * Liest den Storage-DRS-/Datastore-Cluster aus vDatastore.
+ * RVTools verwendet regulär "Datastore cluster name"; ältere Exporte und
+ * Testdaten können abweichende Großschreibung oder die Kurzform enthalten.
+ */
+export function getDatastoreClusterName(row: Record<string, unknown>): string | null {
+  for (const [header, value] of Object.entries(row)) {
+    const normalizedHeader = header.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normalizedHeader === "datastoreclustername" || normalizedHeader === "datastorecluster") {
+      const name = toStr(value);
+      if (name) return name;
+    }
+  }
+  return null;
+}
+
 /** Compute SHA-256 checksum of an ArrayBuffer */
 export async function computeChecksum(buffer: ArrayBuffer): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);

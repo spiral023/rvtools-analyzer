@@ -22,11 +22,13 @@ function cellColor(vmCount: number, maxVmCount: number, severity: RightsizingDem
   return `hsl(var(${SEVERITY_TOKEN[severity]}) / ${alpha.toFixed(3)})`;
 }
 
-interface HoveredCell {
+export interface RightsizingDensitySelection {
   cell: RightsizingDensityCell;
   vcpuLabel: string;
   demandLabel: string;
 }
+
+type HoveredCell = RightsizingDensitySelection;
 
 /**
  * Konfigurierte vCPU (X) gegen CPU Demand P95 in Prozent der konfigurierten Kapazität (Y),
@@ -34,7 +36,13 @@ interface HoveredCell {
  * rechts unten – viele vCPU bei geringem Bedarf – sitzen die Rightsizing-Kandidaten,
  * die beiden oberen Zeilen sind der Gegenfall einer zu kleinen Konfiguration.
  */
-export function VmRightsizingDensityGrid({ grid }: { grid: RightsizingDensityGrid }) {
+export function VmRightsizingDensityGrid({
+  grid,
+  onCellClick,
+}: {
+  grid: RightsizingDensityGrid;
+  onCellClick?: (selection: RightsizingDensitySelection) => void;
+}) {
   const [hovered, setHovered] = useState<HoveredCell | null>(null);
   const columns = `4.75rem repeat(${grid.vcpuBands.length}, minmax(0, 1fr))`;
 
@@ -47,6 +55,7 @@ export function VmRightsizingDensityGrid({ grid }: { grid: RightsizingDensityGri
             <span className="text-foreground/80">{formatNum(hovered.cell.vmCount)} VMs</span>
             {hovered.cell.reclaimableVcpu > 0 && <> · {formatFillUpValue(hovered.cell.reclaimableVcpu, "vCPU")} rückgewinnbar</>}
             {hovered.cell.notableCount > 0 && <> · {formatNum(hovered.cell.notableCount)} auffällig</>}
+            {hovered.cell.vmCount > 0 && <> · Klicken für Details</>}
           </>
         ) : (
           <>{formatNum(grid.vmCount)} VMs · {formatFillUpValue(grid.reclaimableVcpu, "vCPU")} rückgewinnbar gesamt</>
@@ -63,19 +72,27 @@ export function VmRightsizingDensityGrid({ grid }: { grid: RightsizingDensityGri
               {grid.rows[rowIndex].map((cell, columnIndex) => {
                 const vcpuLabel = grid.vcpuBands[columnIndex].label;
                 return (
-                  <div
+                  <button
                     key={cell.vcpuBandKey}
-                    role="img"
-                    aria-label={`${vcpuLabel} vCPU, ${demandBand.label} Auslastung: ${formatNum(cell.vmCount)} VMs`}
+                    type="button"
+                    disabled={cell.vmCount === 0}
+                    aria-label={`${vcpuLabel} vCPU, ${demandBand.label} CPU Demand P95: ${formatNum(cell.vmCount)} VMs${cell.vmCount > 0 ? ", Details öffnen" : ""}`}
                     onMouseEnter={() => setHovered({ cell, vcpuLabel, demandLabel: demandBand.label })}
+                    onFocus={() => setHovered({ cell, vcpuLabel, demandLabel: demandBand.label })}
+                    onBlur={() => setHovered(null)}
+                    onClick={() => {
+                      if (cell.vmCount > 0) onCellClick?.({ cell, vcpuLabel, demandLabel: demandBand.label });
+                    }}
                     className={cn(
-                      "font-mono-data flex h-6 items-center justify-center rounded-[2px] text-[10px] tabular-nums",
-                      cell.vmCount === 0 ? "bg-muted/25 text-transparent" : "text-foreground/85",
+                      "font-mono-data flex h-6 items-center justify-center rounded-[2px] text-[10px] tabular-nums outline-none",
+                      cell.vmCount === 0
+                        ? "cursor-default bg-muted/25 text-transparent"
+                        : "cursor-pointer text-foreground/85 transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                     )}
                     style={{ backgroundColor: cellColor(cell.vmCount, grid.maxVmCount, demandBand.severity) }}
                   >
                     {cell.vmCount > 0 ? formatNum(cell.vmCount) : ""}
-                  </div>
+                  </button>
                 );
               })}
             </Fragment>

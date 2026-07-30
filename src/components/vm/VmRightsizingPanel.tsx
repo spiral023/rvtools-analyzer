@@ -11,7 +11,8 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
-import { VmRightsizingDensityGrid } from "@/components/vm/VmRightsizingDensityGrid";
+import { VmRightsizingDensityDialog } from "@/components/vm/VmRightsizingDensityDialog";
+import { VmRightsizingDensityGrid, type RightsizingDensitySelection } from "@/components/vm/VmRightsizingDensityGrid";
 import { UtilizationPercentCell, WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
@@ -60,6 +61,7 @@ export function VmRightsizingPanel() {
   const { filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
+  const [densitySelection, setDensitySelection] = useState<RightsizingDensitySelection | null>(null);
 
   const allCandidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
   // Bewusst über den vollständigen Bestand: die Zuordnung trägt die Suche nach
@@ -169,7 +171,7 @@ export function VmRightsizingPanel() {
         {densityGrid.vmCount > 0 && <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">
             <InfoTooltip entry={RIGHTSIZING_SECTIONS.densityGrid} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Konfigurierte vCPU vs. CPU Demand P95 %</h3></InfoTooltip>
-            <VmRightsizingDensityGrid grid={densityGrid} />
+            <VmRightsizingDensityGrid grid={densityGrid} onCellClick={setDensitySelection} />
           </div>
 
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -205,6 +207,15 @@ export function VmRightsizingPanel() {
           </div>
         </div>
       </>}
+      <VmRightsizingDensityDialog
+        selection={densitySelection}
+        candidates={candidates}
+        sysvByVmName={sysvByVmName}
+        onOpenChange={(open) => {
+          if (!open) setDensitySelection(null);
+        }}
+        onOpenVm={openVmDetail}
+      />
       {vmDetailDialog}
     </div>
   );

@@ -1,7 +1,9 @@
 import type { NormalizedDatastore, NormalizedHost, SheetRow } from "@/domain/models/types";
+import { getDatastoreClusterName } from "@/lib/xlsx/parseHelpers";
 
 export interface DatastoreDetailRow extends NormalizedDatastore {
   computeClusters: string[];
+  computeClusterCount: number;
 }
 
 function normalized(value: string): string {
@@ -41,13 +43,15 @@ export function buildDatastoreDetailRows(
       const cluster = clusterByHost.get(hostLookupKey(datastore.snapshotId, host));
       if (cluster) clusters.add(cluster);
     }
+    const computeClusters = [...clusters].sort((left, right) => left.localeCompare(right, "de-DE", { numeric: true }));
     return {
       ...datastore,
       hostNames,
       datastoreClusterName: datastore.datastoreClusterName
-        || String(raw?.data["Datastore Cluster"] ?? raw?.data["Datastore cluster"] ?? "").trim()
+        || (raw ? getDatastoreClusterName(raw.data) : null)
         || null,
-      computeClusters: [...clusters].sort((left, right) => left.localeCompare(right, "de-DE", { numeric: true })),
+      computeClusters,
+      computeClusterCount: computeClusters.length,
     };
   });
 }

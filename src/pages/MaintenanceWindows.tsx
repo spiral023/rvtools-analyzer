@@ -1,22 +1,21 @@
 import { useCallback, useMemo, useState } from "react";
-import { CalendarRange, ChevronDown, FileText, Plus, Search, Server, TriangleAlert } from "lucide-react";
+import { CalendarOff, CalendarRange, FileText, Percent, Plus, Server, TriangleAlert } from "lucide-react";
 import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
-import { MaintenanceWeekGrid } from "@/components/maintenance-windows/MaintenanceWeekGrid";
+import { MaintenanceAssignmentsPanel } from "@/components/maintenance-windows/MaintenanceAssignmentsPanel";
+import { MaintenanceWindowCatalogue } from "@/components/maintenance-windows/MaintenanceWindowCatalogue";
 import { MaintenanceWindowEditor } from "@/components/maintenance-windows/MaintenanceWindowEditor";
 import { MaintenanceCoverageChart } from "@/components/maintenance-windows/MaintenanceCoverageChart";
 import { MaintenanceWindowImportDialog } from "@/components/maintenance-windows/MaintenanceWindowImportDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
-import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
+import type { MaintenanceWindowDefinition } from "@/domain/models/types";
 import { useAllTechInfoLatest } from "@/hooks/useActiveSnapshots";
 import { useMaintenanceWindows } from "@/hooks/useMaintenanceWindows";
 import { MAINTENANCE_WINDOWS_KPI } from "@/lib/glossaries/maintenanceWindows";
@@ -24,7 +23,6 @@ import {
   assignMaintenanceWindows,
   createEmptyWeeklySlots,
   normalizeMaintenanceAbbreviation,
-  summarizeWeeklySlots,
 } from "@/lib/maintenanceWindows";
 
 const handlingLabel: Record<MaintenanceWindowDefinition["handling"], string> = {
@@ -34,14 +32,12 @@ const handlingLabel: Record<MaintenanceWindowDefinition["handling"], string> = {
   external: "Extern verwaltet",
 };
 
-const MAX_CATALOGUE_CARDS = 120;
-
 function systemLabel(count: number): string {
-  return `${count} ${count === 1 ? "System" : "Systeme"}`;
+  return `${count.toLocaleString("de-DE")} ${count === 1 ? "System" : "Systeme"}`;
 }
 
 function valueLabel(count: number): string {
-  return `${count} ${count === 1 ? "unbekannter Wert" : "unbekannte Werte"}`;
+  return `${count.toLocaleString("de-DE")} ${count === 1 ? "unbekannter Wert" : "unbekannte Werte"}`;
 }
 
 function cloneDefinition(value: MaintenanceWindowDefinition): MaintenanceWindowDefinition {
@@ -79,24 +75,6 @@ function uniqueCopyAbbreviation(definition: MaintenanceWindowDefinition, definit
   return candidate;
 }
 
-function AssignmentSystems({ systems, label }: { systems: readonly TechInfoLatest[]; label: string }) {
-  return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" aria-label={`Systeme für ${label} anzeigen`}>
-          {systemLabel(systems.length)}
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="border-t border-border/60 px-3 py-2">
-        <ul className="grid gap-1 text-sm sm:grid-cols-2">
-          {systems.map((system) => <li key={system.vmNameNorm} className="font-mono-data text-xs">{system.vmName}</li>)}
-        </ul>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 export default function MaintenanceWindows() {
   const { definitions, isLoading: definitionsLoading, error, isMutating, save, remove, upsert } = useMaintenanceWindows();
   const { data: techInfoRows = [], isLoading: techInfoLoading, error: techInfoError } = useAllTechInfoLatest();
@@ -119,19 +97,30 @@ export default function MaintenanceWindows() {
     [definitions, techInfoRows],
   );
   const assignedSystems = assignments.known.reduce((sum, group) => sum + group.systems.length, 0);
-  const unknownSystems = assignments.unknown.reduce((sum, group) => sum + group.systems.length, 0);
-  const normalizedSearch = search.trim().toLocaleLowerCase("de-DE");
-  const visibleDefinitions = useMemo(() => definitions
-    .filter((definition) => !normalizedSearch || [definition.abbreviation, definition.description, handlingLabel[definition.handling]]
-      .some((value) => value.toLocaleLowerCase("de-DE").includes(normalizedSearch)))
-    .sort((left, right) => left.abbreviation.localeCompare(right.abbreviation, "de-DE", { numeric: true, sensitivity: "base" })),
-  [definitions, normalizedSearch]);
-  const catalogueDefinitions = visibleDefinitions.slice(0, MAX_CATALOGUE_CARDS);
-  const selectedDefinition = draftDefinition ?? definitions.find((definition) => definition.id === selectedId) ?? null;
+  const unassignedSystems = Math.max(0, techInfoRows.length - assignedSystems);
+  const assignmentCoverage = techInfoRows.length > 0 ? (assignedSystems / techInfoRows.length) * 100 : null;
+  const unusedDefinitions = assignments.known.filter((group) => group.systems.length === 0).length;
   const systemsByDefinition = useMemo(
     () => new Map(assignments.known.map((group) => [group.definition.id, group.systems])),
     [assignments.known],
   );
+  const normalizedSearch = search.trim().toLocaleLowerCase("de-DE");
+  const visibleDefinitions = useMemo(() => definitions
+    .filter((definition) => !normalizedSearch
+      || [definition.abbreviation, definition.description, handlingLabel[definition.handling]]
+        .some((value) => value.toLocaleLowerCase("de-DE").includes(normalizedSearch))
+      || (systemsByDefinition.get(definition.id) ?? [])
+        .some((system) => system.vmName.toLocaleLowerCase("de-DE").includes(normalizedSearch)))
+    .sort((left, right) => left.abbreviation.localeCompare(right.abbreviation, "de-DE", { numeric: true, sensitivity: "base" })),
+  [definitions, normalizedSearch, systemsByDefinition]);
+  const selectedDefinition = draftDefinition ?? definitions.find((definition) => definition.id === selectedId) ?? null;
+  const existingAbbreviations = useMemo(() => {
+    const result: string[] = [];
+    for (const definition of definitions) {
+      if (definition.id !== selectedDefinition?.id) result.push(definition.abbreviation);
+    }
+    return result;
+  }, [definitions, selectedDefinition?.id]);
 
   const setSelection = (id: string) => {
     if (selectedDefinition?.id === id) return;
@@ -240,12 +229,14 @@ export default function MaintenanceWindows() {
         )}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiGrid>
         <KpiCard title="Definierte Fenster" value={definitions.length} icon={<CalendarRange className="h-4 w-4" />} info={MAINTENANCE_WINDOWS_KPI.definitions} />
         <KpiCard title="Systeme zugeordnet" value={assignedSystems} subtitle={systemLabel(assignedSystems)} icon={<Server className="h-4 w-4" />} severity={assignedSystems > 0 ? "ok" : undefined} info={MAINTENANCE_WINDOWS_KPI.assignedSystems} />
+        <KpiCard title="Zuordnungsquote" value={assignmentCoverage === null ? "—" : `${assignmentCoverage.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`} subtitle={techInfoRows.length > 0 ? `${assignedSystems.toLocaleString("de-DE")} von ${techInfoRows.length.toLocaleString("de-DE")} Systemen` : "Keine Tech-Info-Daten"} icon={<Percent className="h-4 w-4" />} severity={assignmentCoverage === null ? undefined : assignmentCoverage >= 95 ? "ok" : assignmentCoverage >= 80 ? "warn" : "crit"} info={MAINTENANCE_WINDOWS_KPI.coverage} />
+        <KpiCard title="Ungenutzte Fenster" value={unusedDefinitions} subtitle={`${unusedDefinitions.toLocaleString("de-DE")} ohne Systeme`} icon={<CalendarOff className="h-4 w-4" />} severity={unusedDefinitions > 0 ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unusedDefinitions} />
         <KpiCard title="Unbekannte Werte" value={assignments.unknown.length} subtitle={valueLabel(assignments.unknown.length)} icon={<TriangleAlert className="h-4 w-4" />} severity={assignments.unknown.length ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unknownValues} />
-        <KpiCard title="Systeme unbekannt" value={unknownSystems} subtitle={systemLabel(unknownSystems)} icon={<TriangleAlert className="h-4 w-4" />} severity={unknownSystems ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unassignedSystems} />
-      </div>
+        <KpiCard title="Systeme ohne Zuordnung" value={unassignedSystems} subtitle={systemLabel(unassignedSystems)} icon={<TriangleAlert className="h-4 w-4" />} severity={unassignedSystems ? "warn" : "ok"} info={MAINTENANCE_WINDOWS_KPI.unassignedSystems} />
+      </KpiGrid>
 
       <MaintenanceCoverageChart known={assignments.known} />
 
@@ -253,37 +244,22 @@ export default function MaintenanceWindows() {
       {techInfoError && <Alert variant="destructive"><AlertTitle>Tech-Info-Zuordnungen konnten nicht geladen werden</AlertTitle><AlertDescription>{techInfoError instanceof Error ? techInfoError.message : "Tech-Info konnte nicht geladen werden. Die Zuordnungen sind möglicherweise unvollständig."}</AlertDescription></Alert>}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(32rem,1.45fr)] xl:items-start">
-        <section className="space-y-3" aria-labelledby="maintenance-catalog-title">
-          <div className="flex items-center justify-between gap-3">
-            <div><h2 id="maintenance-catalog-title" className="text-base font-semibold">Katalog</h2><p className="text-xs text-muted-foreground">Definitionen bleiben sichtbar, auch ohne Systeme.</p></div>
-            <Badge variant="outline" className="tabular-nums">{visibleDefinitions.length}</Badge>
-          </div>
-          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Fenster durchsuchen" aria-label="Wartungsfenster durchsuchen" /></div>
-          {visibleDefinitions.length === 0 ? (
-            <Card className="border-dashed shadow-none"><CardContent className="space-y-4 p-5 text-sm text-muted-foreground">
-              <p>{definitions.length === 0 ? "Noch keine Wartungsfenster definiert. Es werden keine Beispieldaten angelegt." : "Keine Definition passt zur Suche."}</p>
-              {definitions.length === 0 && <div className="flex flex-wrap gap-2"><Button size="sm" onClick={createNew}>Manuell anlegen</Button><Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>Aus Text importieren</Button></div>}
-            </CardContent></Card>
-          ) : <div className="space-y-2">
-            <div className="max-h-[42rem] space-y-2 overflow-y-auto pr-1">
-            {catalogueDefinitions.map((definition) => {
-              const systems = systemsByDefinition.get(definition.id) ?? [];
-              const active = selectedDefinition?.id === definition.id;
-              return <button key={definition.id} type="button" aria-label={`${definition.abbreviation || "Unbenanntes Fenster"} auswählen`} onClick={() => setSelection(definition.id)} className={`w-full rounded-lg border p-3 text-left transition-colors ${active ? "border-primary bg-primary/5 shadow-sm" : "border-border/70 bg-card hover:border-primary/45 hover:bg-muted/30"}`}>
-                <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate font-mono-data text-sm font-semibold">{definition.abbreviation || "Ohne Abkürzung"}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{definition.description || "Keine Beschreibung"}</p></div><Badge variant="secondary" className="shrink-0 text-[10px]">{handlingLabel[definition.handling]}</Badge></div>
-                <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-border/50 pt-2 text-xs text-muted-foreground"><span>{systemLabel(systems.length)}</span><span className="truncate text-right" title={summarizeWeeklySlots(definition.weeklySlots)}>{summarizeWeeklySlots(definition.weeklySlots)}</span></div>
-                <div className="mt-2 overflow-hidden rounded border border-border/50"><MaintenanceWeekGrid value={definition.weeklySlots} onChange={() => {}} paintMode="allow" compact /></div>
-              </button>;
-            })}
-            </div>
-            {visibleDefinitions.length > MAX_CATALOGUE_CARDS && <p className="text-center text-xs text-muted-foreground">Es werden die ersten {MAX_CATALOGUE_CARDS} Treffer gezeigt. Verfeinern Sie die Suche.</p>}
-          </div>}
-        </section>
+        <MaintenanceWindowCatalogue
+          definitions={visibleDefinitions}
+          totalDefinitions={definitions.length}
+          selectedId={selectedDefinition?.id ?? null}
+          systemsByDefinition={systemsByDefinition}
+          search={search}
+          onSearchChange={setSearch}
+          onSelect={setSelection}
+          onCreate={createNew}
+          onImport={() => setImportOpen(true)}
+        />
 
         <section aria-label="Fensterdefinition bearbeiten" className="min-w-0">
           {selectedDefinition ? <MaintenanceWindowEditor
             value={selectedDefinition}
-            existingAbbreviations={visibleDefinitions.filter((definition) => definition.id !== selectedDefinition.id).map((definition) => definition.abbreviation)}
+            existingAbbreviations={existingAbbreviations}
             isSaving={isMutating}
             onSave={handleSave}
             onDelete={(definition) => { void handleDelete(definition); }}
@@ -293,19 +269,7 @@ export default function MaintenanceWindows() {
         </section>
       </div>
 
-      <section className="space-y-3 border-t border-border/70 pt-5" aria-labelledby="maintenance-assignments-title">
-        <div><h2 id="maintenance-assignments-title" className="text-base font-semibold">Systemzuordnungen</h2><p className="text-sm text-muted-foreground">Aus allen zuletzt importierten Tech-Info-Zeilen; unabhängig von RVTools-Snapshots.</p></div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="shadow-none"><CardHeader className="px-4 py-3"><CardTitle className="text-sm">Bekannte Fenster</CardTitle></CardHeader><CardContent className="space-y-2 px-4 pb-4">
-            {assignments.known.map((group) => <div key={group.definition.id} className="rounded-md border border-border/60"><div className="flex items-center justify-between gap-2 px-3 py-2"><div className="min-w-0"><span className="font-mono-data text-sm font-semibold">{group.definition.abbreviation || "Ohne Abkürzung"}</span><span className="ml-2 text-xs text-muted-foreground">{group.definition.description || handlingLabel[group.definition.handling]}</span></div><AssignmentSystems systems={group.systems} label={group.definition.abbreviation || "ohne Abkürzung"} /></div></div>)}
-            {assignments.known.length === 0 && <p className="text-sm text-muted-foreground">Keine Definitionen vorhanden.</p>}
-          </CardContent></Card>
-          <Card className="border-amber-500/25 shadow-none"><CardHeader className="px-4 py-3"><CardTitle className="text-sm">Unbekannte Werte</CardTitle></CardHeader><CardContent className="space-y-2 px-4 pb-4">
-            {assignments.unknown.map((group) => <div key={group.normalizedAbbreviation} className="rounded-md border border-amber-500/25 bg-amber-500/5"><div className="flex items-center justify-between gap-2 px-3 py-2"><div className="min-w-0"><span className="font-mono-data text-sm font-semibold">{group.abbreviation}</span><p className="text-xs text-muted-foreground">Nicht im Katalog definiert</p></div><AssignmentSystems systems={group.systems} label={group.abbreviation} /></div></div>)}
-            {assignments.unknown.length === 0 && <p className="text-sm text-muted-foreground">Keine unbekannten Werte in Tech-Info.</p>}
-          </CardContent></Card>
-        </div>
-      </section>
+      <MaintenanceAssignmentsPanel assignments={assignments} search={search} />
 
       <MaintenanceWindowImportDialog open={importOpen} onOpenChange={setImportOpen} existing={definitions} onImport={handleImport} isImporting={isMutating} />
       <Dialog open={blocker.state === "blocked"} onOpenChange={(open) => { if (!open) blocker.reset?.(); }}>

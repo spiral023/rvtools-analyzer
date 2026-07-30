@@ -14,6 +14,18 @@ export const MAINTENANCE_WINDOWS_KPI: Record<string, GlossaryEntry> = {
       "Systeme aus Tech-Info, deren Wartungsfensterwert einer bekannten Katalog-Definition zugeordnet werden konnte.",
     source: "Tech-Info · Wartungsfenster",
   },
+  coverage: {
+    term: "Zuordnungsquote",
+    description:
+      "Anteil aller Systeme aus Tech-Info, deren Wartungsfensterwert einer bekannten Katalog-Definition zugeordnet werden konnte.",
+    source: "Tech-Info · Wartungsfenster",
+  },
+  unusedDefinitions: {
+    term: "Ungenutzte Wartungsfenster",
+    description:
+      "Definierte Wartungsfenster, denen aktuell kein System aus Tech-Info zugeordnet ist. Sie können bewusst vorgehalten oder nicht mehr benötigt sein.",
+    source: "Lokaler Wartungsfenster-Katalog · Tech-Info",
+  },
   unknownValues: {
     term: "Unbekannte Fensterwerte",
     description:

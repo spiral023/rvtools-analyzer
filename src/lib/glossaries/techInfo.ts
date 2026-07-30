@@ -295,7 +295,7 @@ export const TECHINFO_ORG_SECTIONS: Record<string, GlossaryEntry> = {
   hierarchyTable: {
     term: "Organisationshierarchie",
     description:
-      "Bereich, Abteilung und Person als auf- und zuklappbare Baumstruktur mit VM-Anzahl, Power-Status, konfigurierter vCPU und konfiguriertem RAM je Ebene. Ein Klick auf eine Zeile filtert die VM-Liste darunter.",
+      "Bereich, Abteilung und Person als auf- und zuklappbare Baumstruktur mit VM-Anzahl, Power-Status, Ressourcen, CPU Demand und Rightsizing-Potenzial je Ebene. Optionale vROps-Werte erscheinen nur bei vorhandener Datenbasis. Ein Klick auf eine Zeile filtert die VM-Liste darunter.",
   },
   chart: {
     term: "Ressourcen je Bereich",
@@ -332,5 +332,23 @@ export const TECHINFO_ORG_COLUMNS: Record<string, GlossaryEntry> = {
     term: "RAM",
     description: "Summe des konfigurierten RAM aller VMs dieser Ebene.",
     source: "RVTools · vInfo",
+  },
+  cpuDemandAverage: {
+    term: "CPU Demand Ø",
+    description:
+      "Summe des mittleren CPU Demand der zugeordneten VMs im jüngsten vROps-Zeitreihenimport. Ohne passenden Messwert wird „—“ angezeigt.",
+    source: "vROps-Zeitreihen · CPU Demand Average",
+  },
+  cpuIntensity: {
+    term: "CPU-Intensität",
+    description:
+      "Mittlerer CPU Demand der VMs im Verhältnis zu ihrer konfigurierten CPU-Kapazität. Berücksichtigt nur VMs, für die beide Werte verfügbar sind.",
+    source: "vROps-Zeitreihen · RVTools · vHost",
+  },
+  rightsizingPotential: {
+    term: "Rightsizing-Potenzial",
+    description:
+      "Prüfpflichtig rückgebbare vCPU als prozentualer Anteil der gesamten konfigurierten vCPU dieser Organisationseinheit. Ohne belastbare Rightsizing-Daten wird „—“ angezeigt.",
+    source: "vROps-Zeitreihen · RVTools · vInfo",
   },
 };

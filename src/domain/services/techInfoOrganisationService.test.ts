@@ -37,6 +37,8 @@ describe("buildTechInfoOrganisation", () => {
     expect(person.vCpuSum).toBe(4);
     expect(person.memoryMiBSum).toBe(8192);
     expect(person.poweredOnCount).toBe(1);
+    expect(person.cpuDemandVmCount).toBe(0);
+    expect(person.rightsizingVmCount).toBe(0);
     expect(result.summary.assignedVmCount).toBe(1);
     expect(result.summary.unassignedVmCount).toBe(0);
     expect(result.doubleCountingWarning).toBe(false);
@@ -97,5 +99,34 @@ describe("buildTechInfoOrganisation", () => {
     const conflict = result.dataQuality.find((issue) => issue.category === "conflicting-department");
     expect(conflict).toBeDefined();
     expect(conflict?.vmNames.sort()).toEqual(["vm-1", "vm-2"]);
+  });
+
+  it("aggregiert optionale CPU- und Rightsizing-Metriken nur bei vorhandener Datenbasis", () => {
+    const result = buildTechInfoOrganisation([
+      vm({
+        vmName: "vm-1",
+        cpuCount: 8,
+        cpuDemandAverageMHz: 800,
+        configuredCpuCapacityMHz: 8_000,
+        reclaimableVcpu: 2,
+      }),
+      vm({
+        vmName: "vm-2",
+        cpuCount: 4,
+        cpuDemandAverageMHz: null,
+        configuredCpuCapacityMHz: null,
+        reclaimableVcpu: null,
+      }),
+    ], "primary");
+
+    const aggregate = result.tree[0]!.bereiche[0]!;
+    expect(aggregate).toMatchObject({
+      vCpuSum: 12,
+      cpuDemandAverageMHzSum: 800,
+      cpuDemandCapacityMHzSum: 8_000,
+      cpuDemandVmCount: 1,
+      reclaimableVcpuSum: 2,
+      rightsizingVmCount: 1,
+    });
   });
 });

@@ -25,6 +25,12 @@ const datastoreColumns: ColumnDef<DatastoreDetailRow, unknown>[] = [
     },
   },
   {
+    accessorKey: "computeClusterCount",
+    header: "Anzahl Compute-Cluster",
+    meta: { info: CAPACITY_DS_COLUMNS.computeClusterCount },
+    cell: ({ getValue }) => <span className="font-mono-data tabular-nums">{getValue() as number}</span>,
+  },
+  {
     accessorKey: "datastoreClusterName",
     header: "Datastore Cluster",
     meta: { info: CAPACITY_DS_COLUMNS.datastoreClusterName },

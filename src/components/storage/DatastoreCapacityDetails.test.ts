@@ -58,13 +58,14 @@ describe("buildDatastoreDetailRows", () => {
         data: {
           Name: "DS-Shared",
           Hosts: "esx-01.example.at; ESX-02.EXAMPLE.AT, esx-03.example.at",
-          "Datastore Cluster": "SDRS-Production",
+          "Datastore cluster name": "SDRS-Production",
         },
       }],
     );
 
     expect(rows[0]).toMatchObject({
       computeClusters: ["Compute-A", "Compute-B"],
+      computeClusterCount: 2,
       datastoreClusterName: "SDRS-Production",
     });
   });

@@ -32,6 +32,8 @@ export interface RightsizingDensityCell {
   vcpuBandKey: string;
   demandBandKey: string;
   vmCount: number;
+  /** Stabile VM-Schlüssel für den Drill-down in genau diese Rasterzelle. */
+  candidateKeys: string[];
   /** Summe der rückgewinnbaren vCPU – ersetzt die Punktgröße des früheren Streudiagramms. */
   reclaimableVcpu: number;
   notableCount: number;
@@ -99,7 +101,12 @@ function bandIndexOf(bands: readonly RightsizingBand[], value: number): number {
  * unabhängig von der VM-Anzahl.
  */
 export function buildRightsizingDensityGrid(candidates: readonly VmRightsizingCandidate[]): RightsizingDensityGrid {
-  const counts = DEMAND_BANDS.map(() => VCPU_BANDS.map(() => ({ vmCount: 0, reclaimableVcpu: 0, notableCount: 0 })));
+  const counts = DEMAND_BANDS.map(() => VCPU_BANDS.map(() => ({
+    vmCount: 0,
+    candidateKeys: [] as string[],
+    reclaimableVcpu: 0,
+    notableCount: 0,
+  })));
   let vmCount = 0;
   let reclaimableVcpu = 0;
   let highestVcpuBand = 0;
@@ -113,6 +120,7 @@ export function buildRightsizingDensityGrid(candidates: readonly VmRightsizingCa
     const demandIndex = bandIndexOf(DEMAND_BANDS, demandPct);
     const cell = counts[demandIndex][vcpuIndex];
     cell.vmCount += 1;
+    cell.candidateKeys.push(candidate.objectKey);
     cell.reclaimableVcpu += candidate.reclaimableVcpu ?? 0;
     if (candidate.flags.manyVcpuLowDemand || candidate.flags.highCpuReady) cell.notableCount += 1;
 

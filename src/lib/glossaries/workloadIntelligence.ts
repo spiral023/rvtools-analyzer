@@ -206,7 +206,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   densityGrid: {
     term: "Konfigurierte vCPU vs. CPU Demand P95 %",
-    description: "Das Raster gruppiert VMs nach konfigurierten vCPU (Spalten) und CPU-Bedarf in stark ausgelasteten Stunden (Zeilen). P95 bedeutet: In 95 % der gemessenen Stunden lag der Bedarf höchstens bei diesem Wert – einzelne kurze Spitzen zählen nicht. Die Zahl zeigt die VM-Anzahl, die Farbtiefe deren Dichte. Rechts unten liegen Kandidaten für eine Verkleinerung; gelbe und rote Zeilen ab 90 % weisen auf möglicherweise zu klein konfigurierte VMs hin. Beim Überfahren erscheinen VM-Anzahl, rückgewinnbare vCPU und auffällige VMs.",
+    description: "Das Raster gruppiert VMs nach konfigurierten vCPU (Spalten) und CPU-Bedarf in stark ausgelasteten Stunden (Zeilen). P95 bedeutet: In 95 % der gemessenen Stunden lag der Bedarf höchstens bei diesem Wert – einzelne kurze Spitzen zählen nicht. Die Zahl zeigt die VM-Anzahl, die Farbtiefe deren Dichte. Rechts unten liegen Kandidaten für eine Verkleinerung; gelbe und rote Zeilen ab 90 % weisen auf möglicherweise zu klein konfigurierte VMs hin. Belegte Kacheln öffnen per Klick die zugehörigen VMs mit ihren wichtigsten Rightsizing-Metriken.",
+  },
+  densityCellDetails: {
+    term: "VMs der Rightsizing-Kachel",
+    description: "Zeigt genau die VMs des gewählten vCPU- und CPU-Demand-P95-Bands. Empfehlungen sind prüfpflichtige Zielgrößen und führen keine automatische Änderung aus.",
   },
   candidateTable: {
     term: "vCPU-Vergleich je VM",

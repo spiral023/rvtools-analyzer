@@ -50,6 +50,7 @@ describe("buildRightsizingDensityGrid", () => {
 
     const cell = cellOf(grid, "25-50", "5-8");
     expect(cell.vmCount).toBe(2);
+    expect(cell.candidateKeys).toEqual(["vm-1", "vm-2"]);
     expect(cell.reclaimableVcpu).toBe(6);
     expect(cell.notableCount).toBe(1);
     expect(cellOf(grid, "0-2", "1").vmCount).toBe(1);

@@ -136,10 +136,15 @@ export const CAPACITY_DS_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Alle Compute-Cluster, deren ESXi-Hosts diesen Datastore verbunden haben. Ein gemeinsam genutzter Datastore kann mehreren Clustern zugeordnet sein.",
     source: `${RV} · vDatastore „Hosts“ + vHost „Host“/„Cluster“`,
   },
+  computeClusterCount: {
+    term: "Anzahl Compute-Cluster",
+    description: "Anzahl der unterschiedlichen Compute-Cluster, deren ESXi-Hosts diesen Datastore verbunden haben.",
+    source: `${RV} · vDatastore „Hosts“ + vHost „Host“/„Cluster“`,
+  },
   datastoreClusterName: {
     term: "Datastore Cluster",
     description: "Storage-DRS-/Datastore-Cluster, dem der Datastore in vCenter zugeordnet ist. Dies ist unabhängig von den Compute-Clustern der verbundenen ESXi-Hosts.",
-    source: `${RV} · vDatastore · „Datastore Cluster“`,
+    source: `${RV} · vDatastore · „Datastore cluster name“`,
   },
 };
 

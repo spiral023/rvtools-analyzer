@@ -3,7 +3,14 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { TECHINFO_ORG_COLUMNS, TECHINFO_ORG_SECTIONS } from "@/lib/glossaries/techInfo";
-import { flattenVisibleTechInfoOrgTree, formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/techInfoOrgTree";
+import {
+  flattenVisibleTechInfoOrgTree,
+  formatCpuDemandAverage,
+  formatCpuIntensity,
+  formatRamGiB,
+  formatRightsizingPotential,
+  type TechInfoOrgTreeNode,
+} from "@/components/tech-info/techInfoOrgTree";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 const DEPTH_LABEL = ["Organisation", "Bereich", "Abteilung", "Person"];
@@ -34,13 +41,17 @@ export function TechInfoOrgHierarchyTree({
   };
 
   return (
-    <div className="bg-card/30">
-      <div className="grid grid-cols-[minmax(0,1fr)_4rem] gap-2 border-b border-border bg-muted/20 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem]">
+    <div className="overflow-x-auto bg-card/30">
+      <div className="min-w-[67rem]">
+      <div className="grid grid-cols-[minmax(12rem,1fr)_4rem_5rem_4rem_5.5rem_7rem_6.5rem_7rem] gap-2 border-b border-border bg-muted/20 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <InfoTooltip entry={TECHINFO_ORG_COLUMNS.node} side="bottom"><span className="w-fit cursor-help">Bereich / Abteilung / Person</span></InfoTooltip>
         <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vmCount} side="bottom"><span className="w-fit cursor-help text-right">VMs</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.poweredOn} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">Ein / Aus</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vCpu} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">vCPU</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.ram} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">RAM</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.poweredOn} side="bottom"><span className="w-fit cursor-help text-right">Ein / Aus</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vCpu} side="bottom"><span className="w-fit cursor-help text-right">vCPU</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.ram} side="bottom"><span className="w-fit cursor-help text-right">RAM</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.cpuDemandAverage} side="bottom"><span className="w-fit cursor-help text-right">CPU Demand Ø</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.cpuIntensity} side="bottom"><span className="w-fit cursor-help text-right">CPU-Intensität</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.rightsizingPotential} side="bottom"><span className="w-fit cursor-help text-right">Rightsizing</span></InfoTooltip>
       </div>
       <div className="max-h-[28rem] overflow-y-auto">
         {visibleRows.map((row) => {
@@ -52,7 +63,7 @@ export function TechInfoOrgHierarchyTree({
             <div
               key={row.id}
               className={cn(
-                "relative grid min-h-10 grid-cols-[minmax(0,1fr)_4rem] items-center gap-2 border-b border-border/30 px-3 py-2 text-sm transition-colors hover:bg-muted/30 md:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem]",
+                "relative grid min-h-10 grid-cols-[minmax(12rem,1fr)_4rem_5rem_4rem_5.5rem_7rem_6.5rem_7rem] items-center gap-2 border-b border-border/30 px-3 py-2 text-sm transition-colors hover:bg-muted/30",
                 isSelected && "bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))] hover:bg-primary/15",
               )}
             >
@@ -78,11 +89,14 @@ export function TechInfoOrgHierarchyTree({
                 <span className={cn("truncate", row.depth === 0 && "font-semibold", row.depth === 1 && "font-medium")} title={row.label}>{row.label}</span>
               </div>
               <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatNum(row.aggregate.vmCount)}</span>
-              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums text-muted-foreground md:block">
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums text-muted-foreground">
                 <span className="text-success">{formatNum(row.aggregate.poweredOnCount)}</span> / <span>{formatNum(row.aggregate.poweredOffCount)}</span>
               </span>
-              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums md:block">{formatNum(row.aggregate.vCpuSum)}</span>
-              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums md:block">{formatRamGiB(row.aggregate.memoryMiBSum)}</span>
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatNum(row.aggregate.vCpuSum)}</span>
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatRamGiB(row.aggregate.memoryMiBSum)}</span>
+              <span className="pointer-events-none relative z-[1] text-right font-mono text-xs tabular-nums">{formatCpuDemandAverage(row.aggregate)}</span>
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatCpuIntensity(row.aggregate)}</span>
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatRightsizingPotential(row.aggregate)}</span>
             </div>
           );
         })}
@@ -91,6 +105,7 @@ export function TechInfoOrgHierarchyTree({
         <InfoTooltip entry={TECHINFO_ORG_SECTIONS.hierarchyTable} side="top">
           <p className="w-fit cursor-help text-xs text-muted-foreground">Zeile auswählen · Chevron zum Auf- und Zuklappen</p>
         </InfoTooltip>
+      </div>
       </div>
     </div>
   );

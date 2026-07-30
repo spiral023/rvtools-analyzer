@@ -217,7 +217,13 @@ describe("importRvtoolsXlsx", () => {
         },
       ],
       vCluster: [{ Name: "CL-Prod", Datacenter: "DC01", NumHosts: 1 }],
-      vDatastore: [{ Name: "DS01", "Capacity MiB": 102400, "Free MiB": 51200 }],
+      vDatastore: [{
+        Name: "DS01",
+        "Capacity MiB": 102400,
+        "Free MiB": 51200,
+        Hosts: "esx01.lab.local",
+        "Datastore cluster name": "SDRS-Prod",
+      }],
       vSnapshot: [{ VM: "APP01", "Snapshot Name": "pre-change", "Size MiB (total)": 2048 }],
       vHealth: [{ Entity: "APP01", "Message type": "warning", Message: "Check VM tools" }],
       vSource: [{ "VI SDK Server": "vcsa01.lab.local" }],
@@ -270,6 +276,8 @@ describe("importRvtoolsXlsx", () => {
       name: "DS01",
       inUseMiB: 51200,
       freePct: 50,
+      hostNames: ["esx01.lab.local"],
+      datastoreClusterName: "SDRS-Prod",
     });
 
     const [snapshot] = await getBySnapshotIds("entities_snapshot", snapshotIds);

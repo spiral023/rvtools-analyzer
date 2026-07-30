@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useClientDetailDialog } from "@/hooks/useClientDetailDialog";
+import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { Monitor, ClipboardList, Link2Off, AlertTriangle, Users, Server } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatNum, hasIdenticalSysvAndDeputy } from "@/lib/xlsx/parseHelpers";
@@ -27,6 +28,9 @@ import {
 import type { NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 import type { TechInfoOrgVmSource } from "@/domain/services/techInfoOrganisationService";
 import { TechInfoOrganisationPanel } from "@/components/tech-info/TechInfoOrganisationPanel";
+import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
+import { normalizeVmName } from "@/lib/globalFilter";
+import { buildTechInfoOrgMetricsByVmName } from "@/lib/techInfoOrgMetrics";
 
 type TechInfoTab = "systeme" | "organisation";
 
@@ -118,11 +122,14 @@ const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
 ];
 
 export default function TechInfo() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: TechInfoTab = searchParams.get("tab") === "organisation" ? "organisation" : "systeme";
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openClientDetail, clientDetailDialog } = useClientDetailDialog(allVms);
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine();
+  const { profiles: workloadProfiles, hosts: workloadHosts } = useVmWorkloadProfiles(null, activeTab === "organisation");
   const clusterFilterSet = useMemo(() => new Set(filters.clusters), [filters.clusters]);
   const hostFilterSet = useMemo(() => new Set(filters.hosts), [filters.hosts]);
 
@@ -258,10 +265,19 @@ export default function TechInfo() {
     };
   }, [rows]);
 
+  const rightsizingCandidates = useMemo(
+    () => buildVmRightsizingCandidates({ profiles: workloadProfiles, hosts: workloadHosts }),
+    [workloadHosts, workloadProfiles],
+  );
+  const orgMetricsByVmName = useMemo(
+    () => buildTechInfoOrgMetricsByVmName(workloadProfiles, rightsizingCandidates),
+    [rightsizingCandidates, workloadProfiles],
+  );
   const orgSources = useMemo<TechInfoOrgVmSource[]>(
     () =>
       serverVms.map((vm) => {
         const techInfo = byVmName.get(vm.vmName.trim().toLowerCase())!;
+        const optionalMetrics = orgMetricsByVmName.get(normalizeVmName(vm.vmName));
         return {
           vmName: vm.vmName,
           sysv: techInfo.sysv,
@@ -271,14 +287,15 @@ export default function TechInfo() {
           cpuCount: vm.cpuCount,
           memoryMiB: vm.memoryMiB,
           poweredOn: isPoweredOnVm(vm),
+          cpuDemandAverageMHz: optionalMetrics?.cpuDemandAverageMHz ?? null,
+          configuredCpuCapacityMHz: optionalMetrics?.configuredCpuCapacityMHz ?? null,
+          reclaimableVcpu: optionalMetrics?.reclaimableVcpu ?? null,
         };
       }),
-    [serverVms, byVmName],
+    [serverVms, byVmName, orgMetricsByVmName],
   );
   const vmByNameForOrg = useMemo(() => new Map(scopeVms.map((vm) => [vm.vmName.trim().toLowerCase(), vm])), [scopeVms]);
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab: TechInfoTab = searchParams.get("tab") === "organisation" ? "organisation" : "systeme";
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value === "organisation") next.set("tab", "organisation");

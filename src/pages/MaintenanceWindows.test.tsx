@@ -51,6 +51,26 @@ vi.mock("@/components/maintenance-windows/MaintenanceWindowImportDialog", () => 
   ) : null,
 }));
 
+vi.mock("@/components/tables/VirtualTable", () => ({
+  VirtualTable: ({ data, onRowClick }: {
+    data: Array<{ id?: string; abbreviation?: string; vmName?: string }>;
+    onRowClick?: (row: { id?: string; abbreviation?: string; vmName?: string }) => void;
+  }) => (
+    <div>
+      {data.map((row) => row.abbreviation ? (
+        <button
+          key={row.id ?? row.abbreviation}
+          type="button"
+          aria-label={`Systeme für ${row.abbreviation} anzeigen`}
+          onClick={() => onRowClick?.(row)}
+        >
+          {row.abbreviation}
+        </button>
+      ) : <span key={row.vmName}>{row.vmName}</span>)}
+    </div>
+  ),
+}));
+
 vi.mock("@/components/ui/info-tooltip", () => ({
   InfoTooltip: ({ children, entry }: { children: React.ReactNode; entry: { term: string } }) => (
     entry
@@ -121,6 +141,8 @@ describe("MaintenanceWindows", () => {
 
     expect(screen.getByTestId("tooltip-definierte-wartungsfenster")).toHaveAttribute("data-tooltip-term", "Definierte Wartungsfenster");
     expect(screen.getByTestId("tooltip-zugeordnete-systeme")).toHaveAttribute("data-tooltip-term", "Zugeordnete Systeme");
+    expect(screen.getByTestId("tooltip-zuordnungsquote")).toHaveAttribute("data-tooltip-term", "Zuordnungsquote");
+    expect(screen.getByTestId("tooltip-ungenutzte-wartungsfenster")).toHaveAttribute("data-tooltip-term", "Ungenutzte Wartungsfenster");
     expect(screen.getByTestId("tooltip-unbekannte-fensterwerte")).toHaveAttribute("data-tooltip-term", "Unbekannte Fensterwerte");
     expect(screen.getByTestId("tooltip-systeme-ohne-fensterzuordnung")).toHaveAttribute("data-tooltip-term", "Systeme ohne Fensterzuordnung");
   });
@@ -300,6 +322,29 @@ describe("MaintenanceWindows", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /systeme für extern/i }));
     expect(screen.getByText("APP-UNKNOWN")).toBeInTheDocument();
+  });
+
+  it("stellt 70 Wartungsfenster und 5000 Systeme ohne Mini-Zeitplanraster vollständig bereit", () => {
+    const definitions = Array.from({ length: 70 }, (_, index) => definition({
+      id: `mw-${index}`,
+      abbreviation: `MW-${String(index + 1).padStart(2, "0")}`,
+      normalizedAbbreviation: `mw-${index + 1}`,
+    }));
+    const systems = Array.from({ length: 5_000 }, (_, index) => system(
+      `APP-${String(index + 1).padStart(4, "0")}`,
+      definitions[index % definitions.length]!.abbreviation,
+    ));
+    mocks.useMaintenanceWindows.mockReturnValue({
+      definitions, isLoading: false, error: null, isMutating: false,
+      save: mocks.save, remove: mocks.remove, upsert: mocks.upsert,
+    });
+    mocks.useAllTechInfoLatest.mockReturnValue({ data: systems, isLoading: false });
+
+    render(<MaintenanceWindows />);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(70);
+    expect(screen.getByText("5.000 Systeme")).toBeInTheDocument();
+    expect(screen.queryByText(/ersten 120 Treffer/i)).not.toBeInTheDocument();
   });
 
   it("verlinkt die Betrieb-Navigation auf Wartungsfenster", () => {

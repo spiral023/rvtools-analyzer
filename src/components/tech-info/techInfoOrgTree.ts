@@ -12,7 +12,18 @@ export interface TechInfoOrgTreeNode {
 }
 
 function toAggregate(node: TechInfoOrgAggregate): TechInfoOrgAggregate {
-  return { vmCount: node.vmCount, poweredOnCount: node.poweredOnCount, poweredOffCount: node.poweredOffCount, vCpuSum: node.vCpuSum, memoryMiBSum: node.memoryMiBSum };
+  return {
+    vmCount: node.vmCount,
+    poweredOnCount: node.poweredOnCount,
+    poweredOffCount: node.poweredOffCount,
+    vCpuSum: node.vCpuSum,
+    memoryMiBSum: node.memoryMiBSum,
+    cpuDemandAverageMHzSum: node.cpuDemandAverageMHzSum,
+    cpuDemandCapacityMHzSum: node.cpuDemandCapacityMHzSum,
+    cpuDemandVmCount: node.cpuDemandVmCount,
+    reclaimableVcpuSum: node.reclaimableVcpuSum,
+    rightsizingVmCount: node.rightsizingVmCount,
+  };
 }
 
 export function buildTechInfoOrgTree(orgNodes: readonly TechInfoOrgNode[]): TechInfoOrgTreeNode[] {
@@ -68,4 +79,19 @@ export function flattenVisibleTechInfoOrgTree(nodes: readonly TechInfoOrgTreeNod
 
 export function formatRamGiB(memoryMiB: number): string {
   return `${(memoryMiB / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1, minimumFractionDigits: 0 })} GiB`;
+}
+
+export function formatCpuDemandAverage(aggregate: TechInfoOrgAggregate): string {
+  if (aggregate.cpuDemandVmCount === 0) return "—";
+  return `${aggregate.cpuDemandAverageMHzSum.toLocaleString("de-DE", { maximumFractionDigits: 0 })} MHz`;
+}
+
+export function formatCpuIntensity(aggregate: TechInfoOrgAggregate): string {
+  if (aggregate.cpuDemandVmCount === 0 || aggregate.cpuDemandCapacityMHzSum <= 0) return "—";
+  return `${((aggregate.cpuDemandAverageMHzSum / aggregate.cpuDemandCapacityMHzSum) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+}
+
+export function formatRightsizingPotential(aggregate: TechInfoOrgAggregate): string {
+  if (aggregate.rightsizingVmCount === 0 || aggregate.vCpuSum <= 0) return "—";
+  return `${((aggregate.reclaimableVcpuSum / aggregate.vCpuSum) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
 }

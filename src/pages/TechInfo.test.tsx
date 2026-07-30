@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import TechInfo from "@/pages/TechInfo";
-import type { NormalizedVm, TechInfoLatest, TechInfoClientLatest } from "@/domain/models/types";
+import type { NormalizedHost, NormalizedVm, TechInfoLatest, TechInfoClientLatest, VmWorkloadProfile } from "@/domain/models/types";
 
 function renderTechInfo() {
   return render(<TechInfo />, { wrapper: MemoryRouter });
@@ -57,6 +57,14 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 vi.mock("@/hooks/useGlobalVmFilter", () => ({ useGlobalVmFilterEngine: () => ({ hasActiveFilter: false, matchingVmKeys: null as Set<string> | null }) }));
 vi.mock("@/hooks/useVmDetailDialog", () => ({ useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null as React.ReactNode }) }));
 vi.mock("@/hooks/useClientDetailDialog", () => ({ useClientDetailDialog: () => ({ openClientDetail: vi.fn(), clientDetailDialog: null as React.ReactNode }) }));
+vi.mock("@/hooks/useVmWorkloadProfiles", () => ({
+  useVmWorkloadProfiles: () => ({
+    profiles: [] as VmWorkloadProfile[],
+    hosts: [] as NormalizedHost[],
+    isLoading: false,
+    isError: false,
+  }),
+}));
 vi.mock("@/components/dashboard/FilterBar", () => ({ FilterBar: (): null => null }));
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: ({ columns, data }: {
