@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { TECHINFO_ORG_SECTIONS } from "@/lib/glossaries/techInfo";
 import type { TechInfoOrgDataQualityCategory, TechInfoOrgDataQualityIssue } from "@/domain/services/techInfoOrganisationService";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -32,28 +30,30 @@ export function TechInfoOrgDataQualityPanel({ issues, onSelectVms }: { issues: r
   }, [issues]);
 
   if (groups.length === 0) {
-    return <p className="text-sm text-success">Keine Datenqualitätsauffälligkeiten im aktuellen Rollenmodus und Filter-Scope.</p>;
+    return (
+      <div className="flex items-start gap-3 rounded-md border border-success/20 bg-success/5 p-3 text-success">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="text-sm leading-relaxed">Keine Datenqualitätsauffälligkeiten im aktuellen Rollenmodus und Filter-Scope.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2">
-      <InfoTooltip entry={TECHINFO_ORG_SECTIONS.dataQuality} side="bottom">
-        <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Datenqualität</h3>
-      </InfoTooltip>
-      <div className="rounded-md border border-border/50 divide-y divide-border/30">
+    <div className="overflow-hidden rounded-md border border-border/60 divide-y divide-border/40">
         {groups.map((group) => {
           const isOpen = expanded.has(group.category);
           return (
             <div key={group.category}>
               <button
                 type="button"
+                aria-expanded={isOpen}
                 onClick={() => setExpanded((current) => {
                   const next = new Set(current);
                   if (next.has(group.category)) next.delete(group.category);
                   else next.add(group.category);
                   return next;
                 })}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/30"
+                className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="flex items-center gap-1.5">
                   {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -62,10 +62,10 @@ export function TechInfoOrgDataQualityPanel({ issues, onSelectVms }: { issues: r
                 <Badge variant={group.category === "missing-responsible" ? "destructive" : "secondary"}>{formatNum(group.vmNames.length)} VMs</Badge>
               </button>
               {isOpen && (
-                <div className="space-y-1 px-3 pb-2">
+                <div className="space-y-2 border-t border-border/30 bg-muted/10 px-3 py-3">
                   <button
                     type="button"
-                    className="text-xs text-primary underline-offset-2 hover:underline"
+                    className="text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => onSelectVms(CATEGORY_LABEL[group.category], group.vmNames)}
                   >
                     Alle {group.vmNames.length} VMs in der Liste anzeigen
@@ -83,7 +83,6 @@ export function TechInfoOrgDataQualityPanel({ issues, onSelectVms }: { issues: r
             </div>
           );
         })}
-      </div>
     </div>
   );
 }

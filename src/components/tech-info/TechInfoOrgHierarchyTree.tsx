@@ -21,7 +21,7 @@ export function TechInfoOrgHierarchyTree({
   const visibleRows = useMemo(() => flattenVisibleTechInfoOrgTree(tree, expandedIds), [tree, expandedIds]);
 
   if (tree.length === 0) {
-    return <p className="text-sm text-muted-foreground">Keine auswertbare Bereichs-/Abteilungszuordnung im aktuellen Rollenmodus und Filter-Scope.</p>;
+    return <p className="p-4 text-sm text-muted-foreground">Keine auswertbare Bereichs-/Abteilungszuordnung im aktuellen Rollenmodus und Filter-Scope.</p>;
   }
 
   const toggle = (id: string) => {
@@ -34,13 +34,13 @@ export function TechInfoOrgHierarchyTree({
   };
 
   return (
-    <div className="rounded-md border border-border/50 bg-card/30">
-      <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem] gap-2 border-b border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="bg-card/30">
+      <div className="grid grid-cols-[minmax(0,1fr)_4rem] gap-2 border-b border-border bg-muted/20 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem]">
         <InfoTooltip entry={TECHINFO_ORG_COLUMNS.node} side="bottom"><span className="w-fit cursor-help">Bereich / Abteilung / Person</span></InfoTooltip>
         <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vmCount} side="bottom"><span className="w-fit cursor-help text-right">VMs</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.poweredOn} side="bottom"><span className="w-fit cursor-help text-right">Ein / Aus</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vCpu} side="bottom"><span className="w-fit cursor-help text-right">vCPU</span></InfoTooltip>
-        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.ram} side="bottom"><span className="w-fit cursor-help text-right">RAM</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.poweredOn} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">Ein / Aus</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.vCpu} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">vCPU</span></InfoTooltip>
+        <InfoTooltip entry={TECHINFO_ORG_COLUMNS.ram} side="bottom"><span className="hidden w-fit cursor-help text-right md:block">RAM</span></InfoTooltip>
       </div>
       <div className="max-h-[28rem] overflow-y-auto">
         {visibleRows.map((row) => {
@@ -51,23 +51,24 @@ export function TechInfoOrgHierarchyTree({
           return (
             <div
               key={row.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`${DEPTH_LABEL[row.depth]} ${row.label} auswählen`}
-              onClick={() => onSelectNode(row)}
-              onKeyDown={(e) => { if (e.key === "Enter") onSelectNode(row); }}
               className={cn(
-                "grid grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem] gap-2 border-b border-border/30 px-3 py-1.5 text-sm transition-colors hover:bg-muted/30 cursor-pointer focus-visible:outline-none focus-visible:bg-muted/40",
-                isSelected && "bg-primary/10 hover:bg-primary/15",
+                "relative grid min-h-10 grid-cols-[minmax(0,1fr)_4rem] items-center gap-2 border-b border-border/30 px-3 py-2 text-sm transition-colors hover:bg-muted/30 md:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5rem_6rem]",
+                isSelected && "bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))] hover:bg-primary/15",
               )}
             >
-              <div className="flex min-w-0 items-center gap-1" style={{ paddingLeft: `${row.depth * 1.1}rem` }}>
+              <button
+                type="button"
+                aria-label={`${DEPTH_LABEL[row.depth]} ${row.label} auswählen`}
+                onClick={() => onSelectNode(row)}
+                className="absolute inset-0 z-0 cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              />
+              <div className="pointer-events-none relative z-[1] flex min-w-0 items-center gap-1" style={{ paddingLeft: `${row.depth * 1.1}rem` }}>
                 {isExpandable ? (
                   <button
                     type="button"
                     aria-label={isExpanded ? "Zuklappen" : "Aufklappen"}
-                    onClick={(e) => { e.stopPropagation(); toggle(row.id); }}
-                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    onClick={() => toggle(row.id)}
+                    className="pointer-events-auto relative z-10 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                   </button>
@@ -76,19 +77,19 @@ export function TechInfoOrgHierarchyTree({
                 )}
                 <span className={cn("truncate", row.depth === 0 && "font-semibold", row.depth === 1 && "font-medium")} title={row.label}>{row.label}</span>
               </div>
-              <span className="text-right font-mono tabular-nums">{formatNum(row.aggregate.vmCount)}</span>
-              <span className="text-right font-mono tabular-nums text-muted-foreground">
+              <span className="pointer-events-none relative z-[1] text-right font-mono tabular-nums">{formatNum(row.aggregate.vmCount)}</span>
+              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums text-muted-foreground md:block">
                 <span className="text-success">{formatNum(row.aggregate.poweredOnCount)}</span> / <span>{formatNum(row.aggregate.poweredOffCount)}</span>
               </span>
-              <span className="text-right font-mono tabular-nums">{formatNum(row.aggregate.vCpuSum)}</span>
-              <span className="text-right font-mono tabular-nums">{formatRamGiB(row.aggregate.memoryMiBSum)}</span>
+              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums md:block">{formatNum(row.aggregate.vCpuSum)}</span>
+              <span className="pointer-events-none relative z-[1] hidden text-right font-mono tabular-nums md:block">{formatRamGiB(row.aggregate.memoryMiBSum)}</span>
             </div>
           );
         })}
       </div>
-      <div className="border-t border-border/50 px-3 py-1.5">
+      <div className="border-t border-border/50 bg-muted/10 px-3 py-2">
         <InfoTooltip entry={TECHINFO_ORG_SECTIONS.hierarchyTable} side="top">
-          <p className="w-fit cursor-help text-xs text-muted-foreground">Klick auf eine Zeile filtert die VM-Liste. Chevron auf-/zuklappen.</p>
+          <p className="w-fit cursor-help text-xs text-muted-foreground">Zeile auswählen · Chevron zum Auf- und Zuklappen</p>
         </InfoTooltip>
       </div>
     </div>

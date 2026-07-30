@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { CHART_AXIS_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { TECHINFO_ORG_SECTIONS } from "@/lib/glossaries/techInfo";
 import { formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/techInfoOrgTree";
 
 type ChartMetric = "vmCount" | "vCpu" | "ram";
@@ -38,15 +36,19 @@ export function TechInfoOrgBereichChart({
   if (data.length === 0) return null;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <InfoTooltip entry={TECHINFO_ORG_SECTIONS.chart} side="bottom">
-          <h3 className="w-fit cursor-help text-sm font-semibold text-muted-foreground">Ressourcen je Bereich</h3>
-        </InfoTooltip>
-        <ToggleGroup type="single" size="sm" value={metric} onValueChange={(value) => value && setMetric(value as ChartMetric)}>
-          <ToggleGroupItem value="vmCount" aria-label="Nach VM-Anzahl">VMs</ToggleGroupItem>
-          <ToggleGroupItem value="vCpu" aria-label="Nach vCPU">vCPU</ToggleGroupItem>
-          <ToggleGroupItem value="ram" aria-label="Nach RAM">RAM</ToggleGroupItem>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ToggleGroup
+          type="single"
+          size="sm"
+          value={metric}
+          onValueChange={(value) => value && setMetric(value as ChartMetric)}
+          aria-label="Ressourcenmetrik auswählen"
+          className="rounded-md border border-border/60 bg-muted/20 p-0.5"
+        >
+          <ToggleGroupItem value="vmCount" aria-label="Nach VM-Anzahl" className="px-2.5 data-[state=on]:bg-background data-[state=on]:shadow-sm">VMs</ToggleGroupItem>
+          <ToggleGroupItem value="vCpu" aria-label="Nach vCPU" className="px-2.5 data-[state=on]:bg-background data-[state=on]:shadow-sm">vCPU</ToggleGroupItem>
+          <ToggleGroupItem value="ram" aria-label="Nach RAM" className="px-2.5 data-[state=on]:bg-background data-[state=on]:shadow-sm">RAM</ToggleGroupItem>
         </ToggleGroup>
       </div>
       <div style={{ height: Math.max(140, data.length * 32) }}>
@@ -73,7 +75,7 @@ export function TechInfoOrgBereichChart({
                 <Cell
                   key={entry.id}
                   fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]}
-                  opacity={selectedBereichId && selectedBereichId !== entry.id ? 0.45 : 1}
+                  opacity={selectedBereichId && selectedBereichId !== entry.id ? 0.3 : 0.9}
                 />
               ))}
             </Bar>
