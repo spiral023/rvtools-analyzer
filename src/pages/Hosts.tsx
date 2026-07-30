@@ -6,13 +6,17 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { HostInventoryPanel } from "@/components/hosts/HostInventoryPanel";
 import { HostHygienePanel } from "@/components/hosts/HostHygienePanel";
+import { HostLoadMap } from "@/components/hosts/HostLoadMap";
 import { EsxiVersionsTable } from "@/components/vmware-versions/VmwareReleaseTables";
-import { useActiveSnapshotIds, useHosts } from "@/hooks/useActiveSnapshots";
+import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
+import { useActiveSnapshotIds, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
 export default function Hosts() {
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
+  const { data: rawVHost = [], isLoading: rawHostsLoading } = useRawSheet("vHost");
+  const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
 
   if (snapshotsLoading || hostsLoading) return <PageLoadingState title="Hosts" />;
 
@@ -37,9 +41,18 @@ export default function Hosts() {
         <KpiCard title="CPU-Kerne" value={formatNum(totalCpuCores)} icon={<Cpu className="h-4 w-4" />} />
         <KpiCard title="RAM" value={formatBytes(totalMemoryMiB)} icon={<MemoryStick className="h-4 w-4" />} />
       </KpiGrid>
+      <HostLoadMap
+        hosts={hosts}
+        rawVHostRows={rawVHost}
+        snapshots={snapshots}
+        filters={{ clusters: filters.clusters, hosts: filters.hosts, search: filters.search }}
+        isLoading={rawHostsLoading}
+        onHostClick={openHostDetail}
+      />
       <HostInventoryPanel hosts={hosts} globalFilter={filters.search} />
       <HostHygienePanel />
       <EsxiVersionsTable />
+      {hostDetailDialog}
     </div>
   );
 }

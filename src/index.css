@@ -111,6 +111,24 @@
 }
 
 @layer components {
+  .host-load-map__canvas {
+    isolation: isolate;
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.18) 1px, transparent 1px),
+      radial-gradient(circle at 18% 84%, hsl(var(--primary) / 0.075), transparent 34%);
+    background-size: 26px 26px, 26px 26px, 100% 100%;
+  }
+
+  .host-load-map__canvas::after {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    content: "";
+    background: linear-gradient(135deg, transparent 0 62%, hsl(var(--foreground) / 0.018) 62% 63%, transparent 63% 100%);
+  }
+
   .onboarding-surface {
     isolation: isolate;
     box-shadow: 0 36px 100px -42px hsl(var(--primary) / 0.42);
