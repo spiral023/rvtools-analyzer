@@ -12,13 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
 import { UtilizationPercentCell, WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
-import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import type { VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
 import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
@@ -64,10 +65,18 @@ export function VmWorkloadProfilePanel() {
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
+  // Die Tech-Info-Zuordnung wird über den vollständigen Bestand geladen, damit eine
+  // Suche nach Systemverantwortlichen nicht schon vor der Zuordnung leerläuft.
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allProfiles.map((profile) => profile.vmName));
+  const sysvByVmName = useMemo(() => new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry.sysv])), [techInfoLatest]);
+
   // Die Textsuche schränkt den gesamten Tab ein, nicht nur die Tabelle: KPI-Kacheln und
   // Verteilungsdiagramme leiten sich aus derselben gefilterten Liste ab.
   const searchQuery = normalizeVmSearchTerm(filters.search.trim());
-  const profiles = useMemo(() => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery), [allProfiles, searchQuery]);
+  const profiles = useMemo(
+    () => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery, sysvByVmName),
+    [allProfiles, searchQuery, sysvByVmName],
+  );
   const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
 
   const shapeDistribution = useMemo(() => {
@@ -91,6 +100,13 @@ export function VmWorkloadProfilePanel() {
   const columns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: VM_PROFILE_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    {
+      id: "sysv",
+      header: "Systemverantwortlicher",
+      meta: { info: VM_PROFILE_COLUMNS.sysv },
+      accessorFn: (row) => sysvByVmName.get(normalizeVmName(row.vmName)) ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
     { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
     { accessorKey: "vcpu", header: "vCPU", meta: { info: VM_PROFILE_COLUMNS.vcpu }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
     {
@@ -120,7 +136,7 @@ export function VmWorkloadProfilePanel() {
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
-  ], []);
+  ], [sysvByVmName]);
 
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Activity className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="VM-Profile benötigen einen vollständig gespeicherten vROps-Zeitreihenimport (VM/Cluster/Host, stündlich). Importieren Sie einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;
@@ -129,7 +145,7 @@ export function VmWorkloadProfilePanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster und Host" matched={profiles.length} total={allProfiles.length} />
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host und Systemverantwortliche:r" matched={profiles.length} total={allProfiles.length} />
         <KpiGrid>
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />
@@ -167,7 +183,7 @@ export function VmWorkloadProfilePanel() {
         <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({visibleProfileCount})</h3></InfoTooltip>
           {/* Ohne `globalFilter`: die Suche ist bereits auf `profiles` angewandt, damit Kennzahlen, Diagramme und Tabelle denselben Ausschnitt zeigen. */}
-          <VirtualTable data={profiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Host."} onFilteredCountChange={setVisibleProfileCount} />
+          <VirtualTable data={profiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster, Host und Systemverantwortliche:r."} onFilteredCountChange={setVisibleProfileCount} />
         </div>
       </>}
       {vmDetailDialog}

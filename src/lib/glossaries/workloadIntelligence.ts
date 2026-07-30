@@ -80,6 +80,7 @@ export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
 export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   vmName: { term: "VM", description: "Anzeigename der VM in vCenter.", source: `${RV} · vInfo · „VM“` },
   cluster: { term: "Cluster", description: "HA/DRS-Cluster der VM.", source: `${RV} · vInfo · „Cluster“` },
+  sysv: { term: "Systemverantwortlicher", description: "Primär zuständige Person aus der ergänzenden Tech-Info/CMDB. Die Zuordnung erfolgt über den VM-Namen.", source: "Tech-Info" },
   host: { term: "Host", description: "ESXi-Host, auf dem die VM zum Exportzeitpunkt lief.", source: `${RV} · vInfo · „Host“` },
   vcpu: { term: "vCPU", description: "Anzahl der konfigurierten virtuellen CPUs.", source: `${RV} · vInfo · „CPUs“` },
   shape: { term: "Lastmuster", description: "Zeitlicher Lastverlauf der letzten sieben Tage, unabhängig von der Höhe der Auslastung. Aus Variationskoeffizient, Kalenderkonzentrationen und Tageswiederholbarkeit abgeleitet.", source: "berechnet" },

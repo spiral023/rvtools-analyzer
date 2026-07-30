@@ -15,6 +15,7 @@ import type {
 } from "@/domain/models/types";
 import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
 import { average, percentile, standardDeviation } from "@/lib/statistics";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields } from "@/lib/vmSearch";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -146,7 +147,8 @@ export interface BuildVmWorkloadProfilesInput {
 }
 
 /**
- * Wendet die Textsuche der Filterleiste auf die Profile an – VM-Name, Cluster und Host.
+ * Wendet die Textsuche der Filterleiste auf die Profile an – VM-Name, Cluster, Host und
+ * Systemverantwortliche:r.
  * Der Filter greift an der Wurzel des Tabs, damit KPI-Kacheln, Verteilungsdiagramme und
  * Tabelle denselben Ausschnitt zeigen. Erwartet einen bereits normalisierten Suchbegriff
  * (`normalizeVmSearchTerm`); ein leerer Begriff liefert den vollständigen Bestand.
@@ -154,9 +156,15 @@ export interface BuildVmWorkloadProfilesInput {
 export function filterVmWorkloadProfilesBySearch(
   profiles: readonly VmWorkloadProfile[],
   normalizedQuery: string,
+  sysvByVmName: ReadonlyMap<string, string | null | undefined> = new Map(),
 ): VmWorkloadProfile[] {
   if (normalizedQuery === "") return [...profiles];
-  return profiles.filter((profile) => matchesSearchFields(normalizedQuery, [profile.vmName, profile.clusterName, profile.host]));
+  return profiles.filter((profile) => matchesSearchFields(normalizedQuery, [
+    profile.vmName,
+    profile.clusterName,
+    profile.host,
+    sysvByVmName.get(normalizeVmName(profile.vmName)),
+  ]));
 }
 
 /**

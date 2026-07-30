@@ -353,13 +353,15 @@ describe("filterVmWorkloadProfilesBySearch", () => {
     { vmName: "DB01", clusterName: "Cluster B", host: "esx02.example.local" },
     { vmName: "WEB01", clusterName: null, host: null },
   ] as unknown as VmWorkloadProfile[];
-  const names = (query: string) => filterVmWorkloadProfilesBySearch(profiles, query).map((profile) => profile.vmName);
+  const sysvByVmName = new Map([["app01", "Mira Musterfrau"]]);
+  const names = (query: string) => filterVmWorkloadProfilesBySearch(profiles, query, sysvByVmName).map((profile) => profile.vmName);
 
-  it("filtert nach VM-Name, Cluster und Host", () => {
+  it("filtert nach VM-Name, Cluster, Host und Systemverantwortlichen", () => {
     expect(names("app")).toEqual(["APP01"]);
     expect(names("cluster b")).toEqual(["DB01"]);
     expect(names("esx02")).toEqual(["DB01"]);
     expect(names("esx")).toEqual(["APP01", "DB01"]);
+    expect(names("musterfrau")).toEqual(["APP01"]);
   });
 
   it("verträgt fehlende Cluster- und Hostangaben und liefert ohne Begriff alles", () => {
