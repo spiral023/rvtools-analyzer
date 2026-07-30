@@ -6,11 +6,27 @@ import type {
   VCenterGroup,
   VmScopeSettings,
 } from "@/domain/models/types";
-import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
+import {
+  assertWeeklySlots,
+  normalizeMaintenanceAbbreviation,
+  weeklyRangesToSlots,
+  weeklySlotsToRanges,
+  type MaintenanceWeeklySlotRanges,
+} from "@/lib/maintenanceWindows";
 import { DEFAULT_VM_SCOPE_SETTINGS } from "@/lib/vmScopeSettings";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
-export const USER_DATA_BACKUP_VERSION = 4;
+/**
+ * Formatversionen:
+ * 1 – Grundbestand, 2 – Wartungsfenster, 3 – vCenter-Gruppen, 4 – VM-Scope-Vorgaben,
+ * 5 – Wochenpläne als Zeitbereiche statt als 48er-Boolean-Matrix.
+ *
+ * Geschrieben wird stets die neueste Version; gelesen werden alle. Die Feldweichen unten
+ * vergleichen deshalb numerisch (`version >= n`) und nicht gegen diese Konstante – sonst
+ * verliert jede Versionserhöhung stillschweigend die Felder der Vorgängerversion.
+ */
+export const USER_DATA_BACKUP_VERSION = 5;
+const OLDEST_SUPPORTED_VERSION = 1;
 
 export interface UserDataBackup {
   kind: typeof USER_DATA_BACKUP_KIND;
@@ -46,8 +62,21 @@ export function buildUserDataBackup(input: {
   };
 }
 
+/**
+ * Serialisierte Form eines Wartungsfensters. Abweichend von der Arbeitsform steht der
+ * Wochenplan als Zeitbereiche je Wochentag in der Datei: die Boolean-Matrix erzeugt bei
+ * eingerücktem JSON 336 Zeilen pro Fenster, die Zeitbereiche wenige.
+ */
+type SerializedMaintenanceWindow =
+  Omit<MaintenanceWindowDefinition, "weeklySlots">
+  & { weeklySlots: MaintenanceWeeklySlotRanges };
+
 export function serializeUserDataBackup(backup: UserDataBackup): string {
-  return JSON.stringify(backup, null, 2);
+  const maintenanceWindows: SerializedMaintenanceWindow[] = backup.maintenanceWindows.map((window) => ({
+    ...window,
+    weeklySlots: weeklySlotsToRanges(window.weeklySlots),
+  }));
+  return JSON.stringify({ ...backup, maintenanceWindows }, null, 2);
 }
 
 export function buildBackupFileName(now: Date): string {
@@ -161,6 +190,25 @@ const VALID_MAINTENANCE_WINDOW_HANDLINGS = new Set<MaintenanceWindowDefinition["
   "external",
 ]);
 
+/**
+ * Liest den Wochenplan in beiden Dateiformen: ab Version 5 stehen Zeitbereiche je
+ * Wochentag in der Datei, davor die 48er-Boolean-Matrix. Die Form wird am Wert erkannt und
+ * nicht an der Versionsnummer, damit auch von Hand zusammengestellte oder gemischte
+ * Backups gelesen werden. Ergebnis ist immer die Arbeitsform Matrix; `null` bei defekten
+ * Plänen, damit der Aufrufer das Fenster überspringen kann.
+ */
+function readWeeklySlots(value: unknown): MaintenanceWindowDefinition["weeklySlots"] | null {
+  try {
+    if (Array.isArray(value)) {
+      assertWeeklySlots(value);
+      return value.map((day) => [...day]) as MaintenanceWindowDefinition["weeklySlots"];
+    }
+    return weeklyRangesToSlots(value);
+  } catch {
+    return null;
+  }
+}
+
 function normalizeMaintenanceWindow(value: unknown): MaintenanceWindowDefinition | null {
   if (!isRecord(value)) return null;
   const id = toTrimmedString(value.id);
@@ -169,11 +217,8 @@ function normalizeMaintenanceWindow(value: unknown): MaintenanceWindowDefinition
     value.handling as MaintenanceWindowDefinition["handling"],
   )) return null;
 
-  try {
-    assertWeeklySlots(value.weeklySlots);
-  } catch {
-    return null;
-  }
+  const weeklySlots = readWeeklySlots(value.weeklySlots);
+  if (weeklySlots === null) return null;
 
   if (!Array.isArray(value.calendarRules)) return null;
   const calendarRules: MaintenanceWindowDefinition["calendarRules"] = [];
@@ -201,7 +246,7 @@ function normalizeMaintenanceWindow(value: unknown): MaintenanceWindowDefinition
     normalizedAbbreviation: normalizeMaintenanceAbbreviation(abbreviation),
     description: typeof value.description === "string" ? value.description : "",
     handling: value.handling as MaintenanceWindowDefinition["handling"],
-    weeklySlots: value.weeklySlots.map((day) => [...day]) as MaintenanceWindowDefinition["weeklySlots"],
+    weeklySlots,
     calendarRules,
     createdAt: normalizeTimestamp(value.createdAt, fallbackTimestamp),
     updatedAt: normalizeTimestamp(value.updatedAt, fallbackTimestamp),
@@ -223,9 +268,12 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   if (!isRecord(parsed) || parsed.kind !== USER_DATA_BACKUP_KIND) {
     throw new Error("Die Datei ist kein RVTools-Analyzer-Backup.");
   }
-  if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3 && parsed.version !== USER_DATA_BACKUP_VERSION) {
+  if (!Number.isInteger(parsed.version)
+    || (parsed.version as number) < OLDEST_SUPPORTED_VERSION
+    || (parsed.version as number) > USER_DATA_BACKUP_VERSION) {
     throw new Error(`Backup-Version ${String(parsed.version)} wird nicht unterstützt.`);
   }
+  const version = parsed.version as number;
 
   const assignments = Array.isArray(parsed.maintenanceClusterAssignments)
     ? parsed.maintenanceClusterAssignments
@@ -237,17 +285,17 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
         .map(normalizeScenario)
         .filter((entry): entry is Scenario => entry !== null)
     : [];
-  const maintenanceWindows = (parsed.version === 2 || parsed.version === 3 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.maintenanceWindows)
+  const maintenanceWindows = version >= 2 && Array.isArray(parsed.maintenanceWindows)
     ? parsed.maintenanceWindows
         .map(normalizeMaintenanceWindow)
         .filter((entry): entry is MaintenanceWindowDefinition => entry !== null)
     : [];
-  const vcenterGroups = (parsed.version === 3 || parsed.version === USER_DATA_BACKUP_VERSION) && Array.isArray(parsed.vcenterGroups)
+  const vcenterGroups = version >= 3 && Array.isArray(parsed.vcenterGroups)
     ? parsed.vcenterGroups
         .map(normalizeVcenterGroup)
         .filter((entry): entry is VCenterGroup => entry !== null)
     : [];
-  const vmScopeSettings = parsed.version === USER_DATA_BACKUP_VERSION
+  const vmScopeSettings = version >= 4
     ? normalizeVmScopeSettings(parsed.vmScopeSettings) ?? undefined
     : undefined;
 

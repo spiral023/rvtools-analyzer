@@ -174,21 +174,108 @@ function formatSlot(slot: number): string {
   return `${String(hours).padStart(2, "0")}:${String(remainingMinutes).padStart(2, "0")}`;
 }
 
+/**
+ * Zerlegt einen Tag in seine zusammenhängenden Freigabeblöcke als Halbintervalle
+ * `[from, to)` in Slot-Einheiten. Gemeinsame Grundlage für die Klartextzusammenfassung
+ * und die Zeitbereichs-Serialisierung – damit beide dieselbe Blockbildung benutzen.
+ */
+function daySlotBlocks(slots: readonly boolean[]): { from: number; to: number }[] {
+  const blocks: { from: number; to: number }[] = [];
+  let from: number | null = null;
+  for (let slot = 0; slot <= SLOT_COUNT; slot += 1) {
+    const allowed = slot < SLOT_COUNT && slots[slot];
+    if (allowed && from === null) from = slot;
+    if (!allowed && from !== null) {
+      blocks.push({ from, to: slot });
+      from = null;
+    }
+  }
+  return blocks;
+}
+
 function summarizeDay(slots: readonly boolean[]): string {
   if (slots.every(Boolean)) return "ganztägig";
   if (slots.every((allowed) => !allowed)) return "gesperrt";
 
-  const ranges: string[] = [];
-  let start: number | null = null;
-  for (let slot = 0; slot <= SLOT_COUNT; slot += 1) {
-    const allowed = slot < SLOT_COUNT && slots[slot];
-    if (allowed && start === null) start = slot;
-    if (!allowed && start !== null) {
-      ranges.push(`${formatSlot(start)}–${formatSlot(slot)}`);
-      start = null;
+  return daySlotBlocks(slots)
+    .map((block) => `${formatSlot(block.from)}–${formatSlot(block.to)}`)
+    .join(", ");
+}
+
+/** Wochentagsschlüssel der Zeitbereichsform, Montag zuerst – wie {@link MaintenanceWeekday}. */
+export const SLOT_RANGE_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
+export type MaintenanceSlotRangeDayKey = typeof SLOT_RANGE_DAY_KEYS[number];
+
+/**
+ * Kompakte, verlustfreie Form eines Wochenplans: je Wochentag die freigegebenen
+ * Zeitbereiche als `"HH:MM-HH:MM"` (Halbintervalle, Ende exklusiv, `"24:00"` als
+ * Tagesende). Tage ohne Freigabe fehlen ganz, ein durchgehend gesperrter Plan ist also
+ * das leere Objekt.
+ *
+ * Gedacht für die Serialisierung in Benutzerdaten-Backups: die 48er-Boolean-Matrix
+ * erzeugt dort pro Fenster 336 Zeilen, die Zeitbereiche wenige – und sie sind für
+ * Menschen prüfbar. Intern bleibt die Matrix die Arbeitsform, weil das Wochenraster
+ * slotweise gelesen und geschrieben wird.
+ */
+export type MaintenanceWeeklySlotRanges = Partial<Record<MaintenanceSlotRangeDayKey, string[]>>;
+
+export function weeklySlotsToRanges(weeklySlots: WeeklySlots): MaintenanceWeeklySlotRanges {
+  assertWeeklySlots(weeklySlots);
+
+  const ranges: MaintenanceWeeklySlotRanges = {};
+  weeklySlots.forEach((daySlots, weekday) => {
+    const blocks = daySlotBlocks(daySlots);
+    if (blocks.length === 0) return;
+    ranges[SLOT_RANGE_DAY_KEYS[weekday]] = blocks.map(
+      (block) => `${formatSlot(block.from)}-${formatSlot(block.to)}`,
+    );
+  });
+  return ranges;
+}
+
+/**
+ * Rückweg von der Zeitbereichsform in die Boolean-Matrix. Wirft bei unbekannten
+ * Wochentagen, unlesbaren Bereichen und Bereichen, die den Tag verlassen – ein Backup mit
+ * defekten Wochenplänen soll nicht stillschweigend zu leeren Fenstern führen.
+ * Mehrfach oder überlappend angegebene Bereiche desselben Tages werden vereinigt.
+ */
+export function weeklyRangesToSlots(value: unknown): WeeklySlots {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Ungültiger Wochenplan: Erwartet wird ein Objekt mit Wochentagen.");
+  }
+
+  const weeklySlots = createEmptyWeeklySlots();
+  for (const [dayKey, dayRanges] of Object.entries(value)) {
+    const weekday = SLOT_RANGE_DAY_KEYS.indexOf(dayKey as MaintenanceSlotRangeDayKey);
+    if (weekday < 0) {
+      throw new Error(`Ungültiger Wochenplan: Unbekannter Wochentag „${dayKey}“.`);
+    }
+    if (!Array.isArray(dayRanges)) {
+      throw new Error(`Ungültiger Wochenplan: „${dayKey}“ muss eine Liste von Zeitbereichen enthalten.`);
+    }
+
+    for (const range of dayRanges) {
+      if (typeof range !== "string") {
+        throw new Error("Ungültiger Wochenplan: Zeitbereiche müssen Zeichenketten sein.");
+      }
+      const match = /^(\d{2}:\d{2})-(\d{2}:\d{2})$/.exec(range.trim());
+      if (!match) {
+        throw new Error(`Ungültiger Zeitbereich „${range}“. Erwartet wird HH:MM-HH:MM.`);
+      }
+
+      const startSlot = timeToSlot(match[1]);
+      const endSlot = timeToSlot(match[2], true);
+      if (endSlot <= startSlot) {
+        throw new Error(`Ungültiger Zeitbereich „${range}“: Das Ende muss nach dem Beginn liegen.`);
+      }
+      for (let slot = startSlot; slot < endSlot; slot += 1) {
+        weeklySlots[weekday][slot] = true;
+      }
     }
   }
-  return ranges.join(", ");
+
+  return weeklySlots;
 }
 
 export function summarizeWeeklySlots(weeklySlots: WeeklySlots): string {

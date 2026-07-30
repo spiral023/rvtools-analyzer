@@ -115,6 +115,94 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
   });
 });
 
+describe("Wochenpläne in der Backup-Datei", () => {
+  const saturdayNight = (): MaintenanceWindowDefinition["weeklySlots"] => {
+    const slots = Array.from({ length: 7 }, () => Array<boolean>(48).fill(false)) as MaintenanceWindowDefinition["weeklySlots"];
+    // Samstag 22:00–24:00 und Sonntag 00:00–06:00.
+    for (let slot = 44; slot < 48; slot += 1) slots[5][slot] = true;
+    for (let slot = 0; slot < 12; slot += 1) slots[6][slot] = true;
+    return slots;
+  };
+
+  const backupWith = (weeklySlots: MaintenanceWindowDefinition["weeklySlots"]) => buildUserDataBackup({
+    maintenanceSettings: null,
+    maintenanceClusterAssignments: [],
+    maintenanceWindows: [makeMaintenanceWindow("MW 1", { weeklySlots })],
+    scenarios: [],
+  });
+
+  it("schreibt Zeitbereiche statt der 48er-Matrix", () => {
+    const serialized = serializeUserDataBackup(backupWith(saturdayNight()));
+
+    expect(JSON.parse(serialized).maintenanceWindows[0].weeklySlots).toEqual({
+      sat: ["22:00-24:00"],
+      sun: ["00:00-06:00"],
+    });
+    // Der Kern des Formatwechsels: keine Zeile pro Halbstunde mehr.
+    expect(serialized.split("\n").filter((line) => /^\s*(true|false),?$/.test(line))).toHaveLength(0);
+  });
+
+  it("führt den Wochenplan verlustfrei über einen Export/Import-Zyklus", () => {
+    const weeklySlots = saturdayNight();
+
+    const parsed = parseUserDataBackup(serializeUserDataBackup(backupWith(weeklySlots)));
+
+    expect(parsed.maintenanceWindows[0].weeklySlots).toEqual(weeklySlots);
+  });
+
+  it("liest weiterhin die 48er-Matrix älterer Backups", () => {
+    const weeklySlots = saturdayNight();
+
+    const parsed = parseUserDataBackup(JSON.stringify({
+      kind: USER_DATA_BACKUP_KIND,
+      version: 4,
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [makeMaintenanceWindow("MW 1", { weeklySlots })],
+      scenarios: [],
+    }));
+
+    expect(parsed.maintenanceWindows[0].weeklySlots).toEqual(weeklySlots);
+  });
+
+  it("überspringt Fenster mit defekten Zeitbereichen", () => {
+    const parsed = parseUserDataBackup(JSON.stringify({
+      kind: USER_DATA_BACKUP_KIND,
+      version: USER_DATA_BACKUP_VERSION,
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [
+        { ...makeMaintenanceWindow("Defekt"), weeklySlots: { mon: ["04:00-02:00"] } },
+        { ...makeMaintenanceWindow("Unbekannter Tag"), weeklySlots: { montag: ["02:00-04:00"] } },
+        { ...makeMaintenanceWindow("Gültig"), weeklySlots: { mon: ["02:00-04:00"] } },
+      ],
+      scenarios: [],
+    }));
+
+    expect(parsed.maintenanceWindows.map((entry) => entry.abbreviation)).toEqual(["Gültig"]);
+    expect(parsed.maintenanceWindows[0].weeklySlots[0].slice(4, 8)).toEqual(Array(4).fill(true));
+  });
+
+  it("erhält die Felder älterer Versionen trotz Versionssprung", () => {
+    // Regression: die Feldweichen verglichen früher gegen die neueste Version, wodurch eine
+    // Erhöhung die Felder der Vorgängerversion stillschweigend verworfen hätte.
+    const parsed = parseUserDataBackup(JSON.stringify({
+      kind: USER_DATA_BACKUP_KIND,
+      version: 4,
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [makeMaintenanceWindow()],
+      scenarios: [],
+      vcenterGroups: [vcenterGroup],
+      vmScopeSettings: { vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: true },
+    }));
+
+    expect(parsed.maintenanceWindows).toHaveLength(1);
+    expect(parsed.vcenterGroups).toEqual([vcenterGroup]);
+    expect(parsed.vmScopeSettings).toEqual({ vmPowerScope: "all", excludeVclsVms: false, excludeDummyVms: true });
+  });
+});
+
 describe("parseUserDataBackup Validierung", () => {
   it("lehnt ungültiges JSON ab", () => {
     expect(() => parseUserDataBackup("kein json {")).toThrow("kein gültiges JSON");

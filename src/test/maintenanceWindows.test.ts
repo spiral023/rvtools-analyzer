@@ -15,6 +15,8 @@ import {
   slotsToExternalMask,
   summarizeWeeklySlots,
   timeToSlot,
+  weeklyRangesToSlots,
+  weeklySlotsToRanges,
 } from "@/lib/maintenanceWindows";
 
 const makeDefinition = (
@@ -70,6 +72,61 @@ describe("maintenance window masks", () => {
     expect(() => externalMaskToSlots("0".repeat(47))).toThrow(/48 Zeichen/);
     expect(() => externalMaskToSlots(`${"0".repeat(47)}x`)).toThrow(/0 und 1/);
     expect(() => slotsToExternalMask(Array(47).fill(true))).toThrow(/48 Einträge/);
+  });
+});
+
+describe("weeklySlotsToRanges / weeklyRangesToSlots", () => {
+  it("verdichtet Freigabeblöcke zu Zeitbereichen und lässt gesperrte Tage weg", () => {
+    const slots = applyTimeRange(createEmptyWeeklySlots(), [5], "22:00", "24:00", true);
+
+    expect(weeklySlotsToRanges(slots)).toEqual({ sat: ["22:00-24:00"] });
+  });
+
+  it("führt jeden Wochenplan verlustfrei über beide Richtungen", () => {
+    let slots = applyTimeRange(createEmptyWeeklySlots(), [0, 2], "01:00", "03:30", true);
+    slots = applyTimeRange(slots, [4], "22:00", "02:00", true);
+    slots = applyTimeRange(slots, [6], "08:00", "08:00", true);
+
+    const ranges = weeklySlotsToRanges(slots);
+    expect(ranges).toEqual({
+      mon: ["01:00-03:30"],
+      wed: ["01:00-03:30"],
+      fri: ["22:00-24:00"],
+      sat: ["00:00-02:00"],
+      sun: ["00:00-24:00"],
+    });
+    expect(weeklyRangesToSlots(ranges)).toEqual(slots);
+  });
+
+  it("hält mehrere Blöcke desselben Tages getrennt", () => {
+    let slots = applyTimeRange(createEmptyWeeklySlots(), [1], "02:00", "04:00", true);
+    slots = applyTimeRange(slots, [1], "20:00", "21:30", true);
+
+    const ranges = weeklySlotsToRanges(slots);
+    expect(ranges).toEqual({ tue: ["02:00-04:00", "20:00-21:30"] });
+    expect(weeklyRangesToSlots(ranges)).toEqual(slots);
+  });
+
+  it("bildet den durchgehend gesperrten Plan auf das leere Objekt ab und zurück", () => {
+    expect(weeklySlotsToRanges(createEmptyWeeklySlots())).toEqual({});
+    expect(weeklyRangesToSlots({})).toEqual(createEmptyWeeklySlots());
+  });
+
+  it("vereinigt überlappende und unsortierte Bereiche desselben Tages", () => {
+    const slots = weeklyRangesToSlots({ mon: ["03:00-04:00", "02:00-03:30"] });
+
+    expect(weeklySlotsToRanges(slots)).toEqual({ mon: ["02:00-04:00"] });
+  });
+
+  it("weist defekte Zeitbereichsformen zurück, statt sie stillschweigend zu leeren Plänen zu machen", () => {
+    expect(() => weeklyRangesToSlots([])).toThrow(/Objekt mit Wochentagen/);
+    expect(() => weeklyRangesToSlots({ mon: "02:00-04:00" })).toThrow(/Liste von Zeitbereichen/);
+    expect(() => weeklyRangesToSlots({ montag: ["02:00-04:00"] })).toThrow(/Unbekannter Wochentag/);
+    expect(() => weeklyRangesToSlots({ mon: ["02:00 - 04:00"] })).toThrow(/HH:MM-HH:MM/);
+    expect(() => weeklyRangesToSlots({ mon: ["04:00-02:00"] })).toThrow(/nach dem Beginn/);
+    expect(() => weeklyRangesToSlots({ mon: ["02:00-02:00"] })).toThrow(/nach dem Beginn/);
+    expect(() => weeklyRangesToSlots({ mon: ["02:15-04:00"] })).toThrow(/halben Stunden/);
+    expect(() => weeklyRangesToSlots({ mon: [48] })).toThrow(/Zeichenketten/);
   });
 });
 

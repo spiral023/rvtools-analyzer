@@ -62,6 +62,15 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
+    // Direkt neben der konfigurierten Größe: das Begriffspaar, um das es in dieser Ansicht
+    // geht, steht damit unmittelbar nebeneinander statt durch sechs Kennzahlen getrennt.
+    {
+      id: "reclaimable-vcpu",
+      header: "Rückgewinnbar",
+      meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
+      accessorFn: (row) => row.reclaimableVcpu ?? -1,
+      cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
+    },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
       id: "demand-pct",
@@ -79,13 +88,6 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
     },
     { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
     { id: "recommended-vcpu", header: "Empfohlen", meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu }, accessorFn: (row) => row.recommendedVcpu ?? -1, cell: ({ row }) => formatVcpu(row.original.recommendedVcpu) },
-    {
-      id: "reclaimable-vcpu",
-      header: "Rückgewinnbar",
-      meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
-      accessorFn: (row) => row.reclaimableVcpu ?? -1,
-      cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
-    },
     {
       id: "confidence",
       header: "Vertrauen",
