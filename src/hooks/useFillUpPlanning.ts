@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   getBySnapshotIds,
   getSnapshots,
@@ -13,13 +13,21 @@ import type {
   ClusterCapacityPolicyAssignment,
   FillUpWorkloadMix,
   FillUpWorkloadProfile,
+  GlobalWorkloadClassProfile,
   NormalizedCluster,
   NormalizedHost,
   NormalizedVm,
+  VropsTimeSeriesImport,
 } from "@/domain/models/types";
-import { buildGlobalWorkloadClassAverages } from "@/domain/services/fillUpPlanningService";
+import {
+  buildGlobalWorkloadClassAverages,
+  DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  seedFillUpWorkloadProfilesWithGlobalAverages,
+} from "@/domain/services/fillUpPlanningService";
 import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
 import { useCapacityPolicies } from "@/hooks/useCapacityPolicies";
+
+export const VROPS_TIMESERIES_IMPORTS_QUERY_KEY = ["vropsTimeSeriesImports"] as const;
 
 /**
  * Einzige Quelle für den Query-Key der Fill-Up-Berechnung. Ein vorab berechnetes Ergebnis (siehe
@@ -38,6 +46,30 @@ export function buildFillUpPlanningQueryKey(
   return ["fillUpPlanningCalculation", importId, policies, assignments, profiles, workloadMix, includeN2, cpuDemandConcurrencyPct] as const;
 }
 
+/**
+ * Die gemessenen HIGH/STD-Durchschnitte liegen zusätzlich unter eigenem Key, damit
+ * `FillUpPlanningPanel` seine Profile schon im ersten Render damit vorbelegen kann. Ohne das würde
+ * das Panel zuerst mit den Standardwerten rechnen lassen und die vorberechnete Auswertung verfehlen.
+ */
+export function buildFillUpGlobalWorkloadProfilesQueryKey(importId: string | undefined) {
+  return ["fillUpGlobalWorkloadClassProfiles", importId] as const;
+}
+
+/**
+ * Liefert die Profile, mit denen das Panel starten muss, damit es die vorberechnete Auswertung des
+ * neuesten vROps-Imports trifft. `null`, solange kein Vorladen gelaufen ist oder die Durchschnitte
+ * nicht verwertbar sind – dann gelten die Standardprofile.
+ */
+export function readPreloadedFillUpWorkloadProfiles(queryClient: QueryClient): FillUpWorkloadProfile[] | null {
+  const newestImport = queryClient.getQueryData<VropsTimeSeriesImport[]>(VROPS_TIMESERIES_IMPORTS_QUERY_KEY)?.[0];
+  if (!newestImport) return null;
+  const globalProfiles = queryClient.getQueryData<GlobalWorkloadClassProfile[]>(
+    buildFillUpGlobalWorkloadProfilesQueryKey(newestImport.id),
+  );
+  if (!globalProfiles) return null;
+  return seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, globalProfiles);
+}
+
 export function useFillUpPlanning(
   importId: string | null,
   profiles: readonly FillUpWorkloadProfile[],
@@ -45,7 +77,8 @@ export function useFillUpPlanning(
   includeN2: boolean,
   cpuDemandConcurrencyPct: number,
 ) {
-  const importsQuery = useQuery({ queryKey: ["vropsTimeSeriesImports"], queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
+  const queryClient = useQueryClient();
+  const importsQuery = useQuery({ queryKey: VROPS_TIMESERIES_IMPORTS_QUERY_KEY, queryFn: getVropsTimeSeriesImports, staleTime: 30_000 });
   const selectedImport = useMemo(() => {
     const imports = importsQuery.data ?? [];
     if (importId !== null) return imports.find((entry) => entry.id === importId) ?? null;
@@ -74,6 +107,9 @@ export function useFillUpPlanning(
       // Muss vor dem Worker-Aufruf laufen: Dieser transferiert die Chunk-ArrayBuffer statt sie zu
       // kopieren, wodurch sie im Hauptthread anschließend detached und unlesbar sind.
       const globalWorkloadClassProfiles = buildGlobalWorkloadClassAverages({ objects, vms, chunks });
+      // Auch ohne Vorladen liegen die Durchschnitte damit ab dem ersten Besuch unter ihrem eigenen Key:
+      // Ein erneutes Öffnen der Seite startet dann direkt mit den vorbelegten Profilen.
+      queryClient.setQueryData(buildFillUpGlobalWorkloadProfilesQueryKey(importMeta.id), globalWorkloadClassProfiles);
       const results = await buildFillUpPlanningResultsInWorker({
         import: importMeta,
         objects,

@@ -1,15 +1,20 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { IMPORT_DATA_STORE_NAMES } from "@/data/db";
-import type { VropsTimeSeriesImport } from "@/domain/models/types";
+import type { VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject } from "@/domain/models/types";
 import { mergeInitialAndStoredCapacityPolicies } from "@/domain/services/capacityPolicyService";
 import {
   buildGlobalWorkloadClassAverages,
   DEFAULT_FILL_UP_WORKLOAD_MIX,
   DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  type FillUpPlanningClusterResult,
 } from "@/domain/services/fillUpPlanningService";
-import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
-import { buildFillUpPlanningQueryKey } from "@/hooks/useFillUpPlanning";
+import { DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
+import {
+  buildFillUpGlobalWorkloadProfilesQueryKey,
+  buildFillUpPlanningQueryKey,
+  readPreloadedFillUpWorkloadProfiles,
+} from "@/hooks/useFillUpPlanning";
 import {
   preloadImportedData,
   type PreloadDependencies,
@@ -31,6 +36,35 @@ const VROPS_IMPORT_FIXTURE: VropsTimeSeriesImport = {
   validationStatus: "relationships-valid",
   qualitySummary: { objectCountByType: { vm: 0, host: 0, cluster: 0 }, expectedSlots: 0, errorCount: 0, warningCount: 0, missingValueCount: 0 },
 };
+
+/** Reicht aus, damit `buildGlobalWorkloadClassAverages` verwertbare HIGH-Durchschnitte liefert. */
+const MATCHED_VM_OBJECT_FIXTURE = [
+  {
+    importId: "import-1",
+    objectKey: "obj-1",
+    objectType: "vm",
+    matchStatus: "matched",
+    rvtoolsObjectKey: "vm-1",
+    workloadClass: "high",
+  },
+] as unknown as VropsTimeSeriesImportedObject[];
+
+const POWERED_ON_VM_FIXTURE = [
+  { snapshotId: "s1", vmKey: "vm-1", vmName: "VM-01", powerState: "poweredOn", cpuCount: 4, memoryMiB: 16_384, folder: "Prod", resourcePool: "Prod" },
+] as unknown as unknown[];
+
+function cpuDemandChunkFixture(): VropsTimeSeriesChunk[] {
+  return [{
+    importId: "import-1",
+    objectType: "vm",
+    chunkKey: "chunk-1",
+    clusterKey: null,
+    startUtc: 0,
+    slotCount: 2,
+    objectKeys: ["obj-1"],
+    metricValues: { vmCpuDemandAvgMHz: Float32Array.of(400, 600).buffer },
+  }];
+}
 
 function dependencies(overrides: Partial<PreloadDependencies> = {}): PreloadDependencies {
   const empty = vi.fn(async () => []);
@@ -168,9 +202,46 @@ describe("preloadImportedData", () => {
       DEFAULT_FILL_UP_WORKLOAD_PROFILES,
       DEFAULT_FILL_UP_WORKLOAD_MIX,
       false,
-      DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+      DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT,
     );
     expect(queryClient.getQueryData(key)).toEqual({ results: fakeResults, globalWorkloadClassProfiles: expectedGlobalProfiles });
+    expect(queryClient.getQueryData(buildFillUpGlobalWorkloadProfilesQueryKey(VROPS_IMPORT_FIXTURE.id))).toEqual(expectedGlobalProfiles);
+  });
+
+  it("hinterlegt die Auswertung unter genau dem Key, mit dem das Panel nach dem Vorladen startet", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const fakeResults = [{ cluster: { clusterKey: "c1" } }] as unknown as FillUpPlanningClusterResult[];
+    const buildWorker = vi.fn<PreloadDependencies["buildFillUpPlanningResultsInWorker"]>(async () => fakeResults);
+    const deps = dependencies({
+      getVropsTimeSeriesImports: vi.fn(async () => [VROPS_IMPORT_FIXTURE]),
+      getVropsTimeSeriesObjects: vi.fn(async () => MATCHED_VM_OBJECT_FIXTURE) as PreloadDependencies["getVropsTimeSeriesObjects"],
+      getVropsTimeSeriesChunks: vi.fn(async () => cpuDemandChunkFixture()) as PreloadDependencies["getVropsTimeSeriesChunks"],
+      getBySnapshotIds: vi.fn(async (storeName: string) => storeName === "entities_vm" ? POWERED_ON_VM_FIXTURE : []) as PreloadDependencies["getBySnapshotIds"],
+      buildFillUpPlanningResultsInWorker: buildWorker as PreloadDependencies["buildFillUpPlanningResultsInWorker"],
+    });
+
+    await preloadImportedData(queryClient, { dependencies: deps });
+
+    // Das Panel belegt seine Profile im ersten Render aus dem Cache vor; genau diese Profile müssen
+    // im vorberechneten Key stecken, sonst rechnet die Oberfläche trotz Vorladen erneut.
+    const panelStartProfiles = readPreloadedFillUpWorkloadProfiles(queryClient);
+    expect(panelStartProfiles).not.toBeNull();
+    expect(panelStartProfiles?.find((profile) => profile.id === "high-standard")).toMatchObject({ vcpu: 4, memoryMiB: 16_384 });
+    expect(buildWorker.mock.calls[0][0]).toMatchObject({
+      profiles: panelStartProfiles,
+      cpuDemandConcurrencyPct: DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT,
+    });
+
+    const key = buildFillUpPlanningQueryKey(
+      VROPS_IMPORT_FIXTURE.id,
+      mergeInitialAndStoredCapacityPolicies([]),
+      [],
+      panelStartProfiles!,
+      DEFAULT_FILL_UP_WORKLOAD_MIX,
+      false,
+      DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT,
+    );
+    expect(queryClient.getQueryData(key)).toMatchObject({ results: fakeResults });
   });
 
   it("nennt eine fehlgeschlagene Fill-Up-Standardauswertung in der Fehlermeldung", async () => {

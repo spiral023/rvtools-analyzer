@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { CapacityPolicy, FillUpWorkloadProfile, NormalizedCluster, NormalizedHost, NormalizedVm, SnapshotMeta, VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesSummary } from "@/domain/models/types";
+import type { CapacityPolicy, FillUpWorkloadProfile, GlobalWorkloadClassProfile, NormalizedCluster, NormalizedHost, NormalizedVm, SnapshotMeta, VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesSummary } from "@/domain/models/types";
 import { createInitialCapacityPolicies } from "./capacityPolicyService";
-import { buildFillUpPlanningResults, buildGlobalWorkloadClassAverages } from "./fillUpPlanningService";
+import { buildFillUpPlanningResults, buildGlobalWorkloadClassAverages, DEFAULT_FILL_UP_WORKLOAD_PROFILES, seedFillUpWorkloadProfilesWithGlobalAverages } from "./fillUpPlanningService";
 
 const profile: FillUpWorkloadProfile = { id: "std", name: "STD", workloadClass: "std", vcpu: 2, memoryMiB: 100, cpuDemandP95MHz: 50 };
 const policy: CapacityPolicy = { ...createInitialCapacityPolicies("2026-07-28T00:00:00.000Z")[1], cpuSafetyBufferPct: 0, ramSafetyBufferPct: 0, ramSystemReserveMiBPerHost: 0, requireHighSiteFailover: false };
@@ -96,5 +96,42 @@ describe("buildGlobalWorkloadClassAverages", () => {
 
     expect(high).toMatchObject({ workloadClass: "high", vmCount: 1, averageVcpu: 4, averageConfiguredMemoryMiB: 200, averageCpuDemandMHz: 300, cpuReadyP95Pct: 2 });
     expect(std).toMatchObject({ workloadClass: "std", vmCount: 1, averageVcpu: 2, averageConfiguredMemoryMiB: 100, averageCpuDemandMHz: 100, cpuReadyP95Pct: 1 });
+  });
+});
+
+describe("seedFillUpWorkloadProfilesWithGlobalAverages", () => {
+  function globalProfile(overrides: Partial<GlobalWorkloadClassProfile> & { workloadClass: "high" | "std" }): GlobalWorkloadClassProfile {
+    return {
+      vmCount: 1, vmWithCpuDemandCount: 1, averageVcpu: null, averageConfiguredMemoryMiB: null,
+      averageCpuDemandMHz: null, cpuDemandP95MHz: null, cpuReadyP95Pct: null, sampleCount: 1, ...overrides,
+    };
+  }
+
+  it("übernimmt die gemessenen Durchschnitte in die Standardprofile", () => {
+    const seeded = seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, [
+      globalProfile({ workloadClass: "high", averageVcpu: 3.456, averageConfiguredMemoryMiB: 12_288, averageCpuDemandMHz: 210.7, cpuDemandP95MHz: 640.25 }),
+      globalProfile({ workloadClass: "std", averageVcpu: 2, averageConfiguredMemoryMiB: 4_096, averageCpuDemandMHz: null, cpuDemandP95MHz: 300 }),
+    ]);
+
+    expect(seeded).toEqual([
+      { id: "high-standard", name: "HIGH · Ø alle VMs", workloadClass: "high", vcpu: 3.46, memoryMiB: 12_288, cpuDemandP95MHz: 640.25, cpuDemandAverageMHz: 210.7 },
+      { id: "std-standard", name: "STD · Ø alle VMs", workloadClass: "std", vcpu: 2, memoryMiB: 4_096, cpuDemandP95MHz: 300, cpuDemandAverageMHz: null },
+    ]);
+  });
+
+  it("lässt eine Klasse ohne verwertbare Werte auf dem Standardprofil stehen", () => {
+    const seeded = seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, [
+      globalProfile({ workloadClass: "high", averageVcpu: 4, averageConfiguredMemoryMiB: 8_192, cpuDemandP95MHz: 500 }),
+      globalProfile({ workloadClass: "std" }),
+    ]);
+
+    expect(seeded?.[1]).toEqual(DEFAULT_FILL_UP_WORKLOAD_PROFILES[1]);
+  });
+
+  it("meldet mit null, dass keine Klasse verwertbare Durchschnitte hat", () => {
+    expect(seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, [])).toBeNull();
+    expect(seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, [
+      globalProfile({ workloadClass: "high", averageVcpu: 4, averageConfiguredMemoryMiB: 8_192 }),
+    ])).toBeNull();
   });
 });

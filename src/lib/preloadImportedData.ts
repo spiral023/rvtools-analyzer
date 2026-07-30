@@ -39,12 +39,17 @@ import {
   buildGlobalWorkloadClassAverages,
   DEFAULT_FILL_UP_WORKLOAD_MIX,
   DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  seedFillUpWorkloadProfilesWithGlobalAverages,
   type BuildFillUpPlanningResultsInput,
   type FillUpPlanningClusterResult,
 } from "@/domain/services/fillUpPlanningService";
 import { buildFillUpPlanningResultsInWorker } from "@/domain/services/fillUpPlanningWorkerService";
-import { DEFAULT_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
-import { buildFillUpPlanningQueryKey } from "@/hooks/useFillUpPlanning";
+import { DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
+import {
+  buildFillUpGlobalWorkloadProfilesQueryKey,
+  buildFillUpPlanningQueryKey,
+  VROPS_TIMESERIES_IMPORTS_QUERY_KEY,
+} from "@/hooks/useFillUpPlanning";
 import { CAPACITY_ASSIGNMENTS_QUERY_KEY, CAPACITY_POLICY_QUERY_KEY } from "@/hooks/useCapacityPolicies";
 import { QUERY_CACHE_DURATION_MS, RAW_QUERY_GC_MS } from "@/lib/queryCache";
 
@@ -403,9 +408,11 @@ export async function preloadImportedData(
 
 /**
  * Berechnet die Fill-Up-Auswertung (Clustervergleich, HIGH/STD-Durchschnitte für die „typische
- * zusätzliche VM") für den neuesten vROps-Import mit denselben Standardwerten, mit denen
- * `FillUpPlanningPanel` startet. Trifft der Nutzer später dieselbe Standardauswahl, liefert
- * `useFillUpPlanning` das hier hinterlegte Ergebnis sofort aus dem Cache statt neu zu rechnen.
+ * zusätzliche VM") für den neuesten vROps-Import mit genau den Werten, mit denen
+ * `FillUpPlanningPanel` startet: dem UI-Gleichzeitigkeitsfaktor und den mit den gemessenen
+ * HIGH/STD-Durchschnitten vorbelegten Profilen. Das Panel liest dieselben Durchschnitte über
+ * {@link buildFillUpGlobalWorkloadProfilesQueryKey} und trifft damit schon im ersten Render den
+ * hier hinterlegten Query-Key – die Auswertung erscheint ohne Neuberechnung.
  * Ohne vROps-Import gibt es nichts vorzuberechnen.
  */
 async function preloadDefaultFillUpPlanning(
@@ -415,7 +422,7 @@ async function preloadDefaultFillUpPlanning(
 ): Promise<number> {
   const [vropsImports, storedPolicies, assignments] = await Promise.all([
     queryClient.fetchQuery({
-      queryKey: ["vropsTimeSeriesImports"],
+      queryKey: VROPS_TIMESERIES_IMPORTS_QUERY_KEY,
       queryFn: dependencies.getVropsTimeSeriesImports,
       staleTime: QUERY_CACHE_DURATION_MS,
       gcTime: QUERY_CACHE_DURATION_MS,
@@ -456,6 +463,9 @@ async function preloadDefaultFillUpPlanning(
     vms: fillUpVms as NormalizedVm[],
     chunks,
   });
+  queryClient.setQueryData(buildFillUpGlobalWorkloadProfilesQueryKey(newestImport.id), globalWorkloadClassProfiles);
+  const profiles = seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, globalWorkloadClassProfiles)
+    ?? DEFAULT_FILL_UP_WORKLOAD_PROFILES;
   const results = await dependencies.buildFillUpPlanningResultsInWorker({
     import: newestImport,
     objects,
@@ -467,10 +477,10 @@ async function preloadDefaultFillUpPlanning(
     clusters: clusters as NormalizedCluster[],
     policies: mergedPolicies,
     assignments,
-    profiles: DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+    profiles,
     workloadMix: DEFAULT_FILL_UP_WORKLOAD_MIX,
     includeN2: false,
-    cpuDemandConcurrencyPct: DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+    cpuDemandConcurrencyPct: DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT,
   });
 
   queryClient.setQueryData(
@@ -478,10 +488,10 @@ async function preloadDefaultFillUpPlanning(
       newestImport.id,
       mergedPolicies,
       assignments,
-      DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+      profiles,
       DEFAULT_FILL_UP_WORKLOAD_MIX,
       false,
-      DEFAULT_CPU_DEMAND_CONCURRENCY_PCT,
+      DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT,
     ),
     { results, globalWorkloadClassProfiles },
   );

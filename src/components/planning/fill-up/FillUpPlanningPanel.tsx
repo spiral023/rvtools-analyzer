@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Calculator, CircleCheck, Layers3, PlusSquare, Server } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Calculator, CircleCheck, Layers3, Loader2, PlusSquare, Server } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -12,36 +13,21 @@ import { FillUpWorkloadProfileEditor } from "@/components/planning/fill-up/FillU
 import { FillUpObservedVmProfileTable } from "@/components/planning/fill-up/FillUpObservedVmProfileTable";
 import { VropsDataQualityCard } from "@/components/planning/fill-up/VropsDataQualityCard";
 import { FillUpRunHistory } from "@/components/planning/fill-up/FillUpRunHistory";
-import { useFillUpPlanning } from "@/hooks/useFillUpPlanning";
+import { readPreloadedFillUpWorkloadProfiles, useFillUpPlanning } from "@/hooks/useFillUpPlanning";
 import {
   DEFAULT_FILL_UP_HIGH_SHARE_PCT,
   DEFAULT_FILL_UP_WORKLOAD_PROFILES,
+  seedFillUpWorkloadProfilesWithGlobalAverages,
   type FillUpPlanningClusterResult,
 } from "@/domain/services/fillUpPlanningService";
 import { DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT } from "@/domain/services/fillUpRecommendationEngine";
-import type { FillUpObservedVmProfile, FillUpWorkloadProfile, GlobalWorkloadClassProfile } from "@/domain/models/types";
+import type { FillUpObservedVmProfile, FillUpWorkloadProfile } from "@/domain/models/types";
 import { FILL_UP_KPI, FILL_UP_UI } from "@/lib/glossaries/planning";
 import { toast } from "sonner";
 
 /** Kein Präzisionsverlust beim Übernehmen, aber auch keine sinnlos langen Beobachtungsnachkommastellen. */
 function roundAdoptedValue(value: number): number {
   return Math.max(0.01, Math.round(value * 100) / 100);
-}
-
-function hasUsableGlobalAverages(profile: GlobalWorkloadClassProfile | undefined): profile is GlobalWorkloadClassProfile {
-  return Boolean(profile && profile.averageVcpu !== null && profile.averageConfiguredMemoryMiB !== null && profile.cpuDemandP95MHz !== null);
-}
-
-/** Ersetzt Name und Werte des Standardprofils durch den HIGH-/STD-Durchschnitt über alle eingeschalteten, nicht-vCLS-VMs. */
-function toGlobalAverageProfile(profile: FillUpWorkloadProfile, global: GlobalWorkloadClassProfile): FillUpWorkloadProfile {
-  return {
-    ...profile,
-    name: `${profile.workloadClass.toUpperCase()} · Ø alle VMs`,
-    vcpu: roundAdoptedValue(global.averageVcpu!),
-    memoryMiB: roundAdoptedValue(global.averageConfiguredMemoryMiB!),
-    cpuDemandP95MHz: roundAdoptedValue(global.cpuDemandP95MHz!),
-    cpuDemandAverageMHz: global.averageCpuDemandMHz === null ? null : roundAdoptedValue(global.averageCpuDemandMHz),
-  };
 }
 
 function formatPlanningError(error: unknown) {
@@ -51,8 +37,13 @@ function formatPlanningError(error: unknown) {
 }
 
 export function FillUpPlanningPanel() {
+  const queryClient = useQueryClient();
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
-  const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>([...DEFAULT_FILL_UP_WORKLOAD_PROFILES]);
+  // Schon im ersten Render mit den vorberechneten HIGH/STD-Durchschnitten starten, sofern vorhanden:
+  // Nur dann trifft die erste Berechnungsanfrage den vorab hinterlegten Query-Key und die Auswertung
+  // erscheint ohne Wartezeit. Ohne Vorladen bleibt der Standard, den der Effekt unten nachzieht.
+  const [preloadedProfiles] = useState(() => readPreloadedFillUpWorkloadProfiles(queryClient));
+  const [profiles, setProfiles] = useState<FillUpWorkloadProfile[]>(() => [...(preloadedProfiles ?? DEFAULT_FILL_UP_WORKLOAD_PROFILES)]);
   const [highSharePct, setHighSharePct] = useState(DEFAULT_FILL_UP_HIGH_SHARE_PCT);
   const [cpuDemandConcurrencyPct, setCpuDemandConcurrencyPct] = useState(DEFAULT_UI_CPU_DEMAND_CONCURRENCY_PCT);
   const [includeN2, setIncludeN2] = useState(false);
@@ -65,19 +56,14 @@ export function FillUpPlanningPanel() {
 
   // Standardwerte der typischen zusätzlichen VM einmalig mit dem HIGH-/STD-Durchschnitt über alle
   // eingeschalteten, nicht-vCLS-VMs vorbelegen. Danach nicht mehr überschreiben, damit spätere
-  // manuelle Anpassungen erhalten bleiben.
-  const defaultsSeededRef = useRef(false);
+  // manuelle Anpassungen erhalten bleiben. Beim Vorladen ist das bereits im ersten Render passiert.
+  const defaultsSeededRef = useRef(preloadedProfiles !== null);
   useEffect(() => {
     if (defaultsSeededRef.current) return;
-    const high = planning.globalWorkloadClassProfiles.find((profile) => profile.workloadClass === "high");
-    const std = planning.globalWorkloadClassProfiles.find((profile) => profile.workloadClass === "std");
-    if (!hasUsableGlobalAverages(high) && !hasUsableGlobalAverages(std)) return;
+    const seeded = seedFillUpWorkloadProfilesWithGlobalAverages(DEFAULT_FILL_UP_WORKLOAD_PROFILES, planning.globalWorkloadClassProfiles);
+    if (!seeded) return;
     defaultsSeededRef.current = true;
-    setProfiles((current) => current.map((profile) => {
-      if (profile.id === "high-standard" && hasUsableGlobalAverages(high)) return toGlobalAverageProfile(profile, high);
-      if (profile.id === "std-standard" && hasUsableGlobalAverages(std)) return toGlobalAverageProfile(profile, std);
-      return profile;
-    }));
+    setProfiles((current) => current.map((profile) => seeded.find((entry) => entry.id === profile.id) ?? profile));
   }, [planning.globalWorkloadClassProfiles]);
 
   useEffect(() => {
@@ -129,7 +115,11 @@ export function FillUpPlanningPanel() {
       <CardContent className="space-y-6 pt-5"><FillUpWorkloadProfileEditor profiles={profiles} onChange={setProfiles} cpuDemandConcurrencyPct={cpuDemandConcurrencyPct} /><FillUpObservedVmProfileTable rows={observedProfiles} onAdopt={adoptObservedProfile} /></CardContent>
     </Card>
     {planning.isError && <Alert variant="destructive"><AlertDescription><p className="font-medium">Fill-Up-Auswertung fehlgeschlagen</p><p className="mt-1 break-words">{formatPlanningError(planning.error)}</p></AlertDescription></Alert>}
-    {planning.isCalculating && <Alert><AlertDescription>Fill-Up-Auswertung läuft im Hintergrund. Die Zeitreihen und Ausfallszenarien werden lokal im Browser berechnet; die Seite bleibt dabei bedienbar.</AlertDescription></Alert>}
+    {planning.isCalculating && <Alert className="border-warning/45 bg-warning/5" aria-live="polite">
+      <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-warning" />
+      <AlertTitle>Daten werden berechnet …</AlertTitle>
+      <AlertDescription>Die geänderten Werte werden lokal im Browser gegen die vROps-Zeitreihen und Ausfallszenarien gerechnet. Bis der Hinweis verschwindet, zeigen Kennzahlen, Clustervergleich und Clusterdetails noch den vorherigen Stand; die Seite bleibt bedienbar.</AlertDescription>
+    </Alert>}
     <VropsDataQualityCard importMeta={planning.selectedImport} quality={quality} />
     {planning.selectedImport && !planning.isLoading && planning.results.length === 0 && <Alert><AlertDescription>Der Import enthält im aktuellen RVTools-Stand keine eindeutig verknüpften Cluster. Prüfe den Datenqualitätsbericht oder importiere den passenden Snapshot erneut.</AlertDescription></Alert>}
     <Card><CardHeader className="pb-3"><InfoTooltip entry={FILL_UP_UI.clusterComparison} side="right"><CardTitle className="w-fit cursor-help text-base">Clustervergleich</CardTitle></InfoTooltip></CardHeader><CardContent><FillUpClusterTable rows={planning.results} onSelect={(row) => setSelectedClusterKey(row.cluster.clusterKey)} /></CardContent></Card>

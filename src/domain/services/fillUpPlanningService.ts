@@ -45,6 +45,50 @@ export const DEFAULT_FILL_UP_WORKLOAD_MIX: FillUpWorkloadMix = {
   highSharePct: DEFAULT_FILL_UP_HIGH_SHARE_PCT,
 };
 
+/** Kein Präzisionsverlust beim Übernehmen, aber auch keine sinnlos langen Beobachtungsnachkommastellen. */
+function roundAdoptedValue(value: number): number {
+  return Math.max(0.01, Math.round(value * 100) / 100);
+}
+
+function hasUsableGlobalAverages(profile: GlobalWorkloadClassProfile | undefined): profile is GlobalWorkloadClassProfile {
+  return Boolean(profile && profile.averageVcpu !== null && profile.averageConfiguredMemoryMiB !== null && profile.cpuDemandP95MHz !== null);
+}
+
+/** Ersetzt Name und Werte des Standardprofils durch den HIGH-/STD-Durchschnitt über alle eingeschalteten, nicht-vCLS-VMs. */
+function toGlobalAverageProfile(profile: FillUpWorkloadProfile, global: GlobalWorkloadClassProfile): FillUpWorkloadProfile {
+  return {
+    ...profile,
+    name: `${profile.workloadClass.toUpperCase()} · Ø alle VMs`,
+    vcpu: roundAdoptedValue(global.averageVcpu!),
+    memoryMiB: roundAdoptedValue(global.averageConfiguredMemoryMiB!),
+    cpuDemandP95MHz: roundAdoptedValue(global.cpuDemandP95MHz!),
+    cpuDemandAverageMHz: global.averageCpuDemandMHz === null ? null : roundAdoptedValue(global.averageCpuDemandMHz),
+  };
+}
+
+/**
+ * Belegt die Standardprofile der „typischen zusätzlichen VM" mit den gemessenen HIGH-/STD-Durchschnitten
+ * vor. Bewusst gemeinsame Funktion von `FillUpPlanningPanel` und `preloadImportedData`: Nur wenn beide
+ * Seiten wertgleiche Profile erzeugen, trifft die vorberechnete Auswertung den Query-Key der Oberfläche
+ * und erscheint ohne Neuberechnung. Liefert `null`, wenn keine Klasse verwertbare Durchschnitte hat –
+ * dann bleiben die Standardwerte gültig.
+ */
+export function seedFillUpWorkloadProfilesWithGlobalAverages(
+  profiles: readonly FillUpWorkloadProfile[],
+  globalProfiles: readonly GlobalWorkloadClassProfile[],
+): FillUpWorkloadProfile[] | null {
+  const high = globalProfiles.find((profile) => profile.workloadClass === "high");
+  const std = globalProfiles.find((profile) => profile.workloadClass === "std");
+  const usableHigh = hasUsableGlobalAverages(high) ? high : null;
+  const usableStd = hasUsableGlobalAverages(std) ? std : null;
+  if (!usableHigh && !usableStd) return null;
+  return profiles.map((profile) => {
+    if (profile.id === "high-standard" && usableHigh) return toGlobalAverageProfile(profile, usableHigh);
+    if (profile.id === "std-standard" && usableStd) return toGlobalAverageProfile(profile, usableStd);
+    return profile;
+  });
+}
+
 export interface BuildFillUpPlanningResultsInput {
   import: VropsTimeSeriesImport;
   objects: readonly VropsTimeSeriesImportedObject[];
