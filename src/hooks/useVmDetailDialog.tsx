@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
-import { ClientDetailDialog } from "@/components/client/ClientDetailDialog";
 import {
   useRawSheet,
   useTechInfoLatestByVmNames,
   useTechInfoClientLatestByClientNames,
 } from "@/hooks/useActiveSnapshots";
+import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
+import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { resolveVmDetailTarget } from "@/lib/vmDetail";
 import type { NormalizedVm } from "@/domain/models/types";
 
@@ -22,6 +23,11 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
   // Passenden TechInfo-Client zur VM nachladen (gleicher Namensabgleich wie in useClientDetailDialog).
   const { data: matchedClients = [], isFetching: clientFetching } =
     useTechInfoClientLatestByClientNames(techInfoVmNames, loadDetailRows);
+  const workload = useVmWorkloadProfiles(null, loadDetailRows);
+  const rightsizingCandidates = useMemo(
+    () => buildVmRightsizingCandidates({ profiles: workload.profiles, hosts: workload.hosts }),
+    [workload.hosts, workload.profiles],
+  );
 
   const matchedClient = useMemo(() => {
     if (!selectedVm) return null;
@@ -29,12 +35,18 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
     return matchedClients.find((entry) => entry.clientNameNorm === norm) ?? null;
   }, [selectedVm, matchedClients]);
 
-  const vmWithTechInfo = useMemo(() => {
+  const detailData = useMemo(() => {
     if (!selectedVm) return null;
     const vmNameNorm = selectedVm.vmName.trim().toLowerCase();
     const techInfo = techInfoLatest.find((entry) => entry.vmNameNorm === vmNameNorm) ?? null;
-    return { ...selectedVm, sysv: techInfo?.sysv ?? null };
-  }, [selectedVm, techInfoLatest]);
+    const profile = workload.profiles.find(
+      (entry) => entry.rvtoolsObjectKey === selectedVm.vmKey || entry.vmName.trim().toLowerCase() === vmNameNorm,
+    ) ?? null;
+    const rightsizing = rightsizingCandidates.find(
+      (entry) => entry.objectKey === profile?.objectKey || entry.vmName.trim().toLowerCase() === vmNameNorm,
+    ) ?? null;
+    return { vm: selectedVm, techInfo, profile, rightsizing };
+  }, [rightsizingCandidates, selectedVm, techInfoLatest, workload.profiles]);
 
   const { data: rawCpuRows = [] } = useRawSheet("vCPU", loadDetailRows);
   const { data: rawMemoryRows = [] } = useRawSheet("vMemory", loadDetailRows);
@@ -52,41 +64,27 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
     [vms],
   );
 
-  // Dialog-Variante erst wählen, wenn der Client-Lookup abgeschlossen ist — vermeidet ein
-  // kurzes Aufblitzen der Serveransicht, bevor auf die reiche Client-Ansicht umgeschaltet wird.
-  const ready = selectedVm !== null && !clientFetching;
-  const showClient = ready && matchedClient !== null;
-  const showVm = ready && matchedClient === null;
   const onClose = () => setSelectedVm(null);
 
   const vmDetailDialog = (
-    <>
-      <ClientDetailDialog
-        client={showClient ? matchedClient : null}
-        vm={vmWithTechInfo}
-        open={showClient}
-        onClose={onClose}
-        rawCpuRows={rawCpuRows}
-        rawMemoryRows={rawMemoryRows}
-        rawDiskRows={rawDiskRows}
-        rawPartitionRows={rawPartitionRows}
-        rawNetworkRows={rawNetworkRows}
-        rawSnapshotRows={rawSnapshotRows}
-        rawToolsRows={rawToolsRows}
-      />
-      <VmDetailDialog
-        vm={showVm ? vmWithTechInfo : null}
-        open={showVm}
-        onClose={onClose}
-        rawCpuRows={rawCpuRows}
-        rawMemoryRows={rawMemoryRows}
-        rawDiskRows={rawDiskRows}
-        rawPartitionRows={rawPartitionRows}
-        rawNetworkRows={rawNetworkRows}
-        rawSnapshotRows={rawSnapshotRows}
-        rawToolsRows={rawToolsRows}
-      />
-    </>
+    <VmDetailDialog
+      vm={detailData?.vm ?? null}
+      techInfo={detailData?.techInfo ?? null}
+      client={matchedClient}
+      workloadProfile={detailData?.profile ?? null}
+      rightsizing={detailData?.rightsizing ?? null}
+      vropsImportedAt={workload.selectedImport?.importedAt ?? null}
+      optionalDataLoading={clientFetching || workload.isLoading}
+      open={selectedVm !== null}
+      onClose={onClose}
+      rawCpuRows={rawCpuRows}
+      rawMemoryRows={rawMemoryRows}
+      rawDiskRows={rawDiskRows}
+      rawPartitionRows={rawPartitionRows}
+      rawNetworkRows={rawNetworkRows}
+      rawSnapshotRows={rawSnapshotRows}
+      rawToolsRows={rawToolsRows}
+    />
   );
 
   return { openVmDetail, selectedVm, vmDetailDialog };

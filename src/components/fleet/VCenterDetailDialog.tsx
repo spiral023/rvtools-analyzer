@@ -1,13 +1,19 @@
-import { Activity, AlertTriangle, Copy, HardDrive, Server } from "lucide-react";
+import { AlertTriangle, Boxes, Database, HardDrive, Server, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { buildVCenterDetailMarkdown } from "@/lib/detailMarkdown";
-import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
+import { Dialog } from "@/components/ui/dialog";
 import type { NormalizedCluster, NormalizedDatastore, NormalizedHealth, SnapshotMeta } from "@/domain/models/types";
 import type { VCenterSummary } from "@/pages/FleetCompare";
+import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
+import type { DetailDossier, DetailField, DetailKpi, DetailTable } from "@/lib/detailExport";
+import {
+  DetailCountBadge,
+  DetailFieldGrid,
+  DetailKpiGrid,
+  DetailNarrative,
+  DetailSection,
+  DetailTableView,
+  SystemDetailContent,
+} from "@/components/detail/SystemDetailLayout";
 
 interface VCenterDetailDialogProps {
   summary: VCenterSummary | null;
@@ -19,17 +25,9 @@ interface VCenterDetailDialogProps {
   health: NormalizedHealth[];
 }
 
-function boolLabel(value: boolean | null): string {
+function bool(value: boolean | null): string {
   if (value === null) return "—";
-  return value ? "Ja" : "Nein";
-}
-
-function metricSeverity(value: number, warn: number, crit: number, inverted = false): string {
-  const hot = inverted ? value <= crit : value >= crit;
-  const warm = inverted ? value <= warn : value >= warn;
-  if (hot) return "text-destructive font-semibold";
-  if (warm) return "text-warning";
-  return "text-success";
+  return value ? "Aktiv" : "Aus";
 }
 
 export function VCenterDetailDialog({
@@ -42,244 +40,138 @@ export function VCenterDetailDialog({
   health,
 }: VCenterDetailDialogProps) {
   if (!summary) return null;
-
   const scopedClusters = clusters.filter((cluster) => cluster.snapshotId === summary.snapshotId);
   const scopedDatastores = datastores
-    .filter((ds) => ds.snapshotId === summary.snapshotId)
-    .slice()
-    .sort((a, b) => (a.freePct ?? Number.POSITIVE_INFINITY) - (b.freePct ?? Number.POSITIVE_INFINITY));
+    .filter((datastore) => datastore.snapshotId === summary.snapshotId)
+    .sort((a, b) => (a.freePct ?? 101) - (b.freePct ?? 101));
   const scopedHealth = health.filter((event) => event.snapshotId === summary.snapshotId);
+  const poweredOff = summary.vmCount - summary.poweredOn;
+  const totalDatastoreCapacity = scopedDatastores.reduce((sum, datastore) => sum + (datastore.capacityMiB ?? 0), 0);
+  const totalDatastoreFree = scopedDatastores.reduce((sum, datastore) => sum + (datastore.freeMiB ?? 0), 0);
+  const haDisabled = scopedClusters.filter((cluster) => cluster.haEnabled === false).length;
+  const drsDisabled = scopedClusters.filter((cluster) => cluster.drsEnabled === false).length;
+  const riskTone: DetailKpi["tone"] = summary.riskScore > 50 ? "critical" : summary.riskScore > 25 ? "warning" : "good";
 
-  const copyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(
-        buildVCenterDetailMarkdown(summary, snapshot, {
-          clusters: scopedClusters,
-          datastores: scopedDatastores,
-          health: scopedHealth,
-        }),
-      );
-      toast.success("vCenter-Details als Markdown kopiert.");
-    } catch {
-      toast.error("vCenter-Details konnten nicht kopiert werden.");
-    }
+  const kpis: DetailKpi[] = [
+    { label: "VMs", value: formatNum(summary.vmCount), hint: `${formatNum(summary.poweredOn)} eingeschaltet` },
+    { label: "Hosts", value: formatNum(summary.hostCount), hint: `${formatNum(summary.clusterCount)} Cluster` },
+    { label: "Gesamt-RAM", value: `${summary.totalRamGiB.toLocaleString("de-DE", { maximumFractionDigits: 0 })} GiB`, hint: `${formatNum(summary.totalCpuThreads)} CPU-Threads` },
+    { label: "CPU Overcommit", value: `${summary.cpuOvercommit.toLocaleString("de-DE", { maximumFractionDigits: 1 })}:1`, hint: "vCPU zu Thread", tone: summary.cpuOvercommit > 5 ? "critical" : summary.cpuOvercommit > 3 ? "warning" : "neutral" },
+    { label: "Datastore frei", value: formatPct(summary.avgDsFree), hint: summary.criticalDatastores ? `${summary.criticalDatastores} kritisch` : "keine kritischen", tone: summary.criticalDatastores ? "critical" : "good" },
+    { label: "Risiko-Score", value: `${summary.riskScore} / 100`, hint: `${summary.healthIssues} Health Issues`, tone: riskTone },
+  ];
+  const inventoryFields: DetailField[] = [
+    { label: "vCenter ID", value: summary.vcenterId, sensitivity: "identifier" },
+    { label: "Version", value: summary.version || "—" },
+    { label: "Snapshot-ID", value: summary.snapshotId, sensitivity: "identifier" },
+    { label: "Exportzeitpunkt", value: snapshot ? new Date(snapshot.exportTs).toLocaleString("de-DE") : "—" },
+    { label: "Importzeitpunkt", value: snapshot ? new Date(snapshot.importedAt).toLocaleString("de-DE") : "—" },
+    { label: "Quelldatei", value: snapshot?.fileName || "—", sensitivity: "identifier" },
+    { label: "VMs gesamt", value: formatNum(summary.vmCount) },
+    { label: "VMs powered off", value: formatNum(poweredOff) },
+    { label: "Hosts", value: formatNum(summary.hostCount) },
+    { label: "Cluster", value: formatNum(summary.clusterCount) },
+    { label: "Datastores", value: formatNum(summary.datastoreCount) },
+    { label: "Offene VM-Snapshots", value: formatNum(summary.snapshotCount) },
+  ];
+  const riskFields: DetailField[] = [
+    { label: "Risiko-Score", value: `${summary.riskScore} / 100` },
+    { label: "Health Issues", value: formatNum(summary.healthIssues) },
+    { label: "Security Drift", value: formatNum(summary.securityDrift) },
+    { label: "Kritische Datastores", value: formatNum(summary.criticalDatastores) },
+    { label: "Cluster ohne HA", value: formatNum(haDisabled) },
+    { label: "Cluster ohne DRS", value: formatNum(drsDisabled) },
+    { label: "Datastore-Kapazität", value: formatBytes(totalDatastoreCapacity) },
+    { label: "Datastore frei", value: formatBytes(totalDatastoreFree) },
+  ];
+  const clusterTable: DetailTable = {
+    headers: ["Cluster", "Datacenter", "Hosts", "Effektiv", "HA", "DRS", "CPU Cores", "RAM"],
+    rows: scopedClusters.map((cluster) => [
+      cluster.name,
+      cluster.datacenter || "—",
+      formatNum(cluster.numHosts),
+      formatNum(cluster.numEffectiveHosts),
+      bool(cluster.haEnabled),
+      bool(cluster.drsEnabled),
+      formatNum(cluster.numCpuCores),
+      formatBytes(cluster.totalMemoryMiB),
+    ]),
+    sensitiveColumns: { 0: "identifier", 1: "identifier" },
+  };
+  const datastoreTable: DetailTable = {
+    headers: ["Datastore", "Cluster", "Typ", "Kapazität", "Belegt", "Frei", "Frei %"],
+    rows: scopedDatastores.map((datastore) => [
+      datastore.name,
+      datastore.clusterName || "—",
+      datastore.type || "—",
+      formatBytes(datastore.capacityMiB),
+      formatBytes(datastore.inUseMiB),
+      formatBytes(datastore.freeMiB),
+      formatPct(datastore.freePct),
+    ]),
+    sensitiveColumns: { 0: "identifier", 1: "identifier" },
+    maxRows: 35,
+  };
+  const healthTable: DetailTable = {
+    headers: ["Entity", "Typ", "Meldung"],
+    rows: scopedHealth.map((event) => [event.entity || "—", event.messageType || "—", event.message || "—"]),
+    sensitiveColumns: { 0: "identifier", 2: "text" },
+    maxRows: 40,
+  };
+  const narrative = `Das vCenter verwaltet ${formatNum(summary.vmCount)} VMs auf ${formatNum(summary.hostCount)} Hosts in ${formatNum(summary.clusterCount)} Clustern. ${formatNum(summary.poweredOn)} VMs sind eingeschaltet. Der aktuelle Risiko-Score liegt bei ${summary.riskScore} von 100${summary.healthIssues || summary.criticalDatastores ? `; dazu tragen ${summary.healthIssues} Health Issues und ${summary.criticalDatastores} kritische Datastores bei.` : " und zeigt derzeit keine ausgelösten Risikofaktoren."}`;
+  const dossier: DetailDossier = {
+    kind: "vCenter",
+    title: summary.displayName,
+    titleSensitivity: "identifier",
+    subtitle: [summary.version, snapshot ? `Export ${new Date(snapshot.exportTs).toLocaleString("de-DE")}` : null].filter(Boolean).join(" · "),
+    summary: narrative,
+    kpis,
+    sourceDate: snapshot ? new Date(snapshot.exportTs).toLocaleString("de-DE") : null,
+    sections: [
+      { title: "Inventar & Datenstand", fields: inventoryFields },
+      { title: "Betriebsrisiken & Kapazität", fields: riskFields },
+      { title: "Cluster", table: clusterTable },
+      { title: "Datastores", table: datastoreTable },
+      { title: "Health-Events", table: healthTable },
+    ],
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => void copyMarkdown()}
-          className="absolute right-10 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
-          aria-label="vCenter-Details als Markdown kopieren"
-          title="Als Markdown kopieren"
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Server className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-lg font-semibold font-mono-data truncate">
-                {summary.displayName}
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground truncate">
-                {snapshot
-                  ? `Export: ${new Date(snapshot.exportTs).toLocaleString("de-DE")} · Import: ${new Date(snapshot.importedAt).toLocaleString("de-DE")}`
-                  : "Kein aktueller Snapshot"}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className={`text-[10px] ${metricSeverity(summary.riskScore, 25, 50)}`}>
-                  Risiko: {summary.riskScore}
-                </Badge>
-                <Badge variant="outline" className={`text-[10px] ${summary.healthIssues > 0 ? "text-warning" : "text-success"}`}>
-                  Health Issues: {formatNum(summary.healthIssues)}
-                </Badge>
-                <Badge variant="outline" className={`text-[10px] ${summary.securityDrift > 0 ? "text-warning" : "text-success"}`}>
-                  Security Drift: {formatNum(summary.securityDrift)}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
-            <section>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                <Activity className="h-3.5 w-3.5" /> Kennzahlen
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">VMs</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.vmCount)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Powered On</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.poweredOn)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Hosts</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.hostCount)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Cluster</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.clusterCount)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Datastores</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.datastoreCount)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Total RAM</p>
-                  <p className="text-sm font-bold font-mono-data">{summary.totalRamGiB.toFixed(0)} GiB</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Ø DS Frei</p>
-                  <p className={`text-sm font-bold font-mono-data ${metricSeverity(summary.avgDsFree, 25, 15, true)}`}>{formatPct(summary.avgDsFree)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">CPU Overcommit</p>
-                  <p className={`text-sm font-bold font-mono-data ${metricSeverity(summary.cpuOvercommit, 3, 5)}`}>{summary.cpuOvercommit.toFixed(1)}:1</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">VM-Snapshots</p>
-                  <p className="text-sm font-bold font-mono-data">{formatNum(summary.snapshotCount)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Security Drift</p>
-                  <p className={`text-sm font-bold font-mono-data ${summary.securityDrift > 0 ? "text-warning" : "text-success"}`}>{formatNum(summary.securityDrift)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Health Issues</p>
-                  <p className={`text-sm font-bold font-mono-data ${summary.healthIssues > 0 ? "text-warning" : "text-success"}`}>{formatNum(summary.healthIssues)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] uppercase text-muted-foreground">Risiko Score</p>
-                  <p className={`text-sm font-bold font-mono-data ${metricSeverity(summary.riskScore, 25, 50)}`}>{summary.riskScore}</p>
-                </div>
-              </div>
-            </section>
-
-            <Separator />
-
-            <section>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                <Server className="h-3.5 w-3.5" /> Cluster ({scopedClusters.length})
-              </h4>
-              {scopedClusters.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">Keine Cluster in diesem vCenter gefunden</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-border text-left text-[10px] uppercase text-muted-foreground">
-                        <th className="py-2 pr-3">Cluster</th>
-                        <th className="py-2 pr-3">Datacenter</th>
-                        <th className="py-2 pr-3">Hosts</th>
-                        <th className="py-2 pr-3">HA</th>
-                        <th className="py-2 pr-3">DRS</th>
-                        <th className="py-2 pr-3">CPU Cores</th>
-                        <th className="py-2 pr-3">RAM</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scopedClusters.map((cluster) => (
-                        <tr key={cluster.clusterKey} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                          <td className="py-2 pr-3 font-mono-data font-semibold">{cluster.name}</td>
-                          <td className="py-2 pr-3">{cluster.datacenter || "—"}</td>
-                          <td className="py-2 pr-3 font-mono-data">{formatNum(cluster.numHosts)}</td>
-                          <td className="py-2 pr-3">{boolLabel(cluster.haEnabled)}</td>
-                          <td className="py-2 pr-3">{boolLabel(cluster.drsEnabled)}</td>
-                          <td className="py-2 pr-3 font-mono-data">{formatNum(cluster.numCpuCores)}</td>
-                          <td className="py-2 pr-3 font-mono-data">{formatBytes(cluster.totalMemoryMiB)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <Separator />
-
-            <section>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                <HardDrive className="h-3.5 w-3.5" /> Datastores ({scopedDatastores.length})
-              </h4>
-              {scopedDatastores.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">Keine Datastores in diesem vCenter gefunden</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-border text-left text-[10px] uppercase text-muted-foreground">
-                        <th className="py-2 pr-3">Datastore</th>
-                        <th className="py-2 pr-3">Cluster</th>
-                        <th className="py-2 pr-3">Typ</th>
-                        <th className="py-2 pr-3">Kapazität</th>
-                        <th className="py-2 pr-3">Frei</th>
-                        <th className="py-2 pr-3">Frei %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scopedDatastores.slice(0, 25).map((ds) => (
-                        <tr key={ds.dsKey} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                          <td className="py-2 pr-3 font-mono-data font-semibold">{ds.name}</td>
-                          <td className="py-2 pr-3">{ds.clusterName || "—"}</td>
-                          <td className="py-2 pr-3">{ds.type || "—"}</td>
-                          <td className="py-2 pr-3 font-mono-data">{formatBytes(ds.capacityMiB)}</td>
-                          <td className="py-2 pr-3 font-mono-data">{formatBytes(ds.freeMiB)}</td>
-                          <td className={`py-2 pr-3 font-mono-data ${ds.freePct !== null && ds.freePct < 10 ? "text-destructive font-semibold" : ds.freePct !== null && ds.freePct < 20 ? "text-warning" : "text-success"}`}>
-                            {formatPct(ds.freePct)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <Separator />
-
-            <section>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5" /> Health-Events ({scopedHealth.length})
-              </h4>
-              {scopedHealth.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">Keine Health-Events in diesem vCenter gefunden</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-border text-left text-[10px] uppercase text-muted-foreground">
-                        <th className="py-2 pr-3">Entity</th>
-                        <th className="py-2 pr-3">Typ</th>
-                        <th className="py-2 pr-3">Meldung</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scopedHealth.slice(0, 25).map((event, index) => (
-                        <tr key={`${event.entity}-${index}`} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                          <td className="py-2 pr-3 font-mono-data font-semibold">{event.entity || "—"}</td>
-                          <td className="py-2 pr-3">{event.messageType || "—"}</td>
-                          <td className="py-2 pr-3">{event.message || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </div>
+      <SystemDetailContent
+        icon={<Server className="size-6" />}
+        eyebrow="vCenter-Systemakte"
+        title={summary.displayName}
+        subtitle={[summary.version, snapshot ? `Export ${new Date(snapshot.exportTs).toLocaleString("de-DE")}` : null].filter(Boolean).join(" · ")}
+        badges={
+          <>
+            <Badge variant={summary.riskScore > 50 ? "destructive" : "secondary"} className="rounded-full text-[10px]">Risiko {summary.riskScore}</Badge>
+            <Badge variant="outline" className="rounded-full text-[10px]">{summary.healthIssues} Health Issues</Badge>
+            <Badge variant="outline" className="rounded-full text-[10px]">{summary.securityDrift} Security Drift</Badge>
+          </>
+        }
+        dossier={dossier}
+      >
+        <DetailNarrative source="RVTools Snapshot">{narrative}</DetailNarrative>
+        <DetailKpiGrid items={kpis} />
+        <div className="grid gap-5 xl:grid-cols-2">
+          <DetailSection icon={<Database className="size-4" />} title="Inventar & Datenstand" description="Scope, Version und Herkunft des ausgewerteten RVTools-Snapshots.">
+            <DetailFieldGrid fields={inventoryFields} columns={2} />
+          </DetailSection>
+          <DetailSection icon={<ShieldAlert className="size-4" />} title="Betriebsrisiken & Kapazität" description="Verdichtete Hinweise für Betrieb, Security und Storage.">
+            <DetailFieldGrid fields={riskFields} columns={2} />
+          </DetailSection>
         </div>
-      </DialogContent>
+        <DetailSection icon={<Boxes className="size-4" />} title="Cluster" description="Cluster-Services und physische Gesamtkapazität." aside={<DetailCountBadge>{scopedClusters.length}</DetailCountBadge>}>
+          <DetailTableView table={clusterTable} />
+        </DetailSection>
+        <DetailSection icon={<HardDrive className="size-4" />} title="Datastores" description="Storage-Bestand nach freiem Anteil sortiert." aside={<DetailCountBadge>{scopedDatastores.length}</DetailCountBadge>}>
+          <DetailTableView table={datastoreTable} />
+        </DetailSection>
+        <DetailSection icon={<AlertTriangle className="size-4" />} title="Health-Events" description="Von vCenter gemeldete Health- und Konfigurationshinweise." aside={<DetailCountBadge>{scopedHealth.length}</DetailCountBadge>}>
+          <DetailTableView table={healthTable} />
+        </DetailSection>
+      </SystemDetailContent>
     </Dialog>
   );
 }

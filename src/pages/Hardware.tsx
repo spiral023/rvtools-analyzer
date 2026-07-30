@@ -45,6 +45,7 @@ import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { findClusterForHost } from "@/lib/hardwareClusterSelection";
 import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
+import { HostSystemDetailDialog } from "@/components/hosts/HostSystemDetailDialog";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export type { HostDetail } from "@/lib/conversion";
@@ -633,7 +634,7 @@ export function VariantDetailDialog({
 /*  Host Detail Dialog                                                 */
 /* ------------------------------------------------------------------ */
 
-export function HostDetailDialog({
+export function LegacyHostDetailDialog({
   host,
   hbaRows,
   nicRows,
@@ -914,6 +915,18 @@ export function HostDetailDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+export function HostDetailDialog(props: {
+  host: HostDetail | null;
+  hbaRows: SheetRow[];
+  nicRows: SheetRow[];
+  vmRows: NormalizedVm[];
+  open: boolean;
+  onClose: () => void;
+  onVmClick?: (vm: NormalizedVm) => void;
+}) {
+  return <HostSystemDetailDialog {...props} />;
 }
 
 /* ------------------------------------------------------------------ */

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
-import { Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 
 type ChartUnit = "absolute" | "percent";
@@ -10,11 +10,20 @@ type ChartUnit = "absolute" | "percent";
 /** getDay(): 0 = Sonntag. */
 const WEEKDAY_LABELS = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
 
-/** z.B. "MO, 23:00" – Wochentag statt Kalenderdatum, weil der 7-Tage-Verlauf als wiederkehrendes Wochenmuster gelesen wird. */
-function formatWeekdayTime(timestampMs: number): string {
+function formatAxisTimestamp(timestampMs: number): string {
   const date = new Date(timestampMs);
-  const time = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  return `${WEEKDAY_LABELS[date.getDay()]}, ${time}`;
+  return `${WEEKDAY_LABELS[date.getDay()]} ${date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`;
+}
+
+function formatTooltipTimestamp(timestampMs: number): string {
+  return new Date(timestampMs).toLocaleString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface VropsTrendChartProps {
@@ -80,7 +89,7 @@ export function VropsTrendChart({
   const percentUnavailable = hasSecondary ? !cpuCapacityMHz && (secondaryIsPct || !secondaryCapacity) : !cpuCapacityMHz;
 
   const chartData = hourly.map((point) => ({
-    timestamp: formatWeekdayTime(point.timestampUtc),
+    timestampMs: point.timestampUtc,
     cpuAbs: point.cpuDemandMHz === null ? null : point.cpuDemandMHz / 1_000,
     cpuPct: point.cpuDemandMHz === null || !cpuCapacityMHz ? null : (point.cpuDemandMHz / cpuCapacityMHz) * 100,
     secondaryAbs: point.secondaryValue === null ? null : secondaryIsPct ? point.secondaryValue : point.secondaryValue / 1_024,
@@ -93,34 +102,64 @@ export function VropsTrendChart({
           : null,
   }));
 
-  // Markiert die aktuelle Wochenstunde im wiederkehrenden Wochenmuster, nicht den Kalendertag des Imports.
   const now = new Date();
   now.setMinutes(0, 0, 0);
-  const nowLabel = formatWeekdayTime(now.getTime());
-  const showNowMarker = chartData.some((point) => point.timestamp === nowLabel);
+  const showNowMarker = chartData.some((point) => point.timestampMs === now.getTime());
+  const peak = chartData.reduce<(typeof chartData)[number] | null>((current, point) => {
+    const value = point[cpuDataKey] as number | null;
+    const currentValue = current?.[cpuDataKey] as number | null | undefined;
+    return value !== null && (currentValue === null || currentValue === undefined || value > currentValue) ? point : current;
+  }, null);
+  const weekendRanges = chartData.reduce<Array<{ start: number; end: number }>>((ranges, point) => {
+    const date = new Date(point.timestampMs);
+    if (![0, 6].includes(date.getDay())) return ranges;
+    const last = ranges.at(-1);
+    if (last && point.timestampMs - last.end <= 60 * 60 * 1_000) last.end = point.timestampMs;
+    else ranges.push({ start: point.timestampMs, end: point.timestampMs });
+    return ranges;
+  }, []);
 
   return (
-    <section className="rounded-md border bg-muted/10 p-3">
+    <section className="rounded-xl bg-muted/15 p-3.5 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65)]">
       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <TrendingUp className="h-3.5 w-3.5" /> Auslastungsverlauf (vROps, 7 Tage)
           </h4>
-          {importedAt && (
-            <p className="text-[10px] text-muted-foreground">
-              Stündliche Werte · Import vom {new Date(importedAt).toLocaleString("de-DE")}
-            </p>
-          )}
+          <p className="text-[10px] text-muted-foreground">
+            Stündliche Werte · Wochenende schattiert · Peak markiert
+            {importedAt ? ` · Import vom ${new Date(importedAt).toLocaleString("de-DE")}` : ""}
+          </p>
         </div>
         <ToggleGroup type="single" size="sm" value={chartUnit} onValueChange={(value) => value && setChartUnit(value as ChartUnit)}>
           <ToggleGroupItem value="absolute" aria-label="Absolute Werte anzeigen">Absolut</ToggleGroupItem>
           <ToggleGroupItem value="percent" aria-label="Prozent der Kapazität anzeigen" disabled={percentUnavailable}>Prozent</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <div className="h-56">
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 6, right: 8, left: 4, bottom: 0 }}>
-            <XAxis dataKey="timestamp" minTickGap={44} tick={{ fontSize: 10 }} />
+          <LineChart data={chartData} margin={{ top: 16, right: 12, left: 4, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.55} />
+            {weekendRanges.map((range) => (
+              <ReferenceArea
+                key={range.start}
+                yAxisId="cpu"
+                x1={range.start}
+                x2={range.end + 60 * 60 * 1_000}
+                fill="hsl(var(--muted-foreground))"
+                fillOpacity={0.07}
+                strokeOpacity={0}
+              />
+            ))}
+            <XAxis
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              dataKey="timestampMs"
+              minTickGap={46}
+              tick={{ fontSize: 10 }}
+              tickFormatter={formatAxisTimestamp}
+            />
             <YAxis
               yAxisId="cpu"
               tick={{ fontSize: 10 }}
@@ -141,14 +180,27 @@ export function VropsTrendChart({
               itemStyle={CHART_TOOLTIP_ITEM_STYLE}
               labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               formatter={(value: number, name: string) => [value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), name]}
+              labelFormatter={(value: number) => formatTooltipTimestamp(value)}
             />
             {hasSecondary && <Legend wrapperStyle={{ fontSize: 12 }} />}
             <Line yAxisId="cpu" dataKey={cpuDataKey} name={cpuName} type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} connectNulls />
             {hasSecondary && <Line yAxisId="secondary" dataKey={secondaryDataKey} name={secondaryName} type="monotone" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} connectNulls />}
+            {peak && (
+              <ReferenceDot
+                yAxisId="cpu"
+                x={peak.timestampMs}
+                y={peak[cpuDataKey] as number}
+                r={4}
+                fill="hsl(var(--destructive))"
+                stroke="hsl(var(--background))"
+                strokeWidth={2}
+                label={{ value: "Peak", position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
+              />
+            )}
             {showNowMarker && (
               <ReferenceLine
                 yAxisId="cpu"
-                x={nowLabel}
+                x={now.getTime()}
                 stroke="hsl(var(--foreground))"
                 strokeDasharray="4 4"
                 label={{ value: "Jetzt", position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
@@ -157,6 +209,11 @@ export function VropsTrendChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {peak && (
+        <p className="mt-1 text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+          Peak: {(peak[cpuDataKey] as number).toLocaleString("de-DE", { maximumFractionDigits: 2 })}{cpuDataKey === "cpuPct" ? " %" : " GHz"} · {formatTooltipTimestamp(peak.timestampMs)}
+        </p>
+      )}
     </section>
   );
 }

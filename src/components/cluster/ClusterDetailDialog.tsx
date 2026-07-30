@@ -23,8 +23,9 @@ import type {
   NormalizedVm,
   SheetRow,
 } from "@/domain/models/types";
+import { ClusterSystemDetailDialog } from "@/components/cluster/ClusterSystemDetailDialog";
 
-interface ClusterDetailDialogProps {
+export interface ClusterDetailDialogProps {
   clusterKey: string | null;
   vcenterDisplayName?: string;
   open: boolean;
@@ -83,7 +84,7 @@ function metricSeverity(value: number | null, warn: number, crit: number): strin
   return "text-success";
 }
 
-function useClusterDetailDialogView({
+export function LegacyClusterDetailDialog({
   clusterKey,
   vcenterDisplayName,
   open,
@@ -643,5 +644,5 @@ function useClusterDetailDialogView({
 }
 
 export function ClusterDetailDialog(props: ClusterDetailDialogProps) {
-  return useClusterDetailDialogView(props);
+  return <ClusterSystemDetailDialog {...props} />;
 }

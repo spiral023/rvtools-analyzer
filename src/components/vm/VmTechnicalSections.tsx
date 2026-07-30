@@ -25,6 +25,7 @@ interface VmTechnicalSectionsProps {
   networkRows: SheetRow[];
   snapshotRows: SheetRow[];
   toolsRows: SheetRow[];
+  showTrend?: boolean;
 }
 
 export function VmTechnicalSections({
@@ -36,6 +37,7 @@ export function VmTechnicalSections({
   networkRows,
   snapshotRows,
   toolsRows,
+  showTrend = true,
 }: VmTechnicalSectionsProps) {
   const cpu = cpuRows[0]?.data ?? {};
   const memory = memoryRows[0]?.data ?? {};
@@ -78,7 +80,7 @@ export function VmTechnicalSections({
 
   return (
     <>
-      <VropsTrendChart {...vropsSeries} />
+      {showTrend && <VropsTrendChart {...vropsSeries} />}
 
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">

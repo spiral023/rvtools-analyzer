@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useActiveSnapshotIds, useAllVropsLatest, useVmsWithTechInfo, useHosts, useClusters, useDatastores, useHealthEvents, useVmSnapshots, useRawSheet } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -7,14 +7,13 @@ import { HealthEventsPanel } from "@/components/dashboard/HealthEventsPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
-import { VmDetailDialog } from "@/components/vm/VmDetailDialog";
 import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventoryTable";
 import { VCenterOverviewTable } from "@/components/fleet/VCenterOverviewTable";
 import { clusterOverviewColumns } from "@/components/cluster/clusterOverviewColumns";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
-import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useAverageVm } from "@/hooks/useAverageVm";
+import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
@@ -24,37 +23,21 @@ import { buildVCenterSummaries, buildVCenterVersionBySnapshot, latestSnapshotsBy
 export default function Overview() {
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vmsWithTechInfo: filteredVms, isLoading: vmsLoading } = useVmsWithTechInfo();
-  const { filterVmRows } = useGlobalVmFilterEngine();
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
   const { data: healthEvents = [] } = useHealthEvents();
   const { data: vmSnapshots = [], isLoading: vmSnapshotsLoading } = useVmSnapshots();
   const { data: vropsLatest = [], isLoading: vropsLoading } = useAllVropsLatest();
-  const { data: rawCpuRows = [], isLoading: rawCpuLoading } = useRawSheet("vCPU");
-  const { data: rawMemoryRows = [], isLoading: rawMemoryLoading } = useRawSheet("vMemory");
-  const { data: rawDiskRows = [], isLoading: rawDiskLoading } = useRawSheet("vDisk");
-  const { data: rawPartitionRows = [], isLoading: rawPartitionLoading } = useRawSheet("vPartition");
-  const { data: rawNetworkRows = [], isLoading: rawNetworkLoading } = useRawSheet("vNetwork");
-  const { data: rawSnapshotRows = [], isLoading: rawSnapshotLoading } = useRawSheet("vSnapshot");
-  const { data: rawToolsRows = [], isLoading: rawToolsLoading } = useRawSheet("vTools");
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const { data: rawDvPortRows = [], isLoading: rawDvPortLoading } = useRawSheet("dvPort");
   const { data: rawVSourceRows = [], isLoading: rawVSourceLoading } = useRawSheet("vSource");
   const dataLoading = snapshotsLoading || vmsLoading || hostsLoading || datastoresLoading
     || clustersLoading || vmSnapshotsLoading || vropsLoading
-    || rawCpuLoading || rawMemoryLoading || rawDiskLoading || rawPartitionLoading
-    || rawNetworkLoading || rawSnapshotLoading || rawToolsLoading || rawVHostLoading
+    || rawVHostLoading
     || rawDvPortLoading || rawVSourceLoading;
 
-  const [selectedVm, setSelectedVm] = useState<OverviewVmRow | null>(null);
-  const filteredRawCpuRows = useMemo(() => filterVmRows(rawCpuRows), [filterVmRows, rawCpuRows]);
-  const filteredRawMemoryRows = useMemo(() => filterVmRows(rawMemoryRows), [filterVmRows, rawMemoryRows]);
-  const filteredRawDiskRows = useMemo(() => filterVmRows(rawDiskRows), [filterVmRows, rawDiskRows]);
-  const filteredRawPartitionRows = useMemo(() => filterVmRows(rawPartitionRows), [filterVmRows, rawPartitionRows]);
-  const filteredRawNetworkRows = useMemo(() => filterVmRows(rawNetworkRows), [filterVmRows, rawNetworkRows]);
-  const filteredRawSnapshotRows = useMemo(() => filterVmRows(rawSnapshotRows), [filterVmRows, rawSnapshotRows]);
-  const filteredRawToolsRows = useMemo(() => filterVmRows(rawToolsRows), [filterVmRows, rawToolsRows]);
+  const { openVmDetail, vmDetailDialog } = useVmDetailDialog(filteredVms);
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -146,19 +129,8 @@ export default function Overview() {
           <VirtualTable data={clusterRows} columns={clusterOverviewColumns} globalFilter={filters.search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="overview-cluster-uebersicht" />
         </section>
       )}
-      <VmInventoryTable vms={vmsForTable} globalFilter={filters.search} onRowClick={setSelectedVm} />
-      <VmDetailDialog
-        vm={selectedVm}
-        open={!!selectedVm}
-        onClose={() => setSelectedVm(null)}
-        rawCpuRows={filteredRawCpuRows}
-        rawMemoryRows={filteredRawMemoryRows}
-        rawDiskRows={filteredRawDiskRows}
-        rawPartitionRows={filteredRawPartitionRows}
-        rawNetworkRows={filteredRawNetworkRows}
-        rawSnapshotRows={filteredRawSnapshotRows}
-        rawToolsRows={filteredRawToolsRows}
-      />
+      <VmInventoryTable vms={vmsForTable} globalFilter={filters.search} onRowClick={openVmDetail} />
+      {vmDetailDialog}
     </div>
   );
 }
