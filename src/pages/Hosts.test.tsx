@@ -5,13 +5,13 @@ import type { NormalizedHost } from "@/domain/models/types";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
-  useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { clusters: [], hosts: [], search: "" }, snapshotsLoading: false }),
+  useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { clusters: [] as string[], hosts: [] as string[], search: "" }, snapshotsLoading: false }),
   useHosts: () => ({ data: [] as NormalizedHost[], isLoading: false }),
   useRawSheet: () => ({ data: [] as unknown[], isLoading: false }),
 }));
 
 vi.mock("@/hooks/useHostDetailDialog", () => ({
-  useHostDetailDialog: () => ({ openHostDetail: vi.fn(), hostDetailDialog: null }),
+  useHostDetailDialog: () => ({ openHostDetail: vi.fn(), hostDetailDialog: <></> }),
 }));
 
 vi.mock("@/components/hosts/HostLoadMap", () => ({

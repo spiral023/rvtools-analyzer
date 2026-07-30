@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, SheetRow, SnapshotMeta } from "@/domain/models/types";
-import { buildHostLoadMapData } from "@/lib/hostLoadMap";
+import { buildHostLoadMapData, type HostLoadMapFilters } from "@/lib/hostLoadMap";
 
 const snapshot: SnapshotMeta = {
   snapshotId: "snap-1",
@@ -42,7 +42,7 @@ function raw(data: SheetRow["data"]): SheetRow {
   return { snapshotId: "snap-1", sheetName: "vHost", rowIndex: 0, data };
 }
 
-const noFilters = { clusters: [], hosts: [], search: "" };
+const noFilters: HostLoadMapFilters = { clusters: [], hosts: [], search: "" };
 
 describe("buildHostLoadMapData", () => {
   it("verbindet normalisierte Hosts mit den aktuellen vHost-Auslastungswerten", () => {
@@ -115,4 +115,3 @@ describe("buildHostLoadMapData", () => {
     expect(buildHostLoadMapData(hosts, rows, [snapshot], { clusters: [], hosts: [], search: "r650" }).points.map((point) => point.host)).toEqual(["esx-02.example.at"]);
   });
 });
-
