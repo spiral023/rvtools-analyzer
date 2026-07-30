@@ -23,6 +23,15 @@ export const KNOWN_VMWARE_RELEASES: KnownRelease[] = [
   ...V_CENTER_RELEASES.map((release) => ({ type: "vcenter" as const, ...release })),
   {
     type: "esxi",
+    title: "VMware ESXi 8.0 Update 3k",
+    version: "ESXi 8.0.3 P10",
+    releaseDateIso: "2026-07-29",
+    build: "25595708",
+    releaseNotesUrl:
+      "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/esxi-update-and-patch-release-notes/vsphere-esxi-80u3k-release-notes.html",
+  },
+  {
+    type: "esxi",
     title: "VMware ESXi 8.0 Update 3j",
     version: "ESXi 8.0.3 P09",
     releaseDateIso: "2026-05-27",

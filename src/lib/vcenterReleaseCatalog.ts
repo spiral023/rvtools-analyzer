@@ -9,6 +9,14 @@ export interface VCenterRelease {
 
 export const V_CENTER_RELEASES: readonly VCenterRelease[] = [
   {
+    title: "VMware vCenter Server 8.0 Update 3k",
+    shortVersion: "8.0 U3k",
+    version: "8.0.3.01000",
+    releaseDateIso: "2026-07-29",
+    build: "25600417",
+    releaseNotesUrl: "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/release-notes/vcenter-server-update-and-patch-release-notes/vsphere-vcenter-server-80u3k-release-notes.html",
+  },
+  {
     title: "VMware vCenter Server 8.0 Update 3j",
     shortVersion: "8.0 U3j",
     version: "8.0.3.00900",
