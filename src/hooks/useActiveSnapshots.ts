@@ -137,8 +137,12 @@ export function useDatastores() {
     queryKey: ["datastores", allSnapshotIds],
     queryFn: () => timeQuery("datastores", async () => {
       const rows = await getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds);
-      // Snapshots persisted before hostNames existed lack the field in IndexedDB.
-      return rows.map((row) => (row.hostNames ? row : { ...row, hostNames: [] }));
+      // Snapshots vor Einführung dieser Felder bleiben ohne IndexedDB-Migration lesbar.
+      return rows.map((row) => ({
+        ...row,
+        hostNames: row.hostNames ?? [],
+        datastoreClusterName: row.datastoreClusterName ?? null,
+      }));
     }),
     enabled: allSnapshotIds.length > 0,
     staleTime: STALE_MS,

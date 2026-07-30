@@ -370,7 +370,7 @@ export const COMPLIANCE_SECTIONS: Record<string, GlossaryEntry> = {
   hostLoadMap: {
     term: "Host Load Map",
     description:
-      "Aktuelle Host-Zustandskarte: CPU-Auslastung auf der horizontalen und RAM-Auslastung auf der vertikalen Achse. Große Kreise tragen viele VMs; Orange bzw. Rot markieren knappe Kapazität. Eine gestrichelte Kontur kennzeichnet Wartungsmodus, ein Kreuz getrennte oder ausgeschaltete Hosts. Klicke einen Host für die Detailansicht.",
+      "Kompakte Host-Zustandskarte für große Umgebungen. Jeder Host zeigt CPU- und RAM-Auslastung als eigene Leiste; auffällige Systeme stehen zuerst. Orange bzw. Rot markieren knappe Kapazität, der Statuspunkt zeigt verbunden, Wartungsmodus oder nicht verfügbar. Klicke einen Host für die Detailansicht.",
     source: `${RV} · vHost · „CPU usage %“, „Memory usage %“, „# VMs“, „# vCPUs“, „# Cores“`,
   },
   hwVersionDistribution: {

@@ -1,9 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
 import type { NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
+
+vi.mock("@/components/vrops/VropsTrendChart", () => ({
+  VropsTrendChart: ({ secondaryLabel }: { secondaryLabel?: string }) => (
+    <div data-testid="vrops-trend" data-secondary-label={secondaryLabel} />
+  ),
+}));
 
 const cluster: NormalizedCluster = {
   snapshotId: "snap-1", vcenterId: "vc-1", clusterKey: clusterScopeKey("vc-1", null, "Production"),
@@ -44,5 +50,6 @@ describe("ClusterDetailDialog", () => {
 
     expect(screen.getByText("Laufende VMs (1)")).toBeInTheDocument();
     expect(screen.getByText("APP-01")).toBeInTheDocument();
+    expect(screen.getByTestId("vrops-trend")).not.toHaveAttribute("data-secondary-label");
   });
 });

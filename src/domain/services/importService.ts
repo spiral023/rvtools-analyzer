@@ -466,7 +466,7 @@ function normalizeClusters(sheet: ParsedSheetData | undefined, snapshotId: strin
 function parseHostNames(value: unknown): string[] {
   if (value === null || value === undefined || value === "") return [];
   return String(value)
-    .split(",")
+    .split(/[,;\r\n]+/)
     .map((host) => host.trim())
     .filter((host) => host.length > 0);
 }
@@ -485,6 +485,7 @@ function normalizeDatastores(sheet: ParsedSheetData | undefined, snapshotId: str
       dsKey: `${name}::${vcenterId}`,
       name,
       clusterName: toStr(row["Cluster"] || row["Datacenter/Cluster"]),
+      datastoreClusterName: toStr(row["Datastore Cluster"] || row["Datastore cluster"]),
       hostNames: parseHostNames(row["Hosts"]),
       type: toStr(row["Type"]),
       capacityMiB: capMiB,

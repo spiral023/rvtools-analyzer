@@ -726,7 +726,7 @@ export function HostDetailDialog({
 
         <ScrollArea className="max-h-[calc(85vh-100px)]">
           <div className="p-6 space-y-6">
-            <VropsTrendChart {...vropsSeries} secondaryUnit="MiB" secondaryLabel="Memory Util." />
+            <VropsTrendChart {...vropsSeries} />
 
             {/* Identity */}
             <section>

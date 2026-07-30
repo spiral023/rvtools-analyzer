@@ -131,10 +131,15 @@ export const CAPACITY_DS_COLUMNS: Record<string, GlossaryEntry> = {
       "Freier Speicher in Prozent. Unter 20 % (gelb) bzw. 10 % (rot) wird der Datastore kritisch – Wachstum, Snapshots und Swap brauchen Puffer.",
     source: `${RV} · vDatastore · „Free %“`,
   },
-  clusterName: {
-    term: "Cluster",
-    description: "Cluster, dem der Datastore zugeordnet ist (sofern eindeutig).",
-    source: `${RV} · vDatastore`,
+  computeClusters: {
+    term: "Compute-Cluster",
+    description: "Alle Compute-Cluster, deren ESXi-Hosts diesen Datastore verbunden haben. Ein gemeinsam genutzter Datastore kann mehreren Clustern zugeordnet sein.",
+    source: `${RV} · vDatastore „Hosts“ + vHost „Host“/„Cluster“`,
+  },
+  datastoreClusterName: {
+    term: "Datastore Cluster",
+    description: "Storage-DRS-/Datastore-Cluster, dem der Datastore in vCenter zugeordnet ist. Dies ist unabhängig von den Compute-Clustern der verbundenen ESXi-Hosts.",
+    source: `${RV} · vDatastore · „Datastore Cluster“`,
   },
 };
 
@@ -499,7 +504,7 @@ export const CAPACITY_SECTIONS: Record<string, GlossaryEntry> = {
   datastoreDetails: {
     term: "Datastore Details",
     description:
-      "Vollständige Datastore-Liste mit Kapazität, Belegung und Frei %, aufsteigend nach Frei % sortiert. Grundlage für Storage-Balancing und Erweiterungsentscheidungen.",
+      "Vollständige Datastore-Liste mit Kapazität, Belegung, freiem Anteil, allen verbundenen Compute-Clustern und dem separaten Storage-DRS-/Datastore-Cluster. Compute-Cluster werden über die in vDatastore gelisteten Hosts gegen vHost aufgelöst.",
   },
   resourcePool: {
     term: "Resource Pool Pressure",

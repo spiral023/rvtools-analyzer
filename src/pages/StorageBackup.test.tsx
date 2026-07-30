@@ -7,9 +7,10 @@ import type { NormalizedVm, SheetRow } from "@/domain/models/types";
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ snapshots: [{ snapshotId: "snap-1" }], filters: { search: "" }, snapshotsLoading: false }),
   useDatastores: () => ({ data: [] as unknown[], isLoading: false }),
+  useHosts: () => ({ data: [] as unknown[], isLoading: false }),
   useRawSheet: (sheet: string) => ({
     data: sheet === "vPartition"
-      ? [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 51].map((freePct, rowIndex) => ({
+      ? Array.from({ length: 21 }, (_, index) => index * 5).map((freePct, rowIndex) => ({
         snapshotId: "snap-1",
         sheetName: "vPartition",
         rowIndex,
@@ -95,24 +96,16 @@ describe("StorageBackup KPI-Kacheln", () => {
     ]);
   });
 
-  it("zeigt Gast-Partitionen in 5%-Intervallen bis 50% und darüber als Rest", () => {
+  it("zeigt Gast-Partitionen durchgehend in 5%-Intervallen von 0 bis 100 Prozent", () => {
     render(<StorageBackup />);
 
     expect(screen.getByTestId("partition-chart")).toHaveAttribute("data-layout", "horizontal");
 
-    for (const bucket of [
-      "0–5 %:1",
-      "5–10 %:1",
-      "10–15 %:1",
-      "15–20 %:1",
-      "20–25 %:1",
-      "25–30 %:1",
-      "30–35 %:1",
-      "35–40 %:1",
-      "40–45 %:1",
-      "45–50 %:2",
-      ">50 %:1",
-    ]) {
+    for (const bucket of Array.from({ length: 20 }, (_, index) => {
+      const lower = index * 5;
+      const upper = lower + 5;
+      return `${lower}–${upper} %:${index === 19 ? 2 : 1}`;
+    })) {
       expect(screen.getByText(bucket)).toBeInTheDocument();
     }
   });

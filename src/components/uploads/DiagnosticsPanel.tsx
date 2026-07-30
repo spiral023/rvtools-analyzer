@@ -1,11 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Boxes, Database, Gauge, HardDrive, Layers3, Loader2, RefreshCw, Timer } from "lucide-react";
 import { useDiagnostics } from "@/hooks/useDiagnostics";
 import { formatBytes } from "@/lib/utils";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { Database, Gauge, HardDrive, Timer } from "lucide-react";
 
 export function DiagnosticsPanel() {
   const { data, isFetching, refresh } = useDiagnostics(true);
@@ -26,10 +25,12 @@ export function DiagnosticsPanel() {
       {data && (
         <>
           <section aria-label="Diagnose-Kennzahlen" className="mb-4">
-            <KpiGrid className="grid-cols-2 sm:grid-cols-4 md:grid-cols-4">
+            <KpiGrid>
               <KpiCard title="Snapshots" value={data.snapshots.length.toLocaleString("de-DE")} subtitle="RVTools-Exporte" icon={<Database aria-hidden="true" className="h-4 w-4" />} />
               <KpiCard title="IndexedDB-Einträge" value={data.stores.reduce((sum, store) => sum + store.count, 0).toLocaleString("de-DE")} subtitle="über alle Stores" icon={<HardDrive aria-hidden="true" className="h-4 w-4" />} />
               <KpiCard title="Speicher belegt" value={data.storage.supported ? formatBytes(data.storage.usageBytes) : "—"} subtitle="Browser-Schätzung" icon={<Gauge aria-hidden="true" className="h-4 w-4" />} />
+              <KpiCard title="Daten-Stores" value={data.stores.length.toLocaleString("de-DE")} subtitle="IndexedDB-Bereiche" icon={<Layers3 aria-hidden="true" className="h-4 w-4" />} />
+              <KpiCard title="Query-Cache" value={data.cache.reduce((sum, entry) => sum + entry.entryCount, 0).toLocaleString("de-DE")} subtitle="zwischengespeicherte Datensätze" icon={<Boxes aria-hidden="true" className="h-4 w-4" />} />
               <KpiCard title="Messungen" value={data.queryTimings.length.toLocaleString("de-DE")} subtitle="Seiten-Ladezeiten" icon={<Timer aria-hidden="true" className="h-4 w-4" />} />
             </KpiGrid>
           </section>

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { VirtualTable } from "@/components/tables/VirtualTable";
-import type { NormalizedDatastore, NormalizedVm, SheetRow } from "@/domain/models/types";
+import type { NormalizedDatastore, NormalizedHost, NormalizedVm, SheetRow } from "@/domain/models/types";
+import { buildDatastoreDetailRows, type DatastoreDetailRow } from "@/lib/datastoreDetails";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { CAPACITY_DS_COLUMNS, CAPACITY_SECTIONS, CAPACITY_THIN_COLUMNS, CAPACITY_THIN_DISK_COLUMNS } from "@/lib/glossaries/capacity";
 import { formatBytes, formatPct, parseDatastoreFromDiskPath } from "@/lib/xlsx/parseHelpers";
@@ -10,14 +11,29 @@ import { formatBytes, formatPct, parseDatastoreFromDiskPath } from "@/lib/xlsx/p
 interface ThinRiskRow { datastore: string; freePct: number | null; thinDisks: number; totalThinMiB: number; risk: string }
 interface ThinDiskRow { snapshotId: string; vm: string; disk: string; capacityMiB: number; diskPath: string; datastore: string; datastoreFreePct: number | null; cluster: string; host: string }
 
-const datastoreColumns: ColumnDef<NormalizedDatastore, unknown>[] = [
+const datastoreColumns: ColumnDef<DatastoreDetailRow, unknown>[] = [
   { accessorKey: "name", header: "Datastore", meta: { info: CAPACITY_DS_COLUMNS.name } },
   { accessorKey: "type", header: "Typ", meta: { info: CAPACITY_DS_COLUMNS.type } },
+  {
+    id: "computeClusters",
+    accessorFn: (row) => row.computeClusters.join(", "),
+    header: "Compute-Cluster",
+    meta: { info: CAPACITY_DS_COLUMNS.computeClusters },
+    cell: ({ row }) => {
+      const value = row.original.computeClusters.join(", ");
+      return <div className="max-w-[280px] truncate" title={value || "—"}>{value || "—"}</div>;
+    },
+  },
+  {
+    accessorKey: "datastoreClusterName",
+    header: "Datastore Cluster",
+    meta: { info: CAPACITY_DS_COLUMNS.datastoreClusterName },
+    cell: ({ getValue }) => (getValue() as string | null | undefined) || "—",
+  },
   { accessorKey: "capacityMiB", header: "Kapazität", meta: { info: CAPACITY_DS_COLUMNS.capacityMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
   { accessorKey: "inUseMiB", header: "Belegt", meta: { info: CAPACITY_DS_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
   { accessorKey: "freeMiB", header: "Frei", meta: { info: CAPACITY_DS_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
   { accessorKey: "freePct", header: "Frei %", meta: { info: CAPACITY_DS_COLUMNS.freePct }, cell: ({ getValue }) => { const value = getValue() as number | null; return <span className={value !== null && value < 10 ? "text-destructive font-semibold" : value !== null && value < 20 ? "text-warning" : "text-success"}>{formatPct(value)}</span>; } },
-  { accessorKey: "clusterName", header: "Cluster", meta: { info: CAPACITY_DS_COLUMNS.clusterName } },
 ];
 
 const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
@@ -39,7 +55,9 @@ const thinDiskColumns: ColumnDef<ThinDiskRow, unknown>[] = [
   { accessorKey: "host", header: "Host", meta: { info: CAPACITY_THIN_DISK_COLUMNS.host }, cell: ({ getValue }) => (getValue() as string) || "—" },
 ];
 
-export function DatastoreCapacityDetails({ datastores, allVms, rawDisks, search, onOpenVm }: { datastores: NormalizedDatastore[]; allVms: NormalizedVm[]; rawDisks: SheetRow[]; search: string; onOpenVm: (row: unknown) => void }) {
+export function DatastoreCapacityDetails({ datastores, hosts, allVms, rawDatastores, rawDisks, search, onOpenVm }: { datastores: NormalizedDatastore[]; hosts: NormalizedHost[]; allVms: NormalizedVm[]; rawDatastores: SheetRow[]; rawDisks: SheetRow[]; search: string; onOpenVm: (row: unknown) => void }) {
+  const datastoreDetailRows = useMemo(() => buildDatastoreDetailRows(datastores, hosts, rawDatastores), [datastores, hosts, rawDatastores]);
+
   const thinRiskRows = useMemo<ThinRiskRow[]>(() => {
     let thinDisks = 0;
     let totalThinMiB = 0;
@@ -57,7 +75,7 @@ export function DatastoreCapacityDetails({ datastores, allVms, rawDisks, search,
   }, [datastores, rawDisks]);
 
   const thinDiskRows = useMemo<ThinDiskRow[]>(() => {
-    const datastoreByKey = new Map(datastores.map((datastore) => [`${datastore.snapshotId}::${datastore.name.trim().toLowerCase()}`, datastore]));
+    const datastoreByKey = new Map(datastoreDetailRows.map((datastore) => [`${datastore.snapshotId}::${datastore.name.trim().toLowerCase()}`, datastore]));
     const vmByKey = new Map(allVms.map((vm) => [`${vm.snapshotId}::${normalizeVmName(vm.vmName)}`, vm]));
     const rows: ThinDiskRow[] = [];
     for (const row of rawDisks) {
@@ -67,14 +85,14 @@ export function DatastoreCapacityDetails({ datastores, allVms, rawDisks, search,
       const datastoreName = parseDatastoreFromDiskPath(diskPath) || "";
       const datastore = datastoreName ? datastoreByKey.get(`${row.snapshotId}::${datastoreName.toLowerCase()}`) : undefined;
       const vm = vmByKey.get(`${row.snapshotId}::${normalizeVmName(vmName)}`);
-      rows.push({ snapshotId: row.snapshotId, vm: vmName, disk: String(row.data.Disk || ""), capacityMiB: Number(row.data["Capacity MiB"] || 0), diskPath, datastore: datastoreName || datastore?.name || "", datastoreFreePct: datastore?.freePct ?? null, cluster: datastore?.clusterName || vm?.cluster || "", host: vm?.host || "" });
+      rows.push({ snapshotId: row.snapshotId, vm: vmName, disk: String(row.data.Disk || ""), capacityMiB: Number(row.data["Capacity MiB"] || 0), diskPath, datastore: datastoreName || datastore?.name || "", datastoreFreePct: datastore?.freePct ?? null, cluster: vm?.cluster || datastore?.computeClusters.join(", ") || "", host: vm?.host || "" });
     }
     return rows.sort((left, right) => (left.datastoreFreePct ?? Infinity) - (right.datastoreFreePct ?? Infinity) || right.capacityMiB - left.capacityMiB);
-  }, [allVms, datastores, rawDisks]);
+  }, [allVms, datastoreDetailRows, rawDisks]);
 
   return (
     <>
-      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable data={datastores} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>
+      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable data={datastoreDetailRows} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>
       {thinRiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable data={thinRiskRows} columns={thinRiskColumns} globalFilter={search} height={250} /></div>}
       {thinDiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinDiskDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin Disks – Migrationsplanung ({thinDiskRows.length})</h3></InfoTooltip><VirtualTable data={thinDiskRows} columns={thinDiskColumns} globalFilter={search} height={400} onRowClick={onOpenVm} /></div>}
     </>

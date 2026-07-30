@@ -9,6 +9,12 @@ import { findClusterForHost } from "@/lib/hardwareClusterSelection";
 import { HostDetailDialog } from "./Hardware";
 import * as HardwareModule from "./Hardware";
 
+vi.mock("@/components/vrops/VropsTrendChart", () => ({
+  VropsTrendChart: ({ secondaryLabel }: { secondaryLabel?: string }) => (
+    <div data-testid="vrops-trend" data-secondary-label={secondaryLabel} />
+  ),
+}));
+
 type VariantDetailDialogProps = {
   group: HardwareModelGroup | null;
   open: boolean;
@@ -185,5 +191,6 @@ describe("HostDetailDialog", () => {
     fireEvent.click(screen.getByText("APP-01"));
 
     expect(onVmClick).toHaveBeenCalledWith(runningVm);
+    expect(screen.getByTestId("vrops-trend")).not.toHaveAttribute("data-secondary-label");
   });
 });

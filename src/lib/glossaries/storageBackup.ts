@@ -438,7 +438,7 @@ export const STORAGE_SECTIONS: Record<string, GlossaryEntry> = {
   partitionChart: {
     term: "Gast-Partitionen mit wenig Platz",
     description:
-      "Gruppiert alle Gast-Partitionen nach ihrem freien Anteil. Nutze die roten und gelben Bereiche, um akute Platzprobleme innerhalb der VMs schnell zu priorisieren.",
+      "Gruppiert alle Gast-Partitionen über den vollständigen Bereich von 0 bis 100 % in 5-%-Intervalle. Nutze die roten und gelben Bereiche, um akute Platzprobleme innerhalb der VMs schnell zu priorisieren.",
   },
   datastoreChart: {
     term: "Datastores mit niedrigstem freien Anteil",

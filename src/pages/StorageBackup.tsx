@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useActiveSnapshotIds, useDatastores, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
+import { useActiveSnapshotIds, useDatastores, useHosts, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -163,6 +163,7 @@ export default function StorageBackup() {
   const { data: rawDatastore = [], isLoading: rawDatastoreLoading } = useRawSheet("vDatastore");
   const { data: vmSnapshots = [], isLoading: vmSnapshotsLoading } = useVmSnapshots();
   const { data: datastores = [], isLoading: datastoresLoading } = useDatastores();
+  const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const filteredRawPartitions = useMemo(() => filterVmRows(rawPartitions), [filterVmRows, rawPartitions]);
   const filteredRawDisks = useMemo(() => filterVmRows(rawDisks), [filterVmRows, rawDisks]);
   const filteredRawVInfo = useMemo(() => filterVmRows(rawVInfo), [filterVmRows, rawVInfo]);
@@ -291,7 +292,7 @@ export default function StorageBackup() {
   }, [filteredVmSnapshots, backupData]);
 
   const partitionFreeDistribution = useMemo<PartitionFreeDistributionRow[]>(() => {
-    const buckets = Array.from({ length: 10 }, (_, index) => {
+    const buckets = Array.from({ length: 20 }, (_, index) => {
       const lower = index * 5;
       const upper = lower + 5;
       return {
@@ -300,11 +301,9 @@ export default function StorageBackup() {
         color: upper <= 10 ? CHART_COLORS.danger : upper <= 20 ? CHART_COLORS.warning : CHART_COLORS.success,
       };
     });
-    buckets.push({ label: ">50 %", count: 0, color: CHART_COLORS.success });
-
     for (const partition of partitions) {
-      const freePct = Math.max(partition.freePct, 0);
-      const bucketIndex = freePct > 50 ? 10 : Math.min(Math.floor(freePct / 5), 9);
+      const freePct = Math.min(Math.max(partition.freePct, 0), 100);
+      const bucketIndex = Math.min(Math.floor(freePct / 5), 19);
       buckets[bucketIndex].count += 1;
     }
 
@@ -312,7 +311,7 @@ export default function StorageBackup() {
   }, [partitions]);
 
   const dataLoading = snapshotsLoading || vmsLoading || rawPartitionsLoading || rawMultiPathLoading
-    || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading || datastoresLoading;
+    || rawDisksLoading || rawVInfoLoading || rawDatastoreLoading || vmSnapshotsLoading || datastoresLoading || hostsLoading;
   if (dataLoading) return <PageLoadingState title="Storage / Backup" />;
 
   if (snapshots.length === 0) {
@@ -362,7 +361,7 @@ export default function StorageBackup() {
 
           <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-          <DatastoreCapacityDetails datastores={datastores} allVms={allVms} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} />
+          <DatastoreCapacityDetails datastores={datastores} hosts={hosts} allVms={allVms} rawDatastores={rawDatastore} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} />
 
           {datastoreCapacityChart.length > 0 && (
             <div className="rounded-lg border border-border/50 bg-card/30 p-4">

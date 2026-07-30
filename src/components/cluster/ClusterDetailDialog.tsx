@@ -387,7 +387,7 @@ function useClusterDetailDialogView({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="p-6 space-y-6">
-            <VropsTrendChart {...vropsSeries} secondaryUnit="MiB" secondaryLabel="Memory Util." />
+            <VropsTrendChart {...vropsSeries} />
 
             <section>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">

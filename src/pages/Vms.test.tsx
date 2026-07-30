@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
@@ -49,7 +50,23 @@ const { default: Vms } = await import("./Vms");
 
 describe("VMs", () => {
   it("bündelt die VM-Übersicht in sechs Sitzungstabs", () => {
-    render(<MemoryRouter><TooltipProvider><Vms /></TooltipProvider></MemoryRouter>);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <TooltipProvider>
+            <Vms />
+          </TooltipProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByRole("heading", { name: "VMs" })).toBeInTheDocument();
     expect(screen.getByText("VMs gesamt")).toBeInTheDocument();
