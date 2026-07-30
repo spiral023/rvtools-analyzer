@@ -283,7 +283,7 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
   averageVmWeekGrid: {
     term: "Wochenraster",
     description:
-      "Dasselbe Signal auf Wochentag × Stunde gefaltet: je dichter die Farbe, desto höher der Ø CPU Demand. So werden wiederkehrende Lastfenster – Geschäftszeiten, Nacht-Batches, Wochenendläufe – als Muster sichtbar. Die laufende Stunde ist umrandet, Stunden ohne Messwert bleiben grau.",
+      "Dasselbe Signal auf Wochentag × Stunde gefaltet, damit wiederkehrende Lastfenster – Geschäftszeiten, Nacht-Batches, Wochenendläufe – als Muster sichtbar werden. Die Farbskala trennt am Median aller Stundenwerte: überdurchschnittliche Stunden erscheinen in der Primärfarbe (Sättigung bis zum P95), Stunden unter dem Median in neutralem Grau. Der Median als Nullpunkt ist nötig, weil der über tausende VMs gemittelte Demand nie in die Nähe der Null fällt – eine Skala von 0 bis Maximum würde alle Zellen gleich dunkel färben und das Muster verdecken. Die laufende Stunde ist umrandet, Stunden ohne Messwert bleiben leer.",
     source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
   },
   hostsPerCluster: {

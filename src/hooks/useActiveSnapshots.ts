@@ -8,6 +8,7 @@ import { useFilterState } from "@/hooks/useFilterState";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { buildVmJoinKey, hasGlobalFilterDefinition } from "@/lib/globalFilter";
 import { applyVmScopeToVms } from "@/lib/vmScope";
+import { buildSysvSearchIndex, matchesVmSearch, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { timeQuery } from "@/lib/queryTiming";
 import { QUERY_CACHE_DURATION_MS, RAW_QUERY_GC_MS } from "@/lib/queryCache";
 import type {
@@ -76,6 +77,11 @@ export function useVms() {
   const { filters } = useActiveSnapshotIds();
   const { allVms: vms, isLoading } = useBaseVms();
   const { hasActiveFilter, matchingVmKeys } = useGlobalVmFilterEngine(hasGlobalFilterDefinition(filters.globalFilter));
+  // Systemverantwortliche stehen nicht im RVTools-Export. Für die Textsuche wird die
+  // Tech-Info-Zuordnung mitgeladen – nur bei aktiver Suche, damit Seiten ohne Suchbegriff
+  // keine zusätzliche Abfrage auslösen. Den Cache teilt sie mit allen Tech-Info-Nutzern.
+  const { data: techInfoLatest = [] } = useAllTechInfoLatest(filters.search.trim() !== "");
+  const sysvIndex = useMemo(() => buildSysvSearchIndex(techInfoLatest), [techInfoLatest]);
 
   const filtered = useMemo(() => {
     let result = vms;
@@ -92,17 +98,11 @@ export function useVms() {
       result = result.filter((v) => v.host && hostSet.has(v.host));
     }
     if (filters.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter((v) =>
-        v.vmName.toLowerCase().includes(q) ||
-        v.host?.toLowerCase().includes(q) ||
-        v.cluster?.toLowerCase().includes(q) ||
-        v.osConfig?.toLowerCase().includes(q) ||
-        v.osTools?.toLowerCase().includes(q)
-      );
+      const query = normalizeVmSearchTerm(filters.search);
+      result = result.filter((vm) => matchesVmSearch(vm, query, sysvIndex));
     }
     return result;
-  }, [filters, hasActiveFilter, matchingVmKeys, vms]);
+  }, [filters, hasActiveFilter, matchingVmKeys, sysvIndex, vms]);
 
   return { vms: filtered, allVms: vms, isLoading };
 }
@@ -254,10 +254,11 @@ export function useAllTechInfoClientLatest() {
 }
 
 /** Alle zuletzt importierten Tech-Info-Zeilen – unabhängig vom aktiven RVTools-Snapshot-Scope. */
-export function useAllTechInfoLatest() {
+export function useAllTechInfoLatest(enabled = true) {
   return useQuery({
     queryKey: ["techInfoLatestAll"],
     queryFn: getAllTechInfoLatest,
+    enabled,
     staleTime: STALE_MS,
   });
 }

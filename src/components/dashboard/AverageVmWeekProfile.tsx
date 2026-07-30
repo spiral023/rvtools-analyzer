@@ -5,6 +5,7 @@ import type { AverageVmWorkload, AverageVmWorkloadWeekCell } from "@/domain/serv
 import { WEEKDAY_LABELS } from "@/domain/services/averageVmWorkloadService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE } from "@/lib/chartStyles";
 import { formatDemandAxisTick, formatDemandMHz } from "@/lib/formatDemand";
+import { buildHeatScale, heatCellColor, relativeToMedian } from "@/lib/heatScale";
 import { OVERVIEW_SECTIONS } from "@/lib/glossary";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { cn } from "@/lib/utils";
@@ -167,9 +168,9 @@ function emptyDay(weekdayIndex: number): AverageVmWorkloadWeekCell[] {
 }
 
 /**
- * Wochenraster 7 × 24. Eine Hue, Deckkraft nach Last – die Gamma-Korrektur hebt
- * schwach genutzte Stunden über die Sichtbarkeitsschwelle, ohne die Ordnung zu
- * verändern. Stunden ohne Messwert bleiben neutral grau statt „null Last".
+ * Wochenraster 7 × 24. Die Farbskala trennt am Median der Stundenwerte (siehe
+ * `buildHeatScale`): überdurchschnittliche Stunden in der Primärfarbe, ruhige in
+ * neutralem Grau. Stunden ohne Messwert bleiben leer statt „null Last".
  */
 function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
   const [hovered, setHovered] = useState<AverageVmWorkloadWeekCell | null>(null);
@@ -182,10 +183,8 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
     }
     return byDay;
   }, [workload.weekGrid]);
-  const maxDemand = useMemo(
-    () => workload.weekGrid.reduce((max, cell) => Math.max(max, cell.cpuDemandMHz ?? 0), 0),
-    [workload.weekGrid],
-  );
+  const scale = useMemo(() => buildHeatScale(workload.weekGrid.map((cell) => cell.cpuDemandMHz)), [workload.weekGrid]);
+  const hoveredDelta = hovered?.cpuDemandMHz !== null && hovered !== null && scale !== null ? relativeToMedian(hovered.cpuDemandMHz, scale) : null;
 
   return (
     <section className="space-y-2" onMouseLeave={() => setHovered(null)}>
@@ -200,9 +199,12 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
             <>
               {WEEKDAY_LABELS[hovered.weekdayIndex]} {formatHour(hovered.hour)} ·{" "}
               <span className="text-foreground/80">{formatDemandMHz(hovered.cpuDemandMHz)}</span>
+              {hoveredDelta !== null && <> · {formatDelta(hoveredDelta)} zum Median</>}
             </>
+          ) : scale !== null ? (
+            <>Median {formatDemandMHz(scale.median)} · Spanne {formatDemandMHz(scale.min)}–{formatDemandMHz(scale.max)}</>
           ) : (
-            <>0 – {formatDemandMHz(maxDemand)}</>
+            <>keine Messwerte</>
           )}
         </p>
       </header>
@@ -225,7 +227,7 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
                       cell.cpuDemandMHz === null && "bg-muted/50",
                       isNow && "relative z-10 outline outline-2 outline-offset-1 outline-warning",
                     )}
-                    style={cell.cpuDemandMHz === null ? undefined : { backgroundColor: heatColor(cell.cpuDemandMHz, maxDemand) }}
+                    style={cell.cpuDemandMHz === null || scale === null ? undefined : { backgroundColor: heatCellColor(cell.cpuDemandMHz, scale) }}
                   />
                 );
               })}
@@ -241,13 +243,26 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
             </span>
           ))}
         </div>
+
+        <div className="flex items-center gap-1 pt-0.5 text-[9px] text-muted-foreground" aria-hidden="true">
+          <span>ruhig</span>
+          {[0.06, 0.18, 0.3].map((alpha) => (
+            <span key={alpha} className="h-2 w-3 rounded-[1px]" style={{ backgroundColor: `hsl(var(--muted-foreground) / ${alpha})` }} />
+          ))}
+          <span className="px-0.5 text-foreground/70">Median</span>
+          {[0.18, 0.38, 0.58, 0.78, 0.95].map((alpha) => (
+            <span key={alpha} className="h-2 w-3 rounded-[1px]" style={{ backgroundColor: `hsl(var(--primary) / ${alpha})` }} />
+          ))}
+          <span>Lastspitze</span>
+        </div>
       </div>
     </section>
   );
 }
 
-function heatColor(value: number, max: number): string {
-  const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
-  const alpha = 0.1 + 0.85 * ratio ** 0.75;
-  return `hsl(var(--primary) / ${alpha.toFixed(3)})`;
+/** Vorzeichenbehaftet, weil der Vergleich zum Median in beide Richtungen gelesen wird. */
+function formatDelta(percent: number): string {
+  const rounded = Math.round(percent);
+  if (rounded === 0) return "±0 %";
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toLocaleString("de-DE")} %`;
 }

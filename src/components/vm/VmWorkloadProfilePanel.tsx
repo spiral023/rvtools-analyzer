@@ -10,6 +10,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
+import { UtilizationPercentCell, WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
@@ -98,7 +99,7 @@ export function VmWorkloadProfilePanel() {
       meta: { info: VM_PROFILE_COLUMNS.intensity },
       // Nach der Skalenreihenfolge sortieren, nicht alphabetisch nach Label.
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
-      cell: ({ row }) => <Badge variant={row.original.intensity === "idle" ? "secondary" : "outline"}>{VM_WORKLOAD_INTENSITY_LABEL[row.original.intensity]}</Badge>,
+      cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
     {
       id: "confidence",
@@ -110,7 +111,7 @@ export function VmWorkloadProfilePanel() {
     { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
     { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline }, cell: ({ row }) => <Sparkline profile={row.original} /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
-    { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => formatPercent(row.original.signals.utilizationP95Pct) },
+    { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
   ], []);
 

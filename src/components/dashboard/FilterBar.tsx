@@ -206,7 +206,13 @@ export function FilterBar() {
       </DropdownMenu>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Suchen..." value={searchLocal} onChange={(e) => setSearchLocal(e.target.value)} className="h-8 w-[180px] pl-7 text-xs" />
+        <Input
+          placeholder="VM, Host, OS, SysV …"
+          title="Durchsucht VM-Name, Cluster, Host, Betriebssystem und Systemverantwortliche:r. Alle Auswertungen der Seite folgen dem Ergebnis."
+          value={searchLocal}
+          onChange={(e) => setSearchLocal(e.target.value)}
+          className="h-8 w-[180px] pl-7 text-xs"
+        />
       </div>
       <Select
         value={filters.vmPowerScope}
