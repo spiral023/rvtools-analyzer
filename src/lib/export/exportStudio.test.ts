@@ -87,6 +87,29 @@ describe("Export Studio domain helpers", () => {
     expect(pseudonymizeExportDataset(sensitiveDataset, ["owner", "department"]).rows[0]).toEqual({ owner: "person-001", deputy: "Max Beispiel", department: "abteilung-001", comment: "Kritischer Fachserver" });
   });
 
+  it("pseudonymisiert bei Resource Pools nur den Teil vor dem Profilkürzel (\"/HIGH\", \"/STD\", …)", () => {
+    const result = pseudonymizeExportDataset({
+      ...dataset,
+      columns: [{ id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool" }],
+      rows: [
+        { resourcePool: "Team-X/HIGH" },
+        { resourcePool: "Team-X/STD" },
+        { resourcePool: "Team-Y/HIGH" },
+        { resourcePool: "Ohne Profil" },
+        { resourcePool: "—" },
+      ],
+    });
+    expect(result.rows).toEqual([
+      { resourcePool: "resource-pool-001/HIGH" },
+      // Derselbe Bezeichner vor dem "/" ergibt denselben Platzhalter, unabhängig vom Profilkürzel.
+      { resourcePool: "resource-pool-001/STD" },
+      { resourcePool: "resource-pool-002/HIGH" },
+      // Ohne "/" gilt der gesamte Wert als Bezeichner.
+      { resourcePool: "resource-pool-003" },
+      { resourcePool: "—" },
+    ]);
+  });
+
   it("erhält die vom Nutzer festgelegte Spaltenreihenfolge", () => {
     const data = buildExportDataFromDataset(dataset, ["state", "server"]);
     expect(data.headers).toEqual(["Status", "Server"]);
@@ -197,6 +220,35 @@ describe("buildVmExportDataset", () => {
     expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "12", reclaimableVcpu: "4", recommendationWithheld: "—" });
     expect(result.kpis.find((kpi) => kpi.label === "Rightsizing-Kandidaten")?.value).toBe("1");
     expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("4");
+  });
+
+  it("bietet Cluster (Tech-Info), Servertyp und Notiz standardmäßig als pseudonymisierbare Spalten an", () => {
+    const result = buildVmExportDataset(
+      [vm({ cluster: "Production", annotation: "Kritischer Fachserver" })],
+      [snapshot],
+      "1 vCenter-Scope",
+      [],
+      [],
+      [{
+        vmNameNorm: "sql-01", vmName: "sql-01", importedAt: "2026-07-28T00:00:00.000Z", techInfoImportId: "ti-1", rowIndex: 0,
+        serverType: "Applikationsserver", maintenanceWindow: null, operatingSystem: null, comment: null,
+        sysv: null, sysvDepartment: null, sysvDeputy: null, sysvDeputyDepartment: null,
+        bz: null, clusterFromTechInfo: "Production", cvBackup: null, az: null,
+      }],
+    );
+    expect(result.columns).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "annotation", pseudonymKind: "text" }),
+      expect.objectContaining({ id: "techInfoServerType", pseudonymKind: "text" }),
+      expect.objectContaining({ id: "techInfoCluster", pseudonymKind: "cluster" }),
+    ]));
+    const pseudonymized = pseudonymizeExportDataset(result);
+    expect(pseudonymized.rows[0]).toMatchObject({
+      annotation: "text-001",
+      techInfoServerType: "text-002",
+      // Dieselbe Zeichenkette wie im RVTools-Feld "Cluster" ergibt denselben Platzhalter.
+      techInfoCluster: "cluster-001",
+      cluster: "cluster-001",
+    });
   });
 });
 

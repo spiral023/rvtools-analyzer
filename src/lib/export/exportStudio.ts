@@ -103,12 +103,12 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "cluster", label: "Cluster", pseudonymKind: "cluster", category: inventory }, { id: "host", label: "Host", pseudonymKind: "host", category: inventory },
     { id: "powerState", label: "Power-Status", category: inventory }, { id: "vcpus", label: "vCPU", category: inventory }, { id: "memory", label: "RAM", category: inventory },
     { id: "os", label: "Betriebssystem", category: inventory }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool", category: inventory },
-    { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: inventory }, { id: "tools", label: "VMware Tools", category: inventory }, { id: "annotation", label: "Notiz", category: inventory },
+    { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: inventory }, { id: "tools", label: "VMware Tools", category: inventory }, { id: "annotation", label: "Notiz", pseudonymKind: "text", category: inventory },
     { id: "hwVersion", label: "HW-Version", category: inventory }, { id: "toolsVersion", label: "Tools-Version", category: inventory }, { id: "secureBoot", label: "Secure Boot", category: inventory },
     { id: "techInfoSysv", label: "Systemverantwortlicher", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", pseudonymKind: "department", category: techInfo },
     { id: "techInfoSysvDeputy", label: "SysVStv", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", pseudonymKind: "department", category: techInfo },
-    { id: "techInfoServerType", label: "Servertyp (Tech-Info)", category: techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: techInfo },
-    { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", category: techInfo },
+    { id: "techInfoServerType", label: "Servertyp (Tech-Info)", pseudonymKind: "text", category: techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: techInfo },
+    { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", pseudonymKind: "cluster", category: techInfo },
     { id: "techInfoBz", label: "BZ", category: techInfo }, { id: "techInfoAz", label: "AZ", category: techInfo },
     { id: "techInfoCvBackup", label: "CV-Backup", category: techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", pseudonymKind: "text", category: techInfo },
     { id: "shape", label: "Lastmuster", category: classification }, { id: "intensity", label: "Auslastungsniveau", category: classification },
@@ -371,6 +371,20 @@ export function pseudonymizeExportDataset(dataset: ExportStudioDataset, enabledC
     mappings.set(key, replacement);
     return replacement;
   };
+  /**
+   * Resource Pools folgen der Namenskonvention „<Bezeichner>/<Profil>“ (z.B. „Team-X/HIGH“);
+   * das Profilkürzel (HIGH, STD, …) steuert die Fill-Up-Zuordnung und ist kein Bezeichner.
+   * Pseudonymisiert wird deshalb nur der Teil vor dem ersten „/“, das Profilkürzel bleibt
+   * unverändert sichtbar. Ohne „/“ gilt der gesamte Wert als Bezeichner.
+   */
+  const substituteResourcePool = (value: string) => {
+    if (!value || value === "—") return value;
+    const slashIndex = value.indexOf("/");
+    if (slashIndex < 0) return substitute(value, "resource-pool");
+    const prefix = value.slice(0, slashIndex);
+    const suffix = value.slice(slashIndex);
+    return prefix.trim() ? `${substitute(prefix, "resource-pool")}${suffix}` : value;
+  };
   return {
     ...dataset,
     rows: dataset.rows.map((row) => dataset.columns.reduce<Record<string, string>>((copy, column) => {
@@ -379,15 +393,17 @@ export function pseudonymizeExportDataset(dataset: ExportStudioDataset, enabledC
         copy[column.id] = value;
         return copy;
       }
+      const kind = column.pseudonymKind;
+      const substituteItem = kind === "resource-pool" ? substituteResourcePool : (item: string) => substitute(item, kind);
       if (!column.pseudonymSeparator || value === "—") {
-        copy[column.id] = substitute(value, column.pseudonymKind);
+        copy[column.id] = substituteItem(value);
         return copy;
       }
       const pseudonymizedValues = value
         .split(column.pseudonymSeparator)
         .map((item) => item.trim())
         .filter(Boolean)
-        .map((item) => substitute(item, column.pseudonymKind));
+        .map((item) => substituteItem(item));
       copy[column.id] = pseudonymizedValues.join(column.pseudonymSeparator);
       return copy;
     }, {})),
