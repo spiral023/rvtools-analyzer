@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Cpu, Gauge, HelpCircle, Recycle, Server, ShieldQuestion } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -12,7 +13,7 @@ import { DemandCell } from "@/components/vm/DemandCell";
 import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
-import type { VmRightsizingCandidate, VmRightsizingGroupSummary } from "@/domain/models/types";
+import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadShape } from "@/domain/models/types";
 import {
   buildVmRightsizingCandidates,
   isNotableRightsizingCandidate,
@@ -20,10 +21,25 @@ import {
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { shortHostName } from "@/lib/utils";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+
+/** Dieselbe Reihenfolge wie im VM-Profile-Tab, damit die Farbzuordnung je Lastmuster app-weit konsistent bleibt. */
+const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+const shapeColor = (shape: VmWorkloadShape) => SEVERITY_COLORS[SHAPE_ORDER.indexOf(shape) % SEVERITY_COLORS.length];
+
+interface RightsizingScatterPoint {
+  objectKey: string;
+  vmName: string;
+  clusterName: string | null;
+  vcpu: number;
+  demandPct: number;
+  reclaimableVcpu: number;
+  shape: VmWorkloadShape;
+}
 
 function formatPercent(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
@@ -34,6 +50,22 @@ function formatVcpu(value: number | null): string {
 }
 
 const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
+
+function RightsizingScatterTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload?: RightsizingScatterPoint }> }) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-mono-data font-semibold text-popover-foreground">{point.vmName}</p>
+      <p className="mt-0.5 text-muted-foreground">{point.clusterName ?? "Ohne Cluster"} · {VM_WORKLOAD_SHAPE_LABEL[point.shape]}</p>
+      <div className="mt-2 grid grid-cols-2 gap-x-3 text-muted-foreground">
+        <span>Konfiguriert: <strong className="text-popover-foreground">{formatVcpu(point.vcpu)}</strong></span>
+        <span>Demand P95: <strong className="text-popover-foreground">{formatPercent(point.demandPct)}</strong></span>
+        <span>Rückgewinnbar: <strong className="text-popover-foreground">{formatVcpu(point.reclaimableVcpu)}</strong></span>
+      </div>
+    </div>
+  );
+}
 
 const summaryColumns: ColumnDef<VmRightsizingGroupSummary, unknown>[] = [
   { accessorKey: "label", header: "" },
@@ -59,6 +91,17 @@ export function VmRightsizingPanel() {
   const lowConfidenceCount = useMemo(() => candidates.filter((candidate) => candidate.confidence === "low" || candidate.confidence === "not-computable").length, [candidates]);
   const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
   const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
+  const scatterData = useMemo<RightsizingScatterPoint[]>(() => candidates
+    .filter((candidate) => candidate.vcpu !== null && candidate.usedVcpuEquivalentP95 !== null)
+    .map((candidate) => ({
+      objectKey: candidate.objectKey,
+      vmName: candidate.vmName,
+      clusterName: candidate.clusterName,
+      vcpu: candidate.vcpu as number,
+      demandPct: ((candidate.usedVcpuEquivalentP95 as number) / (candidate.vcpu as number)) * 100,
+      reclaimableVcpu: candidate.reclaimableVcpu ?? 0,
+      shape: candidate.shape,
+    })), [candidates]);
 
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
@@ -136,6 +179,39 @@ export function VmRightsizingPanel() {
           <KpiCard title="Ohne Empfehlung" value={formatNum(withheldRecommendationCount)} icon={<ShieldQuestion className="h-4 w-4" />} info={RIGHTSIZING_KPI.withheldRecommendation} />
           <KpiCard title="Niedriges Vertrauen" value={formatNum(lowConfidenceCount)} severity={lowConfidenceCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={RIGHTSIZING_KPI.lowConfidence} />
         </KpiGrid>
+
+        {scatterData.length > 0 && <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={RIGHTSIZING_SECTIONS.scatterChart} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Konfigurierte vCPU vs. CPU Demand P95 %</h3></InfoTooltip>
+            <ResponsiveContainer width="100%" height={280}>
+              <ScatterChart margin={{ top: 12, right: 16, bottom: 18, left: 0 }}>
+                <CartesianGrid {...CHART_GRID_STYLE} />
+                <XAxis type="number" dataKey="vcpu" name="Konfigurierte vCPU" tick={CHART_AXIS_STYLE} label={{ value: "Konfigurierte vCPU", position: "insideBottom", offset: -8, ...CHART_AXIS_STYLE }} />
+                <YAxis type="number" dataKey="demandPct" name="CPU Demand P95 %" tick={CHART_AXIS_STYLE} label={{ value: "CPU Demand P95 %", angle: -90, position: "insideLeft", ...CHART_AXIS_STYLE }} />
+                <ZAxis type="number" dataKey="reclaimableVcpu" range={[40, 320]} name="Rückgewinnbare vCPU" />
+                <Tooltip cursor={{ strokeDasharray: "3 3" }} content={(props) => <RightsizingScatterTooltip active={props.active} payload={props.payload as Array<{ payload?: RightsizingScatterPoint }> | undefined} />} />
+                <Scatter data={scatterData} name="VMs">
+                  {scatterData.map((point) => <Cell key={point.objectKey} fill={shapeColor(point.shape)} />)}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={RIGHTSIZING_SECTIONS.shapeSummary} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Rückgewinnbare vCPU je Lastmuster</h3></InfoTooltip>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={shapeSummary} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 16 }}>
+                <CartesianGrid horizontal={false} {...CHART_GRID_STYLE} />
+                <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" width={140} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatVcpu(value), "Rückgewinnbar"]} />
+                <Bar dataKey="reclaimableVcpu" radius={[0, 4, 4, 0]}>
+                  {shapeSummary.map((entry) => <Cell key={entry.key} fill={shapeColor(entry.key as VmWorkloadShape)} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>}
 
         <div>
           <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({visibleCandidateCount})</h3></InfoTooltip>

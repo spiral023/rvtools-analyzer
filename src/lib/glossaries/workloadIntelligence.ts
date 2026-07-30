@@ -198,6 +198,10 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
+  scatterChart: {
+    term: "Konfigurierte vCPU vs. CPU Demand P95 %",
+    description: "Jeder Punkt eine VM mit gültiger vCPU-Angabe: X-Achse die konfigurierte vCPU-Anzahl, Y-Achse der genutzte Anteil davon bei P95. Punktgröße nach rückgewinnbarer vCPU, Farbe nach Lastmuster – Punkte unten rechts (viele vCPU, geringer Bedarf) sind die auffälligsten Kandidaten.",
+  },
   candidateTable: {
     term: "vCPU-Vergleich je VM",
     description: "Vergleicht konfigurierte vCPU mit beobachtetem CPU Demand und Ready. Hervorgehobene Zeilen sind auffällige Kandidaten – die Tabelle selbst zeigt alle VMs mit gültiger vCPU-Angabe.",

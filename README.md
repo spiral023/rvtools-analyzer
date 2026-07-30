@@ -159,7 +159,29 @@ Optionale Felder wie `Servertyp`, `Kommentar`, `SysV`, `SysV Abteilung`, `BZ`, `
 
 Wichtig für den Betrieb: Wenn die App unter einer anderen Domain, Subdomain oder einem anderen Port geöffnet wird, sieht der Browser dies als getrennten Origin. Die dort gespeicherten Snapshots sind deshalb separat.
 
-## Architektur
+## Techstack
+
+| Bereich | Technologie | Zweck |
+|---|---|---|
+| Framework | React 18, Vite 6 | SPA-Rendering, Dev-Server und Production-Build |
+| Sprache | TypeScript 5 | Typsicherheit über Domain-Modell, Services und UI |
+| Routing | react-router-dom 6 (`BrowserRouter`) | Client-seitiges Routing der Dashboard-Seiten |
+| Styling | Tailwind CSS 3, `tailwindcss-animate`, `tailwind-merge`, `class-variance-authority` | Utility-first CSS, Varianten und bedingte Klassen |
+| UI-Komponenten | shadcn/ui, Radix UI (`@radix-ui/react-*`), `lucide-react` | Barrierearme Basis-Komponenten (Dialog, Tabs, Select, Dropdown, Tooltip …) und Icons |
+| Server-/Client-State | TanStack Query (`@tanstack/react-query`) | Caching und Ladezustände für IndexedDB-Zugriffe über Hooks in `src/hooks/` |
+| Tabellen | TanStack Table (`@tanstack/react-table`) + TanStack Virtual (`@tanstack/react-virtual`) | Spaltenlogik, Sortierung, Filterung sowie Zeilen-Virtualisierung für große RVTools-Exporte |
+| Diagramme | Recharts | Bar-/Pie-/Trend-Charts in den Dashboards |
+| Toasts | Sonner | Erfolgs-/Fehlermeldungen nach Import, Export und Löschvorgängen |
+| Theme | `next-themes` | Hell-/Dunkelmodus |
+| Lokale Datenbank | `idb` (IndexedDB-Wrapper) | Persistenz aller importierten Snapshots und Analysedaten im Browser |
+| XLSX-/ZIP-Parsing | `@e965/xlsx`, `fflate`, Web Worker (`src/workers/parser.worker.ts`) | Import großer RVTools-/Tech-Info-Dateien und ZIP-Archive ohne UI-Blockade |
+| Syntax-Highlighting | `prism-react-renderer`, `prismjs` (lazy geladen) | PowerShell-Codeblöcke, z. B. im CDP-Abruf-Skript-Dialog |
+| Testing | Vitest, Testing Library (`@testing-library/react`), `fake-indexeddb`, jsdom | Unit-/Komponententests inkl. IndexedDB-Simulation |
+| Linting | ESLint 9, `typescript-eslint` | Statische Codeprüfung |
+| PWA | `vite-plugin-pwa` | Offline-fähiges App-Manifest und Icons (`npm run pwa:icons`) |
+| Deployment | Wrangler (Cloudflare Pages) | Statischer Production-/Preview-Deploy |
+
+### Architektur
 
 ```mermaid
 flowchart TB
@@ -184,6 +206,30 @@ flowchart TB
 | Tabellen | `src/components/tables/VirtualTable.tsx`, TanStack Table/Virtual |
 | UI | Tailwind CSS, shadcn/ui, Radix UI, lucide-react |
 | Diagramme | Recharts |
+
+### Tabellen
+
+Alle Datentabellen im Dashboard laufen über eine gemeinsame Komponente, **`src/components/tables/VirtualTable.tsx`**, statt über Einzellösungen je Seite:
+
+- **TanStack Table** (`useReactTable`) übernimmt Spaltendefinition, Sortierung und Filterung.
+- **TanStack Virtual** (`useVirtualizer`) rendert nur die sichtbaren Zeilen. Das hält auch Tabellen mit mehreren tausend VMs/Hosts flüssig.
+- Jede Spalte ist ein `ColumnDef<T, unknown>` mit `accessorKey`/`accessorFn`, optionalem `cell`-Renderer und `meta: { info }`. Über `meta.info` hängt automatisch ein `InfoTooltip` mit Glossar-Text an der Spaltenüberschrift.
+- Ein globaler Suchtext (`globalFilter`) filtert alle Spalten mit `accessorFn`; Seiten reichen dafür meist `filters.search` aus `useActiveSnapshotIds()` durch.
+- Optionale Mehrfachauswahl (`selectionEnabled`, `getRowId`, `onToggleRow`/`onToggleAll`) für Bulk-Aktionen, Klick-Navigation (`onRowClick`) zu Detail-Dialogen sowie ein Export-Menü (Excel, Markdown, Confluence-Wiki-Markup) über `src/lib/export/tableExport.ts`.
+- `onFilteredCountChange` meldet die nach Filterung sichtbare Zeilenzahl zurück, falls eine Seite z. B. „VM-Profile (42)“ in einer Überschrift korrekt mitzählen will.
+
+Minimalbeispiel für eine neue Tabelle:
+
+```tsx
+const columns: ColumnDef<MyRow, unknown>[] = [
+  { accessorKey: "name", header: "Name", meta: { info: MY_GLOSSARY.name } },
+  { accessorKey: "value", header: "Wert", cell: ({ getValue }) => formatNum(getValue() as number) },
+];
+
+<VirtualTable data={rows} columns={columns} globalFilter={filters.search} exportFileName="my-export" />
+```
+
+Faustregel laut `Entwicklungsregeln`: Für jede tabellarische Ansicht `VirtualTable` verwenden, keine eigene `<table>`-Implementierung je Seite.
 
 ## Projektstruktur
 
