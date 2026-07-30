@@ -1,5 +1,18 @@
 # Changelog
 
+## 30.07.2026
+
+- Die Fill-Up-Planung wurde um einen konfigurierbaren CPU-Gleichzeitigkeitsfaktor erweitert. Dieser bewertet die CPU-Anforderung zusätzlicher VMs zwischen beobachtetem Durchschnitt und P95; Referenzprofile behalten dabei ihre präzisen Werte. Der historische Verlauf kann zusätzlich relativ zur normalen Cluster-Kapazität in Prozent statt nur in GHz/GiB angezeigt werden. Eine KPI-Leiste fasst bewertete Cluster und Hosts, zusätzliche VMs sowie N-1-Guardrail-Verstöße zusammen.
+- Kapazitätspolicies sind als eigener Planungsbereich mit Katalog, Zuordnungstabelle und Bearbeitung verfügbar. Cluster-Exporte enthalten nun auch die Kennzahlen zur Kapazitätsgesundheit.
+- Die VM-Analyse enthält die neuen Tabs **VM-Profile** und **Rightsizing**. Zeitreihen klassifizieren Lastform und Auslastungsintensität getrennt, einschließlich der zusätzlichen Form „Grundlast mit Lastfenster“. Die Analyse zeigt Datenabdeckung und Konfidenz und speist gemessene HIGH-/STD-Standardprofile in Fill Up ein.
+- Rightsizing-Empfehlungen wurden deutlich konservativer: Sie berücksichtigen P95 und Spitzenlast, erfolgen nur in geraden vCPU-Schritten und höchstens um ein Viertel der aktuellen vCPU. Bei zu geringer Datenqualität oder unregelmäßigen bzw. burstigen Lastmustern wird keine Empfehlung ausgegeben; der messbasierte Zielwert und der konkrete Zurückhaltungsgrund bleiben sichtbar.
+- Uploads erkennen vollständige vROps-Zeitreihensätze automatisch und importieren sie direkt, auch wenn sie zusammen mit anderen Dateien abgelegt werden. ZIP-Archive können lokal entpackt werden; enthaltene RVTools-Exporte werden dabei vor abhängigen Zeitreihen verarbeitet. Nach einem RVTools-Reimport werden bestehende vROps-Zeitreihen wieder mit den neuen Snapshot-IDs verknüpft.
+- Das Export Studio bietet für VM-Exporte zusätzliche, kategorisierte Spalten für Inventar, Tech-Info, Lastprofile, CPU-Kennzahlen und Rightsizing. Auch Hostprofile stehen im Export bereit.
+- Cluster-, Host- und VM-Details zeigen direkt vROps-Trenddiagramme. Die Wochenansicht nutzt Wochentag und Uhrzeit, markiert den aktuellen Zeitpunkt und verwendet bei der Heatmap eine medianbasierte Skala für besser erkennbare Lastspitzen.
+- Die Übersichts-Kachel für durchschnittliche VMs wurde neu gestaltet: Konfigurierte Ressourcen und beobachtete Auslastung sind klar getrennt, CPU-Demand wird zusätzlich relativ zur durchschnittlich bereitgestellten CPU-Kapazität dargestellt.
+- In den VM-Panels ergänzen KPIs für Snapshots, veraltete Snapshots und Latenzempfindlichkeit die Betriebs- und Performance-Sicht. Tabellen zeigen CPU-Demand zusätzlich in Prozent, zählen gefilterte Treffer korrekt und können Systemverantwortliche aus Tech-Info ausgeben.
+- Die VMware-Release-Kataloge enthalten vCenter Server und ESXi 8.0 Update 3k. Netzwerk-Audits wurden um kontextbezogene Erklärungen, farbige Portstatus und kompaktere Switchnamen ergänzt. Die Datenverwaltung kann RVTools-Systemdaten und gesicherte Benutzerdaten getrennt löschen.
+
 ## 28.07.2026
 
 - Fill Up leitet nun je Cluster sowie je Resource Pool typische VM-Referenzprofile aus RVTools und VM-Zeitreihen ab: Ø vCPU, konfigurierter RAM, CPU-Demand Ø/P95 und CPU-Ready P95. Ein Referenzprofil kann direkt als editierbare typische zusätzliche HIGH- oder STD-VM übernommen werden.
