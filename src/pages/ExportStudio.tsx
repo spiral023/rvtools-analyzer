@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { BookmarkCheck, Clock, Columns3, Download, Eye, EyeOff, FileSpreadsheet, FileText, GripVertical, Plus, Save, Server, Table2, Trash2 } from "lucide-react";
+import { BookmarkCheck, CheckCheck, Clock, Columns3, Download, Eye, EyeOff, FileSpreadsheet, FileText, GripVertical, Plus, Save, Server, Settings2, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getUiState, putUiState } from "@/data/db";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
@@ -41,6 +43,21 @@ const sourceLabels: Record<ExportStudioSource, string> = {
   datastores: "Datastores",
   "fill-up": "Fill-Up-Ergebnisse",
 };
+
+function pseudonymizationFieldKey(source: ExportStudioSource, columnId: string) {
+  return `${source}:${columnId}`;
+}
+
+function groupPseudonymizableColumns(columns: readonly ExportStudioColumn[]) {
+  const groups = new Map<string, ExportStudioColumn[]>();
+  for (const column of columns) {
+    const category = column.category ?? "Allgemeine Bezeichner";
+    const group = groups.get(category);
+    if (group) group.push(column);
+    else groups.set(category, [column]);
+  }
+  return [...groups.entries()];
+}
 
 function filterInventoryRows<T extends { cluster?: string | null; host?: string | null }>(rows: T[], filters: { clusters: string[]; hosts: string[]; search: string }) {
   const clusterSet = new Set(filters.clusters);
@@ -83,6 +100,8 @@ export default function ExportStudio() {
   const [source, setSource] = useState<ExportStudioSource>("vms");
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const [pseudonymize, setPseudonymize] = useState(false);
+  const [pseudonymizationDisabledFields, setPseudonymizationDisabledFields] = useState<string[]>([]);
+  const [pseudonymizationSettingsOpen, setPseudonymizationSettingsOpen] = useState(false);
   const [fileName, setFileName] = useState("rvtools-export");
   const [templateName, setTemplateName] = useState("");
   const [templates, setTemplates] = useState<ExportStudioTemplate[]>([]);
@@ -141,7 +160,16 @@ export default function ExportStudio() {
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
     return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts, techInfoLatest);
   }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredDatastores, filteredHosts, runs, scope, source, techInfoLatest, vms, workloadHosts, workloadProfiles]);
-  const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
+  const pseudonymizableColumns = useMemo(() => baseDataset.columns.filter((column) => Boolean(column.pseudonymKind)), [baseDataset.columns]);
+  const pseudonymizationGroups = useMemo(() => groupPseudonymizableColumns(pseudonymizableColumns), [pseudonymizableColumns]);
+  const enabledPseudonymColumnIds = useMemo(
+    () => pseudonymizableColumns.filter((column) => !pseudonymizationDisabledFields.includes(pseudonymizationFieldKey(source, column.id))).map((column) => column.id),
+    [pseudonymizableColumns, pseudonymizationDisabledFields, source],
+  );
+  const dataset = useMemo(
+    () => pseudonymize ? pseudonymizeExportDataset(baseDataset, enabledPseudonymColumnIds) : baseDataset,
+    [baseDataset, enabledPseudonymColumnIds, pseudonymize],
+  );
   const selectedColumnIdSet = useMemo(() => new Set(columnIds), [columnIds]);
   const selectedColumns = useMemo(() => {
     const columnsById = new Map(dataset.columns.map((column) => [column.id, column]));
@@ -175,7 +203,10 @@ export default function ExportStudio() {
   useEffect(() => {
     let cancelled = false;
     void getUiState(UI_STATE_ID).then((state) => {
-      if (!cancelled) setTemplates(state?.exportStudioTemplates ?? []);
+      if (!cancelled) {
+        setTemplates(state?.exportStudioTemplates ?? []);
+        setPseudonymizationDisabledFields(state?.exportStudioPseudonymizationDisabledFields ?? []);
+      }
     });
     return () => { cancelled = true; };
   }, []);
@@ -183,10 +214,33 @@ export default function ExportStudio() {
   const saveTemplates = async (next: ExportStudioTemplate[]) => {
     setTemplates(next);
     const existing = await getUiState(UI_STATE_ID);
-    await putUiState({ id: UI_STATE_ID, theme: existing?.theme ?? "dark", exportStudioTemplates: next });
+    await putUiState({
+      ...existing,
+      id: UI_STATE_ID,
+      theme: existing?.theme ?? "dark",
+      exportStudioTemplates: next,
+      exportStudioPseudonymizationDisabledFields: pseudonymizationDisabledFields,
+    });
+  };
+
+  const togglePseudonymizationField = async (columnId: string, enabled: boolean) => {
+    const key = pseudonymizationFieldKey(source, columnId);
+    const next = enabled
+      ? pseudonymizationDisabledFields.filter((field) => field !== key)
+      : [...new Set([...pseudonymizationDisabledFields, key])];
+    setPseudonymizationDisabledFields(next);
+    const existing = await getUiState(UI_STATE_ID);
+    await putUiState({
+      ...existing,
+      id: UI_STATE_ID,
+      theme: existing?.theme ?? "dark",
+      exportStudioTemplates: existing?.exportStudioTemplates ?? templates,
+      exportStudioPseudonymizationDisabledFields: next,
+    });
   };
 
   const addColumn = (id: string) => setColumnIds((current) => current.includes(id) ? current : [...current, id]);
+  const addAllColumns = () => setColumnIds((current) => [...current, ...dataset.columns.map((column) => column.id).filter((id) => !current.includes(id))]);
   const removeColumn = (id: string) => setColumnIds((current) => current.filter((columnId) => columnId !== id));
 
   const reorderColumn = (targetId: string) => {
@@ -279,7 +333,7 @@ export default function ExportStudio() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-md border border-border/70 bg-muted/15 p-3">
-              <div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Verfügbare Spalten</p><span className="text-xs text-muted-foreground">{dataset.columns.length}</span></div>
+              <div className="mb-3 flex items-center justify-between gap-2"><p className="text-sm font-semibold">Verfügbare Spalten</p><Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addAllColumns} disabled={dataset.columns.every((column) => selectedColumnIdSet.has(column.id))}><CheckCheck className="mr-1 h-3.5 w-3.5" />Alle auswählen</Button></div>
               <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
                 {columnGroups.map(([category, columns]) => (
                   <div key={category || "__ungrouped"} className="mt-2 first:mt-0">
@@ -302,12 +356,51 @@ export default function ExportStudio() {
         <aside className="space-y-4 rounded-lg border bg-card p-5 shadow-sm">
           <div><p className="text-sm font-semibold">Export konfigurieren</p><p className="mt-1 text-xs text-muted-foreground">Bezeichner werden ausschließlich in der erzeugten Datei ersetzt.</p></div>
           <div className="space-y-2"><Label htmlFor="export-file-name">Dateiname</Label><Input id="export-file-name" value={fileName} onChange={(event) => setFileName(event.target.value)} /></div>
-          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border/70 p-3"><Checkbox checked={pseudonymize} onCheckedChange={(checked) => setPseudonymize(checked === true)} /><span><span className="block text-sm font-medium">Pseudonymisieren</span><span className="mt-0.5 block text-xs text-muted-foreground">vCenter, Cluster, Server, Hosts und organisatorische Namen bleiben konsistent nachvollziehbar.</span></span></label>
+          <div className="rounded-md border border-border/70 p-3">
+            <div className="flex items-start gap-3">
+              <Checkbox id="export-pseudonymize" checked={pseudonymize} onCheckedChange={(checked) => setPseudonymize(checked === true)} />
+              <label htmlFor="export-pseudonymize" className="min-w-0 flex-1 cursor-pointer"><span className="block text-sm font-medium">Pseudonymisieren</span><span className="mt-0.5 block text-xs text-muted-foreground">Bezeichner, Personen, Abteilungen und Freitexte werden ausschließlich in der erzeugten Datei ersetzt.</span></label>
+              <Button type="button" variant="ghost" size="icon" className="-mt-1 -mr-1 shrink-0" onClick={() => setPseudonymizationSettingsOpen(true)} aria-label="Pseudonymisierung konfigurieren"><Settings2 className="h-4 w-4" /></Button>
+            </div>
+          </div>
           <div className="space-y-2 border-t border-border/60 pt-4"><Label htmlFor="export-template">Gespeicherte Vorlage</Label><Select onValueChange={loadTemplate}><SelectTrigger id="export-template"><SelectValue placeholder="Vorlage auswählen" /></SelectTrigger><SelectContent>{templates.length ? templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>) : <SelectItem value="none" disabled>Noch keine Vorlagen</SelectItem>}</SelectContent></Select></div>
           <div className="flex gap-2"><Input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="Name der Vorlage" /><Button type="button" variant="outline" size="icon" onClick={() => void saveTemplate()} aria-label="Vorlage speichern"><Save className="h-4 w-4" /></Button></div>
           <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-4"><Button type="button" variant="outline" size="sm" onClick={() => void executeExport("xlsx")} disabled={!columnIds.length}><FileSpreadsheet className="mr-1.5 h-4 w-4" />XLSX</Button><Button type="button" variant="outline" size="sm" onClick={() => void executeExport("csv")} disabled={!columnIds.length}><Download className="mr-1.5 h-4 w-4" />CSV</Button><Button type="button" size="sm" onClick={() => void executeExport("markdown")} disabled={!columnIds.length}><FileText className="mr-1.5 h-4 w-4" />Markdown</Button></div>
         </aside>
       </div>
+
+      <Dialog open={pseudonymizationSettingsOpen} onOpenChange={setPseudonymizationSettingsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Pseudonymisierung konfigurieren</DialogTitle>
+            <DialogDescription>Die Einstellungen gelten lokal für Exporte aus der Datenquelle „{sourceLabels[source]}“. Aktivierte Felder werden mit konsistenten Platzhaltern ersetzt.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+            <section className="overflow-hidden rounded-md border border-border/70">
+              <div className="flex items-center justify-between bg-muted/40 px-4 py-3">
+                <div><p className="text-sm font-semibold">{sourceLabels[source]}</p><p className="text-xs text-muted-foreground">Datenquelle</p></div>
+                <Badge variant="secondary">{enabledPseudonymColumnIds.length} von {pseudonymizableColumns.length} aktiv</Badge>
+              </div>
+              {pseudonymizableColumns.length ? (
+                <div className="divide-y divide-border/60">
+                  {pseudonymizationGroups.map(([category, columns]) => (
+                    <div key={category} className="p-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>
+                      <div className="space-y-1">
+                        {columns.map((column) => {
+                          const enabled = !pseudonymizationDisabledFields.includes(pseudonymizationFieldKey(source, column.id));
+                          return <div key={column.id} className="flex items-center justify-between gap-4 rounded px-2 py-2 hover:bg-muted/40"><div><p className="text-sm font-medium">{column.label}</p><p className="text-xs text-muted-foreground">{column.pseudonymKind === "person" ? "Personenname" : column.pseudonymKind === "department" ? "Organisationsbezeichnung" : column.pseudonymKind === "text" ? "Freitext" : "Technischer Bezeichner"}</p></div><Switch checked={enabled} onCheckedChange={(checked) => void togglePseudonymizationField(column.id, checked)} aria-label={`${column.label} ${enabled ? "nicht mehr" : ""} pseudonymisieren`} /></div>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="p-5 text-sm text-muted-foreground">Für diese Datenquelle sind keine pseudonymisierbaren Felder vorhanden.</p>}
+            </section>
+          </div>
+          <DialogFooter><Button type="button" onClick={() => setPseudonymizationSettingsOpen(false)}>Fertig</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wählen Sie Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
     </div>

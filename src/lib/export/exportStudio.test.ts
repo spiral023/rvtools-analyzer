@@ -71,6 +71,22 @@ describe("Export Studio domain helpers", () => {
     expect(result.rows).toEqual([{ hosts: "host-001, host-002" }, { hosts: "host-002, host-003" }]);
   });
 
+  it("schützt Personen-, Abteilungs- und Kommentarfelder standardmäßig und lässt einzelne Felder ausnehmen", () => {
+    const sensitiveDataset: ExportStudioDataset = {
+      ...dataset,
+      columns: [
+        { id: "owner", label: "Systemverantwortlicher", pseudonymKind: "person", category: "Tech-Info" },
+        { id: "deputy", label: "Stellvertreter", pseudonymKind: "person", category: "Tech-Info" },
+        { id: "department", label: "Abteilung", pseudonymKind: "department", category: "Tech-Info" },
+        { id: "comment", label: "Kommentar", pseudonymKind: "text", category: "Tech-Info" },
+      ],
+      rows: [{ owner: "Erika Mustermann", deputy: "Max Beispiel", department: "IT Betrieb", comment: "Kritischer Fachserver" }],
+    };
+
+    expect(pseudonymizeExportDataset(sensitiveDataset).rows[0]).toEqual({ owner: "person-001", deputy: "person-002", department: "abteilung-001", comment: "text-001" });
+    expect(pseudonymizeExportDataset(sensitiveDataset, ["owner", "department"]).rows[0]).toEqual({ owner: "person-001", deputy: "Max Beispiel", department: "abteilung-001", comment: "Kritischer Fachserver" });
+  });
+
   it("erhält die vom Nutzer festgelegte Spaltenreihenfolge", () => {
     const data = buildExportDataFromDataset(dataset, ["state", "server"]);
     expect(data.headers).toEqual(["Status", "Server"]);

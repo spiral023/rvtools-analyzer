@@ -15,7 +15,7 @@ import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE
 import { buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
 
-export type PseudonymKind = "vcenter" | "cluster" | "server" | "host" | "datacenter" | "datastore" | "resource-pool";
+export type PseudonymKind = "vcenter" | "cluster" | "server" | "host" | "datacenter" | "datastore" | "resource-pool" | "person" | "department" | "text";
 
 export interface ExportStudioColumn {
   id: string;
@@ -105,12 +105,12 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     { id: "os", label: "Betriebssystem", category: inventory }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool", category: inventory },
     { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: inventory }, { id: "tools", label: "VMware Tools", category: inventory }, { id: "annotation", label: "Notiz", category: inventory },
     { id: "hwVersion", label: "HW-Version", category: inventory }, { id: "toolsVersion", label: "Tools-Version", category: inventory }, { id: "secureBoot", label: "Secure Boot", category: inventory },
-    { id: "techInfoSysv", label: "Systemverantwortlicher", category: techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", category: techInfo },
-    { id: "techInfoSysvDeputy", label: "SysVStv", category: techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", category: techInfo },
+    { id: "techInfoSysv", label: "Systemverantwortlicher", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", pseudonymKind: "department", category: techInfo },
+    { id: "techInfoSysvDeputy", label: "SysVStv", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", pseudonymKind: "department", category: techInfo },
     { id: "techInfoServerType", label: "Servertyp (Tech-Info)", category: techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: techInfo },
     { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", category: techInfo },
     { id: "techInfoBz", label: "BZ", category: techInfo }, { id: "techInfoAz", label: "AZ", category: techInfo },
-    { id: "techInfoCvBackup", label: "CV-Backup", category: techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", category: techInfo },
+    { id: "techInfoCvBackup", label: "CV-Backup", category: techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", pseudonymKind: "text", category: techInfo },
     { id: "shape", label: "Lastmuster", category: classification }, { id: "intensity", label: "Auslastungsniveau", category: classification },
     { id: "behaviorClass", label: "Verhaltensklasse", category: classification }, { id: "profileConfidence", label: "Vertrauen (Profil)", category: classification }, { id: "profileCoverage", label: "Datenabdeckung (Profil)", category: classification },
     { id: "coefficientOfVariation", label: "Variationskoeffizient", category: classification }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil", category: classification }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)", category: classification },
@@ -352,7 +352,7 @@ function latestSnapshotStatus(snapshots: SnapshotMeta[]): string {
   return `${snapshots.length} vCenter-Scope${snapshots.length === 1 ? "" : "s"}; jüngster Export ${new Date(latest.exportTs).toLocaleString("de-DE")}`;
 }
 
-export function pseudonymizeExportDataset(dataset: ExportStudioDataset): ExportStudioDataset {
+export function pseudonymizeExportDataset(dataset: ExportStudioDataset, enabledColumnIds?: readonly string[]): ExportStudioDataset {
   const mappings = new Map<string, string>();
   const counters = new Map<PseudonymKind, number>();
   const substitute = (value: string, kind: PseudonymKind) => {
@@ -362,7 +362,10 @@ export function pseudonymizeExportDataset(dataset: ExportStudioDataset): ExportS
     if (known) return known;
     const next = (counters.get(kind) ?? 0) + 1;
     counters.set(kind, next);
-    const prefix: Record<PseudonymKind, string> = { vcenter: "vcenter", cluster: "cluster", server: "server", host: "host", datacenter: "datacenter", datastore: "datastore", "resource-pool": "resource-pool" };
+    const prefix: Record<PseudonymKind, string> = {
+      vcenter: "vcenter", cluster: "cluster", server: "server", host: "host", datacenter: "datacenter", datastore: "datastore", "resource-pool": "resource-pool",
+      person: "person", department: "abteilung", text: "text",
+    };
     const digits = kind === "vcenter" ? 2 : 3;
     const replacement = `${prefix[kind]}-${String(next).padStart(digits, "0")}`;
     mappings.set(key, replacement);
@@ -372,7 +375,7 @@ export function pseudonymizeExportDataset(dataset: ExportStudioDataset): ExportS
     ...dataset,
     rows: dataset.rows.map((row) => dataset.columns.reduce<Record<string, string>>((copy, column) => {
       const value = row[column.id] ?? "";
-      if (!column.pseudonymKind) {
+      if (!column.pseudonymKind || (enabledColumnIds && !enabledColumnIds.includes(column.id))) {
         copy[column.id] = value;
         return copy;
       }

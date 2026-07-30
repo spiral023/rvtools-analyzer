@@ -1497,6 +1497,8 @@ export interface UiState {
   presets?: FilterPreset[];
   selectionVmKeys?: string[];
   exportStudioTemplates?: ExportStudioTemplate[];
+  /** Deaktivierte Pseudonymisierungsfelder je Export-Datenquelle ("quelle:spalte"). */
+  exportStudioPseudonymizationDisabledFields?: string[];
 }
 
 export type ScenarioType = "cluster-migration";
