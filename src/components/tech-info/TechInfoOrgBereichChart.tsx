@@ -7,6 +7,7 @@ import { formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/t
 type ChartMetric = "vmCount" | "vCpu" | "ram";
 
 const METRIC_LABEL: Record<ChartMetric, string> = { vmCount: "Server-VMs", vCpu: "vCPU", ram: "RAM (GiB)" };
+const MAX_VISIBLE_BEREICHE = 10;
 
 export function TechInfoOrgBereichChart({
   bereichNodes,
@@ -19,9 +20,8 @@ export function TechInfoOrgBereichChart({
 }) {
   const [metric, setMetric] = useState<ChartMetric>("vmCount");
 
-  const data = useMemo(
-    () =>
-      bereichNodes
+  const data = useMemo(() => {
+    const sorted = bereichNodes
         .map((bereich) => ({
           id: bereich.id,
           name: bereich.label,
@@ -29,14 +29,25 @@ export function TechInfoOrgBereichChart({
           vCpu: bereich.aggregate.vCpuSum,
           ram: Math.round((bereich.aggregate.memoryMiBSum / 1024) * 10) / 10,
         }))
-        .sort((a, b) => b[metric] - a[metric]),
-    [bereichNodes, metric],
-  );
+        .sort((a, b) => b[metric] - a[metric]);
+    const hidden = sorted.slice(MAX_VISIBLE_BEREICHE);
+    if (hidden.length === 0) return sorted;
+    return [
+      ...sorted.slice(0, MAX_VISIBLE_BEREICHE),
+      {
+        id: "weitere",
+        name: "Weitere",
+        vmCount: hidden.reduce((sum, entry) => sum + entry.vmCount, 0),
+        vCpu: hidden.reduce((sum, entry) => sum + entry.vCpu, 0),
+        ram: Math.round(hidden.reduce((sum, entry) => sum + entry.ram, 0) * 10) / 10,
+      },
+    ];
+  }, [bereichNodes, metric]);
 
   if (data.length === 0) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex justify-end">
         <ToggleGroup
           type="single"
@@ -51,7 +62,7 @@ export function TechInfoOrgBereichChart({
           <ToggleGroupItem value="ram" aria-label="Nach RAM" className="px-2.5 data-[state=on]:bg-background data-[state=on]:shadow-sm">RAM</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <div style={{ height: Math.max(140, data.length * 32) }}>
+      <div className="min-h-56 flex-1 xl:min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
             <XAxis type="number" tick={CHART_AXIS_STYLE} tickFormatter={(value: number) => (metric === "ram" ? `${value} GiB` : formatIntTick(value))} />
@@ -75,7 +86,7 @@ export function TechInfoOrgBereichChart({
                 <Cell
                   key={entry.id}
                   fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]}
-                  opacity={selectedBereichId && selectedBereichId !== entry.id ? 0.3 : 0.9}
+                  opacity={entry.id === "weitere" ? 0.55 : selectedBereichId && selectedBereichId !== entry.id ? 0.3 : 0.9}
                 />
               ))}
             </Bar>

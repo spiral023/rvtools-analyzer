@@ -259,6 +259,11 @@ export const TECHINFO_ORG_KPI: Record<string, GlossaryEntry> = {
       "Server-VMs, die im gewählten Rollenmodus (primär/Stellvertretung/beide) einer auswertbaren Bereichs-/Abteilungszuordnung zugeordnet werden konnten.",
     source: TECH,
   },
+  orgCount: {
+    term: "Organisationen",
+    description: "Anzahl der unterschiedlichen Organisationen, die aus dem Präfix der SysV-Abteilung vor dem Schrägstrich abgeleitet wurden.",
+    source: TECH,
+  },
   bereichCount: {
     term: "Bereiche",
     description: "Anzahl der unterschiedlichen Bereiche, die aus der SysV-Abteilung abgeleitet wurden (erster Teil hinter dem „/“, vor dem „-“).",
@@ -295,11 +300,6 @@ export const TECHINFO_ORG_SECTIONS: Record<string, GlossaryEntry> = {
   chart: {
     term: "Ressourcen je Bereich",
     description: "Vergleicht Bereiche nach VM-Anzahl, konfigurierter vCPU oder konfiguriertem RAM. Ein Klick auf einen Balken filtert die VM-Liste auf den jeweiligen Bereich.",
-  },
-  dataQuality: {
-    term: "Datenqualität",
-    description:
-      "Fehlende Verantwortliche, nicht interpretierbare Abteilungspfade und widersprüchliche Abteilungsangaben derselben Person – gruppiert nach Ursache, mit betroffenen VMs.",
   },
   vmDrilldown: {
     term: "VMs der Auswahl",

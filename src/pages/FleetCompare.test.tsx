@@ -66,11 +66,11 @@ vi.mock("@/components/charts/recharts", () => ({
   BarChart: ({ data, children }: { data: Array<{ name: string }>; children: ReactNode }) => (
     <div data-testid="compare-chart" data-names={data.map((entry) => entry.name).join(",")}>{children}</div>
   ),
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  Legend: () => null,
-  Bar: () => null,
+  XAxis: (): null => null,
+  YAxis: (): null => null,
+  Tooltip: (): null => null,
+  Legend: (): null => null,
+  Bar: (): null => null,
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({

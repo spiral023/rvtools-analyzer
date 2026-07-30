@@ -14,6 +14,8 @@ interface DistributionStripProps {
    * führend, der Anteil macht sie einordenbar.
    */
   secondaryFormat?: (value: number) => string;
+  /** Beschreibt eindeutig, worauf sich die optionale zweite Einheit bezieht. */
+  secondaryLabel?: string;
   info?: GlossaryEntry;
   /**
    * Färbt die Verteilung als Warnung, wenn ein Schwellenwert gerissen wird
@@ -33,7 +35,7 @@ interface DistributionStripProps {
  * VM-Beständen rutscht die Box damit weit nach links – genau die Aussage „die
  * meisten VMs sind klein, einzelne sehr groß".
  */
-export function DistributionStrip({ label, stats, format, secondaryFormat, info, exceedsThreshold, emptyHint }: DistributionStripProps) {
+export function DistributionStrip({ label, stats, format, secondaryFormat, secondaryLabel, info, exceedsThreshold, emptyHint }: DistributionStripProps) {
   const heading = (
     <p className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
   );
@@ -116,14 +118,15 @@ export function DistributionStrip({ label, stats, format, secondaryFormat, info,
         <p className="font-mono-data text-[10px] leading-relaxed text-muted-foreground/80">
           {span > 0 ? (
             <>
-              davon {secondaryFormat(stats.p50)} · {secondaryFormat(stats.p25)}–{secondaryFormat(stats.p75)}
+              {secondaryLabel ? `${secondaryLabel}: ` : ""}
+              Median {secondaryFormat(stats.p50)} · Hälfte {secondaryFormat(stats.p25)}–{secondaryFormat(stats.p75)}
               {" · P95 "}
               {secondaryFormat(stats.p95)}
-              {" · "}
+              {" · Spanne "}
               {secondaryFormat(stats.min)}–{secondaryFormat(stats.max)}
             </>
           ) : (
-            <>davon {secondaryFormat(stats.p50)}</>
+            <>{secondaryLabel ? `${secondaryLabel}: ` : ""}{secondaryFormat(stats.p50)}</>
           )}
         </p>
       )}

@@ -215,6 +215,7 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
                       stats={workload.demandPerVm}
                       format={formatDemandMHz}
                       secondaryFormat={hasCapacity(workload) ? (value) => formatDemandPct(toCapacityPct(value, workload.configuredCpuCapacityMHz), 1) : undefined}
+                      secondaryLabel="Anteil an Ø konfigurierter CPU-Kapazität je VM"
                       info={OVERVIEW_SECTIONS.averageVmDemandDistribution}
                       emptyHint="Keine Demand-Messwerte im Filter."
                     />
@@ -259,16 +260,22 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
   );
 }
 
+const rangeFormatterByTimezone = new Map<string, Intl.DateTimeFormat>();
+
 /** Erste bis letzte gemessene Stunde in der Zeitzone des Imports. */
 function formatRange(workload: AverageVmWorkload): string {
   const first = workload.slots[0]?.timestampUtc;
   const last = workload.slots[workload.slots.length - 1]?.timestampUtc;
   if (first === undefined || last === undefined) return "—";
-  const formatter = new Intl.DateTimeFormat("de-DE", {
-    timeZone: workload.timezone,
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
+  let formatter = rangeFormatterByTimezone.get(workload.timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("de-DE", {
+      timeZone: workload.timezone,
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    });
+    rangeFormatterByTimezone.set(workload.timezone, formatter);
+  }
   return `${formatter.format(new Date(first))}–${formatter.format(new Date(last))}`;
 }

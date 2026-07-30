@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, BarChart3, Building2, Boxes, ListTree, Network, ShieldCheck, UserRoundCog, Users, UserX } from "lucide-react";
+import { AlertTriangle, BarChart3, Building2, Boxes, ListTree, Network, UserRoundCog, Users, UserX } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,6 @@ import {
 import { buildTechInfoOrgTree, formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/techInfoOrgTree";
 import { TechInfoOrgHierarchyTree } from "@/components/tech-info/TechInfoOrgHierarchyTree";
 import { TechInfoOrgBereichChart } from "@/components/tech-info/TechInfoOrgBereichChart";
-import { TechInfoOrgDataQualityPanel } from "@/components/tech-info/TechInfoOrgDataQualityPanel";
 import type { NormalizedVm } from "@/domain/models/types";
 
 const ROLE_LABEL: Record<TechInfoOrgRoleMode, string> = { primary: "Primär (SysV)", deputy: "Stellvertretung (SysVStv)", both: "Beide Rollen" };
@@ -156,10 +155,11 @@ export function TechInfoOrganisationPanel({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard className="bg-card/80" title="Zugeordnete Server-VMs" value={formatNum(result.summary.assignedVmCount)} icon={<Boxes className="h-4 w-4" />} info={TECHINFO_ORG_KPI.assignedVms} />
+        <KpiCard className="bg-card/80" title="Organisationen" value={formatNum(result.summary.orgCount)} icon={<Building2 className="h-4 w-4" />} info={TECHINFO_ORG_KPI.orgCount} />
         <KpiCard className="bg-card/80" title="Bereiche" value={formatNum(result.summary.bereichCount)} icon={<Network className="h-4 w-4" />} info={TECHINFO_ORG_KPI.bereichCount} />
-        <KpiCard className="bg-card/80" title="Abteilungen" value={formatNum(result.summary.abteilungCount)} icon={<Building2 className="h-4 w-4" />} info={TECHINFO_ORG_KPI.abteilungCount} />
+        <KpiCard className="bg-card/80" title="Abteilungen" value={formatNum(result.summary.abteilungCount)} icon={<ListTree className="h-4 w-4" />} info={TECHINFO_ORG_KPI.abteilungCount} />
         <KpiCard className="bg-card/80" title="Systemverantwortliche" value={formatNum(result.summary.personCount)} icon={<Users className="h-4 w-4" />} info={TECHINFO_ORG_KPI.personCount} />
         <KpiCard
           className="bg-card/80"
@@ -180,8 +180,8 @@ export function TechInfoOrganisationPanel({
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]">
-        <Card className="overflow-hidden border-border/70 shadow-sm">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]">
+        <Card className="h-full overflow-hidden border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-start gap-3 space-y-0 border-b border-border/60 bg-muted/10 p-4">
             <div className="rounded-md border border-primary/15 bg-primary/10 p-2 text-primary">
               <ListTree className="h-4 w-4" aria-hidden="true" />
@@ -198,8 +198,7 @@ export function TechInfoOrganisationPanel({
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="overflow-hidden border-border/70 shadow-sm">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 border-b border-border/60 bg-muted/10 p-4">
               <div className="flex min-w-0 items-start gap-3">
                 <div className="rounded-md border border-primary/15 bg-primary/10 p-2 text-primary">
@@ -213,28 +212,10 @@ export function TechInfoOrganisationPanel({
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent className="min-h-0 flex-1 p-4">
               <TechInfoOrgBereichChart bereichNodes={bereichNodes} selectedBereichId={selection?.id ?? null} onSelectBereich={selectNode} />
             </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-start gap-3 space-y-0 border-b border-border/60 bg-muted/10 p-4">
-              <div className="rounded-md border border-warning/20 bg-warning/10 p-2 text-warning">
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div className="min-w-0 space-y-1">
-                <InfoTooltip entry={TECHINFO_ORG_SECTIONS.dataQuality} side="bottom">
-                  <CardTitle className="w-fit cursor-help text-base">Datenqualität</CardTitle>
-                </InfoTooltip>
-                <CardDescription>Zuordnungslücken erkennen und gezielt prüfen.</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4">
-              <TechInfoOrgDataQualityPanel issues={result.dataQuality} onSelectVms={(label, vmNames) => setSelection({ id: null, label, vmNames })} />
-            </CardContent>
-          </Card>
-        </div>
+        </Card>
       </div>
 
       <Card className="overflow-hidden border-border/70 shadow-sm">
@@ -276,7 +257,7 @@ export function TechInfoOrganisationPanel({
               <ListTree className="mb-3 h-6 w-6 text-muted-foreground/60" aria-hidden="true" />
               <p className="text-sm font-medium">Organisationseinheit auswählen</p>
               <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-                Wähle einen Bereich, eine Abteilung oder eine Person in der Hierarchie, im Diagramm oder in der Datenqualität aus.
+                Wähle einen Bereich, eine Abteilung oder eine Person in der Hierarchie oder im Diagramm aus.
               </p>
             </div>
           </CardContent>
