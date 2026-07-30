@@ -1,13 +1,15 @@
 import { useMemo } from "react";
 import { AlertTriangle, Cpu, Layers, Monitor, MemoryStick, Power } from "lucide-react";
+import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
+import { PageLoadingState, PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useActiveSnapshotIds, useVmsWithTechInfo } from "@/hooks/useActiveSnapshots";
+import { useAverageVm } from "@/hooks/useAverageVm";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { VmInventoryTable, type OverviewVmRow } from "@/components/vm/VmInventoryTable";
 import { VmOperationsPanel } from "@/components/vm/VmOperationsPanel";
@@ -28,6 +30,8 @@ export default function Vms() {
       .map((vm) => ({ ...vm, sysv: vm.techInfo?.sysv ?? null }))
   ), [vmsWithTechInfo]);
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(vms);
+  // Dieselbe Auswertung wie in der Overview – auf denselben gefilterten Bestand angewandt.
+  const averageVm = useAverageVm(vmsWithTechInfo);
 
   if (snapshotsLoading || vmsLoading) return <PageLoadingState title="VMs" />;
 
@@ -63,6 +67,9 @@ export default function Vms() {
             <KpiCard title="RAM gesamt" value={formatBytes(totalRamMiB)} icon={<MemoryStick className="h-4 w-4" />} info={OVERVIEW_KPI.ramTotal} />
             <KpiCard title="Cluster" value={formatNum(clusterCount)} icon={<Layers className="h-4 w-4" />} info={OVERVIEW_KPI.clusterCount} />
           </KpiGrid>
+          {averageVm.isLoading
+            ? <PanelLoadingState />
+            : <AverageVmPanel avg={averageVm.avg} workload={averageVm.workload} hasVropsImport={averageVm.hasVropsImport} />}
           <VmInventoryTable vms={vms} globalFilter={filters.search} onRowClick={openVmDetail} />
         </TabsContent>
         <TabsContent value="operations"><VmOperationsPanel /></TabsContent>

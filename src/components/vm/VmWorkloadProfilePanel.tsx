@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
+import { SearchScopeNotice } from "@/components/dashboard/SearchScopeNotice";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -15,9 +16,10 @@ import { useActiveSnapshotIds, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import type { VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
-import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
+import { normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -57,11 +59,16 @@ function Sparkline({ profile }: { profile: VmWorkloadProfile }) {
 }
 
 export function VmWorkloadProfilePanel() {
-  const { imports, profiles, isLoading } = useVmWorkloadProfiles(null);
-  const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
+  const { imports, profiles: allProfiles, isLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
+
+  // Die Textsuche schränkt den gesamten Tab ein, nicht nur die Tabelle: KPI-Kacheln und
+  // Verteilungsdiagramme leiten sich aus derselben gefilterten Liste ab.
+  const searchQuery = normalizeVmSearchTerm(filters.search.trim());
+  const profiles = useMemo(() => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery), [allProfiles, searchQuery]);
+  const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
 
   const shapeDistribution = useMemo(() => {
     const counts = new Map<VmWorkloadShape, number>();
@@ -122,6 +129,7 @@ export function VmWorkloadProfilePanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster und Host" matched={profiles.length} total={allProfiles.length} />
         <KpiGrid>
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />
@@ -158,7 +166,8 @@ export function VmWorkloadProfilePanel() {
 
         <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({visibleProfileCount})</h3></InfoTooltip>
-          <VirtualTable data={profiles} columns={columns} globalFilter={filters.search} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." onFilteredCountChange={setVisibleProfileCount} />
+          {/* Ohne `globalFilter`: die Suche ist bereits auf `profiles` angewandt, damit Kennzahlen, Diagramme und Tabelle denselben Ausschnitt zeigen. */}
+          <VirtualTable data={profiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Host."} onFilteredCountChange={setVisibleProfileCount} />
         </div>
       </>}
       {vmDetailDialog}

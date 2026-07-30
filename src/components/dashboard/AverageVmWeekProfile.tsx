@@ -1,10 +1,11 @@
 import { Fragment, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { AverageVmWorkload, AverageVmWorkloadWeekCell } from "@/domain/services/averageVmWorkloadService";
 import { WEEKDAY_LABELS } from "@/domain/services/averageVmWorkloadService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE } from "@/lib/chartStyles";
-import { formatDemandAxisTick, formatDemandMHz } from "@/lib/formatDemand";
+import { formatDemandAxisTick, formatDemandMHz, formatDemandPct, formatDemandPctAxisTick, toCapacityPct } from "@/lib/formatDemand";
 import { buildHeatScale, heatCellColor, relativeToMedian } from "@/lib/heatScale";
 import { OVERVIEW_SECTIONS } from "@/lib/glossary";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -15,8 +16,13 @@ interface SlotDatum {
   weekdayIndex: number;
   hour: number;
   cpuDemandMHz: number | null;
+  /** Derselbe Wert als Anteil der konfigurierten CPU-Kapazität; `null` ohne bekannte Hostfrequenz. */
+  cpuDemandPct: number | null;
   vmSampleCount: number;
 }
+
+/** Anzeigeeinheit des Wochenverlaufs: absolut in MHz/GHz oder als Anteil der zugeteilten CPU. */
+type DemandUnit = "mhz" | "pct";
 
 function formatHour(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
@@ -30,9 +36,21 @@ function formatHour(hour: number): string {
  * diesem Wochentag und dieser Uhrzeit normal ist.
  */
 export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload }) {
+  const capacityMHz = workload.configuredCpuCapacityMHz;
+  const canShowPct = capacityMHz !== null && capacityMHz > 0;
+  const [unit, setUnit] = useState<DemandUnit>("mhz");
+  const activeUnit: DemandUnit = canShowPct ? unit : "mhz";
+
   const data = useMemo<SlotDatum[]>(
-    () => workload.slots.map((slot, index) => ({ index, weekdayIndex: slot.weekdayIndex, hour: slot.hour, cpuDemandMHz: slot.cpuDemandMHz, vmSampleCount: slot.vmSampleCount })),
-    [workload.slots],
+    () => workload.slots.map((slot, index) => ({
+      index,
+      weekdayIndex: slot.weekdayIndex,
+      hour: slot.hour,
+      cpuDemandMHz: slot.cpuDemandMHz,
+      cpuDemandPct: toCapacityPct(slot.cpuDemandMHz, capacityMHz),
+      vmSampleCount: slot.vmSampleCount,
+    })),
+    [workload.slots, capacityMHz],
   );
 
   /** Ein Tick je Tagesbeginn, zusätzlich der erste Slot, falls der Import mitten am Tag startet. */
@@ -47,22 +65,38 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
   return (
     <div className="space-y-5">
       <section className="space-y-2">
-        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <InfoTooltip entry={OVERVIEW_SECTIONS.averageVmWeekProfile} side="bottom">
             <h4 className="w-fit cursor-help text-[10px] uppercase tracking-wider text-muted-foreground">
-              Wochenverlauf · Ø CPU Demand in MHz
+              Wochenverlauf · Ø CPU Demand {activeUnit === "pct" ? "in % der zugeteilten CPU" : "in MHz"}
             </h4>
           </InfoTooltip>
-          <p className="font-mono-data text-[11px] text-muted-foreground">
-            {nowSlot ? (
-              <>
-                jetzt {WEEKDAY_LABELS[workload.now.weekdayIndex]} {formatHour(workload.now.hour)} ·{" "}
-                <span className="font-semibold text-warning">{formatDemandMHz(nowSlot.cpuDemandMHz)}</span> üblich
-              </>
-            ) : (
-              <>Der Import enthält die laufende Stunde nicht</>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="font-mono-data text-[11px] text-muted-foreground">
+              {nowSlot ? (
+                <>
+                  jetzt {WEEKDAY_LABELS[workload.now.weekdayIndex]} {formatHour(workload.now.hour)} ·{" "}
+                  <span className="font-semibold text-warning">{formatSlotValue(nowSlot, activeUnit)}</span> üblich
+                </>
+              ) : (
+                <>Der Import enthält die laufende Stunde nicht</>
+              )}
+            </p>
+            {canShowPct && (
+              <ToggleGroup
+                type="single"
+                value={activeUnit}
+                onValueChange={(value) => {
+                  if (value === "mhz" || value === "pct") setUnit(value);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                <ToggleGroupItem value="mhz" aria-label="Absolut in MHz" className="h-6 px-2 text-[10px]">MHz</ToggleGroupItem>
+                <ToggleGroupItem value="pct" aria-label="Anteil der zugeteilten CPU in Prozent" className="h-6 px-2 text-[10px]">%</ToggleGroupItem>
+              </ToggleGroup>
             )}
-          </p>
+          </div>
         </header>
 
         <ResponsiveContainer width="100%" height={168}>
@@ -92,7 +126,7 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
             />
             <YAxis
               width={40}
-              tickFormatter={formatDemandAxisTick}
+              tickFormatter={activeUnit === "pct" ? formatDemandPctAxisTick : formatDemandAxisTick}
               tick={CHART_AXIS_STYLE}
               axisLine={false}
               tickLine={false}
@@ -100,7 +134,7 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
             <Tooltip content={<SlotTooltip />} />
             <Area
               type="linear"
-              dataKey="cpuDemandMHz"
+              dataKey={activeUnit === "pct" ? "cpuDemandPct" : "cpuDemandMHz"}
               stroke="hsl(var(--primary))"
               strokeWidth={1.75}
               fill="hsl(var(--primary))"
@@ -128,6 +162,11 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
   );
 }
 
+/** Der aktive Modus bestimmt die Achse; im Tooltip stehen beide Einheiten, damit nichts umgerechnet werden muss. */
+function formatSlotValue(slot: SlotDatum, unit: DemandUnit): string {
+  return unit === "pct" ? formatDemandPct(slot.cpuDemandPct) : formatDemandMHz(slot.cpuDemandMHz);
+}
+
 function SlotTooltip({ active, payload }: { active?: boolean; payload?: { payload: SlotDatum }[] }) {
   const slot = payload?.[0]?.payload;
   if (!active || !slot) return null;
@@ -136,7 +175,10 @@ function SlotTooltip({ active, payload }: { active?: boolean; payload?: { payloa
       <p className="text-[11px] font-semibold text-popover-foreground">
         {WEEKDAY_LABELS[slot.weekdayIndex]} {formatHour(slot.hour)}
       </p>
-      <p className="font-mono-data text-xs text-popover-foreground">{formatDemandMHz(slot.cpuDemandMHz)}</p>
+      <p className="font-mono-data text-xs text-popover-foreground">
+        {formatDemandMHz(slot.cpuDemandMHz)}
+        {slot.cpuDemandPct !== null && <span className="text-muted-foreground"> · {formatDemandPct(slot.cpuDemandPct)}</span>}
+      </p>
       <p className="text-[10px] text-muted-foreground">
         {slot.vmSampleCount > 0 ? `${formatNum(slot.vmSampleCount)} VMs gemessen` : "keine Messwerte"}
       </p>
@@ -185,6 +227,8 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
   }, [workload.weekGrid]);
   const scale = useMemo(() => buildHeatScale(workload.weekGrid.map((cell) => cell.cpuDemandMHz)), [workload.weekGrid]);
   const hoveredDelta = hovered?.cpuDemandMHz !== null && hovered !== null && scale !== null ? relativeToMedian(hovered.cpuDemandMHz, scale) : null;
+  const hoveredPct = toCapacityPct(hovered?.cpuDemandMHz, workload.configuredCpuCapacityMHz);
+  const medianPct = toCapacityPct(scale?.median, workload.configuredCpuCapacityMHz);
 
   return (
     <section className="space-y-2" onMouseLeave={() => setHovered(null)}>
@@ -199,10 +243,16 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
             <>
               {WEEKDAY_LABELS[hovered.weekdayIndex]} {formatHour(hovered.hour)} ·{" "}
               <span className="text-foreground/80">{formatDemandMHz(hovered.cpuDemandMHz)}</span>
+              {hoveredPct !== null && <> · {formatDemandPct(hoveredPct)}</>}
               {hoveredDelta !== null && <> · {formatDelta(hoveredDelta)} zum Median</>}
             </>
           ) : scale !== null ? (
-            <>Median {formatDemandMHz(scale.median)} · Spanne {formatDemandMHz(scale.min)}–{formatDemandMHz(scale.max)}</>
+            <>
+              Median {formatDemandMHz(scale.median)}
+              {medianPct !== null && <> · {formatDemandPct(medianPct)}</>}
+              {" · Spanne "}
+              {formatDemandMHz(scale.min)}–{formatDemandMHz(scale.max)}
+            </>
           ) : (
             <>keine Messwerte</>
           )}

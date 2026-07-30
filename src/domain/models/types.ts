@@ -969,6 +969,8 @@ export interface VmWorkloadProfile {
   hostKey: string | null;
   host: string | null;
   vcpu: number | null;
+  /** Konfigurierte CPU-Kapazität in MHz (vCPU × MHz je Kern des Hosts); `null` ohne bekannte Hostfrequenz. */
+  configuredCpuCapacityMHz: number | null;
   configuredMemoryMiB: number | null;
   powerState: string | null;
   workloadClass: "high" | "std" | "unknown";

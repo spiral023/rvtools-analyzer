@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
+import { SearchScopeNotice } from "@/components/dashboard/SearchScopeNotice";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -18,6 +19,7 @@ import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadShape } from "@/domain/models/types";
 import {
   buildVmRightsizingCandidates,
+  filterRightsizingCandidatesBySearch,
   isNotableRightsizingCandidate,
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
@@ -25,7 +27,9 @@ import {
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
+import { normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -57,9 +61,16 @@ export function VmRightsizingPanel() {
   const { allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
-  const candidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
-  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(candidates.map((candidate) => candidate.vmName));
+  const allCandidates = useMemo(() => buildVmRightsizingCandidates({ profiles, hosts }), [profiles, hosts]);
+  // Bewusst über den vollständigen Bestand: die Zuordnung trägt die Suche nach
+  // Systemverantwortlichen und darf deshalb nicht selbst von ihr abhängen.
+  const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allCandidates.map((candidate) => candidate.vmName));
   const sysvByVmName = useMemo(() => new Map(techInfoLatest.map((entry) => [entry.vmNameNorm, entry.sysv])), [techInfoLatest]);
+  const searchQuery = normalizeVmSearchTerm(filters.search.trim());
+  const candidates = useMemo(
+    () => filterRightsizingCandidatesBySearch(allCandidates, searchQuery, sysvByVmName),
+    [allCandidates, searchQuery, sysvByVmName],
+  );
   const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
   const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
   const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
@@ -78,7 +89,7 @@ export function VmRightsizingPanel() {
       id: "sysv",
       header: "Systemverantwortlicher",
       meta: { info: RIGHTSIZING_COLUMNS.sysv },
-      accessorFn: (row) => sysvByVmName.get(row.vmName.trim().toLowerCase()) ?? null,
+      accessorFn: (row) => sysvByVmName.get(normalizeVmName(row.vmName)) ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
@@ -145,6 +156,7 @@ export function VmRightsizingPanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster und Systemverantwortliche:r" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
           <KpiCard title="Rückgewinnbare vCPU" value={formatVcpu(totalReclaimableVcpu)} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_KPI.reclaimableVcpu} />
@@ -178,7 +190,8 @@ export function VmRightsizingPanel() {
 
         <div>
           <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({visibleCandidateCount})</h3></InfoTooltip>
-          <VirtualTable data={candidates} columns={candidateColumns} globalFilter={filters.search} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription="Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." onFilteredCountChange={setVisibleCandidateCount} />
+          {/* Ohne `globalFilter`: die Suche ist bereits auf `candidates` angewandt, damit Kennzahlen und Tabelle denselben Ausschnitt zeigen. */}
+          <VirtualTable data={candidates} columns={candidateColumns} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Systemverantwortliche:r."} onFilteredCountChange={setVisibleCandidateCount} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

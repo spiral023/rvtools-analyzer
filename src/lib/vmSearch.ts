@@ -1,4 +1,5 @@
 import type { NormalizedVm, TechInfoLatest } from "@/domain/models/types";
+import { normalizeVmName } from "@/lib/globalFilter";
 
 /**
  * Textsuche der Filterleiste über den VM-Bestand.
@@ -28,9 +29,16 @@ export function buildSysvSearchIndex(entries: readonly TechInfoLatest[]): Map<st
   return index;
 }
 
-export function matchesVmSearch(vm: NormalizedVm, query: string, sysvIndex: Map<string, string>): boolean {
+/**
+ * Trifft der – bereits normalisierte – Suchbegriff eines der Felder? Ein leerer Begriff
+ * gilt als Treffer, damit Aufrufer die Suche bedingungslos anwenden können.
+ */
+export function matchesSearchFields(query: string, values: readonly (string | null | undefined)[]): boolean {
   if (query === "") return true;
-  const sysv = sysvIndex.get(vm.vmName.trim().toLocaleLowerCase("de-DE")) ?? null;
-  return [vm.vmName, vm.cluster, vm.host, vm.osConfig, vm.osTools, sysv]
-    .some((value) => value != null && normalizeVmSearchTerm(value).includes(query));
+  return values.some((value) => value != null && normalizeVmSearchTerm(value).includes(query));
+}
+
+export function matchesVmSearch(vm: NormalizedVm, query: string, sysvIndex: ReadonlyMap<string, string>): boolean {
+  const sysv = sysvIndex.get(normalizeVmName(vm.vmName)) ?? null;
+  return matchesSearchFields(query, [vm.vmName, vm.cluster, vm.host, vm.osConfig, vm.osTools, sysv]);
 }

@@ -45,8 +45,12 @@ export interface AverageVmWorkload {
   demandPerVm: DistributionStats | null;
   /** Streuung des Ready-P95 je VM in Prozent. */
   readyP95PerVm: DistributionStats | null;
-  /** Ø P95-Auslastung bezogen auf die konfigurierte CPU-Kapazität; `null`, wenn keine Hostfrequenz bekannt ist. */
-  utilizationP95Pct: number | null;
+  /**
+   * Ø konfigurierte CPU-Kapazität der beteiligten VMs in MHz (vCPU × MHz je Kern) – die
+   * Bezugsgröße aller Prozentangaben der Durchschnitts-VM. Gemittelt über die Profile mit
+   * bekannter Hostfrequenz; `null`, wenn für keine VM eine Frequenz vorliegt.
+   */
+  configuredCpuCapacityMHz: number | null;
   /** Zeitliche Aggregate der gemittelten Zeitreihe – so sieht die typische VM über die Woche aus. */
   timeline: { average: number | null; p95: number | null; max: number | null };
   slots: AverageVmWorkloadSlot[];
@@ -119,10 +123,10 @@ export function buildAverageVmWorkload({
     coverageRatio: average(profiles.map((profile) => profile.demand.coverageRatio)) ?? 0,
     demandPerVm: buildDistribution(profiles.map((profile) => profile.demand.average)),
     readyP95PerVm: buildDistribution(profiles.map((profile) => profile.ready.p95)),
-    utilizationP95Pct: average(
+    configuredCpuCapacityMHz: average(
       profiles.flatMap((profile) => {
-        const value = profile.signals.utilizationP95Pct;
-        return value !== null && Number.isFinite(value) ? [value] : [];
+        const value = profile.configuredCpuCapacityMHz;
+        return value !== null && Number.isFinite(value) && value > 0 ? [value] : [];
       }),
     ),
     timeline: {

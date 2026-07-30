@@ -15,6 +15,7 @@ import type {
 } from "@/domain/models/types";
 import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
 import { average, percentile, standardDeviation } from "@/lib/statistics";
+import { matchesSearchFields } from "@/lib/vmSearch";
 
 const HOUR_MS = 60 * 60 * 1000;
 const hourGridFormatterByTimezone = new Map<string, Intl.DateTimeFormat>();
@@ -145,6 +146,20 @@ export interface BuildVmWorkloadProfilesInput {
 }
 
 /**
+ * Wendet die Textsuche der Filterleiste auf die Profile an – VM-Name, Cluster und Host.
+ * Der Filter greift an der Wurzel des Tabs, damit KPI-Kacheln, Verteilungsdiagramme und
+ * Tabelle denselben Ausschnitt zeigen. Erwartet einen bereits normalisierten Suchbegriff
+ * (`normalizeVmSearchTerm`); ein leerer Begriff liefert den vollständigen Bestand.
+ */
+export function filterVmWorkloadProfilesBySearch(
+  profiles: readonly VmWorkloadProfile[],
+  normalizedQuery: string,
+): VmWorkloadProfile[] {
+  if (normalizedQuery === "") return [...profiles];
+  return profiles.filter((profile) => matchesSearchFields(normalizedQuery, [profile.vmName, profile.clusterName, profile.host]));
+}
+
+/**
  * Leitet für jede eindeutig zugeordnete VM ein Sieben-Tage-CPU-Profil samt
  * Verhaltensklasse ab. Reine Funktion ohne UI- oder Persistenzbezug; wird von
  * VM-Profilen und Rightsizing-Kandidaten gemeinsam genutzt. Cluster- und
@@ -183,6 +198,7 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         hostKey: object.hostKey,
         host: vm.host,
         vcpu: vm.cpuCount,
+        configuredCpuCapacityMHz,
         configuredMemoryMiB: vm.memoryMiB,
         powerState: object.powerState,
         workloadClass: object.workloadClass ?? "unknown",

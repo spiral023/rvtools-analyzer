@@ -5,7 +5,7 @@ import { DistributionStrip } from "@/components/dashboard/DistributionStrip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { AverageVmWorkload } from "@/domain/services/averageVmWorkloadService";
 import { OVERVIEW_SECTIONS } from "@/lib/glossary";
-import { formatDemandMHz } from "@/lib/formatDemand";
+import { formatDemandMHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import type { AverageVm } from "@/lib/averageVm";
 import { cn } from "@/lib/utils";
@@ -37,16 +37,28 @@ function SectionLabel({ title, source, meta }: { title: string; source: string; 
   );
 }
 
-function Hero({ value, unit, caption }: { value: string; unit?: string; caption: string }) {
+/** `note` trägt eine zweite Einheit derselben Zahl – etwa den Anteil an der zugeteilten CPU. */
+function Hero({ value, unit, caption, note }: { value: string; unit?: string; caption: string; note?: string }) {
   return (
     <div>
       <p className="flex items-baseline gap-1.5 font-mono-data text-[2.25rem] font-bold leading-none tracking-tight text-foreground">
         {value}
         {unit && <span className="text-sm font-medium text-muted-foreground">{unit}</span>}
+        {note && <span className="font-mono-data text-sm font-medium text-muted-foreground">· {note}</span>}
       </p>
       <p className="mt-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">{caption}</p>
     </div>
   );
+}
+
+/** Prozentangaben der Durchschnitts-VM beziehen sich immer auf deren Ø konfigurierte CPU-Kapazität. */
+function hasCapacity(workload: AverageVmWorkload): boolean {
+  return workload.configuredCpuCapacityMHz !== null && workload.configuredCpuCapacityMHz > 0;
+}
+
+function capacityPct(workload: AverageVmWorkload, valueMHz: number | null): string | undefined {
+  const pct = toCapacityPct(valueMHz, workload.configuredCpuCapacityMHz);
+  return pct === null ? undefined : formatDemandPct(pct, 1);
 }
 
 interface UsageBarProps {
@@ -178,14 +190,22 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
               <>
                 <div className="grid gap-x-6 gap-y-5 lg:grid-cols-3">
                   <div className="space-y-3">
-                    <Hero value={formatDemandMHz(workload.timeline.average)} caption="Ø CPU Demand je VM" />
+                    <Hero
+                      value={formatDemandMHz(workload.timeline.average)}
+                      caption="Ø CPU Demand je VM"
+                      note={capacityPct(workload, workload.timeline.average)}
+                    />
                     <p className="font-mono-data text-[11px] leading-relaxed text-muted-foreground">
-                      <span className="text-foreground/80">P95 {formatDemandMHz(workload.timeline.p95)}</span>
-                      {" · Max "}
-                      {formatDemandMHz(workload.timeline.max)}
+                      <span className="text-foreground/80">
+                        P95 {formatDemandMHz(workload.timeline.p95)}
+                        {hasCapacity(workload) && ` · ${capacityPct(workload, workload.timeline.p95)}`}
+                      </span>
                       <br />
-                      {workload.utilizationP95Pct !== null
-                        ? `P95 nutzt ${percent(workload.utilizationP95Pct, 1)} der zugeteilten CPU`
+                      Max {formatDemandMHz(workload.timeline.max)}
+                      {hasCapacity(workload) && ` · ${capacityPct(workload, workload.timeline.max)}`}
+                      <br />
+                      {hasCapacity(workload)
+                        ? `Anteil von Ø ${formatDemandMHz(workload.configuredCpuCapacityMHz)} zugeteilter CPU je VM`
                         : "Auslastungsanteil ohne Hostfrequenz nicht berechenbar"}
                     </p>
                   </div>
@@ -194,6 +214,7 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
                       label="Ø CPU Demand je VM"
                       stats={workload.demandPerVm}
                       format={formatDemandMHz}
+                      secondaryFormat={hasCapacity(workload) ? (value) => formatDemandPct(toCapacityPct(value, workload.configuredCpuCapacityMHz), 1) : undefined}
                       info={OVERVIEW_SECTIONS.averageVmDemandDistribution}
                       emptyHint="Keine Demand-Messwerte im Filter."
                     />

@@ -85,6 +85,34 @@ describe("buildAverageVmWorkload", () => {
     expect(workload.nowSlotIndex).toBe(24 * 9 + 10);
   });
 
+  it("mittelt die konfigurierte CPU-Kapazität nur über VMs mit bekannter Hostfrequenz", () => {
+    const importMeta = makeImport(2);
+    const timestamps = buildHourGrid(importMeta).map((entry) => entry.timestampUtc);
+    const workload = buildAverageVmWorkload({
+      import: importMeta,
+      profiles: [
+        makeProfile("vm-a", timestamps, [100, 200], { configuredCpuCapacityMHz: 4_000 }),
+        makeProfile("vm-b", timestamps, [100, 200], { configuredCpuCapacityMHz: 8_000 }),
+        makeProfile("vm-c", timestamps, [100, 200], { configuredCpuCapacityMHz: null }),
+      ],
+      scopedVmCount: 3,
+    })!;
+
+    expect(workload.configuredCpuCapacityMHz).toBe(6_000);
+  });
+
+  it("lässt die Bezugsgröße offen, wenn keine VM eine Hostfrequenz hat", () => {
+    const importMeta = makeImport(2);
+    const timestamps = buildHourGrid(importMeta).map((entry) => entry.timestampUtc);
+    const workload = buildAverageVmWorkload({
+      import: importMeta,
+      profiles: [makeProfile("vm-a", timestamps, [100, 200], { configuredCpuCapacityMHz: null })],
+      scopedVmCount: 1,
+    })!;
+
+    expect(workload.configuredCpuCapacityMHz).toBeNull();
+  });
+
   it("liefert keinen Marker, wenn der Import die laufende Stunde nicht enthält", () => {
     const importMeta = makeImport(6); // Montag 00:00–05:00
     const timestamps = buildHourGrid(importMeta).map((entry) => entry.timestampUtc);
@@ -135,7 +163,7 @@ function makeProfile(
   vmName: string,
   timestamps: readonly number[],
   demand: readonly (number | null)[],
-  options: { readyP95?: number | null } = {},
+  options: { readyP95?: number | null; configuredCpuCapacityMHz?: number | null } = {},
 ): VmWorkloadProfile {
   const finite = demand.filter((value): value is number => value !== null);
   return {
@@ -147,6 +175,7 @@ function makeProfile(
     hostKey: null,
     host: null,
     vcpu: 4,
+    configuredCpuCapacityMHz: options.configuredCpuCapacityMHz === undefined ? 4_000 : options.configuredCpuCapacityMHz,
     configuredMemoryMiB: 8_192,
     powerState: "poweredOn",
     workloadClass: "std",

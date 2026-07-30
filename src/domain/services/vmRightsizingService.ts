@@ -1,5 +1,7 @@
 import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { normalizeVmName } from "@/lib/globalFilter";
+import { matchesSearchFields } from "@/lib/vmSearch";
 
 /** Zielauslastung der empfohlenen vCPU-Größe beim P95-Bedarf. */
 const TARGET_UTILIZATION_P95 = 0.65;
@@ -120,6 +122,28 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
 /** Ein Kandidat gilt als „auffällig“, wenn er tatsächlich hervorgehoben werden sollte – nicht jede Zeile der Vergleichstabelle. */
 export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate): boolean {
   return candidate.flags.manyVcpuLowDemand || candidate.flags.highCpuReady || (candidate.reclaimableVcpu ?? 0) > 0;
+}
+
+/**
+ * Wendet die Textsuche der Filterleiste auf die Kandidatenliste an – VM-Name, Cluster und
+ * Systemverantwortliche:r. Der Filter greift bewusst an der Wurzel des Tabs: KPI-Kacheln,
+ * Dichteraster, Diagramme und Zusammenfassungen leiten sich alle aus derselben Liste ab
+ * und zeigen damit denselben Ausschnitt wie die Tabelle.
+ *
+ * `sysvByVmName` ist über den normalisierten VM-Namen verschlüsselt (siehe `vmNameNorm`),
+ * weil Systemverantwortliche aus der Tech-Info stammen und nicht aus dem RVTools-Export.
+ */
+export function filterRightsizingCandidatesBySearch(
+  candidates: readonly VmRightsizingCandidate[],
+  normalizedQuery: string,
+  sysvByVmName: ReadonlyMap<string, string | null>,
+): VmRightsizingCandidate[] {
+  if (normalizedQuery === "") return [...candidates];
+  return candidates.filter((candidate) => matchesSearchFields(normalizedQuery, [
+    candidate.vmName,
+    candidate.clusterName,
+    sysvByVmName.get(normalizeVmName(candidate.vmName)),
+  ]));
 }
 
 export function summarizeReclaimableVcpuByCluster(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {

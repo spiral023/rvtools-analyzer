@@ -253,7 +253,7 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
   averageVm: {
     term: "Durchschnittliche VM",
     description:
-      "Synthetische „typische“ VM für den aktuellen Filter, in zwei Teilen: „Zugeteilt“ mittelt aus RVTools, was die VMs konfiguriert haben (vCPU, RAM, RAM-Belegung, Disks, provisionierte Kapazität, Partitionen, NICs). „Beansprucht“ zeigt aus der vROps-Zeitreihe, was sie davon tatsächlich nutzen – dieser Teil entfällt ohne Import. Ändert sich vCenter-Auswahl, Suche oder Filter, wird beides sofort auf diese Auswahl neu berechnet.",
+      "Synthetische „typische“ VM für den aktuellen Filter, in zwei Teilen: „Zugeteilt“ mittelt aus RVTools, was die VMs konfiguriert haben (vCPU, RAM, RAM-Belegung, Disks, provisionierte Kapazität, Partitionen, NICs). „Beansprucht“ zeigt aus der vROps-Zeitreihe, was sie davon tatsächlich nutzen – dieser Teil entfällt ohne Import. Alle Prozentangaben dort beziehen sich auf dieselbe Größe: die Ø konfigurierte CPU-Kapazität je VM (vCPU × MHz je Kern des Hosts), ohne bekannte Hostfrequenz entfallen sie. Ändert sich vCenter-Auswahl, Suche oder Filter, wird beides sofort auf diese Auswahl neu berechnet.",
     source: `${RV} · vInfo/vCPU/vMemory/vDisk/vPartition/vNetwork · vROps-Zeitreihe`,
   },
   averageVmDistribution: {
@@ -265,7 +265,7 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
   averageVmDemandDistribution: {
     term: "Ø CPU Demand je VM",
     description:
-      "Jede VM liefert ihren über den Importzeitraum gemittelten CPU Demand; die Streuung zeigt, wie unterschiedlich stark die VMs des Filters tatsächlich arbeiten. Demand ist der Bedarf inklusive verweigerter Anteile, nicht die zugeteilte Nutzung.",
+      "Jede VM liefert ihren über den Importzeitraum gemittelten CPU Demand; die Streuung zeigt, wie unterschiedlich stark die VMs des Filters tatsächlich arbeiten. Demand ist der Bedarf inklusive verweigerter Anteile, nicht die zugeteilte Nutzung. Die zweite Zeile („davon …“) setzt dieselben Kennzahlen in Bezug zur Ø konfigurierten CPU-Kapazität je VM – eine Einordnung der Größenordnung, keine VM-genaue Auslastung, weil die Kapazität je VM unterschiedlich ist.",
     source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
   },
   averageVmReadyDistribution: {
@@ -277,7 +277,7 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
   averageVmWeekProfile: {
     term: "Wochenverlauf",
     description:
-      "Stündlicher Ø CPU Demand aller gefilterten VMs über den Importzeitraum, in der Zeitzone des Imports. Wochenenden sind hinterlegt, Datenlücken bleiben als Unterbrechung sichtbar. Die gestrichelte Linie markiert die laufende Stunde: der Wert dort ist die Last, die zu genau diesem Wochentag und dieser Uhrzeit üblich war. Deckt der Import mehrere Wochen ab, markiert sie die jüngste passende Stunde.",
+      "Stündlicher Ø CPU Demand aller gefilterten VMs über den Importzeitraum, in der Zeitzone des Imports. Über den Umschalter MHz/% wahlweise absolut oder als Anteil der Ø konfigurierten CPU-Kapazität je VM – dieselbe Bezugsgröße wie bei den Kennzahlen darüber. Wochenenden sind hinterlegt, Datenlücken bleiben als Unterbrechung sichtbar. Die gestrichelte Linie markiert die laufende Stunde: der Wert dort ist die Last, die zu genau diesem Wochentag und dieser Uhrzeit üblich war. Deckt der Import mehrere Wochen ab, markiert sie die jüngste passende Stunde.",
     source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
   },
   averageVmWeekGrid: {

@@ -77,7 +77,7 @@ describe("buildVmExportDataset", () => {
   function profile(overrides: Partial<VmWorkloadProfile> = {}): VmWorkloadProfile {
     return {
       objectKey: "obj-1", rvtoolsObjectKey: "vm-1", vmName: "sql-01", clusterKey: null, clusterName: "Production",
-      hostKey: "host-1", host: "esx-01", vcpu: 4, configuredMemoryMiB: 8192, powerState: "poweredOn", workloadClass: "unknown",
+      hostKey: "host-1", host: "esx-01", vcpu: 4, configuredCpuCapacityMHz: 4_000, configuredMemoryMiB: 8192, powerState: "poweredOn", workloadClass: "unknown",
       hourly: [{ timestampUtc: Date.UTC(2026, 6, 1, 0, 0), cpuDemandMHz: 412.3, cpuReadyPct: 0.5 }],
       demand: { ...emptyStats, coverageRatio: 0.98, p95: 2_400 }, ready: { ...emptyStats, p95: 6.2 }, shape: "bursty", intensity: "elevated", behaviorClass: "bursty", confidence: "high",
       signals: { coefficientOfVariation: 1.2, activeHourSharePct: 18.5, dutyCyclePct: 31.5, baselineRatio: 0.12, utilizationP95Pct: 42.1, dailyRepeatability: 0.15, businessHoursConcentration: 0.9, nightConcentration: 1.1, weekendConcentration: 0.8 },

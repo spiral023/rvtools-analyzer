@@ -14,11 +14,9 @@ import { clusterOverviewColumns } from "@/components/cluster/clusterOverviewColu
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
-import { useAverageVmWorkload } from "@/hooks/useAverageVmWorkload";
+import { useAverageVm } from "@/hooks/useAverageVm";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
-import { buildAverageVm } from "@/lib/averageVm";
-import { buildVmJoinKey, filterRowsByMatchingVmJoinKeys } from "@/lib/globalFilter";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildVCenterSummaries, buildVCenterVersionBySnapshot, latestSnapshotsByVcenter } from "@/lib/vcenterWorkspace";
@@ -99,30 +97,7 @@ export default function Overview() {
     [activeSnapshots, clusters, datastores, filteredVms, healthEvents, hosts, rawDvPortRows, rawVSourceRows, vmSnapshots],
   );
 
-  // Raw-Sheets exakt auf die aktuell gefilterten VMs beschränken – filterVmRows berücksichtigt
-  // Suche/Cluster/Host nicht, daher wird der Scope direkt aus filteredVms gebildet.
-  const scopedVmJoinKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const vm of filteredVms) keys.add(buildVmJoinKey(vm.snapshotId, vm.vmName));
-    return keys;
-  }, [filteredVms]);
-
-  // Der vROps-Import ist auf eigene Snapshots eingefroren; `vmKey` ist snapshotunabhängig
-  // und verbindet die Zeitreihen daher verlustfrei mit der aktuellen VM-Auswahl.
-  const scopedVmKeys = useMemo(() => new Set(filteredVms.map((vm) => vm.vmKey)), [filteredVms]);
-  const { workload: averageVmWorkload, hasImport: hasVropsTimeSeriesImport } = useAverageVmWorkload(scopedVmKeys);
-
-  const averageVm = useMemo(
-    () =>
-      buildAverageVm({
-        vms: filteredVms,
-        memoryRows: filterRowsByMatchingVmJoinKeys(rawMemoryRows, scopedVmJoinKeys),
-        diskRows: filterRowsByMatchingVmJoinKeys(rawDiskRows, scopedVmJoinKeys),
-        partitionRows: filterRowsByMatchingVmJoinKeys(rawPartitionRows, scopedVmJoinKeys),
-        networkRows: filterRowsByMatchingVmJoinKeys(rawNetworkRows, scopedVmJoinKeys),
-      }),
-    [filteredVms, rawMemoryRows, rawDiskRows, rawPartitionRows, rawNetworkRows, scopedVmJoinKeys],
-  );
+  const { avg: averageVm, workload: averageVmWorkload, hasVropsImport: hasVropsTimeSeriesImport } = useAverageVm(filteredVms);
 
   const vmsForTable = useMemo<OverviewVmRow[]>(
     () =>

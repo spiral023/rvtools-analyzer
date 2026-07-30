@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesMetricKey, NormalizedVm } from "@/domain/models/types";
-import { buildHourGrid, buildVmWorkloadProfiles, classifyVmBehavior, determineProfileConfidence } from "./vmWorkloadProfileService";
+import type { VropsTimeSeriesChunk, VropsTimeSeriesImport, VropsTimeSeriesImportedObject, VropsTimeSeriesMetricKey, NormalizedVm, VmWorkloadProfile } from "@/domain/models/types";
+import { buildHourGrid, buildVmWorkloadProfiles, classifyVmBehavior, determineProfileConfidence, filterVmWorkloadProfilesBySearch } from "./vmWorkloadProfileService";
 
 describe("buildHourGrid", () => {
   it("berechnet Lokalzeit-Stunde und Wochenendflag in Europe/Vienna", () => {
@@ -346,3 +346,24 @@ function makeVm(overrides: Partial<NormalizedVm> & { vmKey: string }): Normalize
     ...overrides,
   };
 }
+
+describe("filterVmWorkloadProfilesBySearch", () => {
+  const profiles = [
+    { vmName: "APP01", clusterName: "Cluster A", host: "esx01.example.local" },
+    { vmName: "DB01", clusterName: "Cluster B", host: "esx02.example.local" },
+    { vmName: "WEB01", clusterName: null, host: null },
+  ] as unknown as VmWorkloadProfile[];
+  const names = (query: string) => filterVmWorkloadProfilesBySearch(profiles, query).map((profile) => profile.vmName);
+
+  it("filtert nach VM-Name, Cluster und Host", () => {
+    expect(names("app")).toEqual(["APP01"]);
+    expect(names("cluster b")).toEqual(["DB01"]);
+    expect(names("esx02")).toEqual(["DB01"]);
+    expect(names("esx")).toEqual(["APP01", "DB01"]);
+  });
+
+  it("verträgt fehlende Cluster- und Hostangaben und liefert ohne Begriff alles", () => {
+    expect(names("web")).toEqual(["WEB01"]);
+    expect(names("")).toHaveLength(3);
+  });
+});

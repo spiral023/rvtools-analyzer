@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
-import { buildVmRightsizingCandidates, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
+import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
 
 function metricStats(overrides: Partial<VmWorkloadProfileMetricStats>): VmWorkloadProfileMetricStats {
   return { expectedSlots: 168, sampleCount: 168, coverageRatio: 1, average: null, p50: null, p95: null, maximum: null, ...overrides };
@@ -15,6 +15,7 @@ function profile(overrides: Partial<VmWorkloadProfile> & { objectKey: string }):
     hostKey: "host-1",
     host: "esx01",
     vcpu: 4,
+    configuredCpuCapacityMHz: 4_000,
     configuredMemoryMiB: 8_192,
     powerState: "poweredOn",
     workloadClass: "std",
@@ -206,5 +207,33 @@ describe("summarizeReclaimableVcpuByCluster / summarizeReclaimableVcpuByBehavior
 
     const byBehavior = summarizeReclaimableVcpuByBehaviorClass(candidates);
     expect(byBehavior.map((entry) => entry.label)).toEqual(["Gering genutzt", "Dauerlast"]);
+  });
+});
+
+describe("filterRightsizingCandidatesBySearch", () => {
+  const candidates = buildVmRightsizingCandidates({
+    profiles: [
+      profile({ objectKey: "APP01", vmName: "APP01", clusterKey: "cluster-1", clusterName: "Cluster A", vcpu: 8, demand: metricStats({ p95: 500 }) }),
+      profile({ objectKey: "DB01", vmName: "DB01", clusterKey: "cluster-2", clusterName: "Cluster B", vcpu: 4, demand: metricStats({ p95: 2_000 }) }),
+    ],
+    hosts,
+  });
+  const sysvByVmName = new Map<string, string | null>([["app01", "Müller, Anna"], ["db01", null]]);
+
+  it("filtert nach VM-Name, Cluster und Systemverantwortlicher", () => {
+    const names = (query: string) => filterRightsizingCandidatesBySearch(candidates, query, sysvByVmName).map((entry) => entry.vmName);
+    expect(names("app")).toEqual(["APP01"]);
+    expect(names("cluster b")).toEqual(["DB01"]);
+    expect(names("müller")).toEqual(["APP01"]);
+    expect(names("cluster")).toHaveLength(2);
+  });
+
+  it("liefert ohne Suchbegriff den vollständigen Bestand", () => {
+    expect(filterRightsizingCandidatesBySearch(candidates, "", sysvByVmName)).toHaveLength(candidates.length);
+  });
+
+  it("greift nicht auf Felder zu, die nicht durchsucht werden sollen", () => {
+    // „Dauerlast“ ist das Label des Lastmusters – bewusst kein Suchtreffer.
+    expect(filterRightsizingCandidatesBySearch(candidates, "dauerlast", sysvByVmName)).toHaveLength(0);
   });
 });

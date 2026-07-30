@@ -8,6 +8,12 @@ interface DistributionStripProps {
   stats: DistributionStats | null;
   /** Formatiert jeden Wert der Verteilung – vCPU, MiB, MHz oder Prozent. */
   format: (value: number) => string;
+  /**
+   * Optionale zweite Einheit derselben Kennzahlen, als gedämpfte Zeile darunter. Für den
+   * CPU-Demand etwa der Anteil an der konfigurierten Kapazität: die absolute Zahl bleibt
+   * führend, der Anteil macht sie einordenbar.
+   */
+  secondaryFormat?: (value: number) => string;
   info?: GlossaryEntry;
   /**
    * Färbt die Verteilung als Warnung, wenn ein Schwellenwert gerissen wird
@@ -27,7 +33,7 @@ interface DistributionStripProps {
  * VM-Beständen rutscht die Box damit weit nach links – genau die Aussage „die
  * meisten VMs sind klein, einzelne sehr groß".
  */
-export function DistributionStrip({ label, stats, format, info, exceedsThreshold, emptyHint }: DistributionStripProps) {
+export function DistributionStrip({ label, stats, format, secondaryFormat, info, exceedsThreshold, emptyHint }: DistributionStripProps) {
   const heading = (
     <p className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
   );
@@ -105,6 +111,22 @@ export function DistributionStrip({ label, stats, format, info, exceedsThreshold
           <>Alle {stats.count.toLocaleString("de-DE")} VMs identisch bei {format(stats.p50)}</>
         )}
       </p>
+
+      {secondaryFormat && (
+        <p className="font-mono-data text-[10px] leading-relaxed text-muted-foreground/80">
+          {span > 0 ? (
+            <>
+              davon {secondaryFormat(stats.p50)} · {secondaryFormat(stats.p25)}–{secondaryFormat(stats.p75)}
+              {" · P95 "}
+              {secondaryFormat(stats.p95)}
+              {" · "}
+              {secondaryFormat(stats.min)}–{secondaryFormat(stats.max)}
+            </>
+          ) : (
+            <>davon {secondaryFormat(stats.p50)}</>
+          )}
+        </p>
+      )}
     </div>
   );
 }
