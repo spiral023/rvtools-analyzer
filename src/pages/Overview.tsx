@@ -14,6 +14,7 @@ import { clusterOverviewColumns } from "@/components/cluster/clusterOverviewColu
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
+import { useAverageVmWorkload } from "@/hooks/useAverageVmWorkload";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildAverageVm } from "@/lib/averageVm";
@@ -106,6 +107,11 @@ export default function Overview() {
     return keys;
   }, [filteredVms]);
 
+  // Der vROps-Import ist auf eigene Snapshots eingefroren; `vmKey` ist snapshotunabhängig
+  // und verbindet die Zeitreihen daher verlustfrei mit der aktuellen VM-Auswahl.
+  const scopedVmKeys = useMemo(() => new Set(filteredVms.map((vm) => vm.vmKey)), [filteredVms]);
+  const { workload: averageVmWorkload, hasImport: hasVropsTimeSeriesImport } = useAverageVmWorkload(scopedVmKeys);
+
   const averageVm = useMemo(
     () =>
       buildAverageVm({
@@ -152,7 +158,7 @@ export default function Overview() {
         <KpiCard title="Datastores" value={formatNum(datastores.length)} severity={critDs > 0 ? "crit" : undefined} subtitle={critDs > 0 ? `${critDs} kritisch` : undefined} icon={<DbIcon className="h-4 w-4" />} info={OVERVIEW_KPI.datastores} />
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
-      <AverageVmPanel avg={averageVm} />
+      <AverageVmPanel avg={averageVm} workload={averageVmWorkload} hasVropsImport={hasVropsTimeSeriesImport} />
       <HealthEventsPanel />
       {vcenterSummaries.length > 0 && <VCenterOverviewTable summaries={vcenterSummaries} />}
       {clusterRows.length > 0 && (

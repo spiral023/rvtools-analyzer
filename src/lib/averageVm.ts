@@ -1,4 +1,5 @@
 import type { SheetRow } from "@/domain/models/types";
+import { buildDistribution, type DistributionStats } from "@/lib/distribution";
 import { toNumber } from "@/lib/xlsx/parseHelpers";
 
 /** Minimale VM-Sicht für die Durchschnittsberechnung (aus NormalizedVm ableitbar). */
@@ -25,7 +26,6 @@ export interface AverageVm {
   vmCount: number;
   cpuCores: number;
   memorySizeMiB: number;
-  memoryActiveMiB: number;
   memoryConsumedMiB: number;
   disksPerVm: number;
   diskProvisionedMiB: number;
@@ -36,6 +36,14 @@ export interface AverageVm {
   /** Freier Partitionsanteil, aggregiert (Summe frei / Summe Kapazität); null ohne Kapazität. */
   partitionFreePct: number | null;
   nicsPerVm: number;
+  /**
+   * Streuung der konfigurierten vCPU über die gescopten VMs. Zeigt, wie tragfähig
+   * `cpuCores` als „typischer" Wert ist. VMs ohne Angabe bleiben außen vor – anders
+   * als beim Mittelwert, der fehlende Angaben wie bisher als 0 zählt.
+   */
+  cpuCoreDistribution: DistributionStats | null;
+  /** Streuung der konfigurierten RAM-Größe in MiB; gleiche Lesart wie {@link cpuCoreDistribution}. */
+  memorySizeDistribution: DistributionStats | null;
 }
 
 function sumColumn(rows: SheetRow[], column: string): number {
@@ -70,7 +78,6 @@ export function buildAverageVm({
     vmCount,
     cpuCores: cpuTotal / vmCount,
     memorySizeMiB: memorySizeTotal / vmCount,
-    memoryActiveMiB: sumColumn(memoryRows, "Active") / vmCount,
     memoryConsumedMiB: sumColumn(memoryRows, "Consumed") / vmCount,
     disksPerVm: diskRows.length / vmCount,
     diskProvisionedMiB: sumColumn(diskRows, "Capacity MiB") / vmCount,
@@ -80,5 +87,7 @@ export function buildAverageVm({
     partitionFreeMiB: partitionFreeTotal / vmCount,
     partitionFreePct: partitionCapacityTotal > 0 ? (partitionFreeTotal / partitionCapacityTotal) * 100 : null,
     nicsPerVm: networkRows.length / vmCount,
+    cpuCoreDistribution: buildDistribution(vms.map((vm) => vm.cpuCount)),
+    memorySizeDistribution: buildDistribution(vms.map((vm) => vm.memoryMiB)),
   };
 }

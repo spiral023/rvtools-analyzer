@@ -124,12 +124,17 @@ const HIGH_CONFIDENCE_MIN_SAMPLES = 96;
 const MEDIUM_CONFIDENCE_COVERAGE_RATIO = 0.5;
 const MEDIUM_CONFIDENCE_MIN_SAMPLES = 24;
 
-interface HourGridEntry {
+export interface HourGridEntry {
   timestampUtc: number;
   dayKey: string;
   hour: number;
+  /** 0 = Montag … 6 = Sonntag, in der Zeitzone des Imports. */
+  weekdayIndex: number;
   isWeekend: boolean;
 }
+
+/** Reihenfolge entspricht `weekdayIndex`; `Intl` liefert die englischen Kurznamen. */
+export const WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 export interface BuildVmWorkloadProfilesInput {
   import: VropsTimeSeriesImport;
@@ -239,7 +244,14 @@ export function buildHourGrid(importMeta: VropsTimeSeriesImport): HourGridEntry[
     const day = parts.find((part) => part.type === "day")?.value ?? "";
     const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0") % 24;
     const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
-    return { timestampUtc, dayKey: `${year}-${month}-${day}`, hour, isWeekend: weekday === "Sat" || weekday === "Sun" };
+    const weekdayIndex = WEEKDAY_ORDER.indexOf(weekday as (typeof WEEKDAY_ORDER)[number]);
+    return {
+      timestampUtc,
+      dayKey: `${year}-${month}-${day}`,
+      hour,
+      weekdayIndex,
+      isWeekend: weekday === "Sat" || weekday === "Sun",
+    };
   });
 }
 

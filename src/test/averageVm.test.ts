@@ -37,7 +37,6 @@ describe("buildAverageVm", () => {
     expect(avg?.vmCount).toBe(2);
     expect(avg?.cpuCores).toBe(3); // (4 + 2) / 2
     expect(avg?.memorySizeMiB).toBe(6144); // (8192 + 4096) / 2
-    expect(avg?.memoryActiveMiB).toBe(768); // (1024 + 512) / 2
     expect(avg?.memoryConsumedMiB).toBe(3072); // (4096 + 2048) / 2
     expect(avg?.disksPerVm).toBe(1.5); // 3 rows / 2 VMs
     expect(avg?.diskProvisionedMiB).toBe(35840); // (40960 + 20480 + 10240) / 2
@@ -46,6 +45,26 @@ describe("buildAverageVm", () => {
     expect(avg?.partitionFreeMiB).toBe(14080); // (20480 + 7680) / 2
     expect(avg?.partitionFreePct).toBeCloseTo((28160 / 51200) * 100, 5); // aggregate free / capacity
     expect(avg?.nicsPerVm).toBe(1.5); // 3 rows / 2 VMs
+    expect(avg?.cpuCoreDistribution).toMatchObject({ count: 2, min: 2, p50: 2, p75: 4, max: 4, average: 3 });
+    expect(avg?.memorySizeDistribution).toMatchObject({ count: 2, min: 4096, max: 8192, average: 6144 });
+  });
+
+  it("keeps VMs without CPU or memory data out of the distributions", () => {
+    const avg = buildAverageVm({
+      vms: [
+        { cpuCount: 4, memoryMiB: 8192 },
+        { cpuCount: null, memoryMiB: null },
+      ],
+      memoryRows: [],
+      diskRows: [],
+      partitionRows: [],
+      networkRows: [],
+    });
+
+    // Der Mittelwert zählt die Lücke wie bisher als 0, die Verteilung ignoriert sie.
+    expect(avg?.cpuCores).toBe(2);
+    expect(avg?.cpuCoreDistribution).toMatchObject({ count: 1, min: 4, max: 4, average: 4 });
+    expect(avg?.memorySizeDistribution).toMatchObject({ count: 1, min: 8192, max: 8192 });
   });
 
   it("treats missing numeric cells as zero and reports null free% without capacity", () => {
@@ -61,5 +80,7 @@ describe("buildAverageVm", () => {
     expect(avg?.memorySizeMiB).toBe(0);
     expect(avg?.disksPerVm).toBe(0);
     expect(avg?.partitionFreePct).toBeNull();
+    expect(avg?.cpuCoreDistribution).toBeNull();
+    expect(avg?.memorySizeDistribution).toBeNull();
   });
 });

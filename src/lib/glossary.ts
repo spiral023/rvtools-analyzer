@@ -253,7 +253,38 @@ export const OVERVIEW_SECTIONS: Record<string, GlossaryEntry> = {
   averageVm: {
     term: "Durchschnittliche VM",
     description:
-      "Synthetische „typische“ VM als Mittelwert aller VMs im aktuellen Filter: vCPU-Kerne, RAM-Größe sowie Speicherbelegung (belegt/aktiv), Disks, provisionierte Kapazität, Partitionen und NICs – jeweils je VM. Ändert sich vCenter-Auswahl, Suche oder Filter, wird der Durchschnitt sofort auf diese Auswahl neu berechnet.",
+      "Synthetische „typische“ VM für den aktuellen Filter, in zwei Teilen: „Zugeteilt“ mittelt aus RVTools, was die VMs konfiguriert haben (vCPU, RAM, RAM-Belegung, Disks, provisionierte Kapazität, Partitionen, NICs). „Beansprucht“ zeigt aus der vROps-Zeitreihe, was sie davon tatsächlich nutzen – dieser Teil entfällt ohne Import. Ändert sich vCenter-Auswahl, Suche oder Filter, wird beides sofort auf diese Auswahl neu berechnet.",
+    source: `${RV} · vInfo/vCPU/vMemory/vDisk/vPartition/vNetwork · vROps-Zeitreihe`,
+  },
+  averageVmDistribution: {
+    term: "Verteilung über die VMs",
+    description:
+      "Streuung des Werts über alle VMs im Filter: die Box umschließt die mittlere Hälfte (25.–75. Perzentil), der starke Strich ist der Median, die Raute der P95, die Linie reicht von Minimum bis Maximum. Liegt der Median deutlich unter dem Mittelwert, ziehen wenige große VMs den Durchschnitt nach oben – dann ist der Median die belastbarere Größe. VMs ohne Angabe bleiben in der Streuung außen vor.",
+    source: `${RV} · vInfo`,
+  },
+  averageVmDemandDistribution: {
+    term: "Ø CPU Demand je VM",
+    description:
+      "Jede VM liefert ihren über den Importzeitraum gemittelten CPU Demand; die Streuung zeigt, wie unterschiedlich stark die VMs des Filters tatsächlich arbeiten. Demand ist der Bedarf inklusive verweigerter Anteile, nicht die zugeteilte Nutzung.",
+    source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
+  },
+  averageVmReadyDistribution: {
+    term: "CPU Ready P95 je VM",
+    description:
+      "Anteil der Zeit, in der eine VM lauffähig war, aber auf einen physischen Kern warten musste – je VM als P95 der Stundenwerte. Ab etwa 5 % gilt der Wert als spürbare Contention; überschreitet der P95 der Verteilung diese Grenze, wird der Streifen als Warnung eingefärbt.",
+    source: "vROps-Zeitreihe · VM|CPU|Ready (%)|Max",
+  },
+  averageVmWeekProfile: {
+    term: "Wochenverlauf",
+    description:
+      "Stündlicher Ø CPU Demand aller gefilterten VMs über den Importzeitraum, in der Zeitzone des Imports. Wochenenden sind hinterlegt, Datenlücken bleiben als Unterbrechung sichtbar. Die gestrichelte Linie markiert die laufende Stunde: der Wert dort ist die Last, die zu genau diesem Wochentag und dieser Uhrzeit üblich war. Deckt der Import mehrere Wochen ab, markiert sie die jüngste passende Stunde.",
+    source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
+  },
+  averageVmWeekGrid: {
+    term: "Wochenraster",
+    description:
+      "Dasselbe Signal auf Wochentag × Stunde gefaltet: je dichter die Farbe, desto höher der Ø CPU Demand. So werden wiederkehrende Lastfenster – Geschäftszeiten, Nacht-Batches, Wochenendläufe – als Muster sichtbar. Die laufende Stunde ist umrandet, Stunden ohne Messwert bleiben grau.",
+    source: "vROps-Zeitreihe · VM|CPU|Demand (MHz)|Avg",
   },
   hostsPerCluster: {
     term: "Host-Verteilung je Cluster",
