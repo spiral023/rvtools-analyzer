@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -47,8 +47,9 @@ interface VirtualTableProps<T, TColumn = T> {
   onFilteredCountChange?: (count: number) => void;
 }
 
-const ROW_HEIGHT = 36;
+const ESTIMATED_ROW_HEIGHT = 33;
 const HEADER_HEIGHT = 38;
+const FOOTER_HEIGHT = 36;
 
 function getDefaultExportFileName(): string {
   if (typeof window === "undefined") return "rvtools-table-export";
@@ -83,6 +84,7 @@ export function VirtualTable<T, TColumn = T>({
     columns: columns as unknown as ColumnDef<T, unknown>[],
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
+    getRowId: getRowId ? (row) => getRowId(row) : undefined,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -144,15 +146,31 @@ export function VirtualTable<T, TColumn = T>({
     }
   };
 
+  const getVirtualRowKey = useCallback(
+    (index: number) => rows[index]?.id ?? index,
+    [rows],
+  );
+
+  const measureRow = useCallback((element: Element) => {
+    // offsetHeight measures the layout box without transform/subpixel feedback.
+    // The fallback keeps jsdom and elements detached during teardown harmless.
+    const measuredHeight = element instanceof HTMLElement ? element.offsetHeight : 0;
+    return measuredHeight > 0 ? measuredHeight : ESTIMATED_ROW_HEIGHT;
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    initialRect: { width: 0, height },
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    getItemKey: getVirtualRowKey,
+    measureElement: measureRow,
     overscan: 30,
   });
 
   // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
-  const contentHeight = HEADER_HEIGHT + rows.length * ROW_HEIGHT + (hasFooter ? ROW_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
+  // Nach der ersten Messung enthält getTotalSize() auch mehrzeilige Zeilen.
+  const contentHeight = HEADER_HEIGHT + virtualizer.getTotalSize() + (hasFooter ? FOOTER_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
   const effectiveHeight = Math.min(height, contentHeight);
   const needsVerticalScroll = contentHeight > height;
 
@@ -167,7 +185,10 @@ export function VirtualTable<T, TColumn = T>({
     <div className={cn("rounded-md border border-border/50 bg-card/30", className)}>
       <div
         ref={parentRef}
-        className={needsVerticalScroll ? "overflow-auto" : "overflow-x-auto overflow-y-hidden"}
+        className={cn(
+          "[overflow-anchor:none] [scrollbar-gutter:stable]",
+          needsVerticalScroll ? "overflow-auto" : "overflow-x-auto overflow-y-hidden",
+        )}
         style={{ height: `${effectiveHeight}px` }}
       >
         <table className="w-full text-sm">
@@ -260,6 +281,8 @@ export function VirtualTable<T, TColumn = T>({
               return (
                 <tr
                   key={row.id}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
                   tabIndex={onRowClick ? 0 : undefined}
                   className={cn(
                     "border-b border-border/30 transition-colors hover:bg-muted/30",

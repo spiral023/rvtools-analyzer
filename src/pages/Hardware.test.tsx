@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { HardwareModelGroup } from "@/lib/hardwareVariants";
@@ -165,17 +166,20 @@ describe("HostDetailDialog", () => {
 
   it("ruft onVmClick beim Klick auf eine VM-Zeile in der Host-Detailansicht auf", () => {
     const onVmClick = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
-      <HostDetailDialog
-        host={clusterHost}
-        hbaRows={[]}
-        nicRows={[]}
-        vmRows={[runningVm]}
-        open
-        onClose={vi.fn()}
-        onVmClick={onVmClick}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <HostDetailDialog
+          host={clusterHost}
+          hbaRows={[]}
+          nicRows={[]}
+          vmRows={[runningVm]}
+          open
+          onClose={vi.fn()}
+          onVmClick={onVmClick}
+        />
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByText("APP-01"));

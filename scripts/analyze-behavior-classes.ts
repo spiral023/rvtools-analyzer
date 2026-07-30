@@ -15,8 +15,6 @@ import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingSer
 import { percentile } from "@/lib/statistics";
 import type { NormalizedHost, VmBehaviorClass, VmRightsizingCandidate, VmWorkloadClassificationSignals, VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape, VropsTimeSeriesConfidenceLevel } from "@/domain/models/types";
 
-const HOUR_MS = 60 * 60 * 1000;
-
 /* ------------------------------------------------------------------ */
 /*  CSV-Parsing                                                        */
 /* ------------------------------------------------------------------ */
@@ -62,7 +60,7 @@ const CONFIDENCE_BY_LABEL = new Map<string, VropsTimeSeriesConfidenceLevel>([
 
 /** de-DE-Zahl aus dem Export: "31.128" -> 31128, "0,07" -> 0.07, "69,9 %" -> 69.9, "—" -> null. */
 function parseGermanNumber(raw: string): number | null {
-  const cleaned = raw.replace(/\s|%| /g, "").replace(/\./g, "").replace(",", ".");
+  const cleaned = raw.replace(/[\s%]/g, "").replace(/\./g, "").replace(",", ".");
   if (!cleaned || cleaned === "—") return null;
   const value = Number(cleaned);
   return Number.isFinite(value) ? value : null;
@@ -121,7 +119,7 @@ function parseSlot(entry: string): { timestampUtc: number; dayKey: string; hour:
 }
 
 function parseCsv(path: string): ParsedRow[] {
-  const text = readFileSync(path, "utf8").replace(/^﻿/, "");
+  const text = readFileSync(path, "utf8").replace(/^\uFEFF/, "");
   const lines = text.split(/\r?\n/);
   const header = parseCsvLine(lines[0]);
   const columnIndex = (label: string): number => {

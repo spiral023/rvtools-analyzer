@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
@@ -25,17 +26,20 @@ const vm: NormalizedVm = {
 
 describe("ClusterDetailDialog", () => {
   it("findet Host- und VM-Metriken bei einem Cluster ohne eigenes Datacenter", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <ClusterDetailDialog
-        clusterKey={clusterScopeKey("vc-1", "DC1", "Production")}
-        open
-        onClose={() => {}}
-        clusters={[cluster]}
-        hosts={[host]}
-        vms={[vm]}
-        datastores={[]}
-        rawVHostRows={[]}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <ClusterDetailDialog
+          clusterKey={clusterScopeKey("vc-1", "DC1", "Production")}
+          open
+          onClose={() => {}}
+          clusters={[cluster]}
+          hosts={[host]}
+          vms={[vm]}
+          datastores={[]}
+          rawVHostRows={[]}
+        />
+      </QueryClientProvider>,
     );
 
     expect(screen.getByText("Laufende VMs (1)")).toBeInTheDocument();

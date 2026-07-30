@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ColumnDef } from "@tanstack/react-table";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { countTableSearchRows } from "@/lib/tableSearch";
@@ -28,6 +28,43 @@ describe("VirtualTable", () => {
     const scrollContainer = screen.getByRole("table").parentElement;
     expect(scrollContainer).toHaveClass("overflow-x-auto", "overflow-y-hidden");
     expect(scrollContainer).not.toHaveClass("overflow-auto");
+    expect(scrollContainer).toHaveClass("[overflow-anchor:none]", "[scrollbar-gutter:stable]");
+  });
+
+  it("markiert mehrzeilige Zeilen für die dynamische Höhenmessung", () => {
+    const offsetHeightSpy = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function () {
+      return this.tagName === "TR" ? 53 : 500;
+    });
+    const offsetWidthSpy = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(800);
+    const multiLineColumns: ColumnDef<TableRow, unknown>[] = [
+      { accessorKey: "ipAddress", header: "IP" },
+      {
+        accessorKey: "name",
+        header: "Name",
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.name}</div>
+            <div>{row.original.comment}</div>
+          </div>
+        ),
+      },
+    ];
+
+    try {
+      render(
+        <VirtualTable
+          data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+          columns={multiLineColumns}
+          getRowId={(row) => row.ipAddress}
+        />,
+      );
+
+      expect(screen.getByText("app-01").closest("tr")).toHaveAttribute("data-index", "0");
+      expect(screen.getByRole("table").parentElement).toHaveStyle({ height: "91px" });
+    } finally {
+      offsetHeightSpy.mockRestore();
+      offsetWidthSpy.mockRestore();
+    }
   });
 
   it("zeigt benutzerdefinierte Empty-State-Texte nach einer Filterung ohne Treffer", () => {
