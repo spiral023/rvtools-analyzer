@@ -132,8 +132,23 @@ describe("NetworkAuditPanel integration", () => {
     expect(screen.getByText("Kritisch")).toBeInTheDocument();
     expect(screen.getByText("Prüfen")).toBeInTheDocument();
     expect(screen.getAllByText("Bestanden").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Geprüfte Objekte")).toBeInTheDocument();
+    expect(screen.getByText("Bestandenquote")).toBeInTheDocument();
+    expect(screen.getByText("Datenquellen")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Datenbasis" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Übersicht" })).toHaveAttribute("data-state", "active");
+  });
+
+  it("zeigt in jedem Kontrolltab sechs KPI-Kacheln", () => {
+    renderIntegration("/network-audit?check=overview&scope=attention");
+
+    for (const tab of ["Übersicht", "Switch-Ports", "Host-Daten", "MAC-Abgleich", "Netz-Discovery", "Hilfe"]) {
+      selectTab(tab);
+      const kpiRegion = screen.getAllByRole("region", { name: "Prüfergebnisse" })[0];
+      for (const title of ["Kritisch", "Prüfen", "Bestanden", "Geprüfte Objekte", "Bestandenquote", "Datenquellen"]) {
+        expect(kpiRegion).toHaveTextContent(title);
+      }
+    }
   });
 
   it("bewahrt die Kontroll-Navigation und den Scope über Browser-History", async () => {

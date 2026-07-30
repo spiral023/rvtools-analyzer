@@ -2,6 +2,7 @@ import type {
   ExportStudioSource,
   FillUpAnalysisRun,
   NormalizedCluster,
+  NormalizedDatastore,
   NormalizedHost,
   NormalizedVm,
   SnapshotMeta,
@@ -14,12 +15,14 @@ import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE
 import { buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
 
-export type PseudonymKind = "vcenter" | "cluster" | "server" | "host" | "datacenter" | "resource-pool";
+export type PseudonymKind = "vcenter" | "cluster" | "server" | "host" | "datacenter" | "datastore" | "resource-pool";
 
 export interface ExportStudioColumn {
   id: string;
   label: string;
   pseudonymKind?: PseudonymKind;
+  /** Trennt mehrwertige Bezeichner, damit jeder Wert einzeln und konsistent pseudonymisiert wird. */
+  pseudonymSeparator?: string;
   /** Gruppiert die Spalte in der Export-Studio-Auswahl; Quellen ohne Kategorien zeigen eine flache Liste. */
   category?: string;
 }
@@ -273,6 +276,69 @@ export function buildClusterExportDataset(clusters: NormalizedCluster[], snapsho
   };
 }
 
+export function buildDatastoreExportDataset(datastores: NormalizedDatastore[], snapshots: SnapshotMeta[], scope: string): ExportStudioDataset {
+  const names = vcenterNames(snapshots);
+  const columns: ExportStudioColumn[] = [
+    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" },
+    { id: "datastore", label: "Datastore", pseudonymKind: "datastore" },
+    { id: "cluster", label: "Datastore-Cluster", pseudonymKind: "cluster" },
+    { id: "type", label: "Typ" },
+    { id: "capacity", label: "Kapazität" },
+    { id: "inUse", label: "Belegt" },
+    { id: "free", label: "Frei" },
+    { id: "usedPct", label: "Belegt (%)" },
+    { id: "freePct", label: "Frei (%)" },
+    { id: "status", label: "Kapazitätsstatus" },
+    { id: "hostCount", label: "Angebundene Hosts" },
+    { id: "hosts", label: "Hosts", pseudonymKind: "host", pseudonymSeparator: ", " },
+    { id: "version", label: "Version" },
+    { id: "sioc", label: "SIOC" },
+  ];
+  const status = (freePct: number | null) => {
+    if (freePct === null) return "Unbekannt";
+    if (freePct < 10) return "Kritisch";
+    if (freePct < 20) return "Warnung";
+    return "OK";
+  };
+  return {
+    source: "datastores",
+    title: "Datastores",
+    columns,
+    scope,
+    dataStatus: latestSnapshotStatus(snapshots),
+    kpis: [
+      { label: "Datastores", value: number(datastores.length) },
+      { label: "Gesamtkapazität", value: gib(datastores.reduce((sum, datastore) => sum + (datastore.capacityMiB ?? 0), 0)) },
+      { label: "Freier Speicher", value: gib(datastores.reduce((sum, datastore) => sum + (datastore.freeMiB ?? 0), 0)) },
+      { label: "Kritisch", value: number(datastores.filter((datastore) => datastore.freePct !== null && datastore.freePct < 10).length) },
+      { label: "Warnung", value: number(datastores.filter((datastore) => datastore.freePct !== null && datastore.freePct >= 10 && datastore.freePct < 20).length) },
+    ],
+    rows: datastores.map((datastore) => {
+      const usedPct = datastore.freePct !== null
+        ? 100 - datastore.freePct
+        : datastore.capacityMiB && datastore.inUseMiB !== null
+          ? (datastore.inUseMiB / datastore.capacityMiB) * 100
+          : null;
+      return {
+        vcenter: names.get(datastore.vcenterId) ?? datastore.vcenterId,
+        datastore: datastore.name,
+        cluster: text(datastore.clusterName),
+        type: text(datastore.type),
+        capacity: gib(datastore.capacityMiB),
+        inUse: gib(datastore.inUseMiB),
+        free: gib(datastore.freeMiB),
+        usedPct: pct(usedPct),
+        freePct: pct(datastore.freePct),
+        status: status(datastore.freePct),
+        hostCount: number(datastore.hostNames.length),
+        hosts: datastore.hostNames.length ? [...datastore.hostNames].sort((left, right) => left.localeCompare(right, "de-DE")).join(", ") : "—",
+        version: text(datastore.version),
+        sioc: datastore.siocEnabled === null ? "—" : datastore.siocEnabled ? "Ja" : "Nein",
+      };
+    }),
+  };
+}
+
 export function buildFillUpExportDataset(runs: FillUpAnalysisRun[], scope: string): ExportStudioDataset {
   const run = [...runs].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
   const columns: ExportStudioColumn[] = [{ id: "run", label: "Analyse-Run" }, { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter" }, { id: "cluster", label: "Cluster", pseudonymKind: "cluster" }, { id: "profile", label: "Basisprofil" }, { id: "normal", label: "Normalbetrieb" }, { id: "n1", label: "N-1" }, { id: "n2", label: "N-2" }, { id: "site", label: "Site-Failover" }, { id: "additional", label: "Zusätzliche VMs" }, { id: "limiter", label: "Limitierende Metrik" }];
@@ -296,18 +362,48 @@ export function pseudonymizeExportDataset(dataset: ExportStudioDataset): ExportS
     if (known) return known;
     const next = (counters.get(kind) ?? 0) + 1;
     counters.set(kind, next);
-    const prefix: Record<PseudonymKind, string> = { vcenter: "vcenter", cluster: "cluster", server: "server", host: "host", datacenter: "datacenter", "resource-pool": "resource-pool" };
+    const prefix: Record<PseudonymKind, string> = { vcenter: "vcenter", cluster: "cluster", server: "server", host: "host", datacenter: "datacenter", datastore: "datastore", "resource-pool": "resource-pool" };
     const digits = kind === "vcenter" ? 2 : 3;
     const replacement = `${prefix[kind]}-${String(next).padStart(digits, "0")}`;
     mappings.set(key, replacement);
     return replacement;
   };
-  return { ...dataset, rows: dataset.rows.map((row) => dataset.columns.reduce<Record<string, string>>((copy, column) => ({ ...copy, [column.id]: column.pseudonymKind ? substitute(row[column.id] ?? "", column.pseudonymKind) : row[column.id] ?? "" }), {})) };
+  return {
+    ...dataset,
+    rows: dataset.rows.map((row) => dataset.columns.reduce<Record<string, string>>((copy, column) => {
+      const value = row[column.id] ?? "";
+      if (!column.pseudonymKind) {
+        copy[column.id] = value;
+        return copy;
+      }
+      if (!column.pseudonymSeparator || value === "—") {
+        copy[column.id] = substitute(value, column.pseudonymKind);
+        return copy;
+      }
+      const pseudonymizedValues = value
+        .split(column.pseudonymSeparator)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => substitute(item, column.pseudonymKind));
+      copy[column.id] = pseudonymizedValues.join(column.pseudonymSeparator);
+      return copy;
+    }, {})),
+  };
 }
 
 export function buildExportDataFromDataset(dataset: ExportStudioDataset, selectedColumnIds: string[]): TableExportData {
-  const columns = selectedColumnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter((column): column is ExportStudioColumn => Boolean(column));
-  return { headers: columns.map((column) => column.label), rows: dataset.rows.map((row) => columns.reduce<Record<string, string>>((result, column) => ({ ...result, [column.label]: row[column.id] ?? "" }), {})) };
+  const columnsById = new Map(dataset.columns.map((column) => [column.id, column]));
+  const columns = selectedColumnIds.flatMap((id) => {
+    const column = columnsById.get(id);
+    return column ? [column] : [];
+  });
+  return {
+    headers: columns.map((column) => column.label),
+    rows: dataset.rows.map((row) => columns.reduce<Record<string, string>>((result, column) => {
+      result[column.label] = row[column.id] ?? "";
+      return result;
+    }, {})),
+  };
 }
 
 export function buildManagementMarkdown(title: string, dataset: ExportStudioDataset, data: TableExportData, pseudonymized: boolean): string {

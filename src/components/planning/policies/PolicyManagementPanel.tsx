@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { Layers3, Link2, PencilRuler, ShieldAlert, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -29,6 +29,18 @@ export function PolicyManagementPanel() {
   const unassignedClusterCount = useMemo(
     () => clusters.filter((cluster) => !assignments.some((assignment) => assignment.vcenterId === cluster.vcenterId && assignment.clusterKey === cluster.clusterKey)).length,
     [clusters, assignments],
+  );
+  const assignedClusterCount = clusters.length - unassignedClusterCount;
+  const activeClusterKeys = useMemo(
+    () => new Set(clusters.map((cluster) => `${cluster.vcenterId}\u0000${cluster.clusterKey}`)),
+    [clusters],
+  );
+  const clustersWithOverrides = useMemo(
+    () => assignments.filter((assignment) =>
+      activeClusterKeys.has(`${assignment.vcenterId}\u0000${assignment.clusterKey}`)
+      && Object.keys(assignment.overrides).length > 0,
+    ).length,
+    [activeClusterKeys, assignments],
   );
   const isAssigned = (policy: CapacityPolicy) => assignments.some((assignment) => assignment.policyId === policy.id);
 
@@ -78,7 +90,11 @@ export function PolicyManagementPanel() {
   return (
     <div className="space-y-6">
       <KpiGrid>
-        <KpiCard title="Policies gesamt" value={policies.length} subtitle={`davon ${customPolicyCount} eigene`} icon={<ShieldCheck className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.totalPolicies} />
+        <KpiCard title="Policies gesamt" value={policies.length} icon={<ShieldCheck className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.totalPolicies} />
+        <KpiCard title="Eigene Policies" value={customPolicyCount} icon={<PencilRuler className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.customPolicies} />
+        <KpiCard title="Cluster im Scope" value={clusters.length} icon={<Layers3 className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.clustersInScope} />
+        <KpiCard title="Explizit zugewiesen" value={assignedClusterCount} icon={<Link2 className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.assignedClusters} />
+        <KpiCard title="Cluster mit Overrides" value={clustersWithOverrides} severity={clustersWithOverrides > 0 ? "warn" : "ok"} icon={<SlidersHorizontal className="h-4 w-4" />} info={FILL_UP_POLICY_KPI.clustersWithOverrides} />
         <KpiCard title="Cluster ohne explizite Zuweisung" value={unassignedClusterCount} icon={<ShieldAlert className="h-4 w-4" />} severity={unassignedClusterCount > 0 ? "warn" : "ok"} info={FILL_UP_POLICY_KPI.unassignedClusters} />
       </KpiGrid>
 

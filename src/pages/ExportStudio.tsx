@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { BookmarkCheck, Clock, Columns3, Download, Eye, EyeOff, FileSpreadsheet, FileText, GripVertical, Plus, Save, Server, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -12,14 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getUiState, putUiState } from "@/data/db";
-import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { useFillUpAnalysisRuns } from "@/hooks/useFillUpAnalysisRuns";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
-import type { ExportStudioSource, ExportStudioTemplate } from "@/domain/models/types";
+import type { ExportStudioSource, ExportStudioTemplate, NormalizedDatastore } from "@/domain/models/types";
 import type { ExportStudioColumn } from "@/lib/export/exportStudio";
 import {
   buildClusterExportDataset,
+  buildDatastoreExportDataset,
   buildExportDataFromDataset,
   buildFillUpExportDataset,
   buildHostExportDataset,
@@ -27,6 +29,7 @@ import {
   buildVmExportDataset,
   pseudonymizeExportDataset,
 } from "@/lib/export/exportStudio";
+import { getExportColumnInfo } from "@/lib/glossaries/exportStudio";
 import { downloadTextFile, exportCsvTable, exportExcelTable, normalizeExportFilename } from "@/lib/export/tableExport";
 
 const UI_STATE_ID = "export-studio";
@@ -35,6 +38,7 @@ const sourceLabels: Record<ExportStudioSource, string> = {
   vms: "VM",
   hosts: "Host",
   clusters: "Cluster",
+  datastores: "Datastores",
   "fill-up": "Fill-Up-Ergebnisse",
 };
 
@@ -49,6 +53,17 @@ function filterInventoryRows<T extends { cluster?: string | null; host?: string 
   });
 }
 
+function filterDatastoreRows(rows: NormalizedDatastore[], filters: { clusters: string[]; hosts: string[]; search: string }) {
+  const clusterSet = new Set(filters.clusters);
+  const hostSet = new Set(filters.hosts);
+  const search = filters.search.trim().toLocaleLowerCase("de-DE");
+  return rows.filter((datastore) => {
+    if (clusterSet.size && (!datastore.clusterName || !clusterSet.has(datastore.clusterName))) return false;
+    if (hostSet.size && !datastore.hostNames.some((host) => hostSet.has(host))) return false;
+    return !search || Object.values(datastore).some((value) => String(value ?? "").toLocaleLowerCase("de-DE").includes(search));
+  });
+}
+
 function scopeLabel(vcenterCount: number, hasVmGlobalFilter: boolean) {
   const vcenter = `${vcenterCount} vCenter-Scope${vcenterCount === 1 ? "" : "s"}`;
   return hasVmGlobalFilter ? `${vcenter}; globaler VM-Filter aktiv` : vcenter;
@@ -59,6 +74,7 @@ export default function ExportStudio() {
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const hostsQuery = useHosts();
   const clustersQuery = useClusters();
+  const datastoresQuery = useDatastores();
   const { data: rawVHostRows = [], isLoading: rawVHostLoading } = useRawSheet("vHost");
   const { data: vropsLatest = [] } = useAllVropsLatest();
   const { runs, isLoading: runsLoading } = useFillUpAnalysisRuns();
@@ -70,7 +86,7 @@ export default function ExportStudio() {
   const [fileName, setFileName] = useState("rvtools-export");
   const [templateName, setTemplateName] = useState("");
   const [templates, setTemplates] = useState<ExportStudioTemplate[]>([]);
-  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
+  const draggedColumnId = useRef<string | null>(null);
 
   const activeSnapshotIdSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
   const activeSnapshots = useMemo(() => snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId)), [activeSnapshotIdSet, snapshots]);
@@ -83,10 +99,13 @@ export default function ExportStudio() {
   // übernehmen wir ihn über die im Ergebnis verbliebenen VM-Zuordnungen.
   const globalVmPlacements = useMemo(() => {
     if (!filters.globalFilter) return null;
-    return {
-      hosts: new Set(vms.filter((vm) => vm.host).map((vm) => `${vm.vcenterId}::${vm.host}`)),
-      clusters: new Set(vms.filter((vm) => vm.cluster).map((vm) => `${vm.vcenterId}::${vm.cluster}`)),
-    };
+    const hosts = new Set<string>();
+    const clusters = new Set<string>();
+    for (const vm of vms) {
+      if (vm.host) hosts.add(`${vm.vcenterId}::${vm.host}`);
+      if (vm.cluster) clusters.add(`${vm.vcenterId}::${vm.cluster}`);
+    }
+    return { hosts, clusters };
   }, [filters.globalFilter, vms]);
   const filteredHosts = useMemo(() => filterInventoryRows(hostsQuery.data ?? [], filters).filter((host) => !globalVmPlacements || globalVmPlacements.hosts.has(`${host.vcenterId}::${host.host}`)), [filters, globalVmPlacements, hostsQuery.data]);
   const filteredClusters = useMemo(() => {
@@ -94,6 +113,14 @@ export default function ExportStudio() {
     const search = filters.search.trim().toLocaleLowerCase("de-DE");
     return (clustersQuery.data ?? []).filter((cluster) => (!clusterSet.size || clusterSet.has(cluster.name)) && (!search || Object.values(cluster).some((value) => String(value ?? "").toLocaleLowerCase("de-DE").includes(search))) && (!globalVmPlacements || globalVmPlacements.clusters.has(`${cluster.vcenterId}::${cluster.name}`)));
   }, [clustersQuery.data, filters, globalVmPlacements]);
+  const filteredDatastores = useMemo(
+    () => filterDatastoreRows(datastoresQuery.data ?? [], filters).filter((datastore) => {
+      if (!globalVmPlacements) return true;
+      if (datastore.clusterName && globalVmPlacements.clusters.has(`${datastore.vcenterId}::${datastore.clusterName}`)) return true;
+      return datastore.hostNames.some((host) => globalVmPlacements.hosts.has(`${datastore.vcenterId}::${host}`));
+    }),
+    [datastoresQuery.data, filters, globalVmPlacements],
+  );
 
   const capacityRows = useMemo(
     () => buildClusterCapacityWorkspace({
@@ -110,11 +137,19 @@ export default function ExportStudio() {
   const baseDataset = useMemo(() => {
     if (source === "hosts") return buildHostExportDataset(filteredHosts, activeSnapshots, scope, allVms);
     if (source === "clusters") return buildClusterExportDataset(filteredClusters, activeSnapshots, scope, capacityRows);
+    if (source === "datastores") return buildDatastoreExportDataset(filteredDatastores, activeSnapshots, scope);
     if (source === "fill-up") return buildFillUpExportDataset(runs, scope);
     return buildVmExportDataset(vms, activeSnapshots, scope, workloadProfiles, workloadHosts, techInfoLatest);
-  }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredHosts, runs, scope, source, techInfoLatest, vms, workloadHosts, workloadProfiles]);
+  }, [activeSnapshots, allVms, capacityRows, filteredClusters, filteredDatastores, filteredHosts, runs, scope, source, techInfoLatest, vms, workloadHosts, workloadProfiles]);
   const dataset = useMemo(() => pseudonymize ? pseudonymizeExportDataset(baseDataset) : baseDataset, [baseDataset, pseudonymize]);
-  const selectedColumns = useMemo(() => columnIds.map((id) => dataset.columns.find((column) => column.id === id)).filter(Boolean), [columnIds, dataset.columns]);
+  const selectedColumnIdSet = useMemo(() => new Set(columnIds), [columnIds]);
+  const selectedColumns = useMemo(() => {
+    const columnsById = new Map(dataset.columns.map((column) => [column.id, column]));
+    return columnIds.flatMap((id) => {
+      const column = columnsById.get(id);
+      return column ? [column] : [];
+    });
+  }, [columnIds, dataset.columns]);
   // Gruppiert nach `category` in erster Auftrittsreihenfolge; Quellen ohne Kategorien (Hosts/Clusters/Fill-Up) liefern eine einzige Gruppe ohne Titel.
   const columnGroups = useMemo(() => {
     const groups = new Map<string, ExportStudioColumn[]>();
@@ -127,6 +162,15 @@ export default function ExportStudio() {
     return [...groups.entries()];
   }, [dataset.columns]);
   const exportData = useMemo(() => buildExportDataFromDataset(dataset, columnIds), [columnIds, dataset]);
+  const previewRows = useMemo(() => {
+    const occurrences = new Map<string, number>();
+    return exportData.rows.slice(0, 5).map((row) => {
+      const signature = exportData.headers.map((header) => `${header}:${row[header] ?? ""}`).join("\u0000");
+      const occurrence = (occurrences.get(signature) ?? 0) + 1;
+      occurrences.set(signature, occurrence);
+      return { key: `${signature}\u0000${occurrence}`, row };
+    });
+  }, [exportData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,14 +190,15 @@ export default function ExportStudio() {
   const removeColumn = (id: string) => setColumnIds((current) => current.filter((columnId) => columnId !== id));
 
   const reorderColumn = (targetId: string) => {
-    if (!draggedColumnId || draggedColumnId === targetId) return;
+    const draggedId = draggedColumnId.current;
+    if (!draggedId || draggedId === targetId) return;
     setColumnIds((current) => {
-      const from = current.indexOf(draggedColumnId);
+      const from = current.indexOf(draggedId);
       const to = current.indexOf(targetId);
       if (from < 0 || to < 0) return current;
       const next = [...current];
       next.splice(from, 1);
-      next.splice(to, 0, draggedColumnId);
+      next.splice(to, 0, draggedId);
       return next;
     });
   };
@@ -192,7 +237,7 @@ export default function ExportStudio() {
     }
   };
 
-  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading || techInfoLoading;
+  const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || datastoresQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading || techInfoLoading;
   if (loading) return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Exportdaten werden vorbereitet…</div>;
   if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Laden Sie zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
 
@@ -240,7 +285,7 @@ export default function ExportStudio() {
                   <div key={category || "__ungrouped"} className="mt-2 first:mt-0">
                     {category && <p className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>}
                     {columns.map((column) => {
-                      const selected = columnIds.includes(column.id);
+                      const selected = selectedColumnIdSet.has(column.id);
                       return <button key={column.id} type="button" disabled={selected} onClick={() => addColumn(column.id)} className="flex w-full items-center justify-between rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-40"><span>{column.label}</span>{selected ? <span className="text-xs">hinzugefügt</span> : <Plus className="h-4 w-4 text-primary" />}</button>;
                     })}
                   </div>
@@ -249,7 +294,7 @@ export default function ExportStudio() {
             </div>
             <div className="rounded-md border border-border/70 bg-muted/15 p-3">
               <div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Exportspalten</p><span className="text-xs text-muted-foreground">per Drag & Drop sortieren</span></div>
-              {!selectedColumns.length ? <p className="rounded border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">Fügen Sie links die gewünschten Spalten hinzu.</p> : <div className="max-h-80 space-y-1 overflow-y-auto pr-1">{selectedColumns.map((column) => column && <div key={column.id} draggable onDragStart={() => setDraggedColumnId(column.id)} onDragOver={(event: DragEvent) => event.preventDefault()} onDrop={() => reorderColumn(column.id)} onDragEnd={() => setDraggedColumnId(null)} className="flex items-center gap-2 rounded border border-border/70 bg-background px-2 py-1.5 text-sm"><GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" /><span className="flex-1">{column.label}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeColumn(column.id)} aria-label={`${column.label} entfernen`}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}
+              {!selectedColumns.length ? <p className="rounded border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">Fügen Sie links die gewünschten Spalten hinzu.</p> : <div className="max-h-80 space-y-1 overflow-y-auto pr-1">{selectedColumns.map((column) => <div key={column.id} draggable onDragStart={() => { draggedColumnId.current = column.id; }} onDragOver={(event: DragEvent) => event.preventDefault()} onDrop={() => reorderColumn(column.id)} onDragEnd={() => { draggedColumnId.current = null; }} className="flex items-center gap-2 rounded border border-border/70 bg-background px-2 py-1.5 text-sm"><GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" /><span className="flex-1">{column.label}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeColumn(column.id)} aria-label={`${column.label} entfernen`}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}
             </div>
           </div>
         </section>
@@ -264,7 +309,7 @@ export default function ExportStudio() {
         </aside>
       </div>
 
-      <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wählen Sie Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{header}</th>)}</tr></thead><tbody>{exportData.rows.slice(0, 5).map((row, index) => <tr key={index} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
+      <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wählen Sie Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
     </div>
   );
 }

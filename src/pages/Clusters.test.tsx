@@ -197,9 +197,9 @@ vi.mock("@/components/tables/VirtualTable", () => ({
   }) => (
     <div>
       {columns.map((column) => typeof column.header === "string" && <span key={column.id ?? column.accessorKey ?? column.header}>{column.header}</span>)}
-      {data.map((row, index) => (
-        <div key={index}>
-          {Object.values(row).map((value, valueIndex) => <span key={valueIndex}>{String(value)}</span>)}
+      {data.map((row) => (
+        <div key={String(row.clusterKey ?? row.snapshotId ?? row.key ?? Object.values(row).join("|"))}>
+          {Object.entries(row).map(([field, value]) => <span key={field}>{String(value)}</span>)}
           {onRowClick && <button type="button" onClick={() => onRowClick(row)}>Cluster {String(row.cluster)} öffnen</button>}
         </div>
       ))}
@@ -347,6 +347,8 @@ describe("Clusters", () => {
 
     expect(await screen.findByRole("heading", { name: "Wartung" })).toBeInTheDocument();
     expect(screen.getByText("Cluster")).toBeInTheDocument();
+    expect(screen.getByText("VMs im Scope")).toBeInTheDocument();
+    expect(screen.getByText("Ohne Wartungsfenster")).toBeInTheDocument();
     expect(screen.getByText("Cluster-Zuweisungen")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mail erstellen" })).not.toBeInTheDocument();
   });
@@ -372,6 +374,8 @@ describe("Clusters", () => {
     expect(screen.getByRole("tab", { name: "Fill up" })).toBeInTheDocument();
     expect(screen.getAllByText("Szenarien").length).toBeGreaterThan(0);
     expect(screen.getByText("Migrationsgruppen")).toBeInTheDocument();
+    expect(screen.getByText("Cluster im Scope")).toBeInTheDocument();
+    expect(screen.getByText("VMs im Scope")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Szenarien" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Migration Production"));
     const comparison = screen.getByRole("heading", { name: "What-If Vergleich" });
@@ -385,6 +389,15 @@ describe("Clusters", () => {
     fireEvent.click(fillUpTab);
     expect(screen.getByRole("tab", { name: "Fill up" })).toHaveAttribute("data-state", "active");
     expect(screen.queryByText("Migrationsgruppen")).not.toBeInTheDocument();
+    expect(await screen.findByText("Ø +VM pro Cluster")).toBeInTheDocument();
+    expect(screen.getByText("N-1 bereit")).toBeInTheDocument();
+
+    const policiesTab = screen.getByRole("tab", { name: "Policies" });
+    fireEvent.mouseDown(policiesTab);
+    fireEvent.click(policiesTab);
+    expect(await screen.findByText("Eigene Policies")).toBeInTheDocument();
+    expect(screen.getByText("Explizit zugewiesen")).toBeInTheDocument();
+    expect(screen.getByText("Cluster mit Overrides")).toBeInTheDocument();
   });
 
   it("entfernt den Infrastruktur-Tab samt CPU- und Treiberinventar", async () => {

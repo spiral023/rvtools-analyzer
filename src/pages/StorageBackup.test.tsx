@@ -72,7 +72,6 @@ describe("StorageBackup KPI-Kacheln", () => {
       "Datastores <20% frei",
       "Ø Datastore frei",
       "Kritische Datastores",
-      "Speicherwirkgrad",
     ]);
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Pfade & Geräte" }), { button: 0 });

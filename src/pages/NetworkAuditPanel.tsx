@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertOctagon, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertOctagon, AlertTriangle, CheckCircle2, Database, Gauge, ListChecks } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -40,6 +40,13 @@ const AUDIT_SECTIONS = [
   { value: "help", label: "Hilfe" },
 ] as const satisfies ReadonlyArray<{ value: NetworkAuditCheckRoute; label: string }>;
 
+const NETWORK_AUDIT_SOURCE_TOTAL_BY_CHECK: Record<Exclude<NetworkAuditCheckRoute, "overview" | "help">, number> = {
+  ports: 5,
+  hosts: 3,
+  mac: 2,
+  discovery: 3,
+};
+
 function isNetworkAuditCheckRoute(value: string): value is NetworkAuditCheckRoute {
   return value === "overview"
     || value === "ports"
@@ -64,12 +71,12 @@ function NetworkAuditKpiGrid({
   check: NetworkAuditCheckRoute;
   viewModel: NetworkAuditViewModel;
 }) {
-  if (check === "help") return null;
-
-  const counts: NetworkAuditCounts = check === "overview"
+  const activeCheck = check === "overview" || check === "help" ? null : check;
+  const usesOverviewTotals = activeCheck === null;
+  const counts: NetworkAuditCounts = activeCheck === null
     ? viewModel.totals
-    : viewModel.checks[check].counts;
-  const subtitles = check === "overview"
+    : viewModel.checks[activeCheck].counts;
+  const subtitles = usesOverviewTotals
     ? [
         "Konflikte zwischen den Quellen",
         "Datenlücken und offene Zuordnungen",
@@ -98,10 +105,16 @@ function NetworkAuditKpiGrid({
               `${countLabel(audit.l2DiscoveryRows.filter((row) => row.classification === "unknown").length, "unbekanntes Gerät", "unbekannte Geräte")}`,
               `${countLabel(audit.l2DiscoveryRows.filter((row) => row.classification !== "unknown").length, "zugeordnetes Gerät", "zugeordnete Geräte")}`,
             ];
+  const total = counts.critical + counts.review + counts.passed;
+  const passedPct = total > 0 ? (counts.passed / total) * 100 : 0;
+  const availableSources = activeCheck === null
+    ? Object.values(viewModel.sources).filter((source) => source.count > 0).length
+    : NETWORK_AUDIT_SOURCE_TOTAL_BY_CHECK[activeCheck] - viewModel.checks[activeCheck].missingRequired.length - viewModel.checks[activeCheck].missingOptional.length;
+  const sourceTotal = activeCheck === null ? Object.keys(viewModel.sources).length : NETWORK_AUDIT_SOURCE_TOTAL_BY_CHECK[activeCheck];
 
   return (
     <section aria-label="Prüfergebnisse" className="space-y-3">
-      <KpiGrid className="grid-cols-1 sm:grid-cols-3 md:grid-cols-3">
+      <KpiGrid>
         <KpiCard
           title="Kritisch"
           value={counts.critical.toLocaleString("de-DE")}
@@ -125,6 +138,28 @@ function NetworkAuditKpiGrid({
           severity="ok"
           icon={<CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
           info={NET_AUDIT_KPI.passed}
+        />
+        <KpiCard
+          title="Geprüfte Objekte"
+          value={total.toLocaleString("de-DE")}
+          subtitle="alle Bewertungsstatus"
+          icon={<ListChecks aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.totalChecked}
+        />
+        <KpiCard
+          title="Bestandenquote"
+          value={`${passedPct.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`}
+          severity={total === 0 ? undefined : passedPct >= 90 ? "ok" : passedPct >= 70 ? "warn" : "crit"}
+          icon={<Gauge aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.passedRate}
+        />
+        <KpiCard
+          title="Datenquellen"
+          value={`${availableSources} / ${sourceTotal}`}
+          subtitle="mit importierten Datensätzen"
+          severity={availableSources === sourceTotal ? "ok" : "warn"}
+          icon={<Database aria-hidden="true" className="h-4 w-4" />}
+          info={NET_AUDIT_KPI.availableSources}
         />
       </KpiGrid>
     </section>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, Clock, Copy, FileText, Link2, Mail, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarX2, Clock, Copy, FileText, Link2, Mail, Monitor, Plus, Save, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { WARTUNG_KPI, WARTUNG_COLUMNS, WARTUNG_SECTIONS } from "@/lib/glossaries/wartung";
@@ -776,6 +777,13 @@ export function ClusterMaintenancePanel() {
     () => rows.filter((row) => selectedKeys.has(row.key)),
     [rows, selectedKeys],
   );
+  const totalVms = useMemo(() => rows.reduce((sum, row) => sum + row.totalVms, 0), [rows]);
+  const specialClusters = useMemo(() => rows.filter((row) => row.type === "Spezial").length, [rows]);
+  const clustersWithoutWindows = useMemo(() => rows.filter((row) => row.windows.length === 0).length, [rows]);
+  const clustersWithoutRecipients = useMemo(
+    () => rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length,
+    [rows],
+  );
   const activeRow = rows.find((row) => row.key === activeKey) ?? null;
   const clustersWithoutContacts = selectedRows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length;
 
@@ -984,12 +992,14 @@ export function ClusterMaintenancePanel() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="grid gap-4 md:grid-cols-4">
+      <KpiGrid>
         <KpiCard title="Cluster" value={formatNum(rows.length)} icon={<CalendarClock className="h-4 w-4" />} info={WARTUNG_KPI.cluster} />
         <KpiCard title="Selektiert" value={formatNum(selectedRows.length)} info={WARTUNG_KPI.selektiert} />
-        <KpiCard title="Spezial" value={formatNum(rows.filter((row) => row.type === "Spezial").length)} severity="warn" info={WARTUNG_KPI.spezial} />
-        <KpiCard title="Ohne Empfänger" value={formatNum(rows.filter((row) => row.contacts.length === 0 && row.additionalEmails.length === 0).length)} severity={rows.some((row) => row.contacts.length === 0 && row.additionalEmails.length === 0) ? "warn" : "ok"} info={WARTUNG_KPI.ohneEmpfaenger} />
-      </div>
+        <KpiCard title="VMs im Scope" value={formatNum(totalVms)} icon={<Monitor className="h-4 w-4" />} info={WARTUNG_KPI.vmsInScope} />
+        <KpiCard title="Spezial" value={formatNum(specialClusters)} severity={specialClusters > 0 ? "warn" : "ok"} info={WARTUNG_KPI.spezial} />
+        <KpiCard title="Ohne Wartungsfenster" value={formatNum(clustersWithoutWindows)} severity={clustersWithoutWindows > 0 ? "warn" : "ok"} icon={<CalendarX2 className="h-4 w-4" />} info={WARTUNG_KPI.ohneWartungsfenster} />
+        <KpiCard title="Ohne Empfänger" value={formatNum(clustersWithoutRecipients)} severity={clustersWithoutRecipients > 0 ? "warn" : "ok"} info={WARTUNG_KPI.ohneEmpfaenger} />
+      </KpiGrid>
 
       {!settings.companyName && (
         <Alert>

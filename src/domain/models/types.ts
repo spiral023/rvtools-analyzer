@@ -1454,7 +1454,7 @@ export interface FilterPreset {
 }
 
 /** Lokal gespeicherte Spaltenauswahl des Export Studios. */
-export type ExportStudioSource = "vms" | "hosts" | "clusters" | "fill-up";
+export type ExportStudioSource = "vms" | "hosts" | "clusters" | "datastores" | "fill-up";
 
 export interface ExportStudioTemplate {
   id: string;

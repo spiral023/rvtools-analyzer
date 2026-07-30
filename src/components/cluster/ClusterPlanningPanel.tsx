@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Layers3, Monitor, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -19,7 +19,7 @@ import { useActiveSnapshotIds, useClusters, useVms } from "@/hooks/useActiveSnap
 import { useScenarios } from "@/hooks/useScenarios";
 import { useSelection } from "@/hooks/useSelection";
 import { useWhatIf } from "@/hooks/useWhatIf";
-import { PLANNING_COLUMNS, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
+import { PLANNING_COLUMNS, PLANNING_KPI, PLANNING_SECTIONS } from "@/lib/glossaries/planning";
 import { getScenarioTargetDisplay } from "@/lib/scenarioTargets";
 import { getRangeKeys } from "@/lib/selectionRange";
 import { coloredNum, coloredPct, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
@@ -90,10 +90,12 @@ export function ClusterPlanningPanel() {
   return (
     <div className="space-y-6 animate-fade-in">
       <KpiGrid>
-        <KpiCard title="Szenarien" value={scenarios.length} subtitle="gespeicherte What-if-Varianten" />
-        <KpiCard title="Migrationsgruppen" value={scenarioGroupCount} subtitle="Ziel-Cluster in allen Szenarien" />
-        <KpiCard title="Zugeordnete VMs" value={plannedVmCount} subtitle="geplante Verschiebungen" />
-        <KpiCard title="Aktuelle Auswahl" value={selectedVmKeys.size} subtitle="VMs für die nächste Zuordnung" />
+        <KpiCard title="Szenarien" value={scenarios.length} subtitle="gespeicherte What-if-Varianten" info={PLANNING_KPI.scenarios} />
+        <KpiCard title="Migrationsgruppen" value={scenarioGroupCount} subtitle="Ziel-Cluster in allen Szenarien" info={PLANNING_KPI.migrationGroups} />
+        <KpiCard title="Zugeordnete VMs" value={plannedVmCount} subtitle="geplante Verschiebungen" info={PLANNING_KPI.assignedVms} />
+        <KpiCard title="Aktuelle Auswahl" value={selectedVmKeys.size} subtitle="VMs für die nächste Zuordnung" info={PLANNING_KPI.currentSelection} />
+        <KpiCard title="Cluster im Scope" value={clusters.length} icon={<Layers3 className="h-4 w-4" />} info={PLANNING_KPI.clustersInScope} />
+        <KpiCard title="VMs im Scope" value={vms.length} icon={<Monitor className="h-4 w-4" />} info={PLANNING_KPI.vmsInScope} />
       </KpiGrid>
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <ScenarioList scenarios={scenarios} activeId={activeScenarioId} onSelect={selectScenario} onCreate={handleCreateScenario} onDelete={(id) => { void deleteScenario(id); if (activeScenarioId === id) setActiveScenarioId(null); }} />

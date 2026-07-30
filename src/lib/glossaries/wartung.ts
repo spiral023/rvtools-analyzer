@@ -24,6 +24,12 @@ export const WARTUNG_KPI: Record<string, GlossaryEntry> = {
       "Aktuell angehakte Cluster. Nur diese fließen in die Wartungsankündigung ein – die Auswahl bestimmt Empfänger und Wartungszeiträume der erzeugten Mail.",
     source: "berechnet",
   },
+  vmsInScope: {
+    term: "VMs im Scope",
+    description:
+      "Summe aller VMs in den angezeigten Clustern. Die Kennzahl ordnet die potenziell von den geplanten Wartungen betroffene Systemmenge ein.",
+    source: "RVTools · vInfo",
+  },
   spezial: {
     term: "Spezial",
     description:
@@ -35,6 +41,12 @@ export const WARTUNG_KPI: Record<string, GlossaryEntry> = {
     description:
       "Cluster ohne Verantwortliche und ohne zusätzliche Mail-Adresse. Für diese kann keine To-Adresse erzeugt werden – vor dem Versand die Zuweisungen ergänzen.",
     source: "berechnet",
+  },
+  ohneWartungsfenster: {
+    term: "Ohne Wartungsfenster",
+    description:
+      "Cluster ohne gepflegtes Wartungsfenster. Vor einer Ankündigung sollte mindestens ein zulässiger Zeitraum hinterlegt werden.",
+    source: "Zuweisung (lokal gepflegt)",
   },
 };
 

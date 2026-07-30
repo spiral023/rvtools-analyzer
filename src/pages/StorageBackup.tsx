@@ -340,7 +340,6 @@ export default function StorageBackup() {
             <KpiCard title="Datastores <20% frei" value={formatNum(lowFreeDatastores)} severity={lowFreeDatastores > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={STORAGE_KPI.lowFreeDatastores} />
             <KpiCard title="Ø Datastore frei" value={datastoreCapacityStats.avgFreePct === null ? "—" : formatPct(datastoreCapacityStats.avgFreePct)} severity={datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 15 ? "crit" : datastoreCapacityStats.avgFreePct !== null && datastoreCapacityStats.avgFreePct < 25 ? "warn" : "ok"} />
             <KpiCard title="Kritische Datastores" value={formatNum(datastoreCapacityStats.critical)} severity={datastoreCapacityStats.critical > 0 ? "crit" : "ok"} subtitle="unter 10 % frei" />
-            <KpiCard title="Speicherwirkgrad" value={`${datastoreCapacityStats.storageEfficiency.ratio}%`} subtitle={`${datastoreCapacityStats.storageEfficiency.inUseGiB.toFixed(0)} / ${datastoreCapacityStats.storageEfficiency.provisionedGiB.toFixed(0)} GiB`} />
           </KpiGrid>
           {partitions.length > 0 && (
             <div className="rounded-lg border border-border/50 bg-card/30 p-4">

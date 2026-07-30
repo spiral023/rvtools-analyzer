@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildClusterExportDataset,
+  buildDatastoreExportDataset,
   buildExportDataFromDataset,
+  buildFillUpExportDataset,
   buildHostExportDataset,
   buildManagementMarkdown,
   buildVmExportDataset,
@@ -10,8 +12,9 @@ import {
 } from "./exportStudio";
 import { buildCsvTable } from "./tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
-import type { NormalizedCluster, NormalizedHost, NormalizedVm, SnapshotMeta, VmWorkloadProfile } from "@/domain/models/types";
+import type { NormalizedCluster, NormalizedDatastore, NormalizedHost, NormalizedVm, SnapshotMeta, VmWorkloadProfile } from "@/domain/models/types";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
+import { getExportColumnInfo } from "@/lib/glossaries/exportStudio";
 
 const dataset: ExportStudioDataset = {
   source: "vms",
@@ -32,10 +35,40 @@ const dataset: ExportStudioDataset = {
 };
 
 describe("Export Studio domain helpers", () => {
+  it("liefert für jede Exportspalte eine fachliche Tooltip-Erklärung", () => {
+    const datasets = [
+      buildVmExportDataset([], [], "Scope"),
+      buildHostExportDataset([], [], "Scope"),
+      buildClusterExportDataset([], [], "Scope"),
+      buildDatastoreExportDataset([], [], "Scope"),
+      buildFillUpExportDataset([], "Scope"),
+    ];
+
+    for (const exportDataset of datasets) {
+      for (const column of exportDataset.columns) {
+        expect(getExportColumnInfo(exportDataset.source, column)).toEqual(expect.objectContaining({
+          term: column.label,
+          description: expect.any(String),
+          source: expect.any(String),
+        }));
+      }
+    }
+  });
+
   it("pseudonymisiert Bezeichner je Domäne konsistent und nur in markierten Spalten", () => {
     const result = pseudonymizeExportDataset(dataset);
     expect(result.rows[0]).toEqual({ vcenter: "vcenter-01", server: "server-001", cluster: "cluster-001", state: "poweredOn" });
     expect(result.rows[1]).toEqual({ vcenter: "vcenter-01", server: "server-002", cluster: "cluster-001", state: "poweredOff" });
+  });
+
+  it("pseudonymisiert mehrwertige Hostspalten wertweise", () => {
+    const result = pseudonymizeExportDataset({
+      ...dataset,
+      source: "datastores",
+      columns: [{ id: "hosts", label: "Hosts", pseudonymKind: "host", pseudonymSeparator: ", " }],
+      rows: [{ hosts: "esx-01, esx-02" }, { hosts: "esx-02, esx-03" }],
+    });
+    expect(result.rows).toEqual([{ hosts: "host-001, host-002" }, { hosts: "host-002, host-003" }]);
   });
 
   it("erhält die vom Nutzer festgelegte Spaltenreihenfolge", () => {
@@ -174,6 +207,41 @@ describe("buildHostExportDataset", () => {
     expect(result.rows[0]).toMatchObject({
       mhzPerCore: "2.400,00", vendor: "Dell Inc.", vmsPerCore: "0,06", vcpuPerCore: "0,13",
     });
+  });
+});
+
+describe("buildDatastoreExportDataset", () => {
+  const snapshot: SnapshotMeta = {
+    snapshotId: "snap-1", vcenterId: "vc-1", vcenterDisplayName: "vCenter Prod", exportTs: "2026-07-28T00:00:00.000Z",
+    importedAt: "2026-07-28T00:00:00.000Z", fileName: "export.xlsx", fileChecksum: "abc", sheetStats: {},
+  };
+  const datastore = (overrides: Partial<NormalizedDatastore> = {}): NormalizedDatastore => ({
+    snapshotId: "snap-1", vcenterId: "vc-1", dsKey: "ds-1", name: "DS-Prod-01", clusterName: "Storage-Prod",
+    hostNames: ["esx-02", "esx-01"], type: "VMFS", capacityMiB: 1_048_576, inUseMiB: 786_432,
+    freeMiB: 262_144, freePct: 25, version: "6.82", siocEnabled: true,
+    ...overrides,
+  });
+
+  it("liefert die wichtigsten Kapazitäts-, Host- und Lifecycle-Metriken", () => {
+    const result = buildDatastoreExportDataset([datastore()], [snapshot], "1 vCenter-Scope");
+    expect(result.title).toBe("Datastores");
+    expect(result.rows[0]).toMatchObject({
+      vcenter: "vCenter Prod", datastore: "DS-Prod-01", cluster: "Storage-Prod", type: "VMFS",
+      capacity: "1.024,00 GiB", inUse: "768,00 GiB", free: "256,00 GiB",
+      usedPct: "75,0 %", freePct: "25,0 %", status: "OK",
+      hostCount: "2", hosts: "esx-01, esx-02", version: "6.82", sioc: "Ja",
+    });
+  });
+
+  it("klassifiziert knappe Kapazität und fasst die wichtigsten Kennzahlen zusammen", () => {
+    const result = buildDatastoreExportDataset([
+      datastore(),
+      datastore({ dsKey: "ds-2", name: "DS-Kritisch", freePct: 8, freeMiB: 81_920 }),
+      datastore({ dsKey: "ds-3", name: "DS-Warnung", freePct: 15, freeMiB: 153_600 }),
+    ], [snapshot], "1 vCenter-Scope");
+    expect(result.rows.map((row) => row.status)).toEqual(["OK", "Kritisch", "Warnung"]);
+    expect(result.kpis.find((kpi) => kpi.label === "Kritisch")?.value).toBe("1");
+    expect(result.kpis.find((kpi) => kpi.label === "Warnung")?.value).toBe("1");
   });
 });
 

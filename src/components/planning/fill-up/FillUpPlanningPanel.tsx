@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Layers3, PlusSquare, Server } from "lucide-react";
+import { AlertTriangle, Calculator, CircleCheck, Layers3, PlusSquare, Server } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -94,6 +94,8 @@ export function FillUpPlanningPanel() {
     [planning.results],
   );
   const criticalClusterCount = useMemo(() => planning.results.filter((row) => row.capacity.n1?.status === "red").length, [planning.results]);
+  const n1ReadyClusterCount = useMemo(() => planning.results.filter((row) => row.capacity.n1?.status === "green").length, [planning.results]);
+  const averageAdditionalVms = planning.results.length > 0 ? additionalVmsTotal / planning.results.length : 0;
   const adoptObservedProfile = useCallback((observed: FillUpObservedVmProfile) => {
     if (observed.averageVcpu === null || observed.averageConfiguredMemoryMiB === null || observed.cpuDemandP95MHz === null) {
       toast.error("Das beobachtete Profil ist wegen fehlender vCPU-, RAM- oder CPU-P95-Werte nicht übernehmbar.");
@@ -117,6 +119,8 @@ export function FillUpPlanningPanel() {
       <KpiCard title="Berechnete Cluster" value={planning.results.length.toLocaleString("de-DE")} icon={<Layers3 className="h-4 w-4" />} info={FILL_UP_KPI.clustersEvaluated} />
       <KpiCard title="Hosts im Scope" value={hostsInScope.toLocaleString("de-DE")} icon={<Server className="h-4 w-4" />} info={FILL_UP_KPI.hostsInScope} />
       <KpiCard title="Zusätzliche VMs gesamt" value={`+${additionalVmsTotal.toLocaleString("de-DE")}`} icon={<PlusSquare className="h-4 w-4" />} info={FILL_UP_KPI.additionalVmsTotal} />
+      <KpiCard title="Ø +VM pro Cluster" value={averageAdditionalVms.toLocaleString("de-DE", { maximumFractionDigits: 1 })} icon={<Calculator className="h-4 w-4" />} info={FILL_UP_KPI.averageAdditionalVms} />
+      <KpiCard title="N-1 bereit" value={n1ReadyClusterCount.toLocaleString("de-DE")} severity={n1ReadyClusterCount === planning.results.length ? "ok" : "warn"} icon={<CircleCheck className="h-4 w-4" />} info={FILL_UP_KPI.n1ReadyClusters} />
       <KpiCard title="Kritische Cluster" value={criticalClusterCount.toLocaleString("de-DE")} severity={criticalClusterCount > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={FILL_UP_KPI.criticalClusters} />
     </KpiGrid>
     <Card className="overflow-hidden border-t-4 border-t-primary shadow-sm">

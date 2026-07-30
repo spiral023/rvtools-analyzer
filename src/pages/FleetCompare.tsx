@@ -22,6 +22,7 @@ import { VCenterVersionsTable } from "@/components/vmware-versions/VmwareRelease
 import { LicenseDetailsTable } from "@/components/licensing/LicenseDetailsTable";
 import { getLicenseRows } from "@/lib/licenseDetails";
 import { V_CENTER_RELEASES } from "@/lib/vcenterReleaseCatalog";
+import { useFilterState } from "@/hooks/useFilterState";
 
 export interface VCenterSummary {
   vcenterId: string; snapshotId: string; displayName: string; version: string | null; vmCount: number; poweredOn: number;
@@ -111,13 +112,26 @@ const vcenterVersionByBuild = new Map(V_CENTER_RELEASES.map((release) => [releas
 
 export default function FleetCompare() {
   const [selectedVcenterId, setSelectedVcenterId] = useState<string | null>(null);
+  const { filters } = useFilterState();
   const { data: snapshots = [], isPending: snapshotsLoading } = useQuery({ queryKey: ["snapshots"], queryFn: getSnapshots });
 
-  const latestSnapshots = useMemo(() => {
+  const allLatestSnapshots = useMemo(() => {
     const map = new Map<string, SnapshotMeta>();
     for (const s of snapshots) { const e = map.get(s.vcenterId); if (!e || s.exportTs > e.exportTs) map.set(s.vcenterId, s); }
     return [...map.values()];
   }, [snapshots]);
+
+  const latestSnapshots = useMemo(() => {
+    const selectedVcenterIds = new Set(filters.vcenterIds);
+    const query = filters.search.trim().toLocaleLowerCase("de-DE");
+
+    return allLatestSnapshots.filter((snapshot) => {
+      if (selectedVcenterIds.size > 0 && !selectedVcenterIds.has(snapshot.vcenterId)) return false;
+      if (!query) return true;
+      return [snapshot.vcenterDisplayName, snapshot.vcenterId]
+        .some((value) => value.toLocaleLowerCase("de-DE").includes(query));
+    });
+  }, [allLatestSnapshots, filters.search, filters.vcenterIds]);
 
   const allSnapshotIds = getFleetQuerySnapshotIds(snapshots);
 
@@ -132,7 +146,11 @@ export default function FleetCompare() {
   const { data: rawDvPort = [], isLoading: rawDvPortLoading } = useQuery({ queryKey: ["rawSheet", "dvPort", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "dvPort"), enabled: allSnapshotIds.length > 0 });
   const { data: rawVSource = [], isLoading: rawVSourceLoading } = useQuery({ queryKey: ["rawSheet", "vSource", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "vSource"), enabled: allSnapshotIds.length > 0 });
   const { data: rawLicense = [], isLoading: rawLicenseLoading } = useQuery({ queryKey: ["rawSheet", "vLicense", allSnapshotIds], queryFn: () => getRawSheetRows(allSnapshotIds, "vLicense"), enabled: allSnapshotIds.length > 0 });
-  const licenses = useMemo(() => getLicenseRows(rawLicense), [rawLicense]);
+  const visibleSnapshotIds = useMemo(() => new Set(latestSnapshots.map((snapshot) => snapshot.snapshotId)), [latestSnapshots]);
+  const licenses = useMemo(
+    () => getLicenseRows(rawLicense.filter((row) => visibleSnapshotIds.has(row.snapshotId))),
+    [rawLicense, visibleSnapshotIds],
+  );
 
   const vcenterVersionBySnapshot = useMemo(() => {
     const versions = new Map<string, string>();
@@ -232,7 +250,7 @@ export default function FleetCompare() {
     return (<div className="space-y-6 animate-fade-in"><PageHeader title="vCenter" /><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
-  if (latestSnapshots.length < 2) {
+  if (allLatestSnapshots.length < 2) {
     return (
       <div className="space-y-6 animate-fade-in">
         <PageHeader title="vCenter" />

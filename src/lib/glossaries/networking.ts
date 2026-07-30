@@ -109,6 +109,21 @@ export const NET_AUDIT_KPI: Record<string, GlossaryEntry> = {
     description: "Prüfungen mit bestätigter Zuordnung und ohne erkannten Konflikt.",
     source: "Berechnet aus Netzwerk-Kontrolle",
   },
+  totalChecked: {
+    term: "Geprüfte Objekte",
+    description: "Summe aller Objekte mit kritischem, zu prüfendem oder bestandenem Ergebnis im aktuellen Kontrollbereich.",
+    source: "Berechnet aus Netzwerk-Kontrolle",
+  },
+  passedRate: {
+    term: "Bestandenquote",
+    description: "Anteil der unauffälligen beziehungsweise bestätigten Objekte an allen bewerteten Objekten im aktuellen Kontrollbereich.",
+    source: "Berechnet aus Netzwerk-Kontrolle",
+  },
+  availableSources: {
+    term: "Datenquellen",
+    description: "Verfügbare erforderliche und ergänzende Importquellen des aktuellen Prüftabs. Fehlende Quellen können die Aussagekraft begrenzen.",
+    source: "RVTools · CDP · Eramon · IPAM · Tech-Info",
+  },
   totalPorts: {
     term: "Ports gesamt",
     description: "Alle Switch-Ports aus dem Eramon-Inventar, die in den Abgleich einfließen.",

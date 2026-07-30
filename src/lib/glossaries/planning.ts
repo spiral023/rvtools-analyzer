@@ -45,6 +45,15 @@ export const PLANNING_COLUMNS: Record<string, GlossaryEntry> = {
   },
 };
 
+export const PLANNING_KPI: Record<string, GlossaryEntry> = {
+  scenarios: { term: "Szenarien", description: "Anzahl lokal gespeicherter What-if-Varianten." },
+  migrationGroups: { term: "Migrationsgruppen", description: "Summe der Ziel-Cluster-Gruppen über alle gespeicherten Szenarien." },
+  assignedVms: { term: "Zugeordnete VMs", description: "Summe der VM-Zuordnungen in allen gespeicherten Migrationsgruppen." },
+  currentSelection: { term: "Aktuelle Auswahl", description: "VMs, die derzeit für die nächste Zuordnung zu einem Ziel-Cluster ausgewählt sind." },
+  clustersInScope: { term: "Cluster im Scope", description: "Cluster der aktiven vCenter-Snapshots, die als Migrationsziel zur Verfügung stehen.", source: "RVTools · vCluster" },
+  vmsInScope: { term: "VMs im Scope", description: "VMs im aktuellen globalen Filter- und vCenter-Scope, die in ein What-if-Szenario aufgenommen werden können.", source: "RVTools · vInfo" },
+};
+
 /* ------------------------------------------------------------------ */
 /*  Planung – Abschnitts-Überschriften                               */
 /* ------------------------------------------------------------------ */
@@ -297,6 +306,10 @@ export const FILL_UP_POLICY_FIELDS: Record<string, GlossaryEntry> = {
 /** Kennzahlen der KPI-Leiste im Policies-Tab. */
 export const FILL_UP_POLICY_KPI: Record<string, GlossaryEntry> = {
   totalPolicies: { term: "Policies gesamt", description: "Anzahl aller aktuell aktiven Policy-Versionen, sowohl Standardprofile als auch selbst angelegte Policies." },
+  customPolicies: { term: "Eigene Policies", description: "Selbst angelegte Kapazitäts-Policies zusätzlich zu den mitgelieferten Standardprofilen." },
+  clustersInScope: { term: "Cluster im Scope", description: "Cluster des aktiven Snapshot-Scope, denen eine Kapazitäts-Policy zugewiesen werden kann." },
+  assignedClusters: { term: "Explizit zugewiesen", description: "Cluster mit einer bewusst gespeicherten Policy-Zuweisung statt des automatischen Fallbacks." },
+  clustersWithOverrides: { term: "Cluster mit Overrides", description: "Explizite Clusterzuweisungen, die mindestens einen einzelnen Grenzwert des Basisprofils überschreiben." },
   unassignedClusters: { term: "Cluster ohne explizite Zuweisung", description: "Cluster ohne eigenen Eintrag in der Clusterzuweisung. Sie verwenden aktuell die erste Policy als Fallback, statt eine bewusst gewählte Policy." },
 };
 
@@ -305,5 +318,7 @@ export const FILL_UP_KPI: Record<string, GlossaryEntry> = {
   clustersEvaluated: { term: "Berechnete Cluster", description: "Cluster des gewählten Imports mit eindeutig verknüpften vROps-Zeitreihen, für die eine vollständige Fill-Up-Auswertung vorliegt." },
   hostsInScope: { term: "Hosts im Scope", description: "Summe der eindeutig zugeordneten Hosts mit Zeitreihe über alle berechneten Cluster. Nur diese Hosts fließen in Kapazität, N-1/N-2 und Platzierbarkeit ein." },
   additionalVmsTotal: { term: "Zusätzliche VMs gesamt", description: "Summe des gemeinsamen HIGH/STD-Mix über alle berechneten Cluster: wie viele zusätzliche VMs laut aktivem Workload-Mix und Policy insgesamt aufgenommen werden könnten." },
+  averageAdditionalVms: { term: "Ø +VM pro Cluster", description: "Durchschnittliche Anzahl zusätzlich aufnehmbarer VMs je berechnetem Cluster im aktiven HIGH/STD-Mix." },
+  n1ReadyClusters: { term: "N-1 bereit", description: "Cluster, die nach Ausfall des ungünstigsten einzelnen Hosts alle aktiven harten Guardrails weiterhin einhalten." },
   criticalClusters: { term: "Kritische Cluster", description: "Cluster, deren N-1-Szenario (Ausfall des ungünstigsten einzelnen Hosts) mindestens eine harte Guardrail bereits in der historischen Betrachtung verletzt." },
 };
