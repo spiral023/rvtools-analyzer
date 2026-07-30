@@ -2,18 +2,28 @@ import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
-import { Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+import { Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 
 type ChartUnit = "absolute" | "percent";
+
+/** getDay(): 0 = Sonntag. */
+const WEEKDAY_LABELS = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
+
+/** z.B. "MO, 23:00" – Wochentag statt Kalenderdatum, weil der 7-Tage-Verlauf als wiederkehrendes Wochenmuster gelesen wird. */
+function formatWeekdayTime(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  const time = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return `${WEEKDAY_LABELS[date.getDay()]}, ${time}`;
+}
 
 interface VropsTrendChartProps {
   hourly: VropsObjectTrendPoint[];
   cpuCapacityMHz: number | null;
   secondaryCapacity: number | null;
-  /** "pct": secondaryValue liegt bereits als Prozent vor (z.B. CPU Ready). "MiB": muss wie CPU über die Kapazität umgerechnet werden. */
-  secondaryUnit: "pct" | "MiB";
-  secondaryLabel: string;
+  /** "pct": secondaryValue liegt bereits als Prozent vor (z.B. CPU Ready). "MiB": muss wie CPU über die Kapazität umgerechnet werden. Weggelassen: Chart zeigt nur CPU Demand. */
+  secondaryUnit?: "pct" | "MiB";
+  secondaryLabel?: string;
   hasImport: boolean;
   isMatched: boolean;
   isLoading: boolean;
@@ -60,16 +70,17 @@ export function VropsTrendChart({
     );
   }
 
+  const hasSecondary = secondaryLabel !== undefined;
   const secondaryIsPct = secondaryUnit === "pct";
   const isPercent = chartUnit === "percent";
   const cpuDataKey = isPercent && cpuCapacityMHz ? "cpuPct" : "cpuAbs";
   const secondaryDataKey = secondaryIsPct ? "secondaryPct" : isPercent && secondaryCapacity ? "secondaryPct" : "secondaryAbs";
   const cpuName = cpuDataKey === "cpuPct" ? "CPU Demand %" : "CPU Demand GHz";
   const secondaryName = secondaryIsPct ? `${secondaryLabel} %` : secondaryDataKey === "secondaryPct" ? `${secondaryLabel} %` : `${secondaryLabel} GiB`;
-  const percentUnavailable = !cpuCapacityMHz && (secondaryIsPct || !secondaryCapacity);
+  const percentUnavailable = hasSecondary ? !cpuCapacityMHz && (secondaryIsPct || !secondaryCapacity) : !cpuCapacityMHz;
 
   const chartData = hourly.map((point) => ({
-    timestamp: new Date(point.timestampUtc).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" }),
+    timestamp: formatWeekdayTime(point.timestampUtc),
     cpuAbs: point.cpuDemandMHz === null ? null : point.cpuDemandMHz / 1_000,
     cpuPct: point.cpuDemandMHz === null || !cpuCapacityMHz ? null : (point.cpuDemandMHz / cpuCapacityMHz) * 100,
     secondaryAbs: point.secondaryValue === null ? null : secondaryIsPct ? point.secondaryValue : point.secondaryValue / 1_024,
@@ -81,6 +92,12 @@ export function VropsTrendChart({
           ? (point.secondaryValue / secondaryCapacity) * 100
           : null,
   }));
+
+  // Markiert die aktuelle Wochenstunde im wiederkehrenden Wochenmuster, nicht den Kalendertag des Imports.
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  const nowLabel = formatWeekdayTime(now.getTime());
+  const showNowMarker = chartData.some((point) => point.timestamp === nowLabel);
 
   return (
     <section className="rounded-md border bg-muted/10 p-3">
@@ -110,22 +127,33 @@ export function VropsTrendChart({
               width={46}
               tickFormatter={cpuDataKey === "cpuPct" ? (value: number) => `${value} %` : undefined}
             />
-            <YAxis
-              yAxisId="secondary"
-              orientation="right"
-              tick={{ fontSize: 10 }}
-              width={46}
-              tickFormatter={secondaryDataKey === "secondaryPct" ? (value: number) => `${value} %` : undefined}
-            />
+            {hasSecondary && (
+              <YAxis
+                yAxisId="secondary"
+                orientation="right"
+                tick={{ fontSize: 10 }}
+                width={46}
+                tickFormatter={secondaryDataKey === "secondaryPct" ? (value: number) => `${value} %` : undefined}
+              />
+            )}
             <Tooltip
               contentStyle={CHART_TOOLTIP_STYLE}
               itemStyle={CHART_TOOLTIP_ITEM_STYLE}
               labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               formatter={(value: number, name: string) => [value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), name]}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {hasSecondary && <Legend wrapperStyle={{ fontSize: 12 }} />}
             <Line yAxisId="cpu" dataKey={cpuDataKey} name={cpuName} type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} connectNulls />
-            <Line yAxisId="secondary" dataKey={secondaryDataKey} name={secondaryName} type="monotone" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} connectNulls />
+            {hasSecondary && <Line yAxisId="secondary" dataKey={secondaryDataKey} name={secondaryName} type="monotone" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} connectNulls />}
+            {showNowMarker && (
+              <ReferenceLine
+                yAxisId="cpu"
+                x={nowLabel}
+                stroke="hsl(var(--foreground))"
+                strokeDasharray="4 4"
+                label={{ value: "Jetzt", position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

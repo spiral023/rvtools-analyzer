@@ -78,7 +78,7 @@ export function VmTechnicalSections({
 
   return (
     <>
-      <VropsTrendChart {...vropsSeries} secondaryUnit="pct" secondaryLabel="CPU Ready" />
+      <VropsTrendChart {...vropsSeries} />
 
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
