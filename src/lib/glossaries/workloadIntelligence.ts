@@ -205,7 +205,7 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   densityGrid: {
     term: "Konfigurierte vCPU vs. CPU Demand P95 %",
-    description: "Dichteraster aller VMs mit gültiger vCPU-Angabe: Spalten sind Bänder der konfigurierten vCPU-Anzahl, Zeilen der genutzte Anteil davon bei P95. Die Zahl in der Zelle ist die Anzahl VMs, die Farbtiefe deren Dichte (logarithmisch, damit einzelne Ausreißer sichtbar bleiben) – Zellen rechts unten (viele vCPU, geringer Bedarf) sind die auffälligsten Kandidaten, die gelben und roten Zeilen ab 90 % der umgekehrte Fall einer zu klein konfigurierten VM. Beim Überfahren einer Zelle erscheinen VM-Anzahl, rückgewinnbare vCPU und Anzahl auffälliger VMs. Die Aggregation ersetzt die frühere Punktwolke, die bei mehreren Tausend VMs weder lesbar noch performant war.",
+    description: "Das Raster gruppiert VMs nach konfigurierten vCPU (Spalten) und CPU-Bedarf in stark ausgelasteten Stunden (Zeilen). P95 bedeutet: In 95 % der gemessenen Stunden lag der Bedarf höchstens bei diesem Wert – einzelne kurze Spitzen zählen nicht. Die Zahl zeigt die VM-Anzahl, die Farbtiefe deren Dichte. Rechts unten liegen Kandidaten für eine Verkleinerung; gelbe und rote Zeilen ab 90 % weisen auf möglicherweise zu klein konfigurierte VMs hin. Beim Überfahren erscheinen VM-Anzahl, rückgewinnbare vCPU und auffällige VMs.",
   },
   candidateTable: {
     term: "vCPU-Vergleich je VM",
