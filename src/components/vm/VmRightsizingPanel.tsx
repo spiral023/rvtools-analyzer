@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Cpu, Gauge, HelpCircle, Recycle, Server, ShieldQuestion } from "lucide-react";
+import { Cpu, Gauge, Recycle, Server, ShieldQuestion, SlidersHorizontal } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -75,11 +75,11 @@ export function VmRightsizingPanel() {
   );
   const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
   const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
+  const totalConfiguredVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.vcpu ?? 0), 0), [candidates]);
   const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
   const manyVcpuLowDemandCount = useMemo(() => candidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [candidates]);
   const highCpuReadyCount = useMemo(() => candidates.filter((candidate) => candidate.flags.highCpuReady).length, [candidates]);
   const withheldRecommendationCount = useMemo(() => candidates.filter((candidate) => candidate.recommendationWithheldReason !== null).length, [candidates]);
-  const lowConfidenceCount = useMemo(() => candidates.filter((candidate) => candidate.confidence === "low" || candidate.confidence === "not-computable").length, [candidates]);
   const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
   const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
   const densityGrid = useMemo(() => buildRightsizingDensityGrid(candidates), [candidates]);
@@ -168,11 +168,11 @@ export function VmRightsizingPanel() {
         <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
+          <KpiCard title="Konfigurierte vCPU" value={formatVcpu(totalConfiguredVcpu)} icon={<SlidersHorizontal className="h-4 w-4" />} info={RIGHTSIZING_KPI.configuredVcpu} />
           <KpiCard title="Rückgewinnbare vCPU" value={formatVcpu(totalReclaimableVcpu)} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_KPI.reclaimableVcpu} />
           <KpiCard title="Viele vCPU, geringer Bedarf" value={formatNum(manyVcpuLowDemandCount)} severity={manyVcpuLowDemandCount > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={RIGHTSIZING_KPI.manyVcpuLowDemand} />
           <KpiCard title="Auffälliges CPU Ready" value={formatNum(highCpuReadyCount)} severity={highCpuReadyCount > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} info={RIGHTSIZING_KPI.highCpuReady} />
           <KpiCard title="Ohne Empfehlung" value={formatNum(withheldRecommendationCount)} icon={<ShieldQuestion className="h-4 w-4" />} info={RIGHTSIZING_KPI.withheldRecommendation} />
-          <KpiCard title="Niedriges Vertrauen" value={formatNum(lowConfidenceCount)} severity={lowConfidenceCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={RIGHTSIZING_KPI.lowConfidence} />
         </KpiGrid>
 
         {densityGrid.vmCount > 0 && <div className="grid gap-6 lg:grid-cols-2">

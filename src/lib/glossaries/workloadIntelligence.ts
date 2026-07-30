@@ -122,6 +122,11 @@ export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
     description: "VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready oder rückgewinnbarer vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
     source: "berechnet",
   },
+  configuredVcpu: {
+    term: "Konfigurierte vCPU",
+    description: "Summe der konfigurierten vCPU über alle betrachteten VMs. Bezugsgröße für die rückgewinnbare vCPU-Kapazität.",
+    source: `${RV} · vInfo · „CPUs“`,
+  },
   reclaimableVcpu: {
     term: "Rückgewinnbare vCPU",
     description: "Summe aus konfigurierter minus empfohlener vCPU über alle Kandidaten. Eine Näherung auf Basis des aktuellen Hosts – vor jeder Umsetzung fachlich prüfen.",
@@ -141,11 +146,6 @@ export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
     term: "Ohne Empfehlung",
     description: "VMs, für die aus Vorsicht keine Verkleinerung vorgeschlagen wird – zu dünne Datenbasis oder ein Lastmuster, dessen Spitzen in sieben Tagen nicht verlässlich erfasst sind.",
     source: "berechnet",
-  },
-  lowConfidence: {
-    term: "Niedriges Vertrauen",
-    description: "Kandidaten, deren Klassifikation wegen geringer Datenabdeckung oder zu kurzer Zeitreihe als unsicher gilt. Empfehlungen hier besonders sorgfältig prüfen.",
-    source: "berechnet · Datenabdeckung",
   },
 };
 
