@@ -3,6 +3,7 @@ import { TrendingUp } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+import { findWeekTimeMarkerTimestamp } from "@/lib/weekTimeMarker";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 
 type ChartUnit = "absolute" | "percent";
@@ -102,9 +103,8 @@ export function VropsTrendChart({
           : null,
   }));
 
-  const now = new Date();
-  now.setMinutes(0, 0, 0);
-  const showNowMarker = chartData.some((point) => point.timestampMs === now.getTime());
+  // Der Import liegt in der Vergangenheit; markiert wird deshalb die gleiche Wochenzeit.
+  const nowMarkerTimestamp = findWeekTimeMarkerTimestamp(chartData.map((point) => point.timestampMs));
   const peak = chartData.reduce<(typeof chartData)[number] | null>((current, point) => {
     const value = point[cpuDataKey] as number | null;
     const currentValue = current?.[cpuDataKey] as number | null | undefined;
@@ -127,7 +127,7 @@ export function VropsTrendChart({
             <TrendingUp className="h-3.5 w-3.5" /> Auslastungsverlauf (vROps, 7 Tage)
           </h4>
           <p className="text-[10px] text-muted-foreground">
-            Stündliche Werte · Wochenende schattiert · Peak markiert
+            Stündliche Werte · Wochenende schattiert · Peak markiert · „Jetzt“ = gleicher Wochentag und Stunde
             {importedAt ? ` · Import vom ${new Date(importedAt).toLocaleString("de-DE")}` : ""}
           </p>
         </div>
@@ -197,13 +197,14 @@ export function VropsTrendChart({
                 label={{ value: "Peak", position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
               />
             )}
-            {showNowMarker && (
+            {nowMarkerTimestamp !== null && (
               <ReferenceLine
                 yAxisId="cpu"
-                x={now.getTime()}
+                x={nowMarkerTimestamp}
                 stroke="hsl(var(--foreground))"
                 strokeDasharray="4 4"
-                label={{ value: "Jetzt", position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                strokeOpacity={0.7}
+                label={{ value: "Jetzt", position: "top", fill: "hsl(var(--foreground))", fontSize: 10, fontWeight: 600 }}
               />
             )}
           </LineChart>

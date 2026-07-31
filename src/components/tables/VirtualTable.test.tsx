@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ColumnDef } from "@tanstack/react-table";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -130,6 +130,51 @@ describe("VirtualTable", () => {
     );
 
     expect(screen.getByText("1 Eintrag")).toBeInTheDocument();
+  });
+
+  it("blendet Spalten laut initialColumnVisibility aus und zeigt keine Spaltenkonfiguration ohne Opt-in", () => {
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={columns}
+        initialColumnVisibility={{ comment: false }}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "IP" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Comment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Spalten konfigurieren" })).not.toBeInTheDocument();
+  });
+
+  it("schaltet über die Spaltenkonfiguration eine ausgeblendete Spalte zu", () => {
+    const groupedColumns: ColumnDef<TableRow, unknown>[] = [
+      { accessorKey: "ipAddress", header: "IP", meta: { group: "Basisfelder" } },
+      { accessorKey: "name", header: "Name", meta: { group: "Basisfelder" } },
+      { accessorKey: "comment", header: "Comment", meta: { group: "Weitere Felder" } },
+    ];
+
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "Produktivsystem" }]}
+        columns={groupedColumns}
+        columnPicker
+        initialColumnVisibility={{ comment: false }}
+      />,
+    );
+
+    // Tastaturpfad: jsdom kennt keine PointerEvents, Radix öffnet das Menü aber auch per Enter.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Spalten konfigurieren" }), { key: "Enter" });
+
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByText("Basisfelder")).toBeInTheDocument();
+    expect(within(menu).getByText("Weitere Felder")).toBeInTheDocument();
+
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Comment" }));
+
+    // `hidden: true`, weil das geöffnete Radix-Menü die Tabelle per aria-hidden ausblendet.
+    expect(screen.getByRole("columnheader", { name: "Comment", hidden: true })).toBeInTheDocument();
+    // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it.each([

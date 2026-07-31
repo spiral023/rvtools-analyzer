@@ -130,8 +130,6 @@ export function VmDetailDialog({
     { label: "ESXi Host", value: compactValue(vm.host), sensitivity: "identifier" },
     { label: "Folder", value: compactValue(vm.folder), sensitivity: "identifier" },
     { label: "Resource Pool", value: compactValue(vm.resourcePool), sensitivity: "identifier" },
-    { label: "VM UUID", value: compactValue(vm.vmUuid), sensitivity: "identifier" },
-    { label: "Annotation", value: compactValue(vm.annotation), sensitivity: "text" },
   ];
 
   const techInfoFields: DetailField[] = techInfo ? [
@@ -320,16 +318,8 @@ export function VmDetailDialog({
         </DetailNarrative>
         <DetailKpiGrid items={kpis} />
 
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <DetailSection icon={<ServerCog className="size-4" />} title="Identität & Platzierung" description="Eindeutige Zuordnung der VM innerhalb der virtuellen Infrastruktur.">
-            <DetailFieldGrid fields={identityFields} columns={2} />
-          </DetailSection>
-          <DetailSection icon={<UserRound className="size-4" />} title="Verantwortung & Betrieb" description="Tech-Info ergänzt Zuständigkeit, Wartung und Backup-Kontext.">
-            {techInfo ? <DetailFieldGrid fields={techInfoFields} columns={2} /> : <DetailUnavailable title="Keine Tech-Info-Zuordnung" description="Die RVTools-Daten bleiben vollständig sichtbar. Zuständigkeit, Wartungsfenster und Backup-Angaben werden ergänzt, sobald ein passender Tech-Info-Datensatz vorhanden ist." />}
-          </DetailSection>
-        </div>
-
-        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="Stündliche CPU-Demand- und CPU-Ready-Werte; Wochenende und höchster Peak sind hervorgehoben.">
+        {/* Der Verlauf steht bewusst vor den Stammdaten: er ist die Frage, mit der die Systemakte geöffnet wird. */}
+        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="Stündliche CPU-Demand- und CPU-Ready-Werte; Wochenende, höchster Peak und die aktuelle Wochenzeit sind hervorgehoben.">
           {workloadProfile ? (
             <VropsTrendChart
               hourly={workloadProfile.hourly.map((point) => ({
@@ -350,6 +340,15 @@ export function VmDetailDialog({
             <DetailUnavailable title="Keine vROps-Zeitreihe zugeordnet" description="Die Ansicht bleibt ohne Zeitreihe nutzbar. Nach einem passenden vROps-Import erscheint hier automatisch der siebentägige Verlauf." />
           )}
         </DetailSection>
+
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <DetailSection icon={<ServerCog className="size-4" />} title="Identität & Platzierung" description="Eindeutige Zuordnung der VM innerhalb der virtuellen Infrastruktur.">
+            <DetailFieldGrid fields={identityFields} columns={2} />
+          </DetailSection>
+          <DetailSection icon={<UserRound className="size-4" />} title="Verantwortung & Betrieb" description="Tech-Info ergänzt Zuständigkeit, Wartung und Backup-Kontext.">
+            {techInfo ? <DetailFieldGrid fields={techInfoFields} columns={2} /> : <DetailUnavailable title="Keine Tech-Info-Zuordnung" description="Die RVTools-Daten bleiben vollständig sichtbar. Zuständigkeit, Wartungsfenster und Backup-Angaben werden ergänzt, sobald ein passender Tech-Info-Datensatz vorhanden ist." />}
+          </DetailSection>
+        </div>
 
         <div className="grid gap-5 xl:grid-cols-2">
           <DetailSection icon={<Gauge className="size-4" />} title="Lastprofil" description="Muster, Niveau und Qualität der beobachteten Auslastung.">

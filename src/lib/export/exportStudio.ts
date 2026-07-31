@@ -36,6 +36,38 @@ export const VM_EXPORT_CATEGORY = {
   rightsizingFlags: "Rightsizing-Flags",
 } as const;
 
+/**
+ * Spaltenkatalog der Datenquelle „VM“. Bewusst außerhalb von `buildVmExportDataset`,
+ * damit andere Ansichten dieselbe Spaltenauswahl anbieten können, ohne den vollen
+ * Datensatz zu bauen – siehe Spaltenkonfiguration im Tech-Info-Organisations-Drill-down.
+ */
+export const VM_EXPORT_COLUMNS: ExportStudioColumn[] = [
+  { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter", category: VM_EXPORT_CATEGORY.inventory }, { id: "server", label: "Server", pseudonymKind: "server", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "cluster", label: "Cluster", pseudonymKind: "cluster", category: VM_EXPORT_CATEGORY.inventory }, { id: "host", label: "Host", pseudonymKind: "host", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "powerState", label: "Power-Status", category: VM_EXPORT_CATEGORY.inventory }, { id: "vcpus", label: "vCPU", category: VM_EXPORT_CATEGORY.inventory }, { id: "memory", label: "RAM", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "os", label: "Betriebssystem", category: VM_EXPORT_CATEGORY.inventory }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: VM_EXPORT_CATEGORY.inventory }, { id: "tools", label: "VMware Tools", category: VM_EXPORT_CATEGORY.inventory }, { id: "annotation", label: "Notiz", pseudonymKind: "text", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "hwVersion", label: "HW-Version", category: VM_EXPORT_CATEGORY.inventory }, { id: "toolsVersion", label: "Tools-Version", category: VM_EXPORT_CATEGORY.inventory }, { id: "secureBoot", label: "Secure Boot", category: VM_EXPORT_CATEGORY.inventory },
+  { id: "techInfoSysv", label: "Systemverantwortlicher", pseudonymKind: "person", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", pseudonymKind: "department", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "techInfoSysvDeputy", label: "SysVStv", pseudonymKind: "person", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", pseudonymKind: "department", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "techInfoServerType", label: "Servertyp (Tech-Info)", pseudonymKind: "text", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", pseudonymKind: "cluster", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "techInfoBz", label: "BZ", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoAz", label: "AZ", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "techInfoCvBackup", label: "CV-Backup", category: VM_EXPORT_CATEGORY.techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", pseudonymKind: "text", category: VM_EXPORT_CATEGORY.techInfo },
+  { id: "shape", label: "Lastmuster", category: VM_EXPORT_CATEGORY.classification }, { id: "intensity", label: "Auslastungsniveau", category: VM_EXPORT_CATEGORY.classification },
+  { id: "behaviorClass", label: "Verhaltensklasse", category: VM_EXPORT_CATEGORY.classification }, { id: "profileConfidence", label: "Vertrauen (Profil)", category: VM_EXPORT_CATEGORY.classification }, { id: "profileCoverage", label: "Datenabdeckung (Profil)", category: VM_EXPORT_CATEGORY.classification },
+  { id: "coefficientOfVariation", label: "Variationskoeffizient", category: VM_EXPORT_CATEGORY.classification }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil", category: VM_EXPORT_CATEGORY.classification }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)", category: VM_EXPORT_CATEGORY.classification },
+  { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil", category: VM_EXPORT_CATEGORY.classification }, { id: "baselineRatio", label: "Grundlastanteil", category: VM_EXPORT_CATEGORY.classification },
+  { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit", category: VM_EXPORT_CATEGORY.classification }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration", category: VM_EXPORT_CATEGORY.classification }, { id: "nightConcentration", label: "Nacht-Konzentration", category: VM_EXPORT_CATEGORY.classification }, { id: "weekendConcentration", label: "Wochenend-Konzentration", category: VM_EXPORT_CATEGORY.classification },
+  { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)", category: VM_EXPORT_CATEGORY.cpuMetrics }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)", category: VM_EXPORT_CATEGORY.cpuMetrics },
+  { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)", category: VM_EXPORT_CATEGORY.cpuMetrics }, { id: "rightsizingReadyP95", label: "CPU Ready P95", category: VM_EXPORT_CATEGORY.cpuMetrics },
+  { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
+  { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
+  { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
+  { id: "rightsizingCandidate", label: "Rightsizing-Kandidat", category: VM_EXPORT_CATEGORY.rightsizingFlags },
+  { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf", category: VM_EXPORT_CATEGORY.rightsizingFlags }, { id: "highCpuReady", label: "Auffälliges CPU Ready", category: VM_EXPORT_CATEGORY.rightsizingFlags },
+];
+
 export interface ExportStudioDataset {
   source: ExportStudioSource;
   title: string;
@@ -92,41 +124,9 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
     const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
     return mhzPerCore !== null && profile.vcpu ? mhzPerCore * profile.vcpu : null;
   };
-  const inventory = VM_EXPORT_CATEGORY.inventory;
-  const techInfo = VM_EXPORT_CATEGORY.techInfo;
-  const classification = VM_EXPORT_CATEGORY.classification;
-  const cpuMetrics = VM_EXPORT_CATEGORY.cpuMetrics;
-  const rightsizingRecommendation = VM_EXPORT_CATEGORY.rightsizingRecommendation;
-  const rightsizingFlags = VM_EXPORT_CATEGORY.rightsizingFlags;
-  const columns: ExportStudioColumn[] = [
-    { id: "vcenter", label: "vCenter", pseudonymKind: "vcenter", category: inventory }, { id: "server", label: "Server", pseudonymKind: "server", category: inventory },
-    { id: "cluster", label: "Cluster", pseudonymKind: "cluster", category: inventory }, { id: "host", label: "Host", pseudonymKind: "host", category: inventory },
-    { id: "powerState", label: "Power-Status", category: inventory }, { id: "vcpus", label: "vCPU", category: inventory }, { id: "memory", label: "RAM", category: inventory },
-    { id: "os", label: "Betriebssystem", category: inventory }, { id: "resourcePool", label: "Resource Pool", pseudonymKind: "resource-pool", category: inventory },
-    { id: "datacenter", label: "Datacenter", pseudonymKind: "datacenter", category: inventory }, { id: "tools", label: "VMware Tools", category: inventory }, { id: "annotation", label: "Notiz", pseudonymKind: "text", category: inventory },
-    { id: "hwVersion", label: "HW-Version", category: inventory }, { id: "toolsVersion", label: "Tools-Version", category: inventory }, { id: "secureBoot", label: "Secure Boot", category: inventory },
-    { id: "techInfoSysv", label: "Systemverantwortlicher", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDepartment", label: "SysV Abteilung", pseudonymKind: "department", category: techInfo },
-    { id: "techInfoSysvDeputy", label: "SysVStv", pseudonymKind: "person", category: techInfo }, { id: "techInfoSysvDeputyDepartment", label: "SysVStv Abteilung", pseudonymKind: "department", category: techInfo },
-    { id: "techInfoServerType", label: "Servertyp (Tech-Info)", pseudonymKind: "text", category: techInfo }, { id: "techInfoMaintenanceWindow", label: "Wartungsfenster (Tech-Info)", category: techInfo },
-    { id: "techInfoOperatingSystem", label: "Betriebssystem (Tech-Info)", category: techInfo }, { id: "techInfoCluster", label: "Cluster (Tech-Info)", pseudonymKind: "cluster", category: techInfo },
-    { id: "techInfoBz", label: "BZ", category: techInfo }, { id: "techInfoAz", label: "AZ", category: techInfo },
-    { id: "techInfoCvBackup", label: "CV-Backup", category: techInfo }, { id: "techInfoComment", label: "Kommentar (Tech-Info)", pseudonymKind: "text", category: techInfo },
-    { id: "shape", label: "Lastmuster", category: classification }, { id: "intensity", label: "Auslastungsniveau", category: classification },
-    { id: "behaviorClass", label: "Verhaltensklasse", category: classification }, { id: "profileConfidence", label: "Vertrauen (Profil)", category: classification }, { id: "profileCoverage", label: "Datenabdeckung (Profil)", category: classification },
-    { id: "coefficientOfVariation", label: "Variationskoeffizient", category: classification }, { id: "activeHourSharePct", label: "Aktive-Stunden-Anteil", category: classification }, { id: "utilizationP95Pct", label: "Auslastung P95 (Kapazität)", category: classification },
-    { id: "dutyCyclePct", label: "Arbeitsstunden-Anteil", category: classification }, { id: "baselineRatio", label: "Grundlastanteil", category: classification },
-    { id: "dailyRepeatability", label: "Tages-Wiederholbarkeit", category: classification }, { id: "businessHoursConcentration", label: "Business-Hours-Konzentration", category: classification }, { id: "nightConcentration", label: "Nacht-Konzentration", category: classification }, { id: "weekendConcentration", label: "Wochenend-Konzentration", category: classification },
-    { id: "configuredCpuCapacity", label: "Konfigurierte CPU-Kapazität (MHz)", category: cpuMetrics }, { id: "cpuDemandRaw", label: "CPU Demand Rohdaten (7 Tage)", category: cpuMetrics },
-    { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)", category: cpuMetrics }, { id: "rightsizingReadyP95", label: "CPU Ready P95", category: cpuMetrics },
-    { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)", category: rightsizingRecommendation }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)", category: rightsizingRecommendation },
-    { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)", category: rightsizingRecommendation }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)", category: rightsizingRecommendation },
-    { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)", category: rightsizingRecommendation }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil", category: rightsizingRecommendation },
-    { id: "rightsizingCandidate", label: "Rightsizing-Kandidat", category: rightsizingFlags },
-    { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf", category: rightsizingFlags }, { id: "highCpuReady", label: "Auffälliges CPU Ready", category: rightsizingFlags },
-  ];
   const rightsizingCandidates = [...rightsizingByProfileKey.values()];
   return {
-    source: "vms", title: "VM", columns, scope,
+    source: "vms", title: "VM", columns: VM_EXPORT_COLUMNS, scope,
     dataStatus: latestSnapshotStatus(snapshots),
     kpis: [{ label: "VMs", value: number(vms.length) }, { label: "Eingeschaltet", value: number(vms.filter((vm) => vm.powerState?.toLowerCase() === "poweredon").length) }, { label: "Konfigurierter RAM", value: gib(vms.reduce((sum, vm) => sum + (vm.memoryMiB ?? 0), 0)) }, { label: "Profilierte VMs", value: number(vms.filter((vm) => profileByVmKey.has(vm.vmKey)).length) }, { label: "Rightsizing-Kandidaten", value: number(rightsizingCandidates.filter(isNotableRightsizingCandidate).length) }, { label: "Rückgewinnbare vCPU", value: number(rightsizingCandidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0)) }],
     rows: vms.map((vm) => {

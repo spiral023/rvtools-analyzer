@@ -29,6 +29,7 @@ import type { NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 import type { TechInfoOrgVmSource } from "@/domain/services/techInfoOrganisationService";
 import { TechInfoOrganisationPanel } from "@/components/tech-info/TechInfoOrganisationPanel";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
+import { buildVmExportDataset } from "@/lib/export/exportStudio";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildTechInfoOrgMetricsByVmName } from "@/lib/techInfoOrgMetrics";
 
@@ -295,6 +296,14 @@ export default function TechInfo() {
     [serverVms, byVmName, orgMetricsByVmName],
   );
   const vmByNameForOrg = useMemo(() => new Map(scopeVms.map((vm) => [vm.vmName.trim().toLowerCase(), vm])), [scopeVms]);
+  /**
+   * Derselbe Datensatz, den die Export-Studio-Quelle „VM“ erzeugt. Er liefert dem
+   * Organisations-Drill-down den vollen Spaltenvorrat samt Pseudonymisierungsregeln.
+   */
+  const orgVmDataset = useMemo(
+    () => buildVmExportDataset(serverVms, snapshots, "Tech-Info · Organisation", workloadProfiles, workloadHosts, techInfoLatest),
+    [serverVms, snapshots, techInfoLatest, workloadHosts, workloadProfiles],
+  );
 
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -363,7 +372,7 @@ export default function TechInfo() {
         </TabsContent>
 
         <TabsContent value="organisation" className="space-y-6">
-          <TechInfoOrganisationPanel sources={orgSources} search={filters.search} vmByName={vmByNameForOrg} onOpenVm={openVmDetail} />
+          <TechInfoOrganisationPanel sources={orgSources} search={filters.search} vmByName={vmByNameForOrg} vmDataset={orgVmDataset} onOpenVm={openVmDetail} />
         </TabsContent>
       </Tabs>
       {vmDetailDialog}

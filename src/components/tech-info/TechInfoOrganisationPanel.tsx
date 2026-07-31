@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { AlertTriangle, BarChart3, Building2, Boxes, ListTree, Network, UserRoundCog, Users, UserX } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +17,12 @@ import {
   type TechInfoOrgRoleMode,
   type TechInfoOrgVmSource,
 } from "@/domain/services/techInfoOrganisationService";
+import {
+  pseudonymizeExportDataset,
+  VM_EXPORT_COLUMNS,
+  type ExportStudioDataset,
+} from "@/lib/export/exportStudio";
+import { getExportColumnInfo } from "@/lib/glossaries/exportStudio";
 import { buildTechInfoOrgTree, formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/techInfoOrgTree";
 import { TechInfoOrgHierarchyTree } from "@/components/tech-info/TechInfoOrgHierarchyTree";
 import { TechInfoOrgBereichChart } from "@/components/tech-info/TechInfoOrgBereichChart";
@@ -29,53 +35,68 @@ const ROLE_DESCRIPTION: Record<TechInfoOrgRoleMode, string> = {
   both: "Primär- und Stellvertretungsrollen gemeinsam",
 };
 
-function pseudonymizeRows(rows: TechInfoOrgVmSource[]): TechInfoOrgVmSource[] {
-  const personMap = new Map<string, string>();
-  const vmMap = new Map<string, string>();
-  const person = (name: string | null): string | null => {
-    if (!name?.trim()) return name;
-    const key = name.trim().toLocaleLowerCase("de-DE");
-    let value = personMap.get(key);
-    if (!value) {
-      value = `Person ${String(personMap.size + 1).padStart(2, "0")}`;
-      personMap.set(key, value);
-    }
-    return value;
-  };
-  const vmName = (name: string): string => {
-    const key = name.trim().toLocaleLowerCase("de-DE");
-    let value = vmMap.get(key);
-    if (!value) {
-      value = `server-${String(vmMap.size + 1).padStart(3, "0")}`;
-      vmMap.set(key, value);
-    }
-    return value;
-  };
-  return rows.map((row) => ({ ...row, vmName: vmName(row.vmName), sysv: person(row.sysv), sysvDeputy: person(row.sysvDeputy) }));
+interface TechInfoOrgDrilldownRow extends TechInfoOrgVmSource {
+  /** Originaler, normalisierter VM-Name. Überlebt die Pseudonymisierung und trägt den Klick in die VM-Detailansicht. */
+  vmKeyNorm: string;
+  /** Vorformatierte Werte des VM-Exportdatensatzes; Grundlage der zuschaltbaren Spalten. */
+  exportValues: Record<string, string>;
 }
 
-const drilldownColumns: ColumnDef<TechInfoOrgVmSource, unknown>[] = [
-  { accessorKey: "vmName", header: "VM" },
-  { accessorKey: "sysv", header: "SysV", cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "sysvDeputy", header: "SysVStv", cell: ({ getValue }) => getValue() || "—" },
+const BASE_COLUMN_GROUP = "Standardspalten";
+
+/**
+ * Exportspalten, die der Drill-down bereits typisiert führt – dort mit korrekter
+ * numerischer Sortierung und Badges. Sie werden nicht doppelt angeboten.
+ */
+const BASE_EXPORT_COLUMN_IDS = new Set(["server", "techInfoSysv", "techInfoSysvDeputy", "powerState", "vcpus", "memory"]);
+/** Die 7-Tage-Rohreihe ist ein Maschinenformat für Exporte und in einer Tabellenzelle nicht lesbar. */
+const EXCLUDED_EXPORT_COLUMN_IDS = new Set(["cpuDemandRaw"]);
+
+const baseDrilldownColumns: ColumnDef<TechInfoOrgDrilldownRow, unknown>[] = [
+  { accessorKey: "vmName", header: "VM", meta: { group: BASE_COLUMN_GROUP } },
+  { accessorKey: "sysv", header: "SysV", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysvDeputy", header: "SysVStv", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => getValue() || "—" },
   {
     accessorKey: "poweredOn",
     header: "Power",
+    meta: { group: BASE_COLUMN_GROUP },
     cell: ({ getValue }) => (getValue() ? <Badge variant="secondary">Ein</Badge> : <Badge variant="outline">Aus</Badge>),
   },
-  { accessorKey: "cpuCount", header: "vCPU", cell: ({ getValue }) => formatNum(getValue() as number | null) },
-  { accessorKey: "memoryMiB", header: "RAM", cell: ({ getValue }) => formatRamGiB((getValue() as number | null) ?? 0) },
+  { accessorKey: "cpuCount", header: "vCPU", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
+  { accessorKey: "memoryMiB", header: "RAM", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => formatRamGiB((getValue() as number | null) ?? 0) },
 ];
+
+/**
+ * Derselbe Spaltenvorrat wie die Export-Studio-Datenquelle „VM“, hier zuschaltbar.
+ * Die Werte sind bereits als Text aufbereitet, sortiert wird deshalb alphanumerisch.
+ */
+const extraDrilldownColumns: ColumnDef<TechInfoOrgDrilldownRow, unknown>[] = VM_EXPORT_COLUMNS
+  .filter((column) => !BASE_EXPORT_COLUMN_IDS.has(column.id) && !EXCLUDED_EXPORT_COLUMN_IDS.has(column.id))
+  .map((column) => ({
+    id: column.id,
+    header: column.label,
+    accessorFn: (row: TechInfoOrgDrilldownRow) => row.exportValues[column.id] ?? "—",
+    meta: { group: column.category, info: getExportColumnInfo("vms", column) },
+  }));
+
+const drilldownColumns = [...baseDrilldownColumns, ...extraDrilldownColumns];
+/** Die zugeschalteten Spalten starten ausgeblendet; sichtbar bleibt die gewohnte Standardauswahl. */
+const drilldownColumnVisibility: VisibilityState = Object.fromEntries(
+  extraDrilldownColumns.map((column) => [column.id as string, false]),
+);
 
 export function TechInfoOrganisationPanel({
   sources,
   search,
   vmByName,
+  vmDataset,
   onOpenVm,
 }: {
   sources: TechInfoOrgVmSource[];
   search: string;
   vmByName: Map<string, NormalizedVm>;
+  /** VM-Datensatz der Export-Studio-Datenquelle „VM“; speist die zuschaltbaren Drill-down-Spalten. */
+  vmDataset: ExportStudioDataset;
   onOpenVm: (vm: NormalizedVm) => void;
 }) {
   const [roleMode, setRoleMode] = useState<TechInfoOrgRoleMode>("primary");
@@ -97,15 +118,39 @@ export function TechInfoOrganisationPanel({
     setSelection(null);
   };
 
-  const drilldownRows = useMemo(() => {
+  /**
+   * Die Pseudonymisierung läuft über den Exportdatensatz, damit VM-Name und zugeschaltete
+   * Spalten dieselben Platzhalter tragen. Die Zeilenreihenfolge bleibt dabei erhalten,
+   * deshalb trägt der Originaldatensatz den Schlüssel.
+   */
+  const exportValuesByVmName = useMemo(() => {
+    const dataset = pseudonymize ? pseudonymizeExportDataset(vmDataset) : vmDataset;
+    return new Map(dataset.rows.map((row, index) => [(vmDataset.rows[index]?.server ?? "").trim().toLowerCase(), row]));
+  }, [vmDataset, pseudonymize]);
+
+  const drilldownRows = useMemo<TechInfoOrgDrilldownRow[]>(() => {
     if (!selection) return [];
     const rows = selection.vmNames.map((vmName) => sourceByVmName.get(vmName)).filter((row): row is TechInfoOrgVmSource => Boolean(row));
     const q = search.trim().toLowerCase();
+    // Bewusst über die Originalwerte: gesucht wird nach echten Namen, auch wenn die Tabelle pseudonymisiert anzeigt.
     const filtered = q
       ? rows.filter((row) => [row.vmName, row.sysv, row.sysvDeputy].some((value) => (value ?? "").toLowerCase().includes(q)))
       : rows;
-    return pseudonymize ? pseudonymizeRows(filtered) : filtered;
-  }, [selection, sourceByVmName, search, pseudonymize]);
+    return filtered.map((source) => {
+      const vmKeyNorm = source.vmName.trim().toLowerCase();
+      const exportValues = exportValuesByVmName.get(vmKeyNorm) ?? {};
+      if (!pseudonymize) return { ...source, vmKeyNorm, exportValues };
+      // Ohne Exportzeile fehlt der Platzhalter – dann „—“ statt des Klarnamens.
+      return {
+        ...source,
+        vmKeyNorm,
+        exportValues,
+        vmName: exportValues.server ?? "—",
+        sysv: exportValues.techInfoSysv ?? "—",
+        sysvDeputy: exportValues.techInfoSysvDeputy ?? "—",
+      };
+    });
+  }, [selection, sourceByVmName, search, pseudonymize, exportValuesByVmName]);
 
   return (
     <div className="space-y-6">
@@ -230,7 +275,9 @@ export function TechInfoOrganisationPanel({
               {selection && <Badge variant="secondary">{formatNum(drilldownRows.length)} VMs</Badge>}
             </div>
             <CardDescription>
-              {selection ? "Server der gewählten Organisationseinheit." : "Noch keine Organisationseinheit ausgewählt."}
+              {selection
+                ? "Server der gewählten Organisationseinheit. Über das Spaltensymbol unten rechts lassen sich alle VM-Spalten zuschalten."
+                : "Noch keine Organisationseinheit ausgewählt."}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2">
@@ -245,8 +292,10 @@ export function TechInfoOrganisationPanel({
               columns={drilldownColumns}
               height={360}
               exportFileName="techinfo-organisation"
+              columnPicker
+              initialColumnVisibility={drilldownColumnVisibility}
               onRowClick={(row) => {
-                const vm = vmByName.get(row.vmName.trim().toLowerCase());
+                const vm = vmByName.get(row.vmKeyNorm);
                 if (vm) onOpenVm(vm);
               }}
             />

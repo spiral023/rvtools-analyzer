@@ -5,16 +5,21 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   flexRender,
+  type Column,
   type ColumnDef,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -23,7 +28,7 @@ import {
   exportExcelTable,
   exportMarkdownTable,
 } from "@/lib/export/tableExport";
-import { ArrowUpDown, ArrowUp, ArrowDown, ClipboardCopy, Download, FileSpreadsheet, FileText, CheckSquare, Square } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, ClipboardCopy, Columns3, Download, FileSpreadsheet, FileText, CheckSquare, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 
@@ -45,6 +50,24 @@ interface VirtualTableProps<T, TColumn = T> {
   emptyDescription?: string;
   /** Meldet die Anzahl der nach Filterung sichtbaren Zeilen, z.B. für einen Zähler im Panel-Titel. */
   onFilteredCountChange?: (count: number) => void;
+  /**
+   * Blendet im Footer eine Spaltenauswahl ein. Überschriften der Auswahl kommen aus
+   * `meta.group`; Spalten ohne Gruppe erscheinen unter „Weitere Spalten“.
+   */
+  columnPicker?: boolean;
+  /**
+   * Startsichtbarkeit je Spalten-Id – nicht genannte Spalten bleiben sichtbar. Dient
+   * gleichzeitig als Ziel des „Standard“-Knopfs in der Spaltenauswahl.
+   */
+  initialColumnVisibility?: VisibilityState;
+}
+
+const UNGROUPED_COLUMN_LABEL = "Weitere Spalten";
+
+function columnPickerLabel<T>(column: Column<T, unknown>): string {
+  const header = column.columnDef.header;
+  if (typeof header === "string" && header.trim()) return header;
+  return column.columnDef.meta?.info?.term ?? column.id;
 }
 
 const ESTIMATED_ROW_HEIGHT = 33;
@@ -75,15 +98,19 @@ export function VirtualTable<T, TColumn = T>({
   emptyTitle = "Keine Einträge",
   emptyDescription,
   onFilteredCountChange,
+  columnPicker = false,
+  initialColumnVisibility,
 }: VirtualTableProps<T, TColumn>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility ?? {});
   const parentRef = useRef<HTMLDivElement>(null);
 
   const table = useReactTable({
     data,
     columns: columns as unknown as ColumnDef<T, unknown>[],
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnVisibility },
     onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
     getRowId: getRowId ? (row) => getRowId(row) : undefined,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -93,6 +120,18 @@ export function VirtualTable<T, TColumn = T>({
 
   const { rows } = table.getRowModel();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
+
+  // Reihenfolge der Gruppen folgt der Spaltenreihenfolge, damit die Auswahl die Tabelle spiegelt.
+  const pickerGroups = columnPicker
+    ? table.getAllLeafColumns().reduce<Array<{ label: string; columns: Column<T, unknown>[] }>>((groups, column) => {
+        if (column.id === "__selection") return groups;
+        const label = column.columnDef.meta?.group ?? UNGROUPED_COLUMN_LABEL;
+        const group = groups.find((entry) => entry.label === label);
+        if (group) group.columns.push(column);
+        else groups.push({ label, columns: [column] });
+        return groups;
+      }, [])
+    : [];
 
   useEffect(() => {
     onFilteredCountChange?.(rows.length);
@@ -367,6 +406,56 @@ export function VirtualTable<T, TColumn = T>({
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
         <span className="tabular-nums">{rows.length.toLocaleString("de-DE")} {rows.length === 1 ? "Eintrag" : "Einträge"}</span>
+        <div className="flex items-center gap-1">
+        {columnPicker && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                aria-label="Spalten konfigurieren"
+                title={`Spalten konfigurieren (${visibleColumnCount} von ${table.getAllLeafColumns().length} sichtbar)`}
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-96 w-72 overflow-y-auto">
+              <DropdownMenuItem onSelect={() => table.toggleAllColumnsVisible(true)}>
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Alle Spalten anzeigen
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setColumnVisibility(initialColumnVisibility ?? {})}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Standardauswahl
+              </DropdownMenuItem>
+              {pickerGroups.map((group) => (
+                <div key={group.label}>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {group.label}
+                  </DropdownMenuLabel>
+                  {group.columns.map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={column.getIsVisible()}
+                      // Die letzte sichtbare Spalte bleibt an, sonst bliebe eine Tabelle ohne Spalten zurück.
+                      disabled={column.getIsVisible() && visibleColumnCount <= 1}
+                      // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        column.toggleVisibility();
+                      }}
+                    >
+                      {columnPickerLabel(column)}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -396,6 +485,7 @@ export function VirtualTable<T, TColumn = T>({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </div>
   );

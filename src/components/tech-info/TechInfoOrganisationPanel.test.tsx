@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TechInfoOrganisationPanel } from "@/components/tech-info/TechInfoOrganisationPanel";
+import { buildVmExportDataset } from "@/lib/export/exportStudio";
 import type { TechInfoOrgVmSource } from "@/domain/services/techInfoOrganisationService";
 
 vi.mock("@/components/tech-info/TechInfoOrgHierarchyTree", () => ({
@@ -27,6 +28,8 @@ const source: TechInfoOrgVmSource = {
   poweredOn: true,
 };
 
+const emptyVmDataset = buildVmExportDataset([], [], "Test");
+
 describe("TechInfoOrganisationPanel", () => {
   it("zeigt sechs KPIs und keinen separaten Datenqualitätsbereich", () => {
     render(
@@ -34,6 +37,7 @@ describe("TechInfoOrganisationPanel", () => {
         sources={[source]}
         search=""
         vmByName={new Map()}
+        vmDataset={emptyVmDataset}
         onOpenVm={vi.fn()}
       />,
     );
