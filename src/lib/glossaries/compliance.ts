@@ -291,6 +291,11 @@ export const HOST_COLUMNS: Record<string, GlossaryEntry> = {
     description: "Servermodell/Baureihe des Hosts.",
     source: `${RV} · vHost · „Model“`,
   },
+  serviceTag: {
+    term: "Service Tag",
+    description: "Seriennummer der Server-Hardware, wie sie der Hersteller für Support und Garantie führt. Durchsuchbar über das Suchfeld der Seite.",
+    source: `${RV} · vHost · „Service tag“`,
+  },
   maintenanceMode: {
     term: "Maintenance",
     description: "„Ja“, wenn der Host im Wartungsmodus ist und aktuell keine VMs betreibt.",

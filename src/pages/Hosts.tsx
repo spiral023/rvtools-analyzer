@@ -49,7 +49,7 @@ export default function Hosts() {
         isLoading={rawHostsLoading}
         onHostClick={openHostDetail}
       />
-      <HostInventoryPanel hosts={hosts} globalFilter={filters.search} />
+      <HostInventoryPanel hosts={hosts} globalFilter={filters.search} rawVHostRows={rawVHost} />
       <HostHygienePanel />
       <EsxiVersionsTable />
       {hostDetailDialog}
