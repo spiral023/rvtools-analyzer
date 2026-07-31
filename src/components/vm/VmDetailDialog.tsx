@@ -341,7 +341,7 @@ export function VmDetailDialog({
           )}
         </DetailSection>
 
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-5 xl:grid-cols-2">
           <DetailSection icon={<ServerCog className="size-4" />} title="Identität & Platzierung" description="Eindeutige Zuordnung der VM innerhalb der virtuellen Infrastruktur.">
             <DetailFieldGrid fields={identityFields} columns={2} />
           </DetailSection>
