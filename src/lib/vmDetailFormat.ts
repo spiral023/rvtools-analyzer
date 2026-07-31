@@ -25,6 +25,18 @@ export function compactValue(value: string | null | undefined): string {
   return v || "—";
 }
 
+/**
+ * Letztes Segment eines vCenter-Pfads, z.B. „/LNZ9910/CLUSTER/Resources/HIGH“ → „HIGH“.
+ * Ordner- und Resource-Pool-Pfade wiederholen in der Detailansicht Datacenter und Cluster,
+ * die dort schon als eigene Felder stehen; interessant ist nur das Blatt.
+ *
+ * `null`, wenn der Pfad kein Segment enthält – `compactValue` macht daraus „—“.
+ */
+export function lastPathSegment(value: string | null | undefined): string | null {
+  const segments = (value ?? "").split("/").map((segment) => segment.trim()).filter(Boolean);
+  return segments.at(-1) ?? null;
+}
+
 export function statusTextClass(value: string | null | undefined): string {
   const normalized = (value || "").replace(/\s+/g, "").toLowerCase();
   if (normalized === "poweredon" || normalized === "connected" || normalized === "green") return "text-success";

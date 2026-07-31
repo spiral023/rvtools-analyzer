@@ -20,7 +20,7 @@ import type {
   VmWorkloadProfile,
 } from "@/domain/models/types";
 import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage } from "@/lib/vmDetail";
-import { compactValue, str, toNumber } from "@/lib/vmDetailFormat";
+import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailFormat";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import {
@@ -128,8 +128,8 @@ export function VmDetailDialog({
     { label: "Datacenter", value: compactValue(vm.datacenter), sensitivity: "identifier" },
     { label: "Cluster", value: compactValue(vm.cluster), sensitivity: "identifier" },
     { label: "ESXi Host", value: compactValue(vm.host), sensitivity: "identifier" },
-    { label: "Folder", value: compactValue(vm.folder), sensitivity: "identifier" },
-    { label: "Resource Pool", value: compactValue(vm.resourcePool), sensitivity: "identifier" },
+    { label: "Folder", value: compactValue(lastPathSegment(vm.folder)), sensitivity: "identifier" },
+    { label: "Resource Pool", value: compactValue(lastPathSegment(vm.resourcePool)), sensitivity: "identifier" },
   ];
 
   const techInfoFields: DetailField[] = techInfo ? [
