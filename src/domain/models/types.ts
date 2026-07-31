@@ -1195,6 +1195,14 @@ export interface VropsTimeSeriesChunk {
   slotCount: number;
   objectKeys: string[];
   metricValues: Partial<Record<VropsTimeSeriesMetricKey, ArrayBuffer>>;
+  /**
+   * Wartungszustände als Uint8-Codes: 0 = kein Zustand, sonst Position im
+   * Lexikon plus eins. Ersetzt das frühere String-Array, das je Zelle einen
+   * eigenen String hielt und beim Worker-Transfer geklont werden musste.
+   */
+  maintenanceCodes?: ArrayBuffer;
+  maintenanceLexicon?: string[];
+  /** Nur noch in Importen vor der Umstellung auf {@link maintenanceCodes} belegt. */
   maintenanceStates?: Array<string | null>;
   maintenanceDerived?: ArrayBuffer;
 }

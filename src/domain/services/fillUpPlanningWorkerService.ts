@@ -54,6 +54,7 @@ function collectChunkBuffers(input: BuildFillUpPlanningResultsInput): Transferab
     for (const buffer of Object.values(chunk.metricValues)) {
       if (buffer instanceof ArrayBuffer) buffers.add(buffer);
     }
+    if (chunk.maintenanceCodes instanceof ArrayBuffer) buffers.add(chunk.maintenanceCodes);
     if (chunk.maintenanceDerived instanceof ArrayBuffer) buffers.add(chunk.maintenanceDerived);
   }
   return [...buffers];

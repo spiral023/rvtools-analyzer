@@ -1,24 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
-import { parseVropsTimeSeriesCsv } from "@/domain/services/vropsTimeSeriesParser";
-import type { NormalizedCluster, NormalizedHost, NormalizedVm } from "@/domain/models/types";
-
-const encoder = new TextEncoder();
+import { buildVropsTimeSeriesWorkerPayload } from "@/domain/services/vropsTimeSeriesWorkerPayload";
+import type { NormalizedCluster, NormalizedHost, NormalizedVm, VropsTimeSeriesObjectType } from "@/domain/models/types";
 
 function csvFile(name: string, content: string): File {
-  const buffer = encoder.encode(content).buffer;
-  return Object.assign(new File([content], name, { type: "text/csv" }), { arrayBuffer: async () => buffer.slice(0) });
+  return new File([content], name, { type: "text/csv" });
 }
 
 beforeEach(() => {
   vi.resetModules();
   globalThis.indexedDB = new IDBFactory() as unknown as IDBFactory;
+  // Der Stub führt die echte Worker-Fachlogik aus; nur die Nachrichtenschicht
+  // ist ersetzt, damit der Test den tatsächlichen Importpfad prüft.
   class TimeSeriesWorkerStub {
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: ErrorEvent) => void) | null = null;
-    postMessage(message: { payload: { buffers: ArrayBuffer[] } }) {
-      const decoder = new TextDecoder();
-      this.onmessage?.({ data: { type: "VROPS_TIMESERIES_PARSE_COMPLETE", payload: { parsedFiles: message.payload.buffers.map((buffer) => parseVropsTimeSeriesCsv(decoder.decode(buffer))) } } } as MessageEvent);
+    postMessage(message: { payload: { files: Record<VropsTimeSeriesObjectType, File> } }) {
+      void buildVropsTimeSeriesWorkerPayload(message.payload.files)
+        .then((payload) => {
+          this.onmessage?.({ data: { type: "VROPS_TIMESERIES_PARSE_COMPLETE", payload } } as MessageEvent);
+        })
+        .catch((error: unknown) => {
+          this.onmessage?.({
+            data: { type: "VROPS_TIMESERIES_PARSE_ERROR", payload: String(error) },
+          } as MessageEvent);
+        });
     }
     terminate() {}
   }

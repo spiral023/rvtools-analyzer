@@ -8,22 +8,24 @@ import type {
   NormalizedCluster,
   NormalizedHost,
   NormalizedVm,
-  VropsRelationshipIssue,
   VropsTimeSeriesChunk,
   VropsTimeSeriesImport,
   VropsTimeSeriesMetricKey,
   VropsTimeSeriesMetricSummary,
   VropsTimeSeriesObjectType,
-  VropsTimeSeriesParseResult,
   VropsTimeSeriesQualitySummary,
   VropsTimeSeriesSourceFile,
   VropsTimeSeriesSiteRule,
   VropsTimeSeriesSummary,
-  VropsTimeSeriesWorkerResult,
 } from "@/domain/models/types";
 import { computeChecksum } from "@/lib/xlsx/parseHelpers";
 import { shortId } from "@/lib/shortId";
 import { buildVropsTimeSeriesRelationships, createVropsTimeSeriesObjectKey } from "@/domain/services/vropsRelationshipService";
+import type { VropsTimeSeriesMatrix } from "@/domain/services/vropsTimeSeriesMatrixParser";
+import {
+  emptyVropsTimeSeriesWorkerPayload,
+  type VropsTimeSeriesWorkerPayload,
+} from "@/domain/services/vropsTimeSeriesWorkerPayload";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -89,18 +91,28 @@ export async function importVropsTimeSeriesFileSet(
 ): Promise<VropsTimeSeriesImportResult> {
   const report = (step: string, percent: number, detail?: string) => onProgress?.({ step, percent, detail });
 
-  report("CSV-Dateien lesen", 5);
+  report("Zeitreihen im Worker parsen", 10, "VM, Cluster und Host");
   const entries = [
     ["vm", files.vm],
     ["cluster", files.cluster],
     ["host", files.host],
   ] as const satisfies ReadonlyArray<readonly [VropsTimeSeriesObjectType, File]>;
-  const buffers = await Promise.all(entries.map(([, file]) => file.arrayBuffer()));
 
-  report("Prüfsummen berechnen", 15);
-  const checksums = await Promise.all(buffers.map((buffer) => computeChecksum(buffer)));
+  // Der Worker streamt die Dateien, baut die Matrizen und liefert die fertige
+  // Nutzlast zurück; Prüfsummen fallen dabei nebenbei an.
+  const workerResult = await parseInWorker(files, (progress) => report(progress.step, progress.percent, progress.detail));
+  if (workerResult.errors.length > 0) {
+    return {
+      success: false,
+      warnings: workerResult.warnings,
+      errors: workerResult.errors,
+      gridDiagnostics: workerResult.gridDiagnostics as VropsTimeSeriesGridDiagnostic[],
+    };
+  }
+
+  report("Dateisatz prüfen", 55);
   const fileSetChecksum = await computeChecksum(new TextEncoder().encode(
-    entries.map(([type], index) => `${type}:${checksums[index]}`).join("\n"),
+    entries.map(([type]) => `${type}:${workerResult.fileStats[type].fileChecksum}`).join("\n"),
   ).buffer);
   const existing = await getVropsTimeSeriesImportByFileSetChecksum(fileSetChecksum);
   if (existing) {
@@ -111,30 +123,18 @@ export async function importVropsTimeSeriesFileSet(
     };
   }
 
-  report("Zeitreihen im Worker parsen", 30, "VM, Cluster und Host");
-  const workerResult = await parseInWorker(buffers, (progress) => report(progress.step, progress.percent, progress.detail));
-  const parsedByType = validateParsedFileSet(workerResult.parsedFiles);
-  if (parsedByType.errors.length > 0) return { success: false, warnings: parsedByType.warnings, errors: parsedByType.errors };
-
-  report("Stundenraster prüfen", 50);
-  const prepared = prepareVropsTimeSeriesPayload(parsedByType.files!);
-  if (prepared.errors.length > 0) {
-    return {
-      success: false,
-      warnings: [...parsedByType.warnings, ...prepared.warnings],
-      errors: prepared.errors,
-      gridDiagnostics: prepared.gridDiagnostics,
-    };
-  }
+  const objectNames = new Map<VropsTimeSeriesObjectType, string[]>(
+    entries.map(([type]) => [type, workerResult.objectNamesByType[type]]),
+  );
 
   report("RVTools-Scope prüfen", 60);
   const snapshots = await getSnapshots();
   if (snapshots.length === 0) {
     return {
       success: false,
-      warnings: [...parsedByType.warnings, ...prepared.warnings],
+      warnings: workerResult.warnings,
       errors: ["Für den Zeitreihenimport muss zuerst mindestens ein RVTools-Snapshot importiert sein."],
-      gridDiagnostics: prepared.gridDiagnostics,
+      gridDiagnostics: workerResult.gridDiagnostics as VropsTimeSeriesGridDiagnostic[],
     };
   }
   const rvtoolsSnapshotIds = snapshots.map((snapshot) => snapshot.snapshotId);
@@ -147,23 +147,33 @@ export async function importVropsTimeSeriesFileSet(
   ]);
   const relationships = buildVropsTimeSeriesRelationships({
     importId,
-    objectNames: prepared.payload!.objectNames,
+    objectNames,
     inventory: { vms, hosts, clusters, snapshots },
     siteRules: options?.siteRules,
   });
   const objects = relationships.objects;
   const relationshipWarnings = relationships.issues.map((issue) => issue.message);
-  const qualitySummary = buildQualitySummary(parsedByType.files!, prepared.payload!, relationships.issues);
-  const sourceFiles = entries.map(([objectType, file], index) => {
-    const parsed = parsedByType.files![objectType];
+  const qualitySummary: VropsTimeSeriesQualitySummary = {
+    objectCountByType: {
+      vm: objectNames.get("vm")?.length ?? 0,
+      cluster: objectNames.get("cluster")?.length ?? 0,
+      host: objectNames.get("host")?.length ?? 0,
+    },
+    expectedSlots: workerResult.expectedSlots,
+    errorCount: 0,
+    warningCount: workerResult.warnings.length + relationships.issues.length,
+    missingValueCount: workerResult.issueCountsByCode["missing-value"] ?? 0,
+  };
+  const sourceFiles = entries.map(([objectType, file]) => {
+    const stats = workerResult.fileStats[objectType];
     return {
       objectType,
       fileName: file.name,
       fileSizeBytes: file.size,
-      fileChecksum: checksums[index],
-      rowCount: parsed.rows.length,
-      columnCount: Object.keys(parsed.schema!.metricHeaders).length + 2,
-      detectedColumns: [parsed.schema!.objectNameHeader, parsed.schema!.intervalHeader, ...Object.values(parsed.schema!.metricHeaders)],
+      fileChecksum: stats.fileChecksum,
+      rowCount: stats.rowCount,
+      columnCount: stats.columnCount,
+      detectedColumns: stats.detectedColumns,
       status: "accepted",
     } satisfies VropsTimeSeriesSourceFile;
   });
@@ -172,92 +182,88 @@ export async function importVropsTimeSeriesFileSet(
     importedAt,
     timezone: "Europe/Vienna",
     intervalMinutes: 60,
-    rangeStartUtc: prepared.payload!.rangeStartUtc,
-    rangeEndUtc: prepared.payload!.rangeEndUtc,
-    expectedSlots: prepared.payload!.expectedSlots,
+    rangeStartUtc: workerResult.rangeStartUtc,
+    rangeEndUtc: workerResult.rangeEndUtc,
+    expectedSlots: workerResult.expectedSlots,
     rvtoolsSnapshotIds,
     files: sourceFiles,
     fileSetChecksum,
-    schemaVersion: Math.max(...Object.values(parsedByType.files!).map((file) => file.schema!.version)),
+    schemaVersion: workerResult.schemaVersion,
     validationStatus: objects.every((object) => object.matchStatus === "matched") ? "relationships-valid" : "relationships-partial",
     qualitySummary,
     relationshipIssues: relationships.issues,
   };
 
-  report("Zeitreihen lokal speichern", 75, `${prepared.payload!.chunks.length} kompakte Blöcke`);
+  report("Zeitreihen lokal speichern", 75, `${workerResult.chunks.length} kompakte Blöcke`);
   await persistVropsTimeSeriesImport(
     meta,
     objects,
-    prepared.payload!.chunks.map((chunk) => ({ ...chunk, importId })),
-    prepared.payload!.summaries.map((summary) => ({ ...summary, importId })),
+    workerResult.chunks.map((chunk) => ({ ...chunk, importId })),
+    workerResult.summaries.map((summary) => ({ ...summary, importId })),
   );
   report("Abgeschlossen", 100, `${qualitySummary.expectedSlots} Stunden, ${objects.length} Objekte`);
   return {
     success: true,
     importId,
-    warnings: [...parsedByType.warnings, ...prepared.warnings, ...relationshipWarnings],
+    warnings: [...workerResult.warnings, ...relationshipWarnings],
     errors: [],
     qualitySummary,
-    gridDiagnostics: prepared.gridDiagnostics,
+    gridDiagnostics: workerResult.gridDiagnostics as VropsTimeSeriesGridDiagnostic[],
   };
 }
 
-function parseInWorker(buffers: ArrayBuffer[], onProgress?: (progress: VropsTimeSeriesImportProgress) => void): Promise<VropsTimeSeriesWorkerResult> {
+function parseInWorker(
+  files: VropsTimeSeriesFileSet,
+  onProgress?: (progress: VropsTimeSeriesImportProgress) => void,
+): Promise<VropsTimeSeriesWorkerPayload> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("../../workers/vrops-timeseries.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = (event) => {
       if (event.data.type === "VROPS_TIMESERIES_PARSE_PROGRESS") {
-        const { fileIndex, fileLabel, processedRows, totalRows } = event.data.payload as { fileIndex: number; fileLabel: string; processedRows: number; totalRows: number };
-        const fraction = totalRows > 0 ? processedRows / totalRows : 0;
-        onProgress?.({ step: "Zeitreihen im Worker parsen", percent: 30 + Math.round(((fileIndex + fraction) / 3) * 18), detail: totalRows > 0 ? `${fileLabel}: ${processedRows.toLocaleString("de-DE")} / ${totalRows.toLocaleString("de-DE")} Zeilen` : `${fileLabel}-CSV wird vorbereitet` });
+        const { fileIndex, fileLabel, pass, bytesRead, totalBytes } = event.data.payload as {
+          fileIndex: number; fileLabel: string; pass: 1 | 2; bytesRead: number; totalBytes: number;
+        };
+        // Je Datei zwei Durchgänge; daraus ein monoton steigender Gesamtfortschritt.
+        const fileFraction = totalBytes > 0 ? ((pass - 1) + bytesRead / totalBytes) / 2 : 0;
+        onProgress?.({
+          step: "Zeitreihen im Worker parsen",
+          percent: 10 + Math.round(((fileIndex + fileFraction) / 3) * 45),
+          detail: `${fileLabel}: Durchgang ${pass} von 2 — ${formatMebibytes(bytesRead)} / ${formatMebibytes(totalBytes)}`,
+        });
+        return;
+      }
+      if (event.data.type === "VROPS_TIMESERIES_PARSE_FAILED") {
+        worker.terminate();
+        const { errors, gridDiagnostics } = event.data.payload as { errors: string[]; gridDiagnostics: unknown[] };
+        resolve({ ...emptyVropsTimeSeriesWorkerPayload(), errors, gridDiagnostics });
         return;
       }
       worker.terminate();
       if (event.data.type === "VROPS_TIMESERIES_PARSE_ERROR") reject(new Error(event.data.payload));
-      else resolve(event.data.payload as VropsTimeSeriesWorkerResult);
+      else resolve(event.data.payload as VropsTimeSeriesWorkerPayload);
     };
     worker.onerror = (event) => {
       worker.terminate();
       reject(event);
     };
-    worker.postMessage({ type: "PARSE_VROPS_TIMESERIES_FILES", payload: { buffers } }, buffers);
+    worker.postMessage({ type: "PARSE_VROPS_TIMESERIES_FILES", payload: { files } });
   });
 }
 
-function formatIssues(result: VropsTimeSeriesParseResult): { warnings: string[]; errors: string[] } {
-  const format = (issue: VropsTimeSeriesParseResult["issues"][number]) =>
-    `${issue.row ? `Zeile ${issue.row}: ` : ""}${issue.message}`;
-  return {
-    warnings: result.issues.filter((issue) => issue.severity === "warning").map(format),
-    errors: result.issues.filter((issue) => issue.severity === "error").map(format),
-  };
+function formatMebibytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-function validateParsedFileSet(parsedFiles: VropsTimeSeriesParseResult[]): {
-  files?: Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>;
-  warnings: string[];
-  errors: string[];
-} {
-  const warnings: string[] = [];
-  const errors: string[] = [];
-  const files = {} as Partial<Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>>;
-  for (const parsed of parsedFiles) {
-    const issues = formatIssues(parsed);
-    warnings.push(...issues.warnings);
-    errors.push(...issues.errors);
-    const type = parsed.schema?.objectType;
-    if (!type) continue;
-    if (files[type]) errors.push(`Die Objektart ${type} wurde mehr als einmal geliefert.`);
-    else files[type] = parsed;
-  }
-  for (const type of ["vm", "cluster", "host"] as const) {
-    if (!files[type]) errors.push(`Die verpflichtende ${type.toUpperCase()}-CSV konnte nicht erkannt werden.`);
-  }
-  return errors.length > 0 ? { warnings, errors } : { files: files as Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>, warnings, errors };
-}
-
-/** Exportiert für Tests und den Worker-Vertrag die kompakte, noch nicht persistierte Nutzlast. */
-export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>): {
+/**
+ * Baut die Persistenz-Nutzlast aus bereits gefüllten Matrizen.
+ *
+ * Gegenstück zu {@link prepareVropsTimeSeriesPayload} für den gestreamten
+ * Importpfad: Die Float32-Felder der Matrix sind bereits der Chunk-Inhalt, es
+ * wird nur noch validiert und zusammengesetzt statt umkopiert.
+ */
+export function prepareVropsTimeSeriesPayloadFromMatrices(
+  matrices: Record<VropsTimeSeriesObjectType, VropsTimeSeriesMatrix>,
+): {
   payload?: PreparedPayload;
   errors: string[];
   warnings: string[];
@@ -265,34 +271,25 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
 } {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const grids = new Map<VropsTimeSeriesObjectType, number[]>();
+  const grids = new Map<VropsTimeSeriesObjectType, number[]>(
+    (["vm", "cluster", "host"] as const).map((type) => [type, matrices[type].timestampsUtc]),
+  );
   for (const type of ["vm", "cluster", "host"] as const) {
-    const file = files[type];
-    const timestamps = [...new Set(file.rows.map((row) => row.intervalStartUtc))].sort((left, right) => left - right);
-    if (timestamps.length === 0) errors.push(`Die ${type.toUpperCase()}-CSV enthält keine gültigen Messpunkte.`);
-    grids.set(type, timestamps);
-    const byObject = new Map<string, number[]>();
-    for (const row of file.rows) {
-      const objectTimestamps = byObject.get(row.objectName) ?? [];
-      objectTimestamps.push(row.intervalStartUtc);
-      byObject.set(row.objectName, objectTimestamps);
+    if (matrices[type].timestampsUtc.length === 0) {
+      errors.push(`Die ${type.toUpperCase()}-CSV enthält keine gültigen Messpunkte.`);
     }
-    let incompleteObjectCount = 0;
-    for (const [, objectTimestamps] of byObject) {
-      const unique = [...new Set(objectTimestamps)].sort((left, right) => left - right);
-      if (!sameGrid(unique, timestamps)) incompleteObjectCount += 1;
-    }
-    if (incompleteObjectCount > 0) {
-      warnings.push(`${type.toUpperCase()}-CSV enthält ${incompleteObjectCount.toLocaleString("de-DE")} Objekt(e) mit Teilzeitraum. Fehlende Stunden werden als Missing Values gespeichert und in der Datenqualität ausgewiesen.`);
+    const partialObjects = countPartialObjects(matrices[type]);
+    if (partialObjects > 0) {
+      warnings.push(`${type.toUpperCase()}-CSV enthält ${partialObjects.toLocaleString("de-DE")} Objekt(e) mit Teilzeitraum. Fehlende Stunden werden als Missing Values gespeichert und in der Datenqualität ausgewiesen.`);
     }
   }
+
   const gridDiagnostics = buildGridDiagnostics(grids);
   for (const diagnostic of gridDiagnostics) {
     if (diagnostic.missingHourlySlots > 0) {
       errors.push(`${diagnostic.objectType.toUpperCase()}-CSV enthält ${diagnostic.missingHourlySlots.toLocaleString("de-DE")} Lücke(n) im Stundenraster.`);
     }
   }
-  const vmGrid = grids.get("vm") ?? [];
   for (const type of ["cluster", "host"] as const) {
     const diagnostic = gridDiagnostics.find((candidate) => candidate.objectType === type)!;
     if (diagnostic.missingFromVmCount > 0 || diagnostic.additionalToVmCount > 0) {
@@ -304,13 +301,14 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
   }
   if (errors.length > 0) return { errors, warnings, gridDiagnostics };
 
+  const vmGrid = matrices.vm.timestampsUtc;
   const chunks: VropsTimeSeriesChunk[] = [];
   const summaries: VropsTimeSeriesSummary[] = [];
   const objectNames = new Map<VropsTimeSeriesObjectType, string[]>();
+
   for (const type of ["vm", "cluster", "host"] as const) {
-    const file = files[type];
-    const names = [...new Set(file.rows.map((row) => row.objectName))].sort((left, right) => left.localeCompare(right, "en-US"));
-    const objectKeys = names.map((name) => createVropsTimeSeriesObjectKey(type, name));
+    const matrix = matrices[type];
+    const objectKeys = matrix.objectNames.map((name) => createVropsTimeSeriesObjectKey(type, name));
     if (new Set(objectKeys).size !== objectKeys.length) {
       return {
         errors: [`Die ${type.toUpperCase()}-CSV enthält Objektbezeichner, die sich nur in Groß-/Kleinschreibung unterscheiden.`],
@@ -318,53 +316,40 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
         gridDiagnostics,
       };
     }
-    objectNames.set(type, names);
-    const slots = vmGrid.length;
-    const objectIndex = new Map(names.map((name, index) => [name, index]));
-    const slotIndex = new Map(vmGrid.map((timestamp, index) => [timestamp, index]));
-    const metricKeys = Object.keys(file.schema!.metricHeaders) as VropsTimeSeriesMetricKey[];
-    const numericMetricKeys = metricKeys.filter((key) => key !== "hostMaintenanceStateLast");
+    objectNames.set(type, matrix.objectNames);
+    const slots = matrix.timestampsUtc.length;
     const metricValues: VropsTimeSeriesChunk["metricValues"] = {};
-    const summaryValues = new Map<VropsTimeSeriesMetricKey, Float32Array>();
-    for (const metric of numericMetricKeys) {
-      const values = new Float32Array(names.length * slots);
-      values.fill(Number.NaN);
-      summaryValues.set(metric, values);
-      metricValues[metric] = values.buffer;
+    for (const [metric, values] of Object.entries(matrix.metricValues) as Array<[VropsTimeSeriesMetricKey, Float32Array]>) {
+      metricValues[metric] = values.buffer as ArrayBuffer;
     }
-    const maintenanceStates = metricKeys.includes("hostMaintenanceStateLast") ? Array<string | null>(names.length * slots).fill(null) : undefined;
-    const maintenanceDerived = maintenanceStates ? new Uint8Array(names.length * slots) : undefined;
-    for (const row of file.rows) {
-      const position = objectIndex.get(row.objectName)! * slots + slotIndex.get(row.intervalStartUtc)!;
-      for (const metric of numericMetricKeys) {
-        const value = row.values[metric];
-        if (typeof value === "number") summaryValues.get(metric)![position] = value;
-      }
-      if (maintenanceStates) {
-        const state = row.values.hostMaintenanceStateLast;
-        maintenanceStates[position] = typeof state === "string" ? state : null;
-        if (row.derivedMetrics?.hostMaintenanceStateLast) maintenanceDerived![position] = 1;
-      }
-    }
-    for (let index = 0; index < names.length; index += 1) {
+
+    for (let index = 0; index < objectKeys.length; index += 1) {
       const metricStats: VropsTimeSeriesSummary["metricStats"] = {};
-      for (const metric of numericMetricKeys) {
-        metricStats[metric] = summarizeMetric(summaryValues.get(metric)!, index * slots, slots);
+      for (const [metric, values] of Object.entries(matrix.metricValues) as Array<[VropsTimeSeriesMetricKey, Float32Array]>) {
+        metricStats[metric] = summarizeMetric(values, index * slots, slots);
       }
       summaries.push({ importId: "", objectKey: objectKeys[index], objectType: type, metricStats });
     }
+
     chunks.push({
       importId: "",
       objectType: type,
       chunkKey: "all",
       clusterKey: null,
-      startUtc: vmGrid[0],
+      startUtc: matrix.timestampsUtc[0],
       slotCount: slots,
       objectKeys,
       metricValues,
-      ...(maintenanceStates ? { maintenanceStates, maintenanceDerived: maintenanceDerived!.buffer } : {}),
+      ...(matrix.maintenanceCodes
+        ? {
+          maintenanceCodes: matrix.maintenanceCodes.buffer as ArrayBuffer,
+          maintenanceLexicon: matrix.maintenanceLexicon ?? [],
+          maintenanceDerived: matrix.maintenanceDerived!.buffer as ArrayBuffer,
+        }
+        : {}),
     });
   }
+
   return {
     errors,
     warnings,
@@ -378,6 +363,26 @@ export function prepareVropsTimeSeriesPayload(files: Record<VropsTimeSeriesObjec
       expectedSlots: vmGrid.length,
     },
   };
+}
+
+/** Zählt Objekte, die nicht in jedem Slot mindestens einen Messwert haben. */
+function countPartialObjects(matrix: VropsTimeSeriesMatrix): number {
+  const slots = matrix.timestampsUtc.length;
+  const metricArrays = Object.values(matrix.metricValues);
+  if (slots === 0 || metricArrays.length === 0) return 0;
+
+  let partial = 0;
+  for (let objectIndex = 0; objectIndex < matrix.objectNames.length; objectIndex += 1) {
+    const base = objectIndex * slots;
+    for (let slot = 0; slot < slots; slot += 1) {
+      const hasValue = metricArrays.some((values) => !Number.isNaN(values[base + slot]));
+      if (!hasValue) {
+        partial += 1;
+        break;
+      }
+    }
+  }
+  return partial;
 }
 
 function buildGridDiagnostics(grids: ReadonlyMap<VropsTimeSeriesObjectType, number[]>): VropsTimeSeriesGridDiagnostic[] {
@@ -426,28 +431,5 @@ function summarizeMetric(values: Float32Array, start: number, count: number): Vr
     minimum: presentSlots ? minimum : null,
     maximum: presentSlots ? maximum : null,
     average: presentSlots ? sum / presentSlots : null,
-  };
-}
-
-function sameGrid(left: number[], right: number[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function buildQualitySummary(
-  files: Record<VropsTimeSeriesObjectType, VropsTimeSeriesParseResult>,
-  payload: PreparedPayload,
-  relationshipIssues: readonly VropsRelationshipIssue[],
-): VropsTimeSeriesQualitySummary {
-  const issues = Object.values(files).flatMap((file) => file.issues);
-  return {
-    objectCountByType: {
-      vm: payload.objectNames.get("vm")?.length ?? 0,
-      cluster: payload.objectNames.get("cluster")?.length ?? 0,
-      host: payload.objectNames.get("host")?.length ?? 0,
-    },
-    expectedSlots: payload.expectedSlots,
-    errorCount: issues.filter((issue) => issue.severity === "error").length,
-    warningCount: issues.filter((issue) => issue.severity === "warning").length + relationshipIssues.length,
-    missingValueCount: issues.filter((issue) => issue.code === "missing-value").length,
   };
 }

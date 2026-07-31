@@ -1442,7 +1442,11 @@ function estimateEntryBytes(storeName: StoreName, value: unknown): number {
   if (storeName === "vrops_timeseries_chunks") {
     const chunk = value as VropsTimeSeriesChunk;
     const metricBytes = Object.values(chunk.metricValues).reduce((sum, buffer) => sum + (buffer?.byteLength ?? 0), 0);
-    return metricBytes + (chunk.maintenanceDerived?.byteLength ?? 0) + JSON.stringify(chunk.maintenanceStates ?? []).length + JSON.stringify(chunk.objectKeys).length + 128;
+    const maintenanceBytes = (chunk.maintenanceCodes?.byteLength ?? 0)
+      + JSON.stringify(chunk.maintenanceLexicon ?? []).length
+      // Legacy-Importe halten die Zustände noch als String-Array.
+      + JSON.stringify(chunk.maintenanceStates ?? []).length;
+    return metricBytes + (chunk.maintenanceDerived?.byteLength ?? 0) + maintenanceBytes + JSON.stringify(chunk.objectKeys).length + 128;
   }
   return JSON.stringify(value).length;
 }

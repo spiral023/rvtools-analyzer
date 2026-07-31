@@ -1,5 +1,12 @@
 # Changelog
 
+## 01.08.2026
+
+- vROps-Zeitreihen über einen vollen Monat sind jetzt importierbar. Ein Satz aus 5.000 VMs über 30 Tage – 3,6 Millionen Messzeilen und rund 240 MB CSV – benötigt beim Import noch etwa 290 MB Arbeitsspeicher statt zuvor über 2,6 GB. Bisher scheiterten solche Dateisätze im Browser am Speicherlimit; praktikabel waren nur rund sieben Tage. Die Dateien werden dafür im Hintergrund gestreamt und direkt in die kompakte Stunden-Matrix geschrieben, statt zunächst jede Zeile als Einzelobjekt aufzubauen. Die Importdauer bleibt unverändert, die gespeicherten Werte sind identisch.
+- Der Importfortschritt zeigt jetzt den gelesenen Anteil je Datei und Durchgang statt einer Zeilenzählung.
+- Meldungen zur Datenqualität werden je Fehlerart auf 50 Beispiele begrenzt; die vollständige Anzahl bleibt in der Auswertung erhalten. Ein systematischer Fehler in einer grossen Datei erzeugt damit keine unbegrenzte Meldungsliste mehr.
+- Wartungszustände von Hosts werden platzsparender abgelegt. Bereits importierte Zeitreihen bleiben unverändert nutzbar, ein Neuimport ist nicht nötig.
+
 ## 30.07.2026
 
 - Die Fill-Up-Kapazität erscheint nach dem Vorladen ohne Wartezeit. Das Vorladen berechnet die Auswertung jetzt mit genau den Werten, mit denen die Seite startet – dem CPU-Gleichzeitigkeitsfaktor der Oberfläche und der typischen zusätzlichen VM aus den gemessenen HIGH-/STD-Durchschnitten. Zuvor verfehlte das vorberechnete Ergebnis die Anfrage der Oberfläche, weshalb trotz Vorladen rund zehn Sekunden neu gerechnet wurde. Läuft eine Neuberechnung nach einer Wertänderung, weist ein gelber Hinweis darauf hin, dass Kennzahlen, Clustervergleich und Details noch den vorherigen Stand zeigen; er verschwindet automatisch, sobald die Berechnung fertig ist.
