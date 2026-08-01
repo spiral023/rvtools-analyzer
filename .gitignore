@@ -34,4 +34,17 @@ referenzdaten/
 tmp/
 .worktrees/
 .superpowers/
+
+# Produktivdaten und daraus erzeugte Auswertungen. Sie enthalten reale
+# Kundenumgebungen bzw. deren pseudonymisierte Ableitungen und gehören nicht
+# in die Versionsverwaltung — die Exporte sind zudem zweistellige MB gross.
 rvtools-export*.csv
+rvtools-analyse_*.zip
+rvtools-analyse_*/
+vrops-*.csv
+
+# Lokal abgelegte Fremdseiten im Projektwurzelverzeichnis (Herstellerdoku,
+# gespeicherte Recherche). Die Einstiegsseite der Anwendung bleibt ausgenommen.
+/*.html
+/*.htm
+!/index.html
