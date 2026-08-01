@@ -257,7 +257,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
                 patchItem(item.id, { progress });
               })
               : lowerCaseFileName.endsWith(".json")
-                ? await importUserDataBackupFile(file).then(() => ({ success: true, fileKind: "user-data-backup" as const, warnings: [], errors: [] }))
+                ? await importUserDataBackupFile(file).then<ImportResult>(() => ({ success: true, fileKind: "user-data-backup", warnings: [], errors: [] }))
                 : await importRvtoolsXlsx(file, (progress) => {
                   patchItem(item.id, { progress });
                 });
