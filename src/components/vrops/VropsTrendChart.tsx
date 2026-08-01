@@ -162,10 +162,16 @@ export function VropsTrendChart({
   const cpuPeak = valuePeak(chartData, "cpuHigh");
   const secondaryPeak = hasSecondary ? valuePeak(chartData, secondaryDataKey) : null;
   const avoidanceThreshold = cpuDemandAvoidanceThreshold(cpuCapacityMHz, chartUnit);
+  // Die Vermeidungszone beschreibt den kompletten Bereich von 80 bis 100 %
+  // der Kapazität, nicht nur den Teil bis zum aktuell beobachteten Peak.
+  // Peaks oberhalb der Kapazität sollen dabei weiterhin vollständig markiert
+  // bleiben.
+  const avoidanceScaleUpperBound = isPercent ? 100 : toGigahertz(cpuCapacityMHz);
   const avoidanceZoneMax = typeof cpuPeak?.cpuHigh === "number"
     && avoidanceThreshold !== null
+    && avoidanceScaleUpperBound !== null
     && cpuPeak.cpuHigh > avoidanceThreshold
-    ? cpuPeak.cpuHigh
+    ? Math.max(avoidanceScaleUpperBound, cpuPeak.cpuHigh)
     : null;
 
   // Die Ø-Woche liegt immer auf der künstlichen Woche ab Montag, 01.01.2024.
@@ -319,6 +325,7 @@ export function VropsTrendChart({
                   yAxisId="cpu"
                   y1={avoidanceThreshold}
                   y2={avoidanceZoneMax}
+                  ifOverflow="extendDomain"
                   fill="hsl(var(--destructive))"
                   fillOpacity={0.085}
                   strokeOpacity={0}
@@ -347,6 +354,7 @@ export function VropsTrendChart({
               hide={!cpuVisible}
               tick={{ fontSize: 10 }}
               width={46}
+              domain={["dataMin", avoidanceZoneMax ?? "dataMax"]}
               tickFormatter={cpuDataKey === "cpuPct" ? (value: number) => `${value} %` : undefined}
             />
             {hasSecondary && (

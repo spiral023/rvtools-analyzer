@@ -6,18 +6,21 @@ vi.mock("@/components/charts/recharts", () => {
   const Responsive = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   const Chart = ({ children }: { children?: ReactNode }) => <svg>{children}</svg>;
   const Empty = (): null => null;
+  const Reference = ({ y1, y2, yAxisId }: { y1?: number; y2?: number; yAxisId?: string }) => (
+    <g data-testid={`reference-area-${yAxisId ?? "default"}-${y1 ?? "x"}`} data-y2={y2} />
+  );
   return {
     Area: Empty,
     CartesianGrid: Empty,
     ComposedChart: Chart,
     Line: Empty,
-    ReferenceArea: Empty,
+    ReferenceArea: Reference,
     ReferenceDot: ({ yAxisId, label }: { yAxisId?: string; label?: { value?: string } }) => <g data-testid={`reference-dot-${yAxisId}`} data-label={label?.value} />,
     ReferenceLine: Empty,
     ResponsiveContainer: Responsive,
     Tooltip: Empty,
     XAxis: Empty,
-    YAxis: ({ yAxisId }: { yAxisId?: string }) => <g data-testid={`axis-${yAxisId}`} />,
+    YAxis: ({ yAxisId, domain }: { yAxisId?: string; domain?: unknown }) => <g data-testid={`axis-${yAxisId}`} data-domain={JSON.stringify(domain)} />,
   };
 });
 
@@ -65,5 +68,21 @@ describe("VropsTrendChart", () => {
 
     expect(screen.getByTestId("axis-secondary")).toBeInTheDocument();
     expect(screen.getByTestId("reference-dot-secondary")).toHaveAttribute("data-label", "Peak · 50,00 %");
+  });
+
+  it("zeichnet die Vermeidungszone im Prozentmodus vollständig von 80 bis 100 Prozent", () => {
+    render(
+      <VropsTrendChart
+        hourly={[{ ...hourly[0], cpuDemandMHz: 7_500, cpuDemandMaxMHz: 9_000 }]}
+        cpuCapacityMHz={10_000}
+        secondaryCapacity={null}
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("reference-area-cpu-80")).toHaveAttribute("data-y2", "100");
+    expect(screen.getByTestId("axis-cpu")).toHaveAttribute("data-domain", JSON.stringify(["dataMin", 100]));
   });
 });
