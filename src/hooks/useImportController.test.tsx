@@ -108,6 +108,7 @@ describe("ImportProvider", () => {
       scenariosImported: 3,
       vcenterGroupsImported: 4,
       vmScopeSettingsImported: true,
+      techInfoOrganisationTablePreferencesImported: true,
     });
     const backup = new File(["{}"], "rvtools-analyzer-backup-2026-08-01.json", { type: "application/json" });
     const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
