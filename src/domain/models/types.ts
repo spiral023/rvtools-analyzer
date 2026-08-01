@@ -1175,6 +1175,8 @@ export interface VmRightsizingGroupSummary {
   candidateCount: number;
   totalVcpu: number;
   reclaimableVcpu: number;
+  /** Anteil der konfigurierten vCPU, der in dieser Gruppe potenziell frei wird. */
+  reclaimableVcpuPercent: number | null;
 }
 
 /** Zusammensetzung einer gemeinsamen zusätzlichen HIGH-/STD-Workloadmenge. */

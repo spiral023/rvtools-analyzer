@@ -25,7 +25,7 @@ import {
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
-import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
@@ -36,6 +36,8 @@ import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 /** Dieselbe Reihenfolge wie im VM-Profile-Tab, damit die Farbzuordnung je Lastmuster app-weit konsistent bleibt. */
 const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+/** Aufsteigend nach Auslastung; die Tabelle sortiert damit nach der Skala statt nach dem Label. */
+const INTENSITY_ORDER: VmRightsizingCandidate["intensity"][] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
 const shapeColor = (shape: VmWorkloadShape) => SEVERITY_COLORS[SHAPE_ORDER.indexOf(shape) % SEVERITY_COLORS.length];
 
 function formatPercent(value: number | null): string {
@@ -67,6 +69,7 @@ const summaryColumns: ColumnDef<VmRightsizingGroupSummary, unknown>[] = [
   { accessorKey: "candidateCount", header: "Kandidaten", cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "totalVcpu", header: "vCPU gesamt", cell: ({ getValue }) => formatVcpu(getValue() as number) },
   { accessorKey: "reclaimableVcpu", header: "Rückgewinnbar", cell: ({ getValue }) => { const value = getValue() as number; return <span className={value > 0 ? "font-semibold text-warning" : "font-medium"}>{formatVcpu(value)}</span>; } },
+  { accessorKey: "reclaimableVcpuPercent", header: "Rückgewinnbar %", cell: ({ getValue }) => { const value = getValue() as number | null; return <span className={value !== null && value > 0 ? "font-semibold text-warning" : "text-muted-foreground"}>{formatPercent(value)}</span>; } },
 ];
 
 export function VmRightsizingPanel() {
@@ -128,7 +131,7 @@ export function VmRightsizingPanel() {
       id: "intensity",
       header: "Niveau",
       meta: { info: RIGHTSIZING_COLUMNS.intensity },
-      accessorFn: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity],
+      accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },

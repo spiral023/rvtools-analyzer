@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
+  Check,
   Cpu,
   Gauge,
   Monitor,
@@ -33,6 +36,7 @@ import {
 } from "@/components/detail/SystemDetailLayout";
 import type { DetailDossier, DetailField, DetailKpi } from "@/lib/detailExport";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
+import { WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
 import { describeTrendRange } from "@/lib/trendDownsampling";
 import { VmTechnicalSections } from "@/components/vm/VmTechnicalSections";
 
@@ -77,6 +81,56 @@ function vmTone(value: string | null): DetailKpi["tone"] {
   if (normalized === "poweredon" || normalized === "on" || normalized === "green") return "good";
   if (!value) return "neutral";
   return "warning";
+}
+
+function rightsizingNarrative(rightsizing: VmRightsizingCandidate | null, reclaimable: number, additional: number): string {
+  if (additional > 0) return `CPU vergrößern prüfen: voraussichtlich ${additional} vCPU zusätzlich nötig.`;
+  if (reclaimable > 0) return `CPU verkleinern prüfen: ${reclaimable} vCPU könnten frei werden.`;
+  if (rightsizing?.recommendationWithheldReason) return "Für Rightsizing reichen die Messdaten noch nicht aus.";
+  return "Die aktuelle CPU-Größe wirkt passend.";
+}
+
+function VmCpuSummary({
+  vm,
+  workloadProfile,
+  rightsizing,
+  p95Pct,
+  reclaimable,
+  additional,
+}: {
+  vm: NormalizedVm;
+  workloadProfile: VmWorkloadProfile | null;
+  rightsizing: VmRightsizingCandidate | null;
+  p95Pct: number | null;
+  reclaimable: number;
+  additional: number;
+}) {
+  if (!workloadProfile) {
+    return <p>Keine zugeordnete vROps-Zeitreihe – CPU-Auslastung und Rightsizing sind derzeit nicht beurteilbar.</p>;
+  }
+
+  const hasUpsizingNeed = additional > 0;
+  const hasDownsizingPotential = reclaimable > 0;
+  const actionText = rightsizingNarrative(rightsizing, reclaimable, additional);
+  const actionClass = hasUpsizingNeed
+    ? "border-destructive/30 bg-destructive/10 text-destructive"
+    : hasDownsizingPotential
+      ? "border-warning/30 bg-warning/10 text-warning"
+      : "border-success/30 bg-success/10 text-success";
+  const ActionIcon = hasUpsizingNeed ? ArrowUp : hasDownsizingPotential ? ArrowDown : Check;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="font-medium">CPU-Auslastung P95 {percent(p95Pct)}</span>
+      <WorkloadIntensityBadge intensity={workloadProfile.intensity} />
+      <span className="text-muted-foreground">Muster: {VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape]}</span>
+      <span className="text-muted-foreground">Konfiguriert: {vm.cpuCount ?? "—"} vCPU</span>
+      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${actionClass}`}>
+        <ActionIcon className="size-3.5" aria-hidden="true" />
+        {actionText}
+      </span>
+    </div>
+  );
 }
 
 export function VmDetailDialog({
@@ -227,8 +281,8 @@ export function VmDetailDialog({
   ] : [];
 
   const narrative = workloadProfile
-    ? `Die VM ist mit ${vm.cpuCount ?? "unbekannt vielen"} vCPU und ${formatBytes(vm.memoryMiB)} RAM konfiguriert. Das beobachtete Muster ist „${VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape]}“ bei ${VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity].toLocaleLowerCase("de-DE")}er Auslastung. ${reclaimable > 0 ? `Nach Prüfung könnten schrittweise ${reclaimable} vCPU zurückgewonnen werden.` : "Aktuell ergibt sich kein unmittelbar umsetzbarer CPU-Rightsizing-Schritt."}`
-    : `Die VM ist mit ${vm.cpuCount ?? "unbekannt vielen"} vCPU und ${formatBytes(vm.memoryMiB)} RAM konfiguriert. Für eine belastbare Auslastungs- und Rightsizing-Einschätzung ist derzeit keine zugeordnete vROps-Zeitreihe verfügbar.`;
+    ? `CPU-Auslastung P95: ${percent(p95Pct)} (${VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity]}), Muster: ${VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape]}. ${rightsizingNarrative(rightsizing, reclaimable, additional)}`
+    : "Keine zugeordnete vROps-Zeitreihe – CPU-Auslastung und Rightsizing sind derzeit nicht beurteilbar.";
 
   const dossier: DetailDossier = {
     kind: "VM",
@@ -358,7 +412,14 @@ export function VmDetailDialog({
         dossier={dossier}
       >
         <DetailNarrative source={workloadProfile ? "RVTools · Tech-Info · vROps" : "RVTools · optionale Zusatzdaten"}>
-          {narrative}
+          <VmCpuSummary
+            vm={vm}
+            workloadProfile={workloadProfile}
+            rightsizing={rightsizing}
+            p95Pct={p95Pct}
+            reclaimable={reclaimable}
+            additional={additional}
+          />
         </DetailNarrative>
         <DetailKpiGrid items={kpis} />
 

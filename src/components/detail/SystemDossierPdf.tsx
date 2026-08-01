@@ -12,6 +12,7 @@ import {
 } from "@react-pdf/renderer";
 import type { DetailDossier, DetailField, DetailTable } from "@/lib/detailExport";
 import { formatCpuDemand, formatDetailTimestamp, getTrendPeak } from "@/lib/detailExport";
+import { buildAverageWeekTrendPoints } from "@/lib/trendDownsampling";
 
 const colors = {
   ink: "#16202a",
@@ -88,10 +89,23 @@ function PdfTable({ table }: { table: DetailTable }) {
   );
 }
 
-function TrendVector({ dossier }: { dossier: DetailDossier }) {
+function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; view?: "timeline" | "average-week" }) {
   const trend = dossier.trend;
   if (!trend?.points.length) return null;
-  const values = trend.points.map((point) => point.cpuDemandMHz ?? 0);
+  const points = view === "average-week"
+    ? buildAverageWeekTrendPoints(trend.points.map((point) => ({
+      timestampMs: point.timestampUtc,
+      cpu: point.cpuDemandMHz,
+      cpuPeak: point.cpuDemandMaxMHz,
+      secondary: point.secondaryValue,
+    }))).map((point) => ({
+      timestampUtc: point.timestampMs,
+      cpuDemandMHz: point.cpu,
+      cpuDemandMaxMHz: point.cpuPeak,
+      secondaryValue: point.secondary,
+    }))
+    : trend.points;
+  const values = points.map((point) => point.cpuDemandMHz ?? 0);
   const maximum = Math.max(...values, 1);
   const width = 520;
   const height = 150;
@@ -99,27 +113,27 @@ function TrendVector({ dossier }: { dossier: DetailDossier }) {
   const plotTop = 14;
   const plotWidth = width - plotLeft - 10;
   const plotHeight = height - plotTop - 28;
-  const xFor = (index: number) => plotLeft + (index / Math.max(trend.points.length - 1, 1)) * plotWidth;
+  const xFor = (index: number) => plotLeft + (index / Math.max(points.length - 1, 1)) * plotWidth;
   const yFor = (value: number) => plotTop + plotHeight - (value / maximum) * plotHeight;
-  const polyline = trend.points.map((point, index) => `${xFor(index)},${yFor(point.cpuDemandMHz ?? 0)}`).join(" ");
-  const peak = getTrendPeak(trend.points);
-  const peakIndex = peak ? trend.points.indexOf(peak) : -1;
-  const dayStarts = trend.points.reduce<number[]>((indices, point, index) => {
-    if (index === 0 || new Date(point.timestampUtc).getDate() !== new Date(trend.points[index - 1].timestampUtc).getDate()) indices.push(index);
+  const polyline = points.map((point, index) => `${xFor(index)},${yFor(point.cpuDemandMHz ?? 0)}`).join(" ");
+  const peak = getTrendPeak(points);
+  const peakIndex = peak ? points.indexOf(peak) : -1;
+  const dayStarts = points.reduce<number[]>((indices, point, index) => {
+    if (index === 0 || new Date(point.timestampUtc).getDate() !== new Date(points[index - 1].timestampUtc).getDate()) indices.push(index);
     return indices;
   }, []);
 
   return (
     <View style={styles.section} wrap={false}>
-      <View style={styles.sectionTitleRow}><View style={styles.sectionMarker} /><Text style={styles.sectionTitle}>{trend.title}</Text></View>
+      <View style={styles.sectionTitleRow}><View style={styles.sectionMarker} /><Text style={styles.sectionTitle}>{view === "average-week" ? `${trend.title} · Durchschnittliche Woche` : trend.title}</Text></View>
       <View style={styles.trendMeta}>
-        <Text>Stündliche CPU-Demand-Werte · Wochenende grau markiert</Text>
+        <Text>{view === "average-week" ? "Mittelwert je Wochenstunde · Wochenende grau markiert" : "Stündliche CPU-Demand-Werte · Wochenende grau markiert"}</Text>
         <Text>{trend.importedAt ? `Import ${new Date(trend.importedAt).toLocaleDateString("de-DE")}` : ""}</Text>
       </View>
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         {dayStarts.map((start, dayIndex) => {
-          const end = dayStarts[dayIndex + 1] ?? trend.points.length - 1;
-          const isWeekend = [0, 6].includes(new Date(trend.points[start].timestampUtc).getDay());
+          const end = dayStarts[dayIndex + 1] ?? points.length - 1;
+          const isWeekend = [0, 6].includes(new Date(points[start].timestampUtc).getDay());
           return isWeekend ? <Rect key={start} x={xFor(start)} y={plotTop} width={Math.max(xFor(end) - xFor(start), 1)} height={plotHeight} fill={colors.weekend} /> : null;
         })}
         {[0, 0.5, 1].map((ratio) => (
@@ -138,11 +152,13 @@ function TrendVector({ dossier }: { dossier: DetailDossier }) {
         <Text x={20} y={plotTop + plotHeight + 2} style={{ fontSize: 6, fill: colors.muted }}>0</Text>
         {dayStarts.map((index) => (
           <Text key={index} x={xFor(index)} y={height - 8} style={{ fontSize: 6, fill: colors.muted }}>
-            {new Date(trend.points[index].timestampUtc).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+            {view === "average-week"
+              ? ["MO", "DI", "MI", "DO", "FR", "SA", "SO"][(new Date(points[index].timestampUtc).getDay() + 6) % 7]
+              : new Date(points[index].timestampUtc).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
           </Text>
         ))}
       </Svg>
-      {peak && <Text style={styles.note}>Höchster gemessener CPU-Demand: {formatCpuDemand(peak.cpuDemandMHz)} am {formatDetailTimestamp(peak.timestampUtc)}.</Text>}
+      {peak && <Text style={styles.note}>{view === "average-week" ? "Höchster Wochenstunden-Peak" : "Höchster gemessener CPU-Demand"}: {formatCpuDemand(peak.cpuDemandMHz)} am {view === "average-week" ? new Date(peak.timestampUtc).toLocaleString("de-DE", { weekday: "long", hour: "2-digit", minute: "2-digit" }) : formatDetailTimestamp(peak.timestampUtc)}.</Text>}
     </View>
   );
 }
@@ -165,6 +181,7 @@ export function SystemDossierPdf({ dossier, pseudonymized }: { dossier: DetailDo
           ))}
         </View>
         <TrendVector dossier={dossier} />
+        <TrendVector dossier={dossier} view="average-week" />
         {dossier.sections.map((section) => (
           <View key={section.title} style={styles.section}>
             <View style={styles.sectionTitleRow} minPresenceAhead={60}>

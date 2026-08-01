@@ -69,7 +69,7 @@ export function DetailNarrative({ children, source }: { children: ReactNode; sou
   return (
     <div className="detail-surface relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.08] via-card to-card px-4 py-3.5 shadow-[var(--detail-surface-shadow)] sm:px-5">
       <div className="absolute inset-y-0 left-0 w-1 bg-primary" />
-      <p className="w-full text-sm leading-6 text-pretty">{children}</p>
+      <div className="w-full text-sm leading-6 text-pretty">{children}</div>
       {source && (
         <p className="mt-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.11em] text-muted-foreground">
           <Database className="size-3" /> {source}

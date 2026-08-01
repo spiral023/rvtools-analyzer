@@ -254,10 +254,10 @@ export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   },
   clusterSummary: {
     term: "Rückgewinnbare vCPU je Cluster",
-    description: "Summiert die rückgewinnbare vCPU-Kapazität aller Kandidaten je Cluster – ein Ausgangspunkt für Konsolidierung oder Fill-Up-Planung.",
+    description: "Summiert die rückgewinnbare vCPU-Kapazität aller Kandidaten je Cluster. Der Prozentwert setzt dieses Potenzial zur gesamten konfigurierten vCPU-Menge des Clusters ins Verhältnis – ein Ausgangspunkt für Konsolidierung oder Fill-Up-Planung.",
   },
   shapeSummary: {
     term: "Rückgewinnbare vCPU je Lastmuster",
-    description: "Summiert die rückgewinnbare vCPU-Kapazität je zeitlichem Lastmuster aus dem VM-Profile-Tab – zeigt, welche Muster das größte Rightsizing-Potenzial haben. Bewusst nach Muster statt nach Verhaltensklasse gruppiert: Rightsizing-Kandidaten sind ohnehin überwiegend schwach ausgelastet, wodurch eine Gruppierung nach Verhaltensklasse fast alle in „gering genutzt“ sammeln würde.",
+    description: "Summiert die rückgewinnbare vCPU-Kapazität je zeitlichem Lastmuster aus dem VM-Profile-Tab. Der Prozentwert bezieht sie auf die insgesamt konfigurierten vCPU dieses Musters und zeigt so die relative Rückgewinnbarkeit. Bewusst nach Muster statt nach Verhaltensklasse gruppiert: Rightsizing-Kandidaten sind ohnehin überwiegend schwach ausgelastet, wodurch eine Gruppierung nach Verhaltensklasse fast alle in „gering genutzt“ sammeln würde.",
   },
 };

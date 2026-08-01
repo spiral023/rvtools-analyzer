@@ -279,12 +279,27 @@ function summarizeBy(
   const groups = new Map<string, VmRightsizingGroupSummary>();
   for (const candidate of candidates) {
     const { key, label } = keyOf(candidate);
-    const group = groups.get(key) ?? { key, label, vmCount: 0, candidateCount: 0, totalVcpu: 0, reclaimableVcpu: 0 };
+    const group = groups.get(key) ?? {
+      key,
+      label,
+      vmCount: 0,
+      candidateCount: 0,
+      totalVcpu: 0,
+      reclaimableVcpu: 0,
+      reclaimableVcpuPercent: null,
+    };
     group.vmCount += 1;
     group.totalVcpu += candidate.vcpu ?? 0;
     group.reclaimableVcpu += candidate.reclaimableVcpu ?? 0;
     if (isNotableRightsizingCandidate(candidate)) group.candidateCount += 1;
     groups.set(key, group);
   }
-  return [...groups.values()].sort((left, right) => right.reclaimableVcpu - left.reclaimableVcpu);
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      reclaimableVcpuPercent: group.totalVcpu > 0
+        ? (group.reclaimableVcpu / group.totalVcpu) * 100
+        : null,
+    }))
+    .sort((left, right) => right.reclaimableVcpu - left.reclaimableVcpu);
 }

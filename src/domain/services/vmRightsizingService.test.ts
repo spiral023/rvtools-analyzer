@@ -350,7 +350,7 @@ describe("summarizeReclaimableVcpuByCluster / summarizeReclaimableVcpuByBehavior
 
     const byCluster = summarizeReclaimableVcpuByCluster(candidates);
     expect(byCluster.map((entry) => entry.label)).toEqual(["Cluster A", "Cluster B"]);
-    expect(byCluster[0]).toMatchObject({ vmCount: 1, totalVcpu: 8 });
+    expect(byCluster[0]).toMatchObject({ vmCount: 1, totalVcpu: 8, reclaimableVcpuPercent: 75 });
     expect(byCluster[0].reclaimableVcpu).toBeGreaterThan(byCluster[1].reclaimableVcpu);
 
     const byBehavior = summarizeReclaimableVcpuByBehaviorClass(candidates);

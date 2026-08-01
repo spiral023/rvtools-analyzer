@@ -45,6 +45,10 @@ function valuePeak<T extends Record<string, unknown>>(points: readonly T[], key:
   }, null);
 }
 
+function toGigahertz(value: number | null): number | null {
+  return value === null ? null : value / 1_000;
+}
+
 interface VropsTrendChartProps {
   hourly: VropsObjectTrendPoint[];
   cpuCapacityMHz: number | null;
@@ -121,7 +125,6 @@ export function VropsTrendChart({
     : aggregateTrendPoints(sourcePoints, windowHours);
   const hasBand = sampled.some((point) => point.sampleCount > 1 || point.cpuPeak !== null);
   const toPercent = (value: number | null) => (value === null || !cpuCapacityMHz ? null : (value / cpuCapacityMHz) * 100);
-  const toGigahertz = (value: number | null) => (value === null ? null : value / 1_000);
 
   const chartData = sampled.map((point) => {
     const low = isPercent && cpuCapacityMHz ? toPercent(point.cpuLow) : toGigahertz(point.cpuLow);
@@ -161,16 +164,21 @@ export function VropsTrendChart({
     ? cpuPeak.cpuHigh
     : null;
 
-  // Bewusst aus den unverdichteten Stundenwerten: Sonst bekämen die Flächen Lücken.
-  const shadeTimestamps = chartView === "average-week" ? sampled.map((point) => point.timestampMs) : hourly.map((point) => point.timestampUtc);
-  const weekendRanges = shadeTimestamps.reduce<Array<{ start: number; end: number }>>((ranges, timestamp) => {
-    const date = new Date(timestamp);
-    if (![0, 6].includes(date.getDay())) return ranges;
-    const last = ranges.at(-1);
-    if (last && timestamp - last.end <= HOUR_MS) last.end = timestamp;
-    else ranges.push({ start: timestamp, end: timestamp });
-    return ranges;
-  }, []);
+  // Die Ø-Woche liegt immer auf der künstlichen Woche ab Montag, 01.01.2024.
+  // Das Wochenende wird daher als vollständiger, fester Bereich eingezeichnet –
+  // auch wenn einzelne Wochenstunden keine verwertbaren Messwerte enthalten.
+  const weekendRanges = chartView === "average-week"
+    ? [{ start: new Date(2024, 0, 6).getTime(), end: new Date(2024, 0, 8).getTime() }]
+    // Im Zeitverlauf nur tatsächlich vorhandene Wochenendstunden hervorheben,
+    // damit Lücken im Import nicht als Messdaten wirken.
+    : hourly.map((point) => point.timestampUtc).reduce<Array<{ start: number; end: number }>>((ranges, timestamp) => {
+      const date = new Date(timestamp);
+      if (![0, 6].includes(date.getDay())) return ranges;
+      const last = ranges.at(-1);
+      if (last && timestamp - last.end <= HOUR_MS) last.end = timestamp;
+      else ranges.push({ start: timestamp, end: timestamp });
+      return ranges;
+    }, []);
   const holidayRanges = chartView === "timeline" ? findAustrianPublicHolidayRanges(hourly.map((point) => point.timestampUtc)) : [];
   const holidayNames = [...new Set(holidayRanges.map((range) => range.name))];
 
@@ -286,7 +294,7 @@ export function VropsTrendChart({
             </defs>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.55} />
             {weekendRanges.map((range) => (
-              <ReferenceArea key={`weekend-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--muted-foreground))" fillOpacity={0.065} strokeOpacity={0} />
+              <ReferenceArea key={`weekend-${range.start}`} yAxisId="cpu" x1={range.start} x2={chartView === "average-week" ? range.end : range.end + HOUR_MS} fill="hsl(var(--muted-foreground))" fillOpacity={0.065} strokeOpacity={0} />
             ))}
             {holidayRanges.map((range) => (
               <ReferenceArea key={`holiday-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--warning))" fillOpacity={0.11} strokeOpacity={0} />

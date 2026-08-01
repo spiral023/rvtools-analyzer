@@ -1,4 +1,5 @@
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
+import { buildAverageWeekTrendPoints } from "@/lib/trendDownsampling";
 
 export type DetailSensitivity = "identifier" | "person" | "department" | "text" | "network";
 
@@ -46,6 +47,15 @@ export interface DetailDossier {
   trend?: DetailTrend;
   sourceDate?: string | null;
 }
+
+export interface DetailAverageWeekDay {
+  label: string;
+  averageCpuDemandMHz: number | null;
+  peakCpuDemandMHz: number | null;
+  observedHours: number;
+}
+
+const WEEKDAY_LABELS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 const PLACEHOLDER_PREFIX: Record<DetailSensitivity, string> = {
   identifier: "System",
@@ -151,10 +161,17 @@ export function buildDossierMarkdown(dossier: DetailDossier, pseudonymized = fal
   }
   if (dossier.trend?.points.length) {
     const peak = getTrendPeak(dossier.trend.points);
+    const averageWeek = summarizeAverageWeek(dossier.trend.points);
     lines.push(
       "## Auslastungsverlauf",
       "",
       `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.cpuDemandMHz)}` : ""}.`,
+      "",
+      "### Durchschnittliche Woche",
+      "",
+      "| Wochentag | CPU Demand Ø | CPU Demand Peak | Beobachtete Stunden |",
+      "| --- | --- | --- | ---: |",
+      ...averageWeek.map((day) => `| ${day.label} | ${formatCpuDemand(day.averageCpuDemandMHz)} | ${formatCpuDemand(day.peakCpuDemandMHz)} | ${day.observedHours.toLocaleString("de-DE")} |`),
       "",
     );
   }
@@ -193,9 +210,13 @@ export function buildDossierConfluence(dossier: DetailDossier, pseudonymized = f
   }
   if (dossier.trend?.points.length) {
     const peak = getTrendPeak(dossier.trend.points);
+    const averageWeek = summarizeAverageWeek(dossier.trend.points);
     lines.push(
       "h2. Auslastungsverlauf",
       `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.cpuDemandMHz)}` : ""}.`,
+      "h3. Durchschnittliche Woche",
+      "|| Wochentag || CPU Demand Ø || CPU Demand Peak || Beobachtete Stunden ||",
+      ...averageWeek.map((day) => `| ${day.label} | ${formatCpuDemand(day.averageCpuDemandMHz)} | ${formatCpuDemand(day.peakCpuDemandMHz)} | ${day.observedHours.toLocaleString("de-DE")} |`),
       "",
     );
   }
@@ -245,4 +266,26 @@ export function getTrendPeak(points: VropsObjectTrendPoint[]): VropsObjectTrendP
         : peak,
     null,
   );
+}
+
+/** Verdichtet die Zeitreihe für menschenlesbare Exporte auf eine typische Montag-bis-Sonntag-Woche. */
+export function summarizeAverageWeek(points: VropsObjectTrendPoint[]): DetailAverageWeekDay[] {
+  const averageWeek = buildAverageWeekTrendPoints(points.map((point) => ({
+    timestampMs: point.timestampUtc,
+    cpu: point.cpuDemandMHz,
+    cpuPeak: point.cpuDemandMaxMHz,
+    secondary: point.secondaryValue,
+  })));
+
+  return WEEKDAY_LABELS.map((label, dayIndex) => {
+    const dayPoints = averageWeek.filter((point) => Math.floor(point.weekHour / 24) === dayIndex);
+    const values = dayPoints.map((point) => point.cpu).filter((value): value is number => value !== null);
+    const peaks = dayPoints.map((point) => point.cpuHigh).filter((value): value is number => value !== null);
+    return {
+      label,
+      averageCpuDemandMHz: values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
+      peakCpuDemandMHz: peaks.length > 0 ? Math.max(...peaks) : null,
+      observedHours: values.length,
+    };
+  });
 }

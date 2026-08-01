@@ -8,6 +8,7 @@ import {
   detailFileName,
   getTrendPeak,
   pseudonymizeDetailDossier,
+  summarizeAverageWeek,
   type DetailDossier,
 } from "@/lib/detailExport";
 
@@ -65,14 +66,23 @@ describe("detail export", () => {
     expect(markdown).toContain("# VM srv-production-01");
     expect(markdown).toContain("## Auslastungsverlauf");
     expect(markdown).toContain("höchster CPU-Demand");
+    expect(markdown).toContain("### Durchschnittliche Woche");
     expect(confluence).toContain("h1. VM srv-production-01");
     expect(confluence).toContain("|| Kennzahl || Wert || Einordnung ||");
     expect(confluence).toContain("h2. Auslastungsverlauf");
+    expect(confluence).toContain("h3. Durchschnittliche Woche");
   });
 
   it("findet den höchsten Zeitreihen-Peak und erzeugt sichere Dateinamen", () => {
     expect(getTrendPeak(dossier.trend?.points ?? [])?.cpuDemandMHz).toBe(8_000);
     expect(detailFileName("VM", "Server / Produktion 01", true, "pdf")).toBe("vm-server-produktion-01-pseudonymisiert.pdf");
+  });
+
+  it("verdichtet die Zeitreihe für Exporte zu einer durchschnittlichen Woche", () => {
+    const averageWeek = summarizeAverageWeek(dossier.trend?.points ?? []);
+    expect(averageWeek).toHaveLength(7);
+    expect(averageWeek.find((day) => day.label === "Samstag")).toMatchObject({ averageCpuDemandMHz: 2_000, peakCpuDemandMHz: 2_000, observedHours: 1 });
+    expect(averageWeek.find((day) => day.label === "Sonntag")).toMatchObject({ averageCpuDemandMHz: 8_000, peakCpuDemandMHz: 8_000, observedHours: 1 });
   });
 
   it("rendert ein valides A4-PDF-Datenblatt", async () => {
