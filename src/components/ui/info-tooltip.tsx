@@ -13,6 +13,12 @@ interface InfoTooltipProps {
   align?: "start" | "center" | "end";
   /** Öffnungsverzögerung in ms (Standard 250 – flotter als der globale Default). */
   delayDuration?: number;
+  /**
+   * Rechnet die Erklärung an den gerade angezeigten Zahlen vor. Bewusst dynamisch statt
+   * als fester Beispieltext im Glossar: Ein Satz aus dem eigenen Bestand erklärt eine
+   * Kennzahl schneller als ein erfundener, und er bleibt bei jedem Filter richtig.
+   */
+  example?: React.ReactNode;
 }
 
 /**
@@ -26,6 +32,7 @@ export function InfoTooltip({
   side = "top",
   align = "start",
   delayDuration = 250,
+  example,
 }: InfoTooltipProps) {
   if (!entry) return <>{children}</>;
 
@@ -37,13 +44,13 @@ export function InfoTooltip({
         align={align}
         className="max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal break-words border-border/80 bg-popover p-0 shadow-lg"
       >
-        <GlossaryCard entry={entry} />
+        <GlossaryCard entry={entry} example={example} />
       </TooltipContent>
     </Tooltip>
   );
 }
 
-function GlossaryCard({ entry, className }: { entry: GlossaryEntry; className?: string }) {
+function GlossaryCard({ entry, className, example }: { entry: GlossaryEntry; className?: string; example?: React.ReactNode }) {
   return (
     <div className={cn("px-3 py-2.5", className)}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
@@ -52,6 +59,11 @@ function GlossaryCard({ entry, className }: { entry: GlossaryEntry; className?: 
       <p className="mt-1 text-xs leading-relaxed text-popover-foreground/90">
         {entry.description}
       </p>
+      {example && (
+        <p className="mt-2 border-l-2 border-primary/40 pl-2 font-mono-data text-[11px] leading-relaxed text-popover-foreground/80">
+          {example}
+        </p>
+      )}
       {entry.source && (
         <div className="mt-2 flex items-center gap-1.5 border-t border-border/60 pt-2 text-[10px] font-mono-data text-muted-foreground">
           <Database className="h-3 w-3 shrink-0 opacity-70" />

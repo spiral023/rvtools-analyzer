@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { AlertTriangle, Cpu, Layers, Monitor, MemoryStick, Power } from "lucide-react";
 import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
+import { VmLoadDistributionTab } from "@/components/dashboard/insights/VmLoadDistributionTab";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { PageLoadingState, PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -52,6 +53,7 @@ export default function Vms() {
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList>
           <TabsTrigger value="inventory">Inventar</TabsTrigger>
+          <TabsTrigger value="load-distribution">Lastverteilung</TabsTrigger>
           <TabsTrigger value="operations">Betrieb</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
@@ -71,6 +73,9 @@ export default function Vms() {
             ? <PanelLoadingState />
             : <AverageVmPanel avg={averageVm.avg} workload={averageVm.workload} hasVropsImport={averageVm.hasVropsImport} />}
           <VmInventoryTable vms={vms} globalFilter={filters.search} onRowClick={openVmDetail} />
+        </TabsContent>
+        <TabsContent value="load-distribution" className="space-y-6">
+          <VmLoadDistributionTab vms={vmsWithTechInfo} />
         </TabsContent>
         <TabsContent value="operations"><VmOperationsPanel /></TabsContent>
         <TabsContent value="performance"><VmPerformancePanel /></TabsContent>
