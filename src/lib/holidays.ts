@@ -22,6 +22,12 @@ export interface Holiday {
   kind: HolidayKind;
 }
 
+export interface HolidayRange {
+  start: number;
+  end: number;
+  name: string;
+}
+
 /**
  * Osterdatum nach der anonymen gregorianischen Osterformel (Meeus/Jones/Butcher).
  * Liefert den Ostersonntag als lokales Kalenderdatum.
@@ -108,4 +114,29 @@ export function austrianHolidaysInRange(startDate: string, endDate: string): Hol
     holidays.push(...austrianHolidays(year).filter((holiday) => holiday.date >= startDate && holiday.date <= endDate));
   }
   return holidays;
+}
+
+/**
+ * Baut aus stündlichen Messpunkten zusammenhängende Flächen für gesetzliche
+ * Feiertage. Lastarme Sondertage bleiben in der Profilanalyse, werden im Chart
+ * aber nicht als gesetzlicher Feiertag ausgegeben.
+ */
+export function findAustrianPublicHolidayRanges(timestamps: readonly number[]): HolidayRange[] {
+  const years = [...new Set(timestamps.map((timestamp) => new Date(timestamp).getFullYear()))];
+  const holidayByDate = new Map(
+    years.flatMap((year) => austrianHolidays(year))
+      .filter((holiday) => holiday.kind === "public")
+      .map((holiday) => [holiday.date, holiday.name]),
+  );
+  const ranges: HolidayRange[] = [];
+  for (const timestamp of timestamps) {
+    const date = new Date(timestamp);
+    const key = toDateKey(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    const name = holidayByDate.get(key);
+    if (!name) continue;
+    const last = ranges.at(-1);
+    if (last && last.name === name && timestamp - last.end <= 60 * 60 * 1_000) last.end = timestamp;
+    else ranges.push({ start: timestamp, end: timestamp, name });
+  }
+  return ranges;
 }

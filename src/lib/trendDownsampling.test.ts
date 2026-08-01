@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateTrendPoints,
+  buildAverageWeekTrendPoints,
   describeTrendRange,
   downsampleTrendPoints,
   type TrendSamplePoint,
@@ -78,6 +80,28 @@ describe("downsampleTrendPoints", () => {
 
   it("liefert für eine leere Reihe eine leere Liste", () => {
     expect(downsampleTrendPoints([], 336)).toEqual([]);
+  });
+});
+
+describe("wählbare Verlaufsansichten", () => {
+  it("bildet exakt gewählte Drei-Stunden-Fenster", () => {
+    const result = aggregateTrendPoints(makePoints([100, 200, 600, 50, 100, 150]), 3);
+    expect(result).toHaveLength(2);
+    expect(result.map((point) => point.cpu)).toEqual([300, 100]);
+    expect(result.map((point) => point.cpuHigh)).toEqual([600, 150]);
+  });
+
+  it("legt mehrere Wochen auf MO–SO und mittelt dieselbe Wochenstunde", () => {
+    const firstMonday = new Date(2026, 0, 5, 9).getTime();
+    const points: TrendSamplePoint[] = [
+      { timestampMs: firstMonday, cpu: 100, cpuPeak: 300, secondary: 2 },
+      { timestampMs: firstMonday + 7 * 24 * HOUR_MS, cpu: 300, cpuPeak: 700, secondary: 6 },
+    ];
+    const result = buildAverageWeekTrendPoints(points);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ weekHour: 9, cpu: 200, cpuLow: 100, cpuHigh: 700, secondary: 4, sampleCount: 2 });
+    expect(new Date(result[0].timestampMs).getDay()).toBe(1);
+    expect(new Date(result[0].timestampMs).getHours()).toBe(9);
   });
 });
 

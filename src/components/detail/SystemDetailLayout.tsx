@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Database, Info } from "lucide-react";
+import { Database, Info, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { DetailDossier, DetailField, DetailKpi, DetailTable } from "@/lib/detailExport";
 import { DetailExportMenu } from "@/components/detail/DetailExportMenu";
@@ -26,9 +26,10 @@ export function SystemDetailContent({
   return (
     <DialogContent
       overlayClassName="bg-black/65 backdrop-blur-[2px]"
+      showCloseButton={false}
       className="system-detail-dialog flex h-[92vh] w-[96vw] max-w-[1480px] flex-col gap-0 overflow-hidden border-0 bg-background p-0 shadow-2xl sm:rounded-2xl"
     >
-      <DialogHeader className="relative shrink-0 border-b border-border/70 bg-card px-5 py-3 pr-14 text-left sm:px-7">
+      <DialogHeader className="relative shrink-0 border-b border-border/70 bg-card px-5 py-3 text-left sm:px-7">
         <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]">
@@ -46,8 +47,14 @@ export function SystemDetailContent({
               </div>
             </div>
           </div>
-          <div className="mr-7 flex shrink-0 items-center gap-2 md:mr-0">
+          <div className="flex shrink-0 items-center gap-2">
             <DetailExportMenu dossier={dossier} />
+            <DialogClose
+              aria-label="Detailansicht schließen"
+              className="grid size-10 place-items-center rounded-xl bg-background text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)/0.75),0_1px_2px_hsl(var(--foreground)/0.06)] transition-[scale,color,background-color,box-shadow] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <X className="size-4" />
+            </DialogClose>
           </div>
         </div>
       </DialogHeader>
@@ -62,7 +69,7 @@ export function DetailNarrative({ children, source }: { children: ReactNode; sou
   return (
     <div className="detail-surface relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.08] via-card to-card px-4 py-3.5 shadow-[var(--detail-surface-shadow)] sm:px-5">
       <div className="absolute inset-y-0 left-0 w-1 bg-primary" />
-      <p className="max-w-5xl text-sm leading-6 text-pretty">{children}</p>
+      <p className="w-full text-sm leading-6 text-pretty">{children}</p>
       {source && (
         <p className="mt-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.11em] text-muted-foreground">
           <Database className="size-3" /> {source}
@@ -134,7 +141,12 @@ export function DetailFieldGrid({ fields, columns = 3 }: { fields: DetailField[]
       {fields.map((field) => (
         <div key={field.label} className="min-w-0 border-b border-border/55 py-2.5 last:border-b-0">
           <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{field.label}</dt>
-          <dd className="mt-1 break-words font-mono text-xs leading-5 tabular-nums" title={field.value}>{field.value || "—"}</dd>
+          <dd className={cn(
+            "mt-1 break-words font-mono text-xs leading-5 tabular-nums",
+            field.tone === "good" && "font-semibold text-success",
+            field.tone === "warning" && "font-semibold text-warning",
+            field.tone === "critical" && "font-semibold text-destructive",
+          )} title={field.value}>{field.value || "—"}</dd>
         </div>
       ))}
     </dl>

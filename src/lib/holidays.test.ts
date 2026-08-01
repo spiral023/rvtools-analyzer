@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { austrianHolidays, austrianHolidaysInRange, easterSunday } from "@/lib/holidays";
+import { austrianHolidays, austrianHolidaysInRange, easterSunday, findAustrianPublicHolidayRanges } from "@/lib/holidays";
 
 describe("easterSunday", () => {
   // Referenzdaten aus dem gregorianischen Osterkalender.
@@ -59,5 +59,20 @@ describe("austrianHolidaysInRange", () => {
 
   it("liefert für einen ungültigen Bereich eine leere Liste", () => {
     expect(austrianHolidaysInRange("2026-09-01", "2025-09-30")).toEqual([]);
+  });
+});
+
+describe("findAustrianPublicHolidayRanges", () => {
+  it("fasst die Stunden eines gesetzlichen Feiertags zu einer Chartfläche zusammen", () => {
+    const timestamps = Array.from({ length: 24 }, (_, hour) => new Date(2026, 11, 25, hour).getTime());
+    expect(findAustrianPublicHolidayRanges(timestamps)).toEqual([{
+      start: timestamps[0],
+      end: timestamps[23],
+      name: "Christtag",
+    }]);
+  });
+
+  it("markiert Heiligen Abend nicht als gesetzlichen Feiertag", () => {
+    expect(findAustrianPublicHolidayRanges([new Date(2026, 11, 24, 12).getTime()])).toEqual([]);
   });
 });

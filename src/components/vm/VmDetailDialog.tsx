@@ -160,7 +160,17 @@ export function VmDetailDialog({
 
   const workloadFields: DetailField[] = workloadProfile ? [
     { label: "Lastmuster", value: VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape] },
-    { label: "Auslastungsniveau", value: VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity] },
+    {
+      label: "Auslastungsniveau",
+      value: VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity],
+      tone: ["idle", "very-low", "low"].includes(workloadProfile.intensity)
+        ? "good"
+        : ["moderate", "elevated"].includes(workloadProfile.intensity)
+          ? "warning"
+          : workloadProfile.intensity === "high"
+            ? "critical"
+            : "neutral",
+    },
     { label: "Vertrauen", value: workloadProfile.confidence },
     { label: "Datenabdeckung", value: percent(workloadProfile.demand.coverageRatio * 100) },
     { label: "Variationskoeffizient", value: decimal(workloadProfile.signals.coefficientOfVariation) },

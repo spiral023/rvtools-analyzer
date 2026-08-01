@@ -1,24 +1,33 @@
-import { useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { useId, useState } from "react";
+import { Check, Clock3, EyeOff, TrendingUp } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
-import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { findWeekTimeMarkerTimestamp } from "@/lib/weekTimeMarker";
-import { describeTrendRange, downsampleTrendPoints } from "@/lib/trendDownsampling";
+import { aggregateTrendPoints, buildAverageWeekTrendPoints, describeTrendRange } from "@/lib/trendDownsampling";
+import { findAustrianPublicHolidayRanges } from "@/lib/holidays";
+import { cn } from "@/lib/utils";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 
 type ChartUnit = "absolute" | "percent";
+type ChartView = "timeline" | "average-week";
+type WindowHours = 1 | 3;
 
 /** getDay(): 0 = Sonntag. */
 const WEEKDAY_LABELS = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
+const WEEKDAY_NAMES = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+const HOUR_MS = 60 * 60 * 1_000;
 
-function formatAxisTimestamp(timestampMs: number): string {
+function formatAxisTimestamp(timestampMs: number, view: ChartView): string {
   const date = new Date(timestampMs);
+  if (view === "average-week") return `${WEEKDAY_LABELS[date.getDay()]} ${String(date.getHours()).padStart(2, "0")}:00`;
   return `${WEEKDAY_LABELS[date.getDay()]} ${date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`;
 }
 
-function formatTooltipTimestamp(timestampMs: number): string {
-  return new Date(timestampMs).toLocaleString("de-DE", {
+function formatTooltipTimestamp(timestampMs: number, view: ChartView): string {
+  const date = new Date(timestampMs);
+  if (view === "average-week") return `${WEEKDAY_NAMES[date.getDay()]} · ${String(date.getHours()).padStart(2, "0")}:00 Uhr · durchschnittliche Woche`;
+  return date.toLocaleString("de-DE", {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -28,11 +37,19 @@ function formatTooltipTimestamp(timestampMs: number): string {
   });
 }
 
+function valuePeak<T extends Record<string, unknown>>(points: readonly T[], key: keyof T): T | null {
+  return points.reduce<T | null>((current, point) => {
+    const value = point[key];
+    const currentValue = current?.[key];
+    return typeof value === "number" && (typeof currentValue !== "number" || value > currentValue) ? point : current;
+  }, null);
+}
+
 interface VropsTrendChartProps {
   hourly: VropsObjectTrendPoint[];
   cpuCapacityMHz: number | null;
   secondaryCapacity: number | null;
-  /** "pct": secondaryValue liegt bereits als Prozent vor (z.B. CPU Ready). "MiB": muss wie CPU über die Kapazität umgerechnet werden. Weggelassen: Chart zeigt nur CPU Demand. */
+  /** "pct": secondaryValue liegt bereits als Prozent vor (z.B. CPU Ready). "MiB": muss wie CPU über die Kapazität umgerechnet werden. */
   secondaryUnit?: "pct" | "MiB";
   secondaryLabel?: string;
   hasImport: boolean;
@@ -41,17 +58,7 @@ interface VropsTrendChartProps {
   importedAt?: string | null;
 }
 
-/**
- * Historischer Auslastungsverlauf aus einem vROps-Zeitreihenimport. Bewusst als
- * eigenständige, umrandete Sektion (statt weiterer KPI-Kachel) gestaltet,
- * damit sie als Zeitverlauf statt als weiterer Momentaufnahme-Wert erkennbar
- * ist — das gleiche Muster wie in der Fill-Up-Planung.
- *
- * Der Zeitraum ergibt sich aus dem Import und ist nicht auf eine Woche
- * festgelegt. Längere Zeiträume werden zu Fenstern verdichtet (siehe
- * `trendDownsampling.ts`); das Band um die Linie zeigt dann die Spanne
- * innerhalb des Fensters, ergänzt um die Stundenmaxima aus `Demand Max`.
- */
+/** Präzisionsansicht für historische Last: Durchschnitt und Peak bleiben getrennt ablesbar. */
 export function VropsTrendChart({
   hourly,
   cpuCapacityMHz,
@@ -63,14 +70,21 @@ export function VropsTrendChart({
   isLoading,
   importedAt,
 }: VropsTrendChartProps) {
+  const gradientId = useId().replace(/:/g, "");
   const [chartUnit, setChartUnit] = useState<ChartUnit>(cpuCapacityMHz ? "percent" : "absolute");
+  const [chartView, setChartView] = useState<ChartView>("timeline");
+  const [windowHours, setWindowHours] = useState<WindowHours>(3);
+  const [cpuVisible, setCpuVisible] = useState(true);
+  // CPU Ready startet bewusst zurückhaltend; RAM und andere Sekundärmetriken
+  // bleiben in den übrigen Detailansichten wie bisher direkt sichtbar.
+  const [secondaryVisible, setSecondaryVisible] = useState(secondaryLabel !== "CPU Ready");
   const rangeLabel = describeTrendRange(hourly.length);
 
   if (!hasImport) return null;
 
   if (isLoading) {
     return (
-      <section className="rounded-md border bg-muted/10 p-3">
+      <section className="rounded-xl bg-muted/15 p-4 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65)]">
         <p className="text-xs text-muted-foreground">vROps-Zeitreihe wird geladen…</p>
       </section>
     );
@@ -78,9 +92,9 @@ export function VropsTrendChart({
 
   if (!isMatched) {
     return (
-      <section className="rounded-md border border-dashed bg-muted/10 p-3">
+      <section className="rounded-xl bg-muted/15 p-4 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65)]">
         <h4 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <TrendingUp className="h-3.5 w-3.5" /> Auslastungsverlauf (vROps)
+          <TrendingUp className="size-3.5" /> Auslastungsverlauf (vROps)
         </h4>
         <p className="text-xs text-muted-foreground">Keine vROps-Zeitreihe für dieses Objekt gefunden.</p>
       </section>
@@ -92,23 +106,20 @@ export function VropsTrendChart({
   const isPercent = chartUnit === "percent";
   const cpuDataKey = isPercent && cpuCapacityMHz ? "cpuPct" : "cpuAbs";
   const secondaryDataKey = secondaryIsPct ? "secondaryPct" : isPercent && secondaryCapacity ? "secondaryPct" : "secondaryAbs";
-  const cpuName = cpuDataKey === "cpuPct" ? "CPU Demand %" : "CPU Demand GHz";
-  const secondaryName = secondaryIsPct ? `${secondaryLabel} %` : secondaryDataKey === "secondaryPct" ? `${secondaryLabel} %` : `${secondaryLabel} GiB`;
-  const percentUnavailable = hasSecondary ? !cpuCapacityMHz && (secondaryIsPct || !secondaryCapacity) : !cpuCapacityMHz;
+  const cpuUnit = cpuDataKey === "cpuPct" ? "%" : "GHz";
+  const secondaryDisplayUnit = secondaryDataKey === "secondaryPct" ? "%" : "GiB";
+  const percentUnavailable = !cpuCapacityMHz;
 
-  const sampled = downsampleTrendPoints(hourly.map((point) => ({
+  const sourcePoints = hourly.map((point) => ({
     timestampMs: point.timestampUtc,
     cpu: point.cpuDemandMHz,
     cpuPeak: point.cpuDemandMaxMHz,
     secondary: point.secondaryValue,
-  })));
-  /**
-   * Das Band trägt nur dann eine Aussage, wenn es etwas zu zeigen gibt: entweder
-   * wurden mehrere Stunden zu einem Fenster verdichtet, oder die Quelle liefert
-   * Stundenmaxima. Andernfalls fielen Ober- und Untergrenze mit der Linie zusammen.
-   */
+  }));
+  const sampled = chartView === "average-week"
+    ? buildAverageWeekTrendPoints(sourcePoints)
+    : aggregateTrendPoints(sourcePoints, windowHours);
   const hasBand = sampled.some((point) => point.sampleCount > 1 || point.cpuPeak !== null);
-  const bucketHours = sampled[0]?.sampleCount ?? 1;
   const toPercent = (value: number | null) => (value === null || !cpuCapacityMHz ? null : (value / cpuCapacityMHz) * 100);
   const toGigahertz = (value: number | null) => (value === null ? null : value / 1_000);
 
@@ -117,6 +128,7 @@ export function VropsTrendChart({
     const high = isPercent && cpuCapacityMHz ? toPercent(point.cpuHigh) : toGigahertz(point.cpuHigh);
     return {
       timestampMs: point.timestampMs,
+      sampleCount: point.sampleCount,
       cpuAbs: toGigahertz(point.cpu),
       cpuPct: toPercent(point.cpu),
       cpuBand: low === null || high === null ? null : ([low, high] as [number, number]),
@@ -132,60 +144,146 @@ export function VropsTrendChart({
     };
   });
 
-  // Der Import liegt in der Vergangenheit; markiert wird deshalb die gleiche Wochenzeit.
-  const nowMarkerTimestamp = findWeekTimeMarkerTimestamp(chartData.map((point) => point.timestampMs));
-  // Der Peak folgt der Bandobergrenze, sobald es eine gibt: Nach der Verdichtung
-  // wäre das Maximum der Mittelwertlinie nicht mehr die tatsächliche Spitze.
-  const peakKey = hasBand ? "cpuHigh" : cpuDataKey;
-  const peak = chartData.reduce<(typeof chartData)[number] | null>((current, point) => {
-    const value = point[peakKey] as number | null;
-    const currentValue = current?.[peakKey] as number | null | undefined;
-    return value !== null && (currentValue === null || currentValue === undefined || value > currentValue) ? point : current;
-  }, null);
-  // Bewusst aus den ungefilterten Stundenwerten: Nach der Verdichtung liegen die
-  // Punkte mehrere Stunden auseinander, und die Wochenendflächen bekämen Lücken.
-  const weekendRanges = hourly.reduce<Array<{ start: number; end: number }>>((ranges, point) => {
-    const date = new Date(point.timestampUtc);
+  const now = new Date();
+  const currentWeekHour = ((now.getDay() + 6) % 7) * 24 + now.getHours();
+  const averageWeekNow = chartView === "average-week"
+    ? sampled.find((point) => "weekHour" in point && point.weekHour === currentWeekHour)?.timestampMs ?? null
+    : null;
+  const nowMarkerTimestamp = chartView === "average-week"
+    ? averageWeekNow
+    : findWeekTimeMarkerTimestamp(chartData.map((point) => point.timestampMs));
+  const cpuPeak = valuePeak(chartData, "cpuHigh");
+  const secondaryPeak = valuePeak(chartData, secondaryDataKey);
+
+  // Bewusst aus den unverdichteten Stundenwerten: Sonst bekämen die Flächen Lücken.
+  const shadeTimestamps = chartView === "average-week" ? sampled.map((point) => point.timestampMs) : hourly.map((point) => point.timestampUtc);
+  const weekendRanges = shadeTimestamps.reduce<Array<{ start: number; end: number }>>((ranges, timestamp) => {
+    const date = new Date(timestamp);
     if (![0, 6].includes(date.getDay())) return ranges;
     const last = ranges.at(-1);
-    if (last && point.timestampUtc - last.end <= 60 * 60 * 1_000) last.end = point.timestampUtc;
-    else ranges.push({ start: point.timestampUtc, end: point.timestampUtc });
+    if (last && timestamp - last.end <= HOUR_MS) last.end = timestamp;
+    else ranges.push({ start: timestamp, end: timestamp });
     return ranges;
   }, []);
+  const holidayRanges = chartView === "timeline" ? findAustrianPublicHolidayRanges(hourly.map((point) => point.timestampUtc)) : [];
+  const holidayNames = [...new Set(holidayRanges.map((range) => range.name))];
+
+  const formatNumber = (value: number, unit: string) => `${value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}`;
+  const formatTooltipValue = (value: number | [number, number], name: string) => {
+    if (Array.isArray(value)) return [`${formatNumber(value[0], cpuUnit)} – ${formatNumber(value[1], cpuUnit)}`, "CPU-Bereich (Minimum–Peak)"];
+    const unit = name.startsWith("CPU") ? cpuUnit : secondaryDisplayUnit;
+    return [formatNumber(value, unit), name];
+  };
+  const cpuPeakLabel = cpuPeak?.cpuHigh === null || cpuPeak?.cpuHigh === undefined ? "—" : formatNumber(cpuPeak.cpuHigh, cpuUnit);
+  const secondaryPeakValue = secondaryPeak?.[secondaryDataKey];
+  const secondaryPeakLabel = typeof secondaryPeakValue === "number" ? formatNumber(secondaryPeakValue, secondaryDisplayUnit) : "—";
+
+  const toggleMetric = (metric: "cpu" | "secondary") => {
+    if (metric === "cpu") {
+      if (cpuVisible && (!hasSecondary || !secondaryVisible)) return;
+      setCpuVisible((visible) => !visible);
+      return;
+    }
+    if (secondaryVisible && !cpuVisible) return;
+    setSecondaryVisible((visible) => !visible);
+  };
+
+  const contextText = chartView === "average-week"
+    ? "Linie = Mittelwert je Wochenstunde · Band = historisches Minimum bis Peak"
+    : windowHours === 1
+      ? "Stündliche Werte · Band = Stundenmittel bis Peak"
+      : "3-Stunden-Fenster · Linie = Mittelwert · Band = Minimum bis Peak";
 
   return (
-    <section className="rounded-xl bg-muted/15 p-3.5 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65)]">
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <TrendingUp className="h-3.5 w-3.5" /> Auslastungsverlauf (vROps, {rangeLabel})
-          </h4>
-          <p className="text-[10px] text-muted-foreground">
-            {bucketHours > 1 ? `${bucketHours}-Stunden-Fenster` : "Stündliche Werte"}
-            {hasBand ? " · Band = Spanne bis zum Höchstwert" : ""}
-            {" · Wochenende schattiert · Peak markiert · „Jetzt“ = gleicher Wochentag und Stunde"}
-            {importedAt ? ` · Import vom ${new Date(importedAt).toLocaleString("de-DE")}` : ""}
-          </p>
+    <section className="rounded-2xl bg-muted/[0.12] p-3.5 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65),0_1px_2px_hsl(var(--foreground)/0.03)] sm:p-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-balance">
+                <TrendingUp className="size-3.5" /> Auslastungsverlauf
+              </h4>
+              <span className="rounded-full bg-background/80 px-2 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)/0.65)]">{rangeLabel}</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-muted-foreground text-pretty">
+              {contextText}. Wochenende grau, österreichweite Feiertage gold markiert.
+              {importedAt ? ` Import vom ${new Date(importedAt).toLocaleString("de-DE")}.` : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ToggleGroup type="single" size="sm" value={chartView} onValueChange={(value) => value && setChartView(value as ChartView)} aria-label="Darstellung wählen" className="rounded-xl bg-background/70 p-1 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)]">
+              <ToggleGroupItem value="timeline" aria-label="Zeitverlauf anzeigen" className="min-h-10 rounded-lg px-3 active:scale-[0.96]">Zeitverlauf</ToggleGroupItem>
+              <ToggleGroupItem value="average-week" aria-label="Durchschnittliche Woche anzeigen" className="min-h-10 rounded-lg px-3 active:scale-[0.96]">Ø Woche</ToggleGroupItem>
+            </ToggleGroup>
+            <ToggleGroup type="single" size="sm" value={chartUnit} onValueChange={(value) => value && setChartUnit(value as ChartUnit)} aria-label="Einheit wählen" className="rounded-xl bg-background/70 p-1 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)]">
+              <ToggleGroupItem value="absolute" aria-label="Absolute Werte anzeigen" className="min-h-10 rounded-lg px-3 active:scale-[0.96]">Absolut</ToggleGroupItem>
+              <ToggleGroupItem value="percent" aria-label="Prozent der Kapazität anzeigen" disabled={percentUnavailable} className="min-h-10 rounded-lg px-3 active:scale-[0.96]">Prozent</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </div>
-        <ToggleGroup type="single" size="sm" value={chartUnit} onValueChange={(value) => value && setChartUnit(value as ChartUnit)}>
-          <ToggleGroupItem value="absolute" aria-label="Absolute Werte anzeigen">Absolut</ToggleGroupItem>
-          <ToggleGroupItem value="percent" aria-label="Prozent der Kapazität anzeigen" disabled={percentUnavailable}>Prozent</ToggleGroupItem>
-        </ToggleGroup>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2" aria-label="Metriken ein- oder ausblenden">
+            <button
+              type="button"
+              aria-pressed={cpuVisible}
+              onClick={() => toggleMetric("cpu")}
+              className={cn(
+                "flex min-h-10 items-center gap-2 rounded-xl px-3 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)] transition-[scale,background-color,box-shadow] duration-150 ease-out active:scale-[0.96]",
+                cpuVisible ? "bg-background text-foreground" : "bg-muted/30 text-muted-foreground",
+              )}
+            >
+              <span className="grid size-5 place-items-center rounded-full bg-gradient-to-tr from-success via-warning to-destructive text-white">{cpuVisible ? <Check className="size-3" /> : <EyeOff className="size-3" />}</span>
+              <span><span className="block text-xs font-semibold">CPU Demand</span><span className="block font-mono text-[10px] tabular-nums text-muted-foreground">Peak {cpuPeakLabel}</span></span>
+            </button>
+            {hasSecondary && (
+              <button
+                type="button"
+                aria-pressed={secondaryVisible}
+                onClick={() => toggleMetric("secondary")}
+                className={cn(
+                  "flex min-h-10 items-center gap-2 rounded-xl px-3 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)] transition-[scale,background-color,box-shadow] duration-150 ease-out active:scale-[0.96]",
+                  secondaryVisible ? "bg-background text-foreground" : "bg-muted/30 text-muted-foreground",
+                )}
+              >
+                <span className={cn("grid size-5 place-items-center rounded-full text-white", secondaryVisible ? "bg-chart-6" : "bg-muted-foreground/35")}>{secondaryVisible ? <Check className="size-3" /> : <EyeOff className="size-3" />}</span>
+                <span><span className="block text-xs font-semibold">{secondaryLabel}</span><span className="block font-mono text-[10px] tabular-nums text-muted-foreground">Peak {secondaryPeakLabel}</span></span>
+              </button>
+            )}
+          </div>
+          {chartView === "timeline" && (
+            <div className="flex items-center gap-2">
+              <span className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:flex"><Clock3 className="size-3.5" /> Auflösung</span>
+              <ToggleGroup type="single" size="sm" value={String(windowHours)} onValueChange={(value) => value && setWindowHours(Number(value) as WindowHours)} aria-label="Zeitfenster wählen" className="rounded-xl bg-background/70 p-1 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)]">
+                <ToggleGroupItem value="1" aria-label="Ein-Stunden-Fenster" className="min-h-10 rounded-lg px-3 font-mono tabular-nums active:scale-[0.96]">1 Std.</ToggleGroupItem>
+                <ToggleGroupItem value="3" aria-label="Drei-Stunden-Fenster" className="min-h-10 rounded-lg px-3 font-mono tabular-nums active:scale-[0.96]">3 Std.</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="h-64">
+
+      <div className="mt-2 h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 16, right: 12, left: 4, bottom: 0 }}>
+          <ComposedChart data={chartData} margin={{ top: 18, right: 12, left: 4, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`${gradientId}-load`} x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="hsl(var(--success))" />
+                <stop offset="52%" stopColor="hsl(var(--warning))" />
+                <stop offset="100%" stopColor="hsl(var(--destructive))" />
+              </linearGradient>
+              <linearGradient id={`${gradientId}-band`} x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="hsl(var(--success))" stopOpacity="0.08" />
+                <stop offset="58%" stopColor="hsl(var(--warning))" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity="0.2" />
+              </linearGradient>
+            </defs>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.55} />
             {weekendRanges.map((range) => (
-              <ReferenceArea
-                key={range.start}
-                yAxisId="cpu"
-                x1={range.start}
-                x2={range.end + 60 * 60 * 1_000}
-                fill="hsl(var(--muted-foreground))"
-                fillOpacity={0.07}
-                strokeOpacity={0}
-              />
+              <ReferenceArea key={`weekend-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--muted-foreground))" fillOpacity={0.065} strokeOpacity={0} />
+            ))}
+            {holidayRanges.map((range) => (
+              <ReferenceArea key={`holiday-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--warning))" fillOpacity={0.11} strokeOpacity={0} />
             ))}
             <XAxis
               type="number"
@@ -194,10 +292,11 @@ export function VropsTrendChart({
               dataKey="timestampMs"
               minTickGap={46}
               tick={{ fontSize: 10 }}
-              tickFormatter={formatAxisTimestamp}
+              tickFormatter={(value: number) => formatAxisTimestamp(value, chartView)}
             />
             <YAxis
               yAxisId="cpu"
+              hide={!cpuVisible}
               tick={{ fontSize: 10 }}
               width={46}
               tickFormatter={cpuDataKey === "cpuPct" ? (value: number) => `${value} %` : undefined}
@@ -205,6 +304,7 @@ export function VropsTrendChart({
             {hasSecondary && (
               <YAxis
                 yAxisId="secondary"
+                hide={!secondaryVisible}
                 orientation="right"
                 tick={{ fontSize: 10 }}
                 width={46}
@@ -215,36 +315,37 @@ export function VropsTrendChart({
               contentStyle={CHART_TOOLTIP_STYLE}
               itemStyle={CHART_TOOLTIP_ITEM_STYLE}
               labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-              formatter={(value: number, name: string) => [value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), name]}
-              labelFormatter={(value: number) => formatTooltipTimestamp(value)}
+              formatter={formatTooltipValue}
+              labelFormatter={(value: number) => formatTooltipTimestamp(value, chartView)}
             />
-            {hasSecondary && <Legend wrapperStyle={{ fontSize: 12 }} />}
-            {hasBand && (
+            {cpuVisible && hasBand && (
               <Area
                 yAxisId="cpu"
                 dataKey="cpuBand"
-                name={cpuDataKey === "cpuPct" ? "Spanne %" : "Spanne GHz"}
+                name="CPU-Bereich"
                 type="monotone"
-                fill="hsl(var(--primary))"
-                fillOpacity={0.16}
+                fill={`url(#${gradientId}-band)`}
                 stroke="none"
                 isAnimationActive={false}
                 connectNulls
               />
             )}
-            <Line yAxisId="cpu" dataKey={cpuDataKey} name={cpuName} type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} connectNulls />
-            {hasSecondary && <Line yAxisId="secondary" dataKey={secondaryDataKey} name={secondaryName} type="monotone" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} connectNulls />}
-            {peak && (
+            {cpuVisible && <Line yAxisId="cpu" dataKey={cpuDataKey} name={chartView === "average-week" ? "CPU Demand (Durchschnitt)" : windowHours === 3 ? "CPU Demand (3-Std.-Mittel)" : "CPU Demand (Stundenmittel)"} type="monotone" stroke={`url(#${gradientId}-load)`} dot={false} strokeWidth={2.25} connectNulls isAnimationActive={false} />}
+            {hasSecondary && secondaryVisible && <Line yAxisId="secondary" dataKey={secondaryDataKey} name={chartView === "average-week" ? `${secondaryLabel} (Durchschnitt)` : `${secondaryLabel} (Maximum)`} type="monotone" stroke="hsl(var(--chart-6))" dot={false} strokeWidth={1.75} strokeDasharray="5 3" connectNulls isAnimationActive={false} />}
+            {cpuVisible && cpuPeak && typeof cpuPeak.cpuHigh === "number" && (
               <ReferenceDot
                 yAxisId="cpu"
-                x={peak.timestampMs}
-                y={peak[peakKey] as number}
-                r={4}
+                x={cpuPeak.timestampMs}
+                y={cpuPeak.cpuHigh}
+                r={4.5}
                 fill="hsl(var(--destructive))"
                 stroke="hsl(var(--background))"
                 strokeWidth={2}
                 label={{ value: "Peak", position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
               />
+            )}
+            {secondaryVisible && secondaryPeak && typeof secondaryPeakValue === "number" && (
+              <ReferenceDot yAxisId="secondary" x={secondaryPeak.timestampMs} y={secondaryPeakValue} r={3.5} fill="hsl(var(--destructive))" stroke="hsl(var(--background))" strokeWidth={2} />
             )}
             {nowMarkerTimestamp !== null && (
               <ReferenceLine
@@ -252,18 +353,25 @@ export function VropsTrendChart({
                 x={nowMarkerTimestamp}
                 stroke="hsl(var(--foreground))"
                 strokeDasharray="4 4"
-                strokeOpacity={0.7}
+                strokeOpacity={0.62}
                 label={{ value: "Jetzt", position: "top", fill: "hsl(var(--foreground))", fontSize: 10, fontWeight: 600 }}
               />
             )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {peak && peak[peakKey] !== null && (
-        <p className="mt-1 text-right font-mono text-[10px] tabular-nums text-muted-foreground">
-          Peak: {(peak[peakKey] as number).toLocaleString("de-DE", { maximumFractionDigits: 2 })}{cpuDataKey === "cpuPct" ? " %" : " GHz"} · {formatTooltipTimestamp(peak.timestampMs)}
-        </p>
-      )}
+
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-success" />geringe Last</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-warning" />erhöhte Last</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-destructive" />Spitzenlast</span>
+          {holidayNames.length > 0 && <span>Feiertage: {holidayNames.join(", ")}</span>}
+        </div>
+        {cpuVisible && cpuPeak && typeof cpuPeak.cpuHigh === "number" && (
+          <p className="font-mono tabular-nums">CPU-Peak {cpuPeakLabel} · {formatTooltipTimestamp(cpuPeak.timestampMs, chartView)}</p>
+        )}
+      </div>
     </section>
   );
 }

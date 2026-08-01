@@ -6,11 +6,11 @@ export interface DetailField {
   label: string;
   value: string;
   sensitivity?: DetailSensitivity;
+  tone?: "neutral" | "good" | "warning" | "critical";
 }
 
 export interface DetailKpi extends DetailField {
   hint?: string;
-  tone?: "neutral" | "good" | "warning" | "critical";
 }
 
 export interface DetailTable {
