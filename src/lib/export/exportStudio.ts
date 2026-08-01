@@ -64,7 +64,8 @@ export const VM_EXPORT_COLUMNS: ExportStudioColumn[] = [
   { id: "rightsizingDemandP95", label: "CPU Demand P95 (MHz)", category: VM_EXPORT_CATEGORY.cpuMetrics }, { id: "rightsizingReadyP95", label: "CPU Ready P95", category: VM_EXPORT_CATEGORY.cpuMetrics },
   { id: "usedVcpuEquivalentP95", label: "Genutzt P95 (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "usedVcpuEquivalentPeak", label: "Genutzt Maximum (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
   { id: "demandBasedVcpu", label: "Bedarfsgerecht (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "recommendedVcpu", label: "Empfohlen (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
-  { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
+  { id: "reclaimableVcpu", label: "Rückgewinnbar (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "nextReclaimStepVcpu", label: "Nächster Schritt (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
+  { id: "additionalVcpu", label: "Zusätzlich nötig (vCPU)", category: VM_EXPORT_CATEGORY.rightsizingRecommendation }, { id: "recommendationWithheld", label: "Keine Empfehlung, weil", category: VM_EXPORT_CATEGORY.rightsizingRecommendation },
   { id: "rightsizingCandidate", label: "Rightsizing-Kandidat", category: VM_EXPORT_CATEGORY.rightsizingFlags },
   { id: "manyVcpuLowDemand", label: "Viele vCPU, geringer Bedarf", category: VM_EXPORT_CATEGORY.rightsizingFlags }, { id: "highCpuReady", label: "Auffälliges CPU Ready", category: VM_EXPORT_CATEGORY.rightsizingFlags },
 ];
@@ -178,6 +179,8 @@ export function buildVmExportDataset(vms: NormalizedVm[], snapshots: SnapshotMet
         recommendationWithheld: rightsizing ? (rightsizing.recommendationWithheldReason === null ? "—" : RECOMMENDATION_WITHHELD_LABEL[rightsizing.recommendationWithheldReason]) : "—",
         recommendedVcpu: rightsizing ? number(rightsizing.recommendedVcpu) : "—",
         reclaimableVcpu: rightsizing ? number(rightsizing.reclaimableVcpu) : "—",
+        nextReclaimStepVcpu: rightsizing ? number(rightsizing.nextReclaimStepVcpu) : "—",
+        additionalVcpu: rightsizing ? number(rightsizing.additionalVcpu) : "—",
         rightsizingCandidate: rightsizing ? (isNotableRightsizingCandidate(rightsizing) ? "Ja" : "Nein") : "—",
         manyVcpuLowDemand: rightsizing ? (rightsizing.flags.manyVcpuLowDemand ? "Ja" : "Nein") : "—",
         highCpuReady: rightsizing ? (rightsizing.flags.highCpuReady ? "Ja" : "Nein") : "—",

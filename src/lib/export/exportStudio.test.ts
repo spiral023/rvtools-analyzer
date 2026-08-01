@@ -218,9 +218,11 @@ describe("buildVmExportDataset", () => {
       expect.objectContaining({ id: "recommendationWithheld", label: "Keine Empfehlung, weil" }),
       expect.objectContaining({ id: "rightsizingCandidate", label: "Rightsizing-Kandidat" }),
     ]));
-    expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "12", reclaimableVcpu: "4", recommendationWithheld: "—" });
+    // „Rückgewinnbar“ nennt die volle Differenz zur Zielgröße, „Nächster Schritt“ das
+    // Viertel je Wartungsfenster – die Planungszahl steckt nicht mehr im Umsetzungstempo.
+    expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "2", reclaimableVcpu: "14", nextReclaimStepVcpu: "4", recommendationWithheld: "—" });
     expect(result.kpis.find((kpi) => kpi.label === "Rightsizing-Kandidaten")?.value).toBe("1");
-    expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("4");
+    expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("14");
   });
 
   it("bietet Cluster (Tech-Info), Servertyp und Notiz standardmäßig als pseudonymisierbare Spalten an", () => {

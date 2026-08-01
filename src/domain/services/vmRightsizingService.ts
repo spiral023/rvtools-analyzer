@@ -16,18 +16,24 @@ const TARGET_UTILIZATION_PEAK = 0.9;
 /** Untergrenze der Empfehlung: gerade Zahl und gängige Mindestgröße gängiger Gast-Betriebssysteme. */
 const MIN_RECOMMENDED_VCPU = 2;
 /**
- * Höchstens dieser Anteil der konfigurierten vCPU wird auf einmal zur Rückgabe
- * vorgeschlagen. Rightsizing bleibt damit ein schrittweiser Vorgang mit überprüfbaren
- * Schritten; die bedarfsgerechte Zielgröße bleibt als `demandBasedVcpu` sichtbar.
+ * Höchstens dieser Anteil der konfigurierten vCPU wird je Wartungsfenster zur Rückgabe
+ * vorgeschlagen. Die Begrenzung steuert allein `nextReclaimStepVcpu`, also das Tempo der
+ * Umsetzung – nicht `reclaimableVcpu`.
+ *
+ * Die Trennung ist der Punkt: Solange die Schrittgrenze in der primären Zahl steckte,
+ * wies sie am gemessenen Bestand 6.570 statt 12.753 rückgewinnbarer vCPU aus. Sie wirkte
+ * zudem nicht risikogesteuert, sondern gleichmäßig – eine über vier Wochen sauber
+ * vermessene VM wurde genauso gebremst wie ein Grenzfall, obwohl Datengüte und Lastmuster
+ * bereits über {@link determineWithheldReason} abgesichert sind.
  */
 const MAX_RECLAIM_RATIO = 0.25;
 /**
  * Kleinster möglicher Schritt, weil vCPU paarweise zurückgegeben werden. Ohne diese
- * Untergrenze löscht die Schrittweiten-Begrenzung jede Empfehlung unterhalb von acht
- * konfigurierten vCPU wieder aus: ein Viertel von 4 bzw. 6 vCPU sind 1 bzw. 1,5 und runden
- * auf die nächstkleinere gerade Zahl – also 0 – ab. Betroffen wäre gerade der Bereich, in
- * dem die Mehrzahl der VMs liegt. Der gemessene Bedarf begrenzt den Schritt weiterhin, ein
- * Paar wird also nur dort vorgeschlagen, wo die bedarfsgerechte Größe es auch hergibt.
+ * Untergrenze löscht die Schrittweiten-Begrenzung jeden Vorschlag unterhalb von acht
+ * konfigurierten vCPU wieder aus: ein Viertel von 4 bzw. 6 vCPU sind 1 bzw. 1,5 und
+ * unterschreiten damit ein Paar. Betroffen wäre gerade der Bereich, in dem die Mehrzahl
+ * der VMs liegt. Der gemessene Bedarf begrenzt den Schritt weiterhin, ein Paar wird also
+ * nur dort vorgeschlagen, wo die bedarfsgerechte Größe es auch hergibt.
  */
 const MIN_RECLAIM_STEP = 2;
 /**
@@ -85,11 +91,6 @@ const UNDERSIZED_MIN_HOURS_NEAR_CAPACITY = 24;
  * ohne Einfluss auf die Empfehlung.
  */
 
-/** Rundet auf die nächstkleinere gerade Zahl ab – vCPU werden paarweise zurückgegeben. */
-function floorToEven(value: number): number {
-  return Math.max(0, Math.floor(value / 2) * 2);
-}
-
 /** Rundet auf die nächstgrößere gerade Zahl auf – für Zielgrößen, die nicht zu klein sein dürfen. */
 function ceilToEven(value: number): number {
   return Math.ceil(value / 2) * 2;
@@ -137,25 +138,32 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     const sustainedNearCapacity = (profile.capacitySignals.hoursAboveCapacity75 ?? 0) >= UNDERSIZED_MIN_HOURS_NEAR_CAPACITY;
     const recommendationWithheldReason = determineWithheldReason(profile, demandBasedVcpu, sustainedNearCapacity);
 
-    // Die Rückgabe ist die primäre Größe und immer gerade; die Empfehlung folgt daraus,
-    // damit Empfehlung + Rückgabe stets die konfigurierte Anzahl ergeben.
-    const maxReclaimPerRound = Math.max(profile.vcpu * MAX_RECLAIM_RATIO, MIN_RECLAIM_STEP);
+    // Die Rückgabe ist die vollständige Differenz zur bedarfsgerechten Größe; die
+    // Empfehlung folgt daraus, damit Empfehlung + Rückgabe stets die konfigurierte
+    // Anzahl ergeben.
     const applies = demandBasedVcpu !== null && recommendationWithheldReason === null;
     const reclaimableVcpu = demandBasedVcpu === null
       ? null
       : applies && demandBasedVcpu < profile.vcpu
-        ? floorToEven(Math.min(profile.vcpu - demandBasedVcpu, maxReclaimPerRound))
+        ? profile.vcpu - demandBasedVcpu
         : 0;
-    // Vergrößerung folgt nicht der Schrittweiten-Begrenzung: Wer dauerhaft an der
-    // Kapazitätsgrenze läuft, ist mit einem halben Schritt nicht geholfen.
     const additionalVcpu = demandBasedVcpu === null
       ? null
       : applies && demandBasedVcpu > profile.vcpu
-        ? ceilToEven(demandBasedVcpu - profile.vcpu)
+        ? demandBasedVcpu - profile.vcpu
         : 0;
     const recommendedVcpu = reclaimableVcpu === null || additionalVcpu === null
       ? null
       : profile.vcpu - reclaimableVcpu + additionalVcpu;
+    // Tempo der Umsetzung, getrennt vom Ziel: die größte gerade Zwischengröße, die den
+    // Rundenanteil einhält. Aufgerundet, damit auch von einer ungeraden Ausgangszahl aus
+    // jeder Zwischenstand gerade bleibt – aus 5 vCPU wird 4, nicht 3.
+    const maxReclaimPerRound = Math.max(profile.vcpu * MAX_RECLAIM_RATIO, MIN_RECLAIM_STEP);
+    const nextReclaimStepVcpu = reclaimableVcpu === null
+      ? null
+      : reclaimableVcpu === 0
+        ? 0
+        : profile.vcpu - Math.max(demandBasedVcpu!, ceilToEven(profile.vcpu - maxReclaimPerRound));
 
     const manyVcpuLowDemand = profile.vcpu >= MANY_VCPU_MIN && usedVcpuEquivalentP95 !== null && usedVcpuEquivalentP95 <= profile.vcpu * MANY_VCPU_LOW_DEMAND_RATIO_MAX;
     const highCpuReady = profile.ready.p95 !== null && profile.ready.p95 > HIGH_CPU_READY_PCT;
@@ -182,6 +190,7 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       recommendationWithheldReason,
       recommendedVcpu,
       reclaimableVcpu,
+      nextReclaimStepVcpu,
       additionalVcpu,
       flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, concentratedOnFewCores, sustainedNearCapacity },
     }];

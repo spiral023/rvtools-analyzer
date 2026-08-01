@@ -188,6 +188,14 @@ export function VmDetailDialog({
     { label: "Bedarfsgerecht", value: rightsizing.demandBasedVcpu === null ? "—" : `${rightsizing.demandBasedVcpu} vCPU` },
     { label: "Empfohlen", value: rightsizing.recommendedVcpu === null ? "Keine Empfehlung" : `${rightsizing.recommendedVcpu} vCPU` },
     { label: "Rückgewinnbar", value: rightsizing.reclaimableVcpu === null ? "—" : `${rightsizing.reclaimableVcpu} vCPU` },
+    {
+      label: "Nächster Schritt",
+      value: !rightsizing.nextReclaimStepVcpu
+        ? "—"
+        : rightsizing.nextReclaimStepVcpu === rightsizing.reclaimableVcpu
+          ? `${rightsizing.nextReclaimStepVcpu} vCPU`
+          : `${rightsizing.nextReclaimStepVcpu} vCPU (auf ${(rightsizing.vcpu ?? 0) - rightsizing.nextReclaimStepVcpu} vCPU)`,
+    },
     { label: "Zusätzlich nötig", value: rightsizing.additionalVcpu === null ? "—" : `${rightsizing.additionalVcpu} vCPU` },
     { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand) },
     { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady) },

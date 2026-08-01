@@ -1123,13 +1123,27 @@ export interface VmRightsizingCandidate {
    */
   recommendationWithheldReason: "low-confidence" | "unreliable-shape" | "burst-not-repeatable" | "peak-only" | null;
   /**
-   * Empfohlene vCPU-Zielgröße als nächster überprüfbarer Schritt; nur eine prüfpflichtige
-   * Kandidatengröße. Bei Verkleinerung höchstens ein Viertel der konfigurierten vCPU pro
-   * Runde, mindestens jedoch ein vCPU-Paar, sofern der gemessene Bedarf es zulässt.
+   * Empfohlene vCPU-Zielgröße – die bedarfsgerechte Größe, sofern sie ausgesprochen wird.
+   * Eine prüfpflichtige Kandidatengröße, nie eine automatische Änderung.
    */
   recommendedVcpu: number | null;
-  /** `vcpu - recommendedVcpu`, nie negativ und immer gerade. */
+  /**
+   * `vcpu - recommendedVcpu`, nie negativ. Bewusst die **vollständige** Differenz und
+   * nicht der nächste Umsetzungsschritt: Eine Schrittbegrenzung in dieser Zahl verdeckte
+   * am gemessenen Bestand 6.183 der 12.753 rückgewinnbaren vCPU, also fast die Hälfte,
+   * und traf ausgerechnet die breiten VMs (bei 32 vCPU waren nur 32 % sichtbar). Wie
+   * schnell die Änderung ausgerollt wird, sagt {@link nextReclaimStepVcpu}.
+   */
   reclaimableVcpu: number | null;
+  /**
+   * Wie viele vCPU im nächsten Wartungsfenster zurückgegeben werden sollten, wenn die
+   * Verkleinerung schrittweise erfolgt: höchstens ein Viertel der konfigurierten Anzahl,
+   * mindestens ein Paar, und stets so, dass die Zwischengröße gerade bleibt. Gleich
+   * {@link reclaimableVcpu}, wo die Zielgröße in einem Schritt erreichbar ist. Ohne
+   * Hot-Add kostet jeder Schritt eine Abschaltung – 45 % der Kandidaten bräuchten mehr
+   * als eine Runde, in Summe 5.502 statt 2.692 Wartungsfenster.
+   */
+  nextReclaimStepVcpu: number | null;
   /**
    * `recommendedVcpu - vcpu` bei Unterdimensionierung, nie negativ und immer gerade.
    * Verkleinerung und Vergrößerung schließen einander aus, sodass stets höchstens eines

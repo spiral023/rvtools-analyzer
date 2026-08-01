@@ -156,6 +156,21 @@ export function VmRightsizingPanel() {
       cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
     },
     {
+      id: "next-step-vcpu",
+      header: "Nächster Schritt",
+      meta: { info: RIGHTSIZING_COLUMNS.nextReclaimStepVcpu },
+      accessorFn: (row) => row.nextReclaimStepVcpu ?? -1,
+      cell: ({ row }) => {
+        const { nextReclaimStepVcpu, reclaimableVcpu, vcpu } = row.original;
+        if (!nextReclaimStepVcpu) return <span className="text-muted-foreground">—</span>;
+        // Wo das Ziel in einem Schritt erreichbar ist, wäre die Wiederholung der
+        // Rückgabemenge nur Rauschen; interessant ist der Zwischenstand.
+        return nextReclaimStepVcpu === reclaimableVcpu
+          ? <span>{formatVcpu(nextReclaimStepVcpu)}</span>
+          : <span>{formatVcpu(nextReclaimStepVcpu)} <span className="text-xs text-muted-foreground">(auf {formatVcpu((vcpu ?? 0) - nextReclaimStepVcpu)})</span></span>;
+      },
+    },
+    {
       id: "additional-vcpu",
       header: "Zusätzlich",
       meta: { info: RIGHTSIZING_COLUMNS.additionalVcpu },

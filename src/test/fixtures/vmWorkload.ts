@@ -118,6 +118,7 @@ export function rightsizingCandidateFixture(
     recommendationWithheldReason: null,
     recommendedVcpu: null,
     reclaimableVcpu: 0,
+    nextReclaimStepVcpu: 0,
     additionalVcpu: 0,
     flags: {
       manyVcpuLowDemand: false,

@@ -129,7 +129,7 @@ export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
   },
   reclaimableVcpu: {
     term: "Rückgewinnbare vCPU",
-    description: "Summe aus konfigurierter minus empfohlener vCPU über alle Kandidaten. Eine Näherung auf Basis des aktuellen Hosts – vor jeder Umsetzung fachlich prüfen.",
+    description: "Summe aus konfigurierter minus empfohlener vCPU über alle Kandidaten – der vollständige Betrag, nicht der erste Umsetzungsschritt. Vor jeder Umsetzung fachlich prüfen.",
     source: "berechnet",
   },
   manyVcpuLowDemand: {
@@ -210,12 +210,17 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
   recommendedVcpu: {
     term: "Empfohlen",
-    description: "Nächster überprüfbarer Schritt in Richtung der bedarfsgerechten Größe, begrenzt auf ein Viertel der heutigen vCPU pro Runde – mindestens aber ein vCPU-Paar, weil kleinere Schritte nicht möglich sind. Nach der Umsetzung zeigt die nächste Messung, ob ein weiterer Schritt tragfähig ist. Eine prüfpflichtige Kandidatengröße, keine automatische Änderung.",
+    description: "Die bedarfsgerechte Zielgröße, sofern sie ausgesprochen wird – eine prüfpflichtige Kandidatengröße, keine automatische Änderung. Nicht der nächste Umsetzungsschritt: Der steht in „Nächster Schritt“.",
     source: "berechnet",
   },
   reclaimableVcpu: {
     term: "Rückgewinnbar",
-    description: "Differenz aus konfigurierter und empfohlener vCPU, nie negativ und immer eine gerade Zahl – vCPU werden paarweise zurückgegeben. Null, solange keine Empfehlung ausgesprochen wird.",
+    description: "Vollständige Differenz aus konfigurierter und empfohlener vCPU, nie negativ. Bewusst der ganze Betrag und nicht der nächste Schritt: Eine Schrittbegrenzung in dieser Zahl verdeckte über den Bestand knapp die Hälfte des Potenzials und traf ausgerechnet die breiten VMs. Null, solange keine Empfehlung ausgesprochen wird.",
+    source: "berechnet",
+  },
+  nextReclaimStepVcpu: {
+    term: "Nächster Schritt",
+    description: "Wie viele vCPU im nächsten Wartungsfenster zurückgegeben werden sollten, wenn schrittweise vorgegangen wird: höchstens ein Viertel der heutigen Anzahl, mindestens ein Paar, und stets so, dass die Zwischengröße gerade bleibt. Gleich „Rückgewinnbar“, wo das Ziel in einem Schritt erreichbar ist. Da es kein Hot-Add gibt, kostet jeder Schritt eine Abschaltung – bei breiten VMs summiert sich das auf mehrere Runden.",
     source: "berechnet",
   },
   recommendationWithheld: {

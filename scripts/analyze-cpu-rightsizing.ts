@@ -1167,3 +1167,83 @@ section("18  Musterverteilung bei verschiedenen constantLoadCvMax (Produktions-K
   table(["shape", ...thresholds.map((threshold) => `cv≤${threshold}`)],
     SHAPES.map((shape) => [shape, ...thresholds.map((threshold) => String(counts.get(threshold)!.get(shape) ?? 0))]));
 }
+
+/* ------------------------------------------------------------------ */
+/* 19  Was kostet die 25-%-Schrittgrenze?                               */
+/* ------------------------------------------------------------------ */
+
+section("19  Wirkung der Schrittweiten-Begrenzung MAX_RECLAIM_RATIO = 0,25");
+{
+  const ceilEven = (value: number) => Math.max(2, Math.ceil(value / 2) * 2);
+  const floorEven = (value: number) => Math.max(0, Math.floor(value / 2) * 2);
+  const maxQuantile = new Map<string, number>();
+  for (const entry of metrics) {
+    if (!entry.max) continue;
+    const finite = sortedCopy([...entry.max].filter((value) => Number.isFinite(value)));
+    if (finite.length) maxQuantile.set(entry.vm.vmId, quantile(finite, 0.99)!);
+  }
+  /** Zielgröße nach der neuen Regel, ohne jede Schrittbegrenzung. */
+  const targetSize = (entry: VmMetrics): number | null => {
+    const peak = maxQuantile.get(entry.vm.vmId);
+    const perCore = entry.capacity ? entry.capacity / entry.vcpu : entry.vm.mhzPerCore;
+    if (!perCore || peak === undefined) return null;
+    return ceilEven(Math.max(entry.p95 / perCore / 0.65, peak / perCore / 0.9, 2));
+  };
+
+  let cappedVms = 0;
+  let hiddenVcpu = 0;
+  let firstStepVcpu = 0;
+  let fullVcpu = 0;
+  const gaps: number[] = [];
+  const roundCounts: number[] = [];
+  const byVcpu = new Map<number, { vms: number; full: number; first: number; rounds: number[] }>();
+
+  for (const entry of metrics) {
+    const target = targetSize(entry);
+    if (target === null || target >= entry.vcpu) continue;
+    const full = entry.vcpu - target;
+    const first = floorEven(Math.min(full, Math.max(entry.vcpu * 0.25, 2)));
+    fullVcpu += full;
+    firstStepVcpu += first;
+    if (first < full) {
+      cappedVms += 1;
+      hiddenVcpu += full - first;
+      gaps.push(full - first);
+    }
+    // Wie viele Runden – also Wartungsfenster – bis zur Zielgröße?
+    let current = entry.vcpu;
+    let rounds = 0;
+    while (current > target && rounds < 50) {
+      const step = floorEven(Math.min(current - target, Math.max(current * 0.25, 2)));
+      if (step <= 0) break;
+      current -= step;
+      rounds += 1;
+    }
+    roundCounts.push(rounds);
+    const bucket = byVcpu.get(entry.vcpu) ?? { vms: 0, full: 0, first: 0, rounds: [] };
+    bucket.vms += 1;
+    bucket.full += full;
+    bucket.first += first;
+    bucket.rounds.push(rounds);
+    byVcpu.set(entry.vcpu, bucket);
+  }
+
+  console.log(`VMs mit Verkleinerungspotenzial: ${roundCounts.length}`);
+  console.log(`bedarfsgerecht insgesamt: ${fullVcpu} vCPU | im ersten Schritt sichtbar: ${firstStepVcpu} vCPU (${pct(firstStepVcpu, fullVcpu)})`);
+  console.log(`von der Schrittgrenze verdeckt: ${hiddenVcpu} vCPU bei ${cappedVms} VMs (${pct(cappedVms, roundCounts.length)} der Kandidaten)`);
+  table(QUANTILE_HEADER, [
+    quantileRow("verdeckte vCPU je gedeckelter VM", gaps, 0),
+    quantileRow("Runden bis zur Zielgröße", roundCounts, 0),
+  ]);
+
+  console.log("\nJe konfigurierter Größe – „erster Schritt“ ist der heute angezeigte Wert:");
+  table(["vCPU", "VMs", "bedarfsgerecht frei", "erster Schritt", "Anteil sichtbar", "Runden p50", "Runden max"],
+    [...byVcpu.entries()].sort((left, right) => left[0] - right[0]).filter(([, bucket]) => bucket.vms >= 5).map(([vcpu, bucket]) => [
+      String(vcpu), String(bucket.vms), String(bucket.full), String(bucket.first), pct(bucket.first, bucket.full),
+      fmt(quantile(sortedCopy(bucket.rounds), 0.5), 0), String(Math.max(...bucket.rounds)),
+    ]));
+
+  const multiRound = roundCounts.filter((value) => value > 1).length;
+  console.log(`\nVMs, die mehr als ein Wartungsfenster bräuchten: ${multiRound} (${pct(multiRound, roundCounts.length)})`);
+  console.log(`Summe aller nötigen Wartungsfenster: ${roundCounts.reduce((sum, value) => sum + value, 0)} statt ${roundCounts.length} ohne Schrittgrenze`);
+}
