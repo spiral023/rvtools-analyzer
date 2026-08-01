@@ -395,7 +395,7 @@ function useUploadSnapshotsView() {
       <PageHeader
         title="Uploads"
         meta={(
-          <div className="flex items-center gap-1">
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-1">
           <Dialog open={deleteSystemOpen} onOpenChange={(open) => dispatch({ type: "set-delete-system-open", value: open })}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting || importing}>
