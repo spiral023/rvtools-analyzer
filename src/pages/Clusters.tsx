@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveSnapshotIds, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { buildClusterOverviewRows } from "@/lib/clusterWorkspace";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
+import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
@@ -55,6 +56,32 @@ export default function Clusters() {
     });
   }, [clusters, filters.clusters, filters.search, hosts, rawVHostRows, scopedSnapshots, vms, vropsLatest]);
   const scopedClusterKeys = useMemo(() => new Set(filteredRows.map((row) => row.clusterKey)), [filteredRows]);
+  const scopedResourcePools = useMemo(() => {
+    const vcenterBySnapshot = new Map(scopedSnapshots.map((snapshot) => [snapshot.snapshotId, snapshot.vcenterId]));
+    const clusterIdentities: ClusterIdentity[] = [
+      ...clusters.map((cluster) => ({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name })),
+      ...hosts.map((host) => ({ vcenterId: host.vcenterId, datacenter: host.datacenter, clusterName: host.cluster })),
+      ...rawVHostRows.flatMap((row) => {
+        const vcenterId = vcenterBySnapshot.get(row.snapshotId);
+        return vcenterId ? [{
+          vcenterId,
+          datacenter: String(row.data.Datacenter ?? ""),
+          clusterName: String(row.data.Cluster ?? ""),
+        }] : [];
+      }),
+    ];
+
+    return rawResourcePools.filter((row) => {
+      const vcenterId = vcenterBySnapshot.get(row.snapshotId);
+      if (!vcenterId) return false;
+      const identity = resolveClusterIdentity({
+        vcenterId,
+        datacenter: String(row.data.Datacenter ?? ""),
+        clusterName: String(row.data.Cluster ?? ""),
+      }, clusterIdentities);
+      return scopedClusterKeys.has(clusterScopeKey(identity.vcenterId, identity.datacenter, identity.clusterName));
+    });
+  }, [clusters, hosts, rawResourcePools, rawVHostRows, scopedClusterKeys, scopedSnapshots]);
   const osRows = useMemo(
     () => buildClusterOsDistributionRows(vms, osSource).filter((row) => scopedClusterKeys.has(row.clusterKey)),
     [osSource, scopedClusterKeys, vms],
@@ -120,7 +147,7 @@ export default function Clusters() {
             overcommitRows={capacityData.overcommitRows.filter((row) => scopedClusterKeys.has(row.clusterKey))}
             hostDensity={capacityData.hostDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
             clusterDensity={capacityData.clusterDensity.filter((row) => scopedClusterKeys.has(row.clusterKey))}
-            rawResourcePools={rawResourcePools}
+            rawResourcePools={scopedResourcePools}
             search={filters.search}
             onOpenCluster={setSelectedClusterKey}
           />

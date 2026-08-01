@@ -273,4 +273,8 @@ export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
     term: "Rückgewinnbare vCPU je Lastmuster",
     description: "Summiert die rückgewinnbare vCPU-Kapazität je zeitlichem Lastmuster aus dem VM-Profile-Tab. Der Prozentwert bezieht sie auf die insgesamt konfigurierten vCPU dieses Musters und zeigt so die relative Rückgewinnbarkeit. Bewusst nach Muster statt nach Verhaltensklasse gruppiert: Rightsizing-Kandidaten sind ohnehin überwiegend schwach ausgelastet, wodurch eine Gruppierung nach Verhaltensklasse fast alle in „gering genutzt“ sammeln würde.",
   },
+  recommendationMix: {
+    term: "Empfehlungswege",
+    description: "Teilt alle betrachteten VMs in die unmittelbaren Handlungspfade auf: Verkleinern mit rückgewinnbaren vCPU, Vergrößern bei belegtem Mehrbedarf sowie Beibehalten beziehungsweise weiter prüfen. Die letzte Gruppe enthält auch zurückgehaltene Empfehlungen, etwa bei zu dünner oder nicht wiederholbarer Datenbasis.",
+  },
 };

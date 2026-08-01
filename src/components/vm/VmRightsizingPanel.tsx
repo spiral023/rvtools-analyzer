@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Cpu, Gauge, Recycle, Server, ShieldQuestion, SlidersHorizontal, TriangleAlert, TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+import { Cpu, Recycle, Server, ShieldQuestion, SlidersHorizontal, TriangleAlert, TrendingUp } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -29,7 +29,7 @@ import {
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
 import { VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
-import { CHART_AXIS_STYLE, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
@@ -121,10 +121,16 @@ export function VmRightsizingPanel() {
   const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
   const totalAdditionalVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.additionalVcpu ?? 0), 0), [candidates]);
   const manyVcpuLowDemandCount = useMemo(() => candidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [candidates]);
-  const highCpuReadyCount = useMemo(() => candidates.filter((candidate) => candidate.flags.highCpuReady).length, [candidates]);
-  const costopUnderLoadCount = useMemo(() => candidates.filter((candidate) => candidate.flags.costopUnderLoad).length, [candidates]);
-  const singleCoreBoundCount = useMemo(() => candidates.filter((candidate) => candidate.flags.singleCoreBound).length, [candidates]);
   const withheldRecommendationCount = useMemo(() => candidates.filter((candidate) => candidate.recommendationWithheldReason !== null).length, [candidates]);
+  const recommendationMix = useMemo(() => {
+    const shrinkCount = candidates.filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0).length;
+    const growCount = candidates.filter((candidate) => (candidate.additionalVcpu ?? 0) > 0).length;
+    return [
+      { key: "shrink", label: "Verkleinern", value: shrinkCount, color: CHART_COLORS.success },
+      { key: "grow", label: "Vergrößern", value: growCount, color: CHART_COLORS.danger },
+      { key: "review", label: "Beibehalten / prüfen", value: candidates.length - shrinkCount - growCount, color: CHART_COLORS.secondary },
+    ].filter((entry) => entry.value > 0);
+  }, [candidates]);
   const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
   const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
   const densityGrid = useMemo(() => buildRightsizingDensityGrid(candidates), [candidates]);
@@ -241,19 +247,16 @@ export function VmRightsizingPanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <CpuRightsizingLevelControl />
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
           <KpiCard title="Konfigurierte vCPU" value={formatVcpu(totalConfiguredVcpu)} icon={<SlidersHorizontal className="h-4 w-4" />} info={RIGHTSIZING_KPI.configuredVcpu} />
           <KpiCard title="Rückgewinnbare vCPU" value={formatVcpu(totalReclaimableVcpu)} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_KPI.reclaimableVcpu} />
           <KpiCard title="Zusätzlich nötige vCPU" value={formatVcpu(totalAdditionalVcpu)} severity={totalAdditionalVcpu > 0 ? "warn" : "ok"} icon={<TrendingUp className="h-4 w-4" />} info={RIGHTSIZING_KPI.additionalVcpu} />
           <KpiCard title="Viele vCPU, geringer Bedarf" value={formatNum(manyVcpuLowDemandCount)} severity={manyVcpuLowDemandCount > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={RIGHTSIZING_KPI.manyVcpuLowDemand} />
-          <KpiCard title="Co-Stop unter Last" value={formatNum(costopUnderLoadCount)} severity={costopUnderLoadCount > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} info={RIGHTSIZING_COLUMNS.costopUnderLoad} />
-          <KpiCard title="Einzelkern-Engpass" value={formatNum(singleCoreBoundCount)} severity={singleCoreBoundCount > 0 ? "warn" : "ok"} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_COLUMNS.singleCoreBound} />
-          <KpiCard title="Auffälliges CPU Ready" value={formatNum(highCpuReadyCount)} severity={highCpuReadyCount > 0 ? "warn" : "ok"} icon={<Gauge className="h-4 w-4" />} info={RIGHTSIZING_KPI.highCpuReady} />
           <KpiCard title="Ohne Empfehlung" value={formatNum(withheldRecommendationCount)} icon={<ShieldQuestion className="h-4 w-4" />} info={RIGHTSIZING_KPI.withheldRecommendation} />
         </KpiGrid>
+        <CpuRightsizingLevelControl />
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
 
         {growthGroups.length > 0 ? <div>
           <InfoTooltip entry={RIGHTSIZING_SECTIONS.growthGroups} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gemeinsam zu prüfende Vergrößerungen</h3></InfoTooltip>
@@ -264,7 +267,7 @@ export function VmRightsizingPanel() {
           <VirtualTable data={growthGroups} columns={growthGroupColumns} height={220} getRowId={(row) => row.key} emptyTitle="Keine gemeinsamen Grow-Gruppen" />
         </div> : null}
 
-        {densityGrid.vmCount > 0 && <div className="grid gap-6 lg:grid-cols-2">
+        {densityGrid.vmCount > 0 && <div className="grid gap-6 xl:grid-cols-3">
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">
             <InfoTooltip entry={RIGHTSIZING_SECTIONS.densityGrid} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Konfigurierte vCPU vs. CPU Demand P95 %</h3></InfoTooltip>
             <VmRightsizingDensityGrid grid={densityGrid} onCellClick={setDensitySelection} />
@@ -283,6 +286,27 @@ export function VmRightsizingPanel() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <InfoTooltip entry={RIGHTSIZING_SECTIONS.recommendationMix} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Empfehlungswege</h3></InfoTooltip>
+            <div className="relative h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={recommendationMix} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={82} paddingAngle={3} strokeWidth={0}>
+                    {recommendationMix.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatNum(value), "VMs"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-mono-data text-2xl font-semibold">{formatNum(candidates.length)}</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">VMs</span>
+              </div>
+            </div>
+            <div className="mt-1 grid gap-1.5 text-xs">
+              {recommendationMix.map((entry) => <div key={entry.key} className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-full" style={{ backgroundColor: entry.color }} />{entry.label}</span><span className="font-mono-data text-foreground">{formatNum(entry.value)}</span></div>)}
+            </div>
           </div>
         </div>}
 

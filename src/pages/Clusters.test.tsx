@@ -106,6 +106,22 @@ const rawNICRows: SheetRow[] = hosts.map((host, index) => ({
   data: { Host: host.host, Cluster: "Production", "Network Device": `vmnic${index}`, Driver: `nmlx5-${index}` },
 }));
 
+const rawResourcePoolRows: SheetRow[] = snapshots.map((snapshot, index) => ({
+  snapshotId: snapshot.snapshotId,
+  sheetName: "vRP",
+  rowIndex: index,
+  data: {
+    Cluster: "Production",
+    Datacenter: "DC1",
+    "Resource Pool name": `Pool ${index + 1}`,
+    "Resource Pool path": `Production/Pool ${index + 1}`,
+    "CPU limit": -1,
+    "CPU expandableReservation": true,
+    "Mem limit": -1,
+    "Mem expandableReservation": true,
+  },
+}));
+
 const planningScenarios: Scenario[] = [{
   id: "scenario-1",
   name: "Migration Production",
@@ -121,6 +137,7 @@ const capacityPolicies = [{ id: "standard-server-windows", name: "Standard Serve
 const capacityPolicyAssignments: never[] = [];
 
 let whatIfResult: WhatIfClusterResult[] | null = null;
+let clusterFilters = { clusters: [] as string[], search: "" };
 
 const whatIfMetrics = (overrides: Partial<ClusterMetrics> = {}): ClusterMetrics => ({
   clusterName: "What-If Zielcluster",
@@ -148,13 +165,13 @@ const whatIfMetrics = (overrides: Partial<ClusterMetrics> = {}): ClusterMetrics 
 });
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
-  useActiveSnapshotIds: () => ({ snapshots, activeSnapshotIds: snapshots.map((snapshot) => snapshot.snapshotId), filters: { clusters: [] as string[], search: "" }, snapshotsLoading: false }),
+  useActiveSnapshotIds: () => ({ snapshots, activeSnapshotIds: snapshots.map((snapshot) => snapshot.snapshotId), filters: clusterFilters, snapshotsLoading: false }),
   useClusters: () => ({ data: clusters, isLoading: false }),
   useHosts: () => ({ data: hosts, isLoading: false }),
   useVms: () => ({ vms, isLoading: false }),
   useDatastores: () => ({ data: [] as never[], isLoading: false }),
   useRawSheet: (sheetName: string) => ({
-    data: sheetName === "vHost" ? rawVHostRows : sheetName === "vHBA" ? rawHBARows : sheetName === "vNIC" ? rawNICRows : [],
+    data: sheetName === "vHost" ? rawVHostRows : sheetName === "vHBA" ? rawHBARows : sheetName === "vNIC" ? rawNICRows : sheetName === "vRP" ? rawResourcePoolRows : [],
     isLoading: false,
   }),
   useAllVropsLatest: () => ({ data: [] as never[], isLoading: false }),
@@ -252,6 +269,7 @@ function renderToolPage(page: ReactNode) {
 beforeEach(() => {
   vi.clearAllMocks();
   whatIfResult = null;
+  clusterFilters = { clusters: [], search: "" };
 });
 
 describe("Clusters", () => {
@@ -340,6 +358,15 @@ describe("Clusters", () => {
     expect(screen.queryByRole("combobox", { name: "vCenter für Diagramme" })).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ })).toBeInTheDocument();
     expect(screen.getByText("Host Dichte (VMs vs vCPU/Core)").closest("section")).toContainElement(screen.getByRole("checkbox", { name: /Nur auffällige Hosts/ }));
+  });
+
+  it("applies the cluster search scope to capacity resource pools", async () => {
+    clusterFilters = { clusters: [], search: "vcsa-a" };
+    renderClusters("/clusters?tab=capacity");
+
+    expect(await screen.findByText("Resource Pool Pressure (1)")).toBeInTheDocument();
+    expect(screen.getByText("Pool 1")).toBeInTheDocument();
+    expect(screen.queryByText("Pool 2")).not.toBeInTheDocument();
   });
 
   it("shows maintenance assignments on its own page", async () => {

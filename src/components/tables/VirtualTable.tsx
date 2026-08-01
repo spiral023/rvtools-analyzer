@@ -31,6 +31,7 @@ import {
 import { ArrowUpDown, ArrowUp, ArrowDown, ClipboardCopy, Columns3, Download, FileSpreadsheet, FileText, CheckSquare, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface VirtualTableProps<T, TColumn = T> {
   data: T[];
@@ -404,23 +405,29 @@ export function VirtualTable<T, TColumn = T>({
           )}
         </table>
       </div>
+      <TooltipProvider delayDuration={250}>
       <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
         <span className="tabular-nums">{rows.length.toLocaleString("de-DE")} {rows.length === 1 ? "Eintrag" : "Einträge"}</span>
         <div className="flex items-center gap-1">
         {columnPicker && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                aria-label="Spalten konfigurieren"
-                title={`Spalten konfigurieren (${visibleColumnCount} von ${table.getAllLeafColumns().length} sichtbar)`}
-              >
-                <Columns3 className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
+          <Tooltip delayDuration={250}>
+            <DropdownMenu>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    aria-label="Spalten konfigurieren"
+                  >
+                    <Columns3 className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Spalten konfigurieren ({visibleColumnCount} von {table.getAllLeafColumns().length} sichtbar)
+              </TooltipContent>
             <DropdownMenuContent align="end" className="max-h-96 w-72 overflow-y-auto">
               <DropdownMenuItem onSelect={() => table.toggleAllColumnsVisible(true)}>
                 <CheckSquare className="mr-2 h-4 w-4" />
@@ -461,22 +468,26 @@ export function VirtualTable<T, TColumn = T>({
                 </div>
               ))}
             </DropdownMenuContent>
-          </DropdownMenu>
+            </DropdownMenu>
+          </Tooltip>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              disabled={rows.length === 0}
-              aria-label="Aktuell sichtbare Tabelle exportieren"
-              title="Aktuell sichtbare Tabelle exportieren"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
+        <Tooltip delayDuration={250}>
+          <DropdownMenu>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  disabled={rows.length === 0}
+                  aria-label="Aktuell sichtbare Tabelle exportieren"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top">Aktuell sichtbare Tabelle exportieren</TooltipContent>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => void handleExport("excel")}>
               <FileSpreadsheet className="mr-2 h-4 w-4" />
@@ -491,9 +502,11 @@ export function VirtualTable<T, TColumn = T>({
               Confluence Wiki-Markup kopieren
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu>
+        </Tooltip>
         </div>
       </div>
+      </TooltipProvider>
     </div>
   );
 }
