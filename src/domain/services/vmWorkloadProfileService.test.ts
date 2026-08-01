@@ -59,7 +59,7 @@ describe("classifyVmBehavior", () => {
 
   it("erkennt Business-Hours-Lasten", () => {
     const grid = buildSyntheticWeek();
-    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 3_000 : 200]));
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 6 && entry.hour < 17 ? 3_000 : 200]));
     const result = classifyVmBehavior(grid, demand);
     expect(result.behaviorClass).toBe("business-hours");
     expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThan(1);
@@ -102,7 +102,7 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
    */
   it("behält das Business-Hours-Muster trotz niedriger Auslastung", () => {
     const grid = buildSyntheticWeek();
-    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 3_000 : 200]));
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 6 && entry.hour < 17 ? 3_000 : 200]));
     const result = classifyVmBehavior(grid, demand, { configuredCpuCapacityMHz: 100_000 });
 
     expect(result.shape).toBe("business-hours");
@@ -131,9 +131,9 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
    */
   it("ordnet Grundlast mit Lastfenster dem Kalenderfenster zu und trennt sie von reiner Dauerlast", () => {
     const grid = buildSyntheticWeek();
-    // Grundlast 1.000 MHz, während der Geschäftszeiten 1.800 MHz: Konzentration 1,45 bei
+    // Grundlast 1.000 MHz, während der Geschäftszeiten 1.800 MHz: Konzentration 1,43 bei
     // einem Variationskoeffizienten von 0,30.
-    const withPeak = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 1_800 : 1_000]));
+    const withPeak = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 6 && entry.hour < 17 ? 1_800 : 1_000]));
     const result = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000 });
 
     expect(result.signals.coefficientOfVariation ?? 0).toBeGreaterThan(0.2);

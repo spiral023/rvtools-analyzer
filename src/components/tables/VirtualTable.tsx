@@ -9,29 +9,40 @@ import {
   type ColumnDef,
   type SortingState,
   type VisibilityState,
+  type OnChangeFn,
+  functionalUpdate,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   buildExportData,
+  buildCsvTable,
+  buildJsonTable,
+  buildMarkdownTable,
+  copyTableText,
   copyConfluenceWikiTable,
+  exportCsvTable,
   exportExcelTable,
+  exportJsonTable,
   exportMarkdownTable,
+  formatExportValue,
 } from "@/lib/export/tableExport";
-import { ArrowUpDown, ArrowUp, ArrowDown, ClipboardCopy, Columns3, Download, FileSpreadsheet, FileText, CheckSquare, RotateCcw, Square } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpDown, ArrowUpToLine, CheckSquare, ClipboardCopy, Columns3, Download, FileCode2, FileSpreadsheet, FileText, GripVertical, RotateCcw, Search, Square, TableProperties } from "lucide-react";
 import { toast } from "sonner";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+
+export interface TableDisplayPreferences {
+  columnVisibility: VisibilityState;
+  columnOrder: string[];
+  sorting: SortingState;
+}
 
 interface VirtualTableProps<T, TColumn = T> {
   data: T[];
@@ -61,9 +72,14 @@ interface VirtualTableProps<T, TColumn = T> {
    * gleichzeitig als Ziel des „Standard“-Knopfs in der Spaltenauswahl.
    */
   initialColumnVisibility?: VisibilityState;
+  /** Persistierbare Ansicht für eine Tabelle mit vielen optionalen Spalten. */
+  tablePreferences?: TableDisplayPreferences;
+  onTablePreferencesChange?: (preferences: TableDisplayPreferences) => void;
+  /** Ersetzt das kompakte Spaltenmenü durch ein Detailfenster mit Erklärungen und Reihenfolge. */
+  columnConfigurationDialog?: boolean;
+  /** Ersetzt das kompakte Exportmenü durch ein Detailfenster für Dateien und Zwischenablage. */
+  exportDialog?: boolean;
 }
-
-const UNGROUPED_COLUMN_LABEL = "Weitere Spalten";
 
 function columnPickerLabel<T>(column: Column<T, unknown>): string {
   const header = column.columnDef.header;
@@ -101,17 +117,61 @@ export function VirtualTable<T, TColumn = T>({
   onFilteredCountChange,
   columnPicker = false,
   initialColumnVisibility,
+  tablePreferences,
+  onTablePreferencesChange,
+  columnConfigurationDialog = false,
+  exportDialog = false,
 }: VirtualTableProps<T, TColumn>) {
-  const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility ?? {});
+  const [sorting, setSorting] = useState<SortingState>(tablePreferences?.sorting ?? initialSorting ?? []);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(tablePreferences?.columnVisibility ?? initialColumnVisibility ?? {});
+  const [columnOrder, setColumnOrder] = useState<string[]>(tablePreferences?.columnOrder ?? []);
+  const [columnConfigurationOpen, setColumnConfigurationOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
+  const [columnSearch, setColumnSearch] = useState("");
+  const [previewColumnId, setPreviewColumnId] = useState<string | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!tablePreferences) return;
+    setSorting(tablePreferences.sorting);
+    setColumnVisibility(tablePreferences.columnVisibility);
+    setColumnOrder(tablePreferences.columnOrder);
+  }, [tablePreferences]);
+
+  const updatePreferences = useCallback((next: Partial<TableDisplayPreferences>) => {
+    onTablePreferencesChange?.({
+      sorting: next.sorting ?? sorting,
+      columnVisibility: next.columnVisibility ?? columnVisibility,
+      columnOrder: next.columnOrder ?? columnOrder,
+    });
+  }, [columnOrder, columnVisibility, onTablePreferencesChange, sorting]);
+
+  const handleSortingChange: OnChangeFn<SortingState> = useCallback((updater) => {
+    const next = functionalUpdate(updater, sorting);
+    setSorting(next);
+    updatePreferences({ sorting: next });
+  }, [sorting, updatePreferences]);
+
+  const handleColumnVisibilityChange: OnChangeFn<VisibilityState> = useCallback((updater) => {
+    const next = functionalUpdate(updater, columnVisibility);
+    setColumnVisibility(next);
+    updatePreferences({ columnVisibility: next });
+  }, [columnVisibility, updatePreferences]);
+
+  const handleColumnOrderChange: OnChangeFn<string[]> = useCallback((updater) => {
+    const next = functionalUpdate(updater, columnOrder);
+    setColumnOrder(next);
+    updatePreferences({ columnOrder: next });
+  }, [columnOrder, updatePreferences]);
 
   const table = useReactTable({
     data,
     columns: columns as unknown as ColumnDef<T, unknown>[],
-    state: { sorting, globalFilter, columnVisibility },
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
+    state: { sorting, globalFilter, columnVisibility, columnOrder },
+    onSortingChange: handleSortingChange,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
+    onColumnOrderChange: handleColumnOrderChange,
     getRowId: getRowId ? (row) => getRowId(row) : undefined,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -122,17 +182,20 @@ export function VirtualTable<T, TColumn = T>({
   const { rows } = table.getRowModel();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
-  // Reihenfolge der Gruppen folgt der Spaltenreihenfolge, damit die Auswahl die Tabelle spiegelt.
-  const pickerGroups = columnPicker
-    ? table.getAllLeafColumns().reduce<Array<{ label: string; columns: Column<T, unknown>[] }>>((groups, column) => {
-        if (column.id === "__selection") return groups;
-        const label = column.columnDef.meta?.group ?? UNGROUPED_COLUMN_LABEL;
-        const group = groups.find((entry) => entry.label === label);
-        if (group) group.columns.push(column);
-        else groups.push({ label, columns: [column] });
-        return groups;
-      }, [])
-    : [];
+  const configurableColumns = table.getAllLeafColumns().filter((column) => column.id !== "__selection");
+  const normalizedColumnSearch = columnSearch.trim().toLocaleLowerCase("de-DE");
+  const filteredConfigurableColumns = normalizedColumnSearch
+    ? configurableColumns.filter((column) => {
+        const info = column.columnDef.meta?.info;
+        return [columnPickerLabel(column), column.columnDef.meta?.group, info?.term, info?.description, info?.source]
+          .some((value) => value?.toLocaleLowerCase("de-DE").includes(normalizedColumnSearch));
+      })
+    : configurableColumns;
+  const previewColumn = configurableColumns.find((column) => column.id === previewColumnId)
+    ?? configurableColumns[0];
+  const previewExample = previewColumn
+    ? rows.map((row) => formatExportValue(row.getValue(previewColumn.id))).find((value) => value.trim().length > 0) ?? "—"
+    : "—";
 
   useEffect(() => {
     onFilteredCountChange?.(rows.length);
@@ -153,8 +216,7 @@ export function VirtualTable<T, TColumn = T>({
     ? sortedRowIds.some((id) => selectedKeys?.has(id)) && !allSelected
     : false;
 
-  const handleExport = async (format: "excel" | "markdown" | "confluence") => {
-    const exportData = buildExportData(
+  const getExportData = () => buildExportData(
       table.getVisibleLeafColumns().map((column) => ({
         id: column.id,
         header: column.columnDef.header,
@@ -164,6 +226,8 @@ export function VirtualTable<T, TColumn = T>({
       })),
     );
 
+  const handleExport = async (format: "excel" | "csv" | "markdown" | "json" | "confluence" | "copy-csv" | "copy-markdown" | "copy-json") => {
+    const exportData = getExportData();
     const filename = exportFileName ?? getDefaultExportFileName();
 
     try {
@@ -173,9 +237,39 @@ export function VirtualTable<T, TColumn = T>({
         return;
       }
 
+      if (format === "csv") {
+        exportCsvTable(exportData, filename);
+        toast.success("Tabelle als CSV-Datei exportiert.");
+        return;
+      }
+
+      if (format === "json") {
+        exportJsonTable(exportData, filename);
+        toast.success("Tabelle als JSON-Datei exportiert.");
+        return;
+      }
+
       if (format === "confluence") {
         await copyConfluenceWikiTable(exportData);
         toast.success("Confluence-Wiki-Markup in die Zwischenablage kopiert.");
+        return;
+      }
+
+      if (format === "copy-csv") {
+        await copyTableText(buildCsvTable(exportData));
+        toast.success("CSV in die Zwischenablage kopiert.");
+        return;
+      }
+
+      if (format === "copy-json") {
+        await copyTableText(buildJsonTable(exportData));
+        toast.success("JSON in die Zwischenablage kopiert.");
+        return;
+      }
+
+      if (format === "copy-markdown") {
+        await copyTableText(buildMarkdownTable(exportData));
+        toast.success("Markdown in die Zwischenablage kopiert.");
         return;
       }
 
@@ -213,6 +307,30 @@ export function VirtualTable<T, TColumn = T>({
   const contentHeight = HEADER_HEIGHT + virtualizer.getTotalSize() + (hasFooter ? FOOTER_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
   const effectiveHeight = Math.min(height, contentHeight);
   const needsVerticalScroll = contentHeight > height;
+
+  const applyTablePreferences = (next: TableDisplayPreferences) => {
+    setSorting(next.sorting);
+    setColumnVisibility(next.columnVisibility);
+    setColumnOrder(next.columnOrder);
+    onTablePreferencesChange?.(next);
+  };
+
+  const reorderColumn = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const next = configurableColumns.map((column) => column.id);
+    const sourceIndex = next.indexOf(sourceId);
+    const targetIndex = next.indexOf(targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, sourceId);
+    handleColumnOrderChange(next);
+  };
+
+  const resetTablePreferences = () => applyTablePreferences({
+    sorting: initialSorting ?? [],
+    columnVisibility: initialColumnVisibility ?? {},
+    columnOrder: [],
+  });
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start ?? 0 : 0;
@@ -406,107 +524,209 @@ export function VirtualTable<T, TColumn = T>({
         </table>
       </div>
       <TooltipProvider delayDuration={250}>
-      <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
-        <span className="tabular-nums">{rows.length.toLocaleString("de-DE")} {rows.length === 1 ? "Eintrag" : "Einträge"}</span>
-        <div className="flex items-center gap-1">
-        {columnPicker && (
-          <Tooltip delayDuration={250}>
-            <DropdownMenu>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
+        <div className="flex items-center justify-between gap-2 border-t border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+          <span className="tabular-nums">{rows.length.toLocaleString("de-DE")} {rows.length === 1 ? "Eintrag" : "Einträge"}</span>
+          <div className="flex items-center gap-1">
+            {columnPicker && (
+              <Tooltip delayDuration={250}>
+                <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    className="h-8 w-8 text-muted-foreground transition-[scale,color,background-color] duration-150 hover:text-foreground active:scale-[0.96]"
                     aria-label="Spalten konfigurieren"
+                    onClick={() => setColumnConfigurationOpen(true)}
                   >
-                    <Columns3 className="h-3.5 w-3.5" />
+                    <Columns3 className="h-4 w-4" />
                   </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Spalten konfigurieren ({visibleColumnCount} von {table.getAllLeafColumns().length} sichtbar)
-              </TooltipContent>
-            <DropdownMenuContent align="end" className="max-h-96 w-72 overflow-y-auto">
-              <DropdownMenuItem onSelect={() => table.toggleAllColumnsVisible(true)}>
-                <CheckSquare className="mr-2 h-4 w-4" />
-                Alle Spalten anzeigen
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setColumnVisibility(initialColumnVisibility ?? {})}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Standardauswahl
-              </DropdownMenuItem>
-              {pickerGroups.map((group) => (
-                <div key={group.label}>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    {group.label}
-                  </DropdownMenuLabel>
-                  {group.columns.map((column) => {
-                    const item = (
-                      <DropdownMenuCheckboxItem
-                        key={column.id}
-                        checked={column.getIsVisible()}
-                        // Die letzte sichtbare Spalte bleibt an, sonst bliebe eine Tabelle ohne Spalten zurück.
-                        disabled={column.getIsVisible() && visibleColumnCount <= 1}
-                        // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
-                        onSelect={(event) => {
-                          event.preventDefault();
-                          column.toggleVisibility();
-                        }}
-                      >
-                        {columnPickerLabel(column)}
-                      </DropdownMenuCheckboxItem>
-                    );
-                    return (
-                      <InfoTooltip key={column.id} entry={column.columnDef.meta?.info} side="left" align="center">
-                        {item}
-                      </InfoTooltip>
-                    );
-                  })}
-                </div>
-              ))}
-            </DropdownMenuContent>
-            </DropdownMenu>
-          </Tooltip>
-        )}
-        <Tooltip delayDuration={250}>
-          <DropdownMenu>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {columnConfigurationDialog ? "Spaltenansicht bearbeiten" : `Spalten konfigurieren (${visibleColumnCount} von ${configurableColumns.length} sichtbar)`}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip delayDuration={250}>
+              <TooltipTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  className="h-8 w-8 text-muted-foreground transition-[scale,color,background-color] duration-150 hover:text-foreground active:scale-[0.96]"
                   disabled={rows.length === 0}
                   aria-label="Aktuell sichtbare Tabelle exportieren"
+                  onClick={() => setExportOpen(true)}
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="top">Aktuell sichtbare Tabelle exportieren</TooltipContent>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => void handleExport("excel")}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel (.xlsx)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void handleExport("markdown")}>
-              <FileText className="mr-2 h-4 w-4" />
-              Markdown
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void handleExport("confluence")}>
-              <ClipboardCopy className="mr-2 h-4 w-4" />
-              Confluence Wiki-Markup kopieren
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-          </DropdownMenu>
-        </Tooltip>
+              </TooltipTrigger>
+              <TooltipContent side="top">{exportDialog ? "Tabelle exportieren oder kopieren" : "Aktuell sichtbare Tabelle exportieren"}</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </div>
       </TooltipProvider>
+
+      <Dialog open={columnConfigurationOpen} onOpenChange={setColumnConfigurationOpen}>
+        <DialogContent className="max-h-[min(48rem,calc(100vh-2rem))] max-w-4xl gap-0 overflow-hidden border-border/70 p-0 shadow-2xl">
+          <DialogHeader className="border-b border-border/60 bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-14">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              <TableProperties className="h-4 w-4" aria-hidden="true" /> Tabellenansicht
+            </div>
+            <DialogTitle className="text-balance">Spalten, Reihenfolge und Sortierung</DialogTitle>
+            <DialogDescription className="max-w-2xl leading-relaxed">
+              Wähle die relevanten Informationen, ziehe Spalten an ihre Position und lege die Standardsortierung fest. Die Erklärungen entsprechen den Hinweisen in der Tabelle.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid min-h-0 lg:grid-cols-[minmax(0,1fr)_15rem]">
+            <div className="min-h-0 border-b border-border/60 lg:border-b-0 lg:border-r">
+              <div className="border-b border-border/60 bg-muted/10 p-4">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input value={columnSearch} onChange={(event) => setColumnSearch(event.target.value)} className="pl-9" placeholder="Spalten, Kategorien oder Erklärungen suchen …" aria-label="Spalten suchen" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground"><span className="tabular-nums">{filteredConfigurableColumns.length}</span> von {configurableColumns.length} Spalten</p>
+              </div>
+              <ScrollArea className="max-h-[min(28rem,calc(100vh-23rem))]">
+                <div className="space-y-2 p-4">
+                {filteredConfigurableColumns.map((column) => {
+                  const index = configurableColumns.findIndex((entry) => entry.id === column.id);
+                  const info = column.columnDef.meta?.info;
+                  const visible = column.getIsVisible();
+                  return (
+                    <div
+                      key={column.id}
+                      draggable
+                      onDragStart={() => setDraggedColumnId(column.id)}
+                      onDragEnd={() => setDraggedColumnId(null)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => {
+                        if (draggedColumnId) reorderColumn(draggedColumnId, column.id);
+                        setDraggedColumnId(null);
+                      }}
+                      className={cn(
+                        "group grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-xl border border-border/60 bg-card/70 p-3 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-[transform,box-shadow,border-color,opacity] duration-150",
+                        draggedColumnId === column.id && "scale-[0.99] border-primary/50 opacity-60 shadow-none",
+                      )}
+                    >
+                      <div className="flex pt-1">
+                        <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground/55 active:cursor-grabbing" aria-label="Spalte verschieben" />
+                      </div>
+                      <label className="min-w-0 cursor-pointer" htmlFor={`column-visible-${column.id}`}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`column-visible-${column.id}`}
+                            checked={visible}
+                            disabled={visible && visibleColumnCount <= 1}
+                            onCheckedChange={() => column.toggleVisibility()}
+                          />
+                          <span className="text-sm font-semibold text-foreground">{columnPickerLabel(column)}</span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{column.columnDef.meta?.group ?? "Weitere"}</span>
+                        </div>
+                        <p className="mt-1.5 pl-6 text-xs leading-relaxed text-muted-foreground">
+                          {info?.description ?? "Für diese Spalte ist keine zusätzliche Erläuterung hinterlegt."}
+                        </p>
+                        {info?.source && <p className="mt-1 pl-6 font-mono-data text-[10px] text-muted-foreground/75">Quelle: {info.source}</p>}
+                      </label>
+                      <div className="flex items-center gap-0.5">
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 transition-transform active:scale-[0.96]" disabled={index === 0} onClick={() => reorderColumn(column.id, configurableColumns[index - 1]?.id ?? column.id)} aria-label={`${columnPickerLabel(column)} nach oben verschieben`}>
+                          <ArrowUpToLine className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 transition-transform active:scale-[0.96]" disabled={index === configurableColumns.length - 1} onClick={() => reorderColumn(column.id, configurableColumns[index + 1]?.id ?? column.id)} aria-label={`${columnPickerLabel(column)} nach unten verschieben`}>
+                          <ArrowDownToLine className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredConfigurableColumns.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-border/80 bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                    Keine passende Spalte gefunden. Suche nach Bezeichnung, Kategorie oder Erklärung.
+                  </div>
+                )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <aside className="space-y-4 bg-muted/20 p-4">
+              <div className="rounded-xl border border-primary/15 bg-primary/5 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Sichtbare Spalten</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{visibleColumnCount}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {configurableColumns.length}</span></p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Sortierung</p>
+                <Select value={sorting[0]?.id ?? "none"} onValueChange={(id) => handleSortingChange(id === "none" ? [] : [{ id, desc: sorting[0]?.desc ?? false }])}>
+                  <SelectTrigger aria-label="Sortierspalte auswählen"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine Standardsortierung</SelectItem>
+                    {configurableColumns.map((column) => <SelectItem key={column.id} value={column.id}>{columnPickerLabel(column)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={sorting[0]?.desc ? "desc" : "asc"} disabled={sorting.length === 0} onValueChange={(direction) => sorting[0] && handleSortingChange([{ id: sorting[0].id, desc: direction === "desc" }])}>
+                  <SelectTrigger aria-label="Sortierrichtung auswählen"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Aufsteigend</SelectItem>
+                    <SelectItem value="desc">Absteigend</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 border-t border-border/60 pt-4">
+                <p className="text-sm font-semibold">Beispielwert</p>
+                <Select value={previewColumn?.id ?? "none"} onValueChange={(id) => setPreviewColumnId(id === "none" ? null : id)}>
+                  <SelectTrigger aria-label="Beispielspalte auswählen"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {configurableColumns.map((column) => <SelectItem key={column.id} value={column.id}>{columnPickerLabel(column)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="min-h-16 rounded-lg border border-border/70 bg-background/80 px-3 py-2.5 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{previewColumn ? columnPickerLabel(previewColumn) : "Keine Spalte"}</p>
+                  <p className="mt-1 break-words font-mono-data text-xs leading-relaxed text-foreground">{previewExample}</p>
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">Erster verfügbarer Wert aus der aktuell gefilterten Tabelle.</p>
+              </div>
+              <div className="rounded-lg border border-dashed border-border/80 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+                Spalten lassen sich per Drag & Drop oder über die Pfeile in ihre Reihenfolge bringen.
+              </div>
+            </aside>
+          </div>
+
+          <DialogFooter className="border-t border-border/60 bg-muted/10 px-6 py-4 sm:justify-between">
+            <Button type="button" variant="ghost" className="gap-2" onClick={resetTablePreferences}><RotateCcw className="h-4 w-4" /> Standard wiederherstellen</Button>
+            <Button type="button" onClick={() => setColumnConfigurationOpen(false)}>Fertig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="max-w-3xl gap-0 overflow-hidden border-border/70 p-0 shadow-2xl">
+          <DialogHeader className="border-b border-border/60 bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-14">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary"><Download className="h-4 w-4" aria-hidden="true" /> Tabellenexport</div>
+            <DialogTitle className="text-balance">Sichtbare Tabelle weitergeben</DialogTitle>
+            <DialogDescription>Exportiert werden {rows.length.toLocaleString("de-DE")} gefilterte Zeilen und {visibleColumnCount} sichtbare Spalten – genau wie aktuell in der Tabelle.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 p-5 sm:grid-cols-2">
+            <section className="rounded-xl border border-border/70 bg-card/70 p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
+              <div className="mb-3 flex items-center gap-2"><FileSpreadsheet className="h-4 w-4 text-primary" /><h3 className="font-semibold">Als Datei</h3></div>
+              <div className="grid gap-2">
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("excel")}><FileSpreadsheet className="h-4 w-4" /> Excel (.xlsx)</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("csv")}><FileText className="h-4 w-4" /> CSV (.csv)</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("markdown")}><FileText className="h-4 w-4" /> Markdown (.md)</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("json")}><FileCode2 className="h-4 w-4" /> JSON (.json)</Button>
+              </div>
+            </section>
+            <section className="rounded-xl border border-border/70 bg-card/70 p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
+              <div className="mb-3 flex items-center gap-2"><ClipboardCopy className="h-4 w-4 text-primary" /><h3 className="font-semibold">In die Zwischenablage</h3></div>
+              <div className="grid gap-2">
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("copy-csv")}><ClipboardCopy className="h-4 w-4" /> CSV</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("copy-markdown")}><ClipboardCopy className="h-4 w-4" /> Markdown</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("confluence")}><ClipboardCopy className="h-4 w-4" /> Confluence Wiki-Markup</Button>
+                <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => void handleExport("copy-json")}><ClipboardCopy className="h-4 w-4" /> JSON</Button>
+              </div>
+            </section>
+          </div>
+          <DialogFooter className="border-t border-border/60 bg-muted/10 px-6 py-4"><Button type="button" onClick={() => setExportOpen(false)}>Schließen</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

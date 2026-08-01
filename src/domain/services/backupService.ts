@@ -3,10 +3,12 @@ import {
   getMaintenanceSettings,
   getMaintenanceWindows,
   getScenarios,
+  getUiState,
   getVcenterGroups,
   putMaintenanceAssignment,
   putMaintenanceSettings,
   putScenario,
+  putUiState,
   putVcenterGroup,
   upsertMaintenanceWindows,
   validateMaintenanceWindowUpsertInput,
@@ -23,16 +25,20 @@ export interface UserDataImportResult {
   scenariosImported: number;
   vcenterGroupsImported: number;
   vmScopeSettingsImported: boolean;
+  techInfoOrganisationTablePreferencesImported: boolean;
 }
+
+const TECHINFO_ORGANISATION_UI_STATE_ID = "tech-info-organisation";
 
 /** Sammelt alle Benutzerdaten (ohne RVTools-/Tech-Info-Daten) für den Export. */
 export async function collectUserDataBackup(): Promise<UserDataBackup> {
-  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups] = await Promise.all([
+  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups, techInfoOrganisationUiState] = await Promise.all([
     getMaintenanceSettings(),
     getMaintenanceAssignments(),
     getMaintenanceWindows(),
     getScenarios(),
     getVcenterGroups(),
+    getUiState(TECHINFO_ORGANISATION_UI_STATE_ID),
   ]);
 
   return buildUserDataBackup({
@@ -42,6 +48,7 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     scenarios,
     vcenterGroups,
     vmScopeSettings: getStoredVmScopeSettings(),
+    techInfoOrganisationTablePreferences: techInfoOrganisationUiState?.techInfoOrganisationTablePreferences,
   });
 }
 
@@ -62,6 +69,14 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     ...backup.vcenterGroups.map((group) => putVcenterGroup(group)),
   ]);
   if (backup.vmScopeSettings) saveVmScopeSettings(backup.vmScopeSettings);
+  if (backup.techInfoOrganisationTablePreferences) {
+    const existing = await getUiState(TECHINFO_ORGANISATION_UI_STATE_ID);
+    await putUiState({
+      ...(existing ?? { id: TECHINFO_ORGANISATION_UI_STATE_ID, theme: "dark" }),
+      id: TECHINFO_ORGANISATION_UI_STATE_ID,
+      techInfoOrganisationTablePreferences: backup.techInfoOrganisationTablePreferences,
+    });
+  }
 
   return {
     settingsImported: Boolean(backup.maintenanceSettings),
@@ -70,6 +85,7 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     scenariosImported: backup.scenarios.length,
     vcenterGroupsImported: backup.vcenterGroups.length,
     vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
+    techInfoOrganisationTablePreferencesImported: Boolean(backup.techInfoOrganisationTablePreferences),
   };
 }
 

@@ -103,12 +103,20 @@ export function buildConfluenceWikiTable(data: TableExportData): string {
   return [headerLine, ...rowLines].join("\n");
 }
 
-export async function copyConfluenceWikiTable(data: TableExportData): Promise<void> {
+/** Gut lesbares, strukturtreues Format für Automatisierung und Weiterverarbeitung. */
+export function buildJsonTable(data: TableExportData): string {
+  return JSON.stringify(data.rows, null, 2);
+}
+
+export async function copyTableText(content: string): Promise<void> {
   if (!navigator.clipboard?.writeText) {
     throw new Error("Die Zwischenablage ist in diesem Browser nicht verfügbar.");
   }
+  await navigator.clipboard.writeText(content);
+}
 
-  await navigator.clipboard.writeText(buildConfluenceWikiTable(data));
+export async function copyConfluenceWikiTable(data: TableExportData): Promise<void> {
+  await copyTableText(buildConfluenceWikiTable(data));
 }
 
 export function downloadTextFile(content: string, filename: string, type: string): void {
@@ -142,6 +150,10 @@ export function buildCsvTable(data: TableExportData): string {
 
 export function exportCsvTable(data: TableExportData, filename: string): void {
   downloadTextFile(`\uFEFF${buildCsvTable(data)}`, `${normalizeExportFilename(filename)}.csv`, "text/csv;charset=utf-8");
+}
+
+export function exportJsonTable(data: TableExportData, filename: string): void {
+  downloadTextFile(buildJsonTable(data), `${normalizeExportFilename(filename)}.json`, "application/json;charset=utf-8");
 }
 
 export async function exportExcelTable(data: TableExportData, filename: string): Promise<void> {

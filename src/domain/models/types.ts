@@ -969,7 +969,7 @@ export interface VmWorkloadClassificationSignals {
    * mit `weeklyRepeatability` das Kriterium dafür, ob eine Spitzenlast planbar ist.
    */
   weeklyPeakVariation: number | null;
-  /** Anteil der Demand-Summe während Mo–Fr 08–18 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
+  /** Anteil der Demand-Summe während Mo–Fr 06–17 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
   businessHoursConcentration: number | null;
   /** Wie `businessHoursConcentration`, für Mo–Fr 00–06 Uhr. */
   nightConcentration: number | null;
@@ -1611,6 +1611,17 @@ export interface VmScopeSettings {
   excludeDummyVms: boolean;
 }
 
+/**
+ * Persönliche Ansicht für den VM-Drill-down in Tech-Info → Organisation. Die
+ * Spalten-IDs bleiben stabil, damit die Konfiguration auch nach einem Reload oder
+ * Backup-Import erhalten bleibt.
+ */
+export interface TechInfoOrganisationTablePreferences {
+  columnVisibility: Record<string, boolean>;
+  columnOrder: string[];
+  sorting: Array<{ id: string; desc: boolean }>;
+}
+
 export interface FilterState extends VmScopeSettings {
   vcenterIds: VCenterId[];
   clusters: string[];
@@ -1674,6 +1685,8 @@ export interface UiState {
    * Exporten dasselbe Kürzel behält und Vorher/Nachher vergleichbar wird.
    */
   analysisExportPseudonymSalt?: string;
+  /** Persönliche Tabellenansicht des Organisations-Drill-downs. */
+  techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
 }
 
 export type ScenarioType = "cluster-migration";

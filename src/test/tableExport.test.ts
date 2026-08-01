@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildExportData,
   buildConfluenceWikiTable,
+  buildJsonTable,
   buildMarkdownTable,
+  copyTableText,
   copyConfluenceWikiTable,
   formatExportValue,
   normalizeExportFilename,
@@ -88,6 +90,14 @@ describe("table export helpers", () => {
     });
 
     expect(writeText).toHaveBeenCalledWith("||Name||\n|app-01|");
+  });
+
+  it("baut und kopiert JSON für strukturierte Weiterverarbeitung", async () => {
+    const data = { headers: ["Name"], rows: [{ Name: "app-01" }] };
+
+    expect(buildJsonTable(data)).toBe('[\n  {\n    "Name": "app-01"\n  }\n]');
+    await copyTableText(buildJsonTable(data));
+    expect(writeText).toHaveBeenCalledWith(buildJsonTable(data));
   });
 
   it("formats export values and filenames for downloads", () => {

@@ -13,6 +13,7 @@ import type {
   MaintenanceSettings,
   MaintenanceWindowDefinition,
   Scenario,
+  TechInfoOrganisationTablePreferences,
 } from "@/domain/models/types";
 import { getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
@@ -70,6 +71,12 @@ const vcenterGroup = {
   updatedAt: "2026-07-01T10:00:00.000Z",
 };
 
+const techInfoOrganisationTablePreferences: TechInfoOrganisationTablePreferences = {
+  columnVisibility: { comment: false, cluster: true },
+  columnOrder: ["server", "cluster", "comment"],
+  sorting: [{ id: "cluster", desc: false }],
+};
+
 describe("buildUserDataBackup / serialize / parse roundtrip", () => {
   it("erhält alle Benutzerdaten über einen Export/Import-Zyklus", () => {
     const backup = buildUserDataBackup({
@@ -78,6 +85,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       maintenanceWindows: [makeMaintenanceWindow()],
       scenarios: [scenario],
       vcenterGroups: [vcenterGroup],
+      techInfoOrganisationTablePreferences,
       exportedAt: new Date("2026-07-03T12:00:00.000Z"),
     } as never);
 
@@ -96,6 +104,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       excludeVclsVms: true,
       excludeDummyVms: false,
     });
+    expect(parsed.techInfoOrganisationTablePreferences).toEqual(techInfoOrganisationTablePreferences);
   });
 
   it("kommt mit leerem Datenbestand zurecht", () => {
@@ -397,6 +406,27 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
 
     expect(result.vmScopeSettingsImported).toBe(true);
     expect(getStoredVmScopeSettings()).toEqual({ vmPowerScope: "poweredOn", excludeVclsVms: true, excludeDummyVms: true });
+  });
+
+  it("exportiert und importiert die persönliche Tech-Info-Organisationsansicht", async () => {
+    const { getUiState, putUiState } = await import("@/data/db");
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    await putUiState({ id: "tech-info-organisation", theme: "dark", techInfoOrganisationTablePreferences });
+
+    const collected = await collectUserDataBackup();
+    expect(collected.techInfoOrganisationTablePreferences).toEqual(techInfoOrganisationTablePreferences);
+
+    const imported = { ...techInfoOrganisationTablePreferences, sorting: [{ id: "server", desc: true }] };
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+      techInfoOrganisationTablePreferences: imported,
+    }));
+
+    expect(result.techInfoOrganisationTablePreferencesImported).toBe(true);
+    expect((await getUiState("tech-info-organisation"))?.techInfoOrganisationTablePreferences).toEqual(imported);
   });
 
   it("validates invalid maintenance-window batches before writing other backup data", async () => {

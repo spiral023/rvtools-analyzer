@@ -3,6 +3,7 @@ import type {
   MaintenanceSettings,
   MaintenanceWindowDefinition,
   Scenario,
+  TechInfoOrganisationTablePreferences,
   VCenterGroup,
   VmScopeSettings,
 } from "@/domain/models/types";
@@ -19,13 +20,14 @@ export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
 /**
  * Formatversionen:
  * 1 – Grundbestand, 2 – Wartungsfenster, 3 – vCenter-Gruppen, 4 – VM-Scope-Vorgaben,
- * 5 – Wochenpläne als Zeitbereiche statt als 48er-Boolean-Matrix.
+ * 5 – Wochenpläne als Zeitbereiche statt als 48er-Boolean-Matrix,
+ * 6 – persönliche Ansicht des Tech-Info-Organisations-Drill-downs.
  *
  * Geschrieben wird stets die neueste Version; gelesen werden alle. Die Feldweichen unten
  * vergleichen deshalb numerisch (`version >= n`) und nicht gegen diese Konstante – sonst
  * verliert jede Versionserhöhung stillschweigend die Felder der Vorgängerversion.
  */
-export const USER_DATA_BACKUP_VERSION = 5;
+export const USER_DATA_BACKUP_VERSION = 6;
 const OLDEST_SUPPORTED_VERSION = 1;
 
 export interface UserDataBackup {
@@ -38,6 +40,7 @@ export interface UserDataBackup {
   scenarios: Scenario[];
   vcenterGroups: VCenterGroup[];
   vmScopeSettings?: VmScopeSettings;
+  techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
 }
 
 export function buildUserDataBackup(input: {
@@ -47,6 +50,7 @@ export function buildUserDataBackup(input: {
   scenarios: Scenario[];
   vcenterGroups?: VCenterGroup[];
   vmScopeSettings?: VmScopeSettings;
+  techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
   exportedAt?: Date;
 }): UserDataBackup {
   return {
@@ -59,6 +63,7 @@ export function buildUserDataBackup(input: {
     scenarios: input.scenarios,
     vcenterGroups: input.vcenterGroups ?? [],
     vmScopeSettings: input.vmScopeSettings ?? DEFAULT_VM_SCOPE_SETTINGS,
+    techInfoOrganisationTablePreferences: input.techInfoOrganisationTablePreferences,
   };
 }
 
@@ -176,6 +181,24 @@ function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
     excludeVclsVms: value.excludeVclsVms,
     excludeDummyVms: typeof value.excludeDummyVms === "boolean" ? value.excludeDummyVms : false,
   };
+}
+
+function normalizeTechInfoOrganisationTablePreferences(value: unknown): TechInfoOrganisationTablePreferences | null {
+  if (!isRecord(value) || !isRecord(value.columnVisibility)
+    || !Array.isArray(value.columnOrder) || !Array.isArray(value.sorting)) return null;
+
+  const columnVisibility = Object.entries(value.columnVisibility).reduce<Record<string, boolean>>((result, [id, visible]) => {
+    if (id.trim() && typeof visible === "boolean") result[id] = visible;
+    return result;
+  }, {});
+  const columnOrder = [...new Set(value.columnOrder.filter((id): id is string => typeof id === "string" && id.trim().length > 0))];
+  const sorting = value.sorting.reduce<TechInfoOrganisationTablePreferences["sorting"]>((result, item) => {
+    if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim() || typeof item.desc !== "boolean") return result;
+    if (!result.some((entry) => entry.id === item.id)) result.push({ id: item.id, desc: item.desc });
+    return result;
+  }, []);
+
+  return { columnVisibility, columnOrder, sorting };
 }
 
 function normalizeTimestamp(value: unknown, fallback: string): string {
@@ -298,6 +321,9 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   const vmScopeSettings = version >= 4
     ? normalizeVmScopeSettings(parsed.vmScopeSettings) ?? undefined
     : undefined;
+  const techInfoOrganisationTablePreferences = version >= 6
+    ? normalizeTechInfoOrganisationTablePreferences(parsed.techInfoOrganisationTablePreferences) ?? undefined
+    : undefined;
 
   return {
     kind: USER_DATA_BACKUP_KIND,
@@ -309,5 +335,6 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     scenarios,
     vcenterGroups,
     vmScopeSettings,
+    techInfoOrganisationTablePreferences,
   };
 }

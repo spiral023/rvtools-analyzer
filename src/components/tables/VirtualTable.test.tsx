@@ -162,19 +162,23 @@ describe("VirtualTable", () => {
       />,
     );
 
-    // Tastaturpfad: jsdom kennt keine PointerEvents, Radix öffnet das Menü aber auch per Enter.
-    fireEvent.keyDown(screen.getByRole("button", { name: "Spalten konfigurieren" }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Spalten konfigurieren" }));
 
-    const menu = screen.getByRole("menu");
-    expect(within(menu).getByText("Basisfelder")).toBeInTheDocument();
-    expect(within(menu).getByText("Weitere Felder")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Spalten, Reihenfolge und Sortierung" })).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Basisfelder")).toHaveLength(2);
+    expect(within(dialog).getByText("Weitere Felder")).toBeInTheDocument();
+    expect(within(dialog).getByText("10.0.0.1")).toBeInTheDocument();
 
-    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Comment" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Spalten suchen" }), { target: { value: "Comment" } });
+    expect(within(dialog).queryByRole("checkbox", { name: "IP" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Comment/i }));
 
     // `hidden: true`, weil das geöffnete Radix-Menü die Tabelle per aria-hidden ausblendet.
     expect(screen.getByRole("columnheader", { name: "Comment", hidden: true })).toBeInTheDocument();
-    // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    // Das Detailfenster bleibt offen, damit mehrere Spalten in einem Zug angepasst werden können.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it.each([
