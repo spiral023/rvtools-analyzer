@@ -12,7 +12,6 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
 import { RELATED_TOOLS } from "@/lib/relatedTools";
 import { useOptionalImportController } from "@/hooks/useImportController";
@@ -130,31 +129,45 @@ function NavSection({
 }
 
 function RelatedToolsNav() {
+  const [activeTool, setActiveTool] = useState<(typeof RELATED_TOOLS)[number] | null>(null);
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
-        Weitere Tools
-      </SidebarGroupLabel>
       <SidebarGroupContent>
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className={cn(
+            "mb-2 h-[76px] overflow-hidden rounded-lg bg-sidebar-accent/50 px-3 py-2 transition-opacity duration-150 motion-reduce:transition-none",
+            activeTool ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <p className="truncate text-xs font-semibold text-sidebar-accent-foreground">
+            {activeTool?.name}
+          </p>
+          <p className="mt-1 line-clamp-3 text-[11px] leading-4 text-sidebar-foreground/70">
+            {activeTool?.description}
+          </p>
+        </div>
         <div className="grid grid-cols-4 gap-1 px-1">
           {RELATED_TOOLS.map((tool) => (
-            <Tooltip key={tool.href}>
-              <TooltipTrigger asChild>
-                <a
-                  href={tool.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={tool.name}
-                  className="flex h-9 w-9 items-center justify-center justify-self-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <tool.icon className="h-4 w-4" aria-hidden="true" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="right" align="center" className="max-w-[220px]">
-                <p className="text-xs font-semibold">{tool.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{tool.description}</p>
-              </TooltipContent>
-            </Tooltip>
+            <a
+              key={tool.href}
+              href={tool.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={tool.name}
+              onMouseEnter={() => setActiveTool(tool)}
+              onMouseLeave={() => setActiveTool(null)}
+              onFocus={() => setActiveTool(tool)}
+              onBlur={() => setActiveTool(null)}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center justify-self-center rounded-md text-sidebar-foreground/70 transition-[color,background-color,transform] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96] motion-reduce:transform-none",
+                activeTool === tool && "bg-sidebar-accent text-sidebar-accent-foreground",
+              )}
+            >
+              <tool.icon className="h-4 w-4" aria-hidden="true" />
+            </a>
           ))}
         </div>
       </SidebarGroupContent>
@@ -183,7 +196,7 @@ export function AppSidebar() {
         <NavSection label="Analyse" items={analysisNav} />
         <NavSection label="Tools" items={toolsNav} />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-0">
+      <SidebarFooter className="p-0">
         <RelatedToolsNav />
       </SidebarFooter>
     </Sidebar>

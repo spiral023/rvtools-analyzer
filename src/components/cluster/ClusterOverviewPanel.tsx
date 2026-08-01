@@ -65,7 +65,7 @@ function ClusterDensityTooltip({
       <div className="mt-2 grid grid-cols-3 gap-x-3 text-muted-foreground">
         <span>Ø VMs/Host: <strong className="text-popover-foreground">{formatNum(point.avgVmsPerHost)}</strong></span>
         <span>vCPU/Core: <strong className="text-popover-foreground">{point.vcpuPerCore.toFixed(2)}</strong></span>
-        <span>Laufende VMs: <strong className="text-popover-foreground">{formatNum(point.runningVms)}</strong></span>
+        <span>VMs: <strong className="text-popover-foreground">{formatNum(point.vms)}</strong></span>
       </div>
     </div>
   );
@@ -105,7 +105,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
       <KpiGrid>
         <KpiCard title="Cluster" value={formatNum(kpis.clusters)} info={CLUSTER_KPI.clusters} icon={<Server className="h-4 w-4" />} />
         <KpiCard title="Hosts" value={formatNum(kpis.hosts)} info={CLUSTER_KPI.hosts} icon={<Server className="h-4 w-4" />} />
-        <KpiCard title="Laufende VMs" value={formatNum(kpis.runningVms)} info={CLUSTER_KPI.runningVms} icon={<Users className="h-4 w-4" />} />
+        <KpiCard title="VMs" value={formatNum(kpis.vms)} info={CLUSTER_KPI.vms} icon={<Users className="h-4 w-4" />} />
         <KpiCard title="Cluster mit hohem Risiko" value={formatNum(kpis.highRiskClusters)} info={CLUSTER_KPI.highRiskClusters} severity={kpis.highRiskClusters > 0 ? "crit" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} />
         <KpiCard title="Max. VMs/Host" value={formatNum(kpis.maxVmsPerHost)} info={CLUSTER_KPI.maxVmsPerHost} subtitle={kpis.maxVmsCluster ? `${kpis.maxVmsVcenterDisplayName} · ${kpis.maxVmsCluster}${kpis.maxVmsHost ? ` · ${kpis.maxVmsHost}` : ""}` : undefined} icon={<Waypoints className="h-4 w-4" />} />
         <KpiCard title="HA-/DRS-Auffälligkeiten" value={formatNum(kpis.haDrsIssues)} info={CLUSTER_KPI.haDrsIssues} severity={kpis.haDrsIssues > 0 ? "warn" : "ok"} icon={<ShieldCheck className="h-4 w-4" />} />
@@ -118,7 +118,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
               <CartesianGrid {...CHART_GRID_STYLE} />
               <XAxis type="number" dataKey="avgVmsPerHost" name="Ø VMs/Host" tick={CHART_AXIS_STYLE} label={{ value: "Ø VMs je Host", position: "insideBottom", offset: -8, ...CHART_AXIS_STYLE }} />
               <YAxis type="number" dataKey="vcpuPerCore" name="vCPU/Core" tick={CHART_AXIS_STYLE} label={{ value: "vCPU/Core", angle: -90, position: "insideLeft", ...CHART_AXIS_STYLE }} />
-              <ZAxis type="number" dataKey="runningVms" range={[80, 420]} name="Laufende VMs" />
+              <ZAxis type="number" dataKey="vms" range={[80, 420]} name="VMs" />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
                 content={(props) => <ClusterDensityTooltip active={props.active} payload={props.payload as Array<{ payload?: ClusterDensityPoint }> | undefined} />}

@@ -389,11 +389,20 @@ export function VropsTrendChart({
                 fill="hsl(var(--destructive))"
                 stroke="hsl(var(--background))"
                 strokeWidth={2}
-                label={{ value: "Peak", position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
+                label={{ value: `Peak · ${cpuPeakLabel}`, position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
               />
             )}
             {hasSecondary && secondaryVisible && secondaryPeak && typeof secondaryPeakValue === "number" && (
-              <ReferenceDot yAxisId="secondary" x={secondaryPeak.timestampMs} y={secondaryPeakValue} r={3.5} fill="hsl(var(--destructive))" stroke="hsl(var(--background))" strokeWidth={2} />
+              <ReferenceDot
+                yAxisId="secondary"
+                x={secondaryPeak.timestampMs}
+                y={secondaryPeakValue}
+                r={3.5}
+                fill="hsl(var(--destructive))"
+                stroke="hsl(var(--background))"
+                strokeWidth={2}
+                label={{ value: `Peak · ${secondaryPeakLabel}`, position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
+              />
             )}
             {nowMarkerTimestamp !== null && (
               <ReferenceLine

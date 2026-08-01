@@ -43,31 +43,29 @@ interface NicEntry {
 
 function hbasForHost(rows: SheetRow[], hostName: string): HbaEntry[] {
   return rows
-    .filter((row) => str(row.data["Host"]) === hostName)
-    .map((row) => ({
-      device: str(row.data["Device"]),
-      type: str(row.data["Type"]),
-      status: str(row.data["Status"]),
-      driver: str(row.data["Driver"]),
-      model: str(row.data["Model"]),
-      wwn: str(row.data["WWN"]),
-      pci: str(row.data["Pci"]),
-    }))
+    .flatMap((row) => str(row.data["Host"]) === hostName ? [{
+        device: str(row.data["Device"]),
+        type: str(row.data["Type"]),
+        status: str(row.data["Status"]),
+        driver: str(row.data["Driver"]),
+        model: str(row.data["Model"]),
+        wwn: str(row.data["WWN"]),
+        pci: str(row.data["Pci"]),
+      }] : [])
     .sort((a, b) => a.device.localeCompare(b.device, "de-DE", { numeric: true }));
 }
 
 function nicsForHost(rows: SheetRow[], hostName: string): NicEntry[] {
   return rows
-    .filter((row) => str(row.data["Host"]) === hostName)
-    .map((row) => ({
-      device: str(row.data["Network Device"]),
-      driver: str(row.data["Driver"]),
-      speed: str(row.data["Speed"]),
-      mac: str(row.data["MAC"]),
-      switchName: str(row.data["Switch"]),
-      uplinkPort: str(row.data["Uplink port"]),
-      pci: str(row.data["PCI"]),
-    }))
+    .flatMap((row) => str(row.data["Host"]) === hostName ? [{
+        device: str(row.data["Network Device"]),
+        driver: str(row.data["Driver"]),
+        speed: str(row.data["Speed"]),
+        mac: str(row.data["MAC"]),
+        switchName: str(row.data["Switch"]),
+        uplinkPort: str(row.data["Uplink port"]),
+        pci: str(row.data["PCI"]),
+      }] : [])
     .sort((a, b) => a.device.localeCompare(b.device, "de-DE", { numeric: true }));
 }
 
@@ -211,6 +209,10 @@ export function HostSystemDetailDialog({
       >
         <DetailNarrative source="RVTools · vROps optional">{narrative}</DetailNarrative>
         <DetailKpiGrid items={kpis} />
+        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe.">
+          <VropsTrendChart {...vrops} />
+          {!vrops.hasImport && <DetailUnavailable title="Keine vROps-Zeitreihe importiert" description="Inventar- und Kapazitätsdaten bleiben vollständig sichtbar. Nach einem passenden Import erscheint hier der Verlauf." />}
+        </DetailSection>
         <div className="grid gap-5 xl:grid-cols-2">
           <DetailSection icon={<ServerCog className="size-4" />} title="Identität & Lifecycle" description="Standort, Hardwareplattform, ESXi- und BIOS-Stand.">
             <DetailFieldGrid fields={identityFields} columns={2} />
@@ -219,10 +221,6 @@ export function HostSystemDetailDialog({
             <DetailFieldGrid fields={resourceFields} columns={2} />
           </DetailSection>
         </div>
-        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe.">
-          <VropsTrendChart {...vrops} />
-          {!vrops.hasImport && <DetailUnavailable title="Keine vROps-Zeitreihe importiert" description="Inventar- und Kapazitätsdaten bleiben vollständig sichtbar. Nach einem passenden Import erscheint hier der Verlauf." />}
-        </DetailSection>
         <DetailSection icon={<CircuitBoard className="size-4" />} title="Host Bus Adapter" description="Storage-Pfade, Treiber und Status der physischen Adapter." aside={<DetailCountBadge>{hbas.length}</DetailCountBadge>}>
           <DetailTableView table={hbaTable} />
         </DetailSection>

@@ -20,7 +20,7 @@ export interface RelatedTool {
 /** Weitere, unabhängige sp23.online-Tools von Philipp Asanger – verlinkt auf der Impressum-Seite und in der Sidebar. */
 export const RELATED_TOOLS: RelatedTool[] = [
   {
-    name: "Zeitanalyse",
+    name: "ZE-Helper",
     href: "https://ze-helper.sp23.online/",
     icon: Timer,
     description: "Webdesk Zeitanalyse – Arbeitszeiten auswerten und visualisieren",

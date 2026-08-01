@@ -11,7 +11,7 @@ export const clusterOverviewColumns: ColumnDef<ClusterOverviewRow, unknown>[] = 
   { accessorKey: "vcenterDisplayName", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_OVERVIEW_COLUMNS.cluster } },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_OVERVIEW_COLUMNS.hosts }, cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "runningVms", header: "Laufende VMs", meta: { info: CLUSTER_OVERVIEW_COLUMNS.runningVms }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "vms", header: "VMs", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vms }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "avgVmsPerHost", header: "Ø VMs/Host", meta: { info: CLUSTER_OVERVIEW_COLUMNS.avgVmsPerHost }, cell: ({ getValue }) => {
     const value = getValue() as number | null;
     return value === null ? "—" : value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });

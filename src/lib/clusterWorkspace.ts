@@ -35,7 +35,7 @@ export interface ClusterOverviewRow {
   haEnabled: boolean | null;
   drsEnabled: boolean | null;
   hosts: number;
-  runningVms: number;
+  vms: number;
   avgVmsPerHost: number | null;
   maxVmsPerHost: number | null;
   maxVmsHost: string | null;
@@ -57,7 +57,7 @@ export interface ClusterOverviewRow {
 export interface ClusterOverviewKpis {
   clusters: number;
   hosts: number;
-  runningVms: number;
+  vms: number;
   highRiskClusters: number;
   maxVmsPerHost: number | null;
   maxVmsCluster: string | null;
@@ -87,7 +87,7 @@ export function buildTopChartRows<T extends { name: string }>(
 export interface ClusterDensityPoint extends ClusterChartPoint {
   avgVmsPerHost: number;
   vcpuPerCore: number;
-  runningVms: number;
+  vms: number;
   risk: ClusterOverviewRow["risk"];
 }
 
@@ -177,12 +177,12 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
     hostsByCluster.set(key, (hostsByCluster.get(key) ?? 0) + 1);
   }
 
-  const runningVmsByCluster = new Map<string, number>();
+  const vmsByCluster = new Map<string, number>();
   for (const vm of input.vms) {
-    if (vm.powerState !== "poweredOn" || !vm.cluster) continue;
+    if (!vm.cluster) continue;
     const resolved = resolveIdentity({ vcenterId: vm.vcenterId, datacenter: vm.datacenter, clusterName: vm.cluster });
     const key = canonicalKey(resolved.vcenterId, resolved.datacenter, resolved.clusterName);
-    runningVmsByCluster.set(key, (runningVmsByCluster.get(key) ?? 0) + 1);
+    vmsByCluster.set(key, (vmsByCluster.get(key) ?? 0) + 1);
   }
 
   const rawRowsByCluster = groupVHostRowsByCluster(input.rawVHostRows, vcenterBySnapshot);
@@ -193,7 +193,11 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
     if (!clustersByKey.has(key)) clustersByKey.set(key, cluster);
   }
 
-  return [...clustersByKey.entries()].map(([clusterKey, cluster]) => {
+  const rows: ClusterOverviewRow[] = [];
+  for (const [clusterKey, cluster] of clustersByKey) {
+    const hosts = hostsByCluster.get(clusterKey) ?? 0;
+    if (hosts === 0) continue;
+
     const identity = resolveIdentity({ vcenterId: cluster.vcenterId, datacenter: cluster.datacenter, clusterName: cluster.name });
     const rawRows = rawRowsByCluster.get(clusterKey) ?? [];
     const aggregate = aggregateCluster({
@@ -214,11 +218,10 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
         cpuOvercommitRatio: vrops.cpuOvercommitRatio,
       } : null,
     });
-    const hosts = hostsByCluster.get(clusterKey) ?? 0;
-    const runningVms = runningVmsByCluster.get(clusterKey) ?? 0;
+    const vms = vmsByCluster.get(clusterKey) ?? 0;
     const maxLoad = maxHostLoad(rawRows);
 
-    return {
+    rows.push({
       clusterKey,
       vcenterId: cluster.vcenterId,
       vcenterDisplayName: displayByVcenter.get(cluster.vcenterId) ?? cluster.vcenterId,
@@ -227,8 +230,8 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
       haEnabled: cluster.haEnabled,
       drsEnabled: cluster.drsEnabled,
       hosts,
-      runningVms,
-      avgVmsPerHost: hosts > 0 ? runningVms / hosts : null,
+      vms,
+      avgVmsPerHost: vms / hosts,
       ...maxLoad,
       vcpuPerCore: metrics.vcpuPerCore,
       ramCommitPct: metrics.ramCommitPct,
@@ -239,8 +242,10 @@ export function buildClusterOverviewRows(input: ClusterWorkspaceInput): ClusterO
       riskFactors: metrics.riskFactors,
       siteFailoverOverride: metrics.siteFailoverOverride,
       vropsMissing: vrops === null,
-    } satisfies ClusterOverviewRow;
-  }).sort((left, right) => (
+    });
+  }
+
+  return rows.sort((left, right) => (
     left.vcenterDisplayName.localeCompare(right.vcenterDisplayName)
     || left.datacenter.localeCompare(right.datacenter)
     || left.cluster.localeCompare(right.cluster)
@@ -259,7 +264,7 @@ export function buildClusterOverviewKpis(rows: ClusterOverviewRow[]): ClusterOve
   return {
     clusters: rows.length,
     hosts: rows.reduce((total, row) => total + row.hosts, 0),
-    runningVms: rows.reduce((total, row) => total + row.runningVms, 0),
+    vms: rows.reduce((total, row) => total + row.vms, 0),
     highRiskClusters: rows.filter((row) => row.risk === "hoch").length,
     maxVmsPerHost: maxRow?.maxVmsPerHost ?? null,
     maxVmsCluster: maxRow?.cluster ?? null,
@@ -276,7 +281,7 @@ export function buildClusterDensityChart(rows: ClusterOverviewRow[]): ClusterDen
       ...chartBase(row),
       avgVmsPerHost: row.avgVmsPerHost,
       vcpuPerCore: row.vcpuPerCore,
-      runningVms: row.runningVms,
+      vms: row.vms,
       risk: row.risk,
     }))
     .sort((left, right) => right.avgVmsPerHost - left.avgVmsPerHost || left.name.localeCompare(right.name));

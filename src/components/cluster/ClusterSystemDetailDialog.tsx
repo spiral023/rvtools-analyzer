@@ -214,12 +214,12 @@ export function ClusterSystemDetailDialog({
       >
         <DetailNarrative source="RVTools · vROps optional">{narrative}</DetailNarrative>
         <DetailKpiGrid items={kpis} />
-        <DetailSection icon={<Cpu className="size-4" />} title="Kapazität & Cluster-Services" description="Physische Kapazität, Belegung und Verfügbarkeitsfunktionen.">
-          <DetailFieldGrid fields={overviewFields} />
-        </DetailSection>
         <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe.">
           <VropsTrendChart {...vrops} />
           {!vrops.hasImport && <DetailUnavailable title="Keine vROps-Zeitreihe importiert" description="Kapazitäts- und Inventardaten bleiben sichtbar. Der Verlauf wird automatisch ergänzt, sobald passende Daten vorliegen." />}
+        </DetailSection>
+        <DetailSection icon={<Cpu className="size-4" />} title="Kapazität & Cluster-Services" description="Physische Kapazität, Belegung und Verfügbarkeitsfunktionen.">
+          <DetailFieldGrid fields={overviewFields} />
         </DetailSection>
         <DetailSection icon={<Server className="size-4" />} title="ESXi Hosts" description="Hardware, Belegung und Verbindungszustand der Cluster-Nodes." aside={<DetailCountBadge>{scopedHosts.length}</DetailCountBadge>}>
           <DetailTableView table={hostTable} />

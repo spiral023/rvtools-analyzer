@@ -6,7 +6,7 @@ const RV = "RVTools";
 export const CLUSTER_KPI: Record<string, GlossaryEntry> = {
   clusters: { term: "Cluster", description: "Anzahl der Cluster im aktiven vCenter-, Cluster- und Such-Scope.", source: `${RV} · vCluster` },
   hosts: { term: "Hosts", description: "Physische ESXi-Hosts der angezeigten Cluster.", source: `${RV} · vHost` },
-  runningVms: { term: "Laufende VMs", description: "Eingeschaltete VMs der angezeigten Cluster. Sie prägen die aktuelle Ressourcenlast.", source: `${RV} · vInfo · „Powerstate“` },
+  vms: { term: "VMs", description: "VMs der angezeigten Cluster im aktuellen globalen Filter-Scope, einschließlich der Einstellungen für Powerstate und vCLS.", source: `${RV} · vInfo` },
   highRiskClusters: { term: "Cluster mit hohem Risiko", description: "Cluster mit hoher abgeleiteter Risikostufe. Diese sollten zuerst auf Auslastung, Overcommit und HA-/DRS-Reserve geprüft werden.", source: "berechnet · vHost + vCluster" },
   maxVmsPerHost: { term: "Max. VMs/Host", description: "Höchste in vHost gemeldete VM-Anzahl auf einem einzelnen Host. Hilft ungleich verteilte Last zu erkennen.", source: `${RV} · vHost · „# VMs“` },
   haDrsIssues: { term: "HA-/DRS-Auffälligkeiten", description: "Cluster mit deaktiviertem oder fehlendem HA bzw. DRS. Beide Einstellungen sind für Verfügbarkeit und automatischen Lastausgleich relevant.", source: `${RV} · vCluster · „HA enabled“ / „DRS enabled“` },
@@ -17,8 +17,8 @@ export const CLUSTER_OVERVIEW_COLUMNS: Record<string, GlossaryEntry> = {
   datacenter: { term: "Datacenter", description: "vSphere-Datacenter des Clusters.", source: `${RV} · vCluster · „Datacenter“` },
   cluster: { term: "Cluster", description: "Name des HA-/DRS-Clusters.", source: `${RV} · vCluster · „Name“` },
   hosts: { term: "Hosts", description: "Anzahl der physischen ESXi-Hosts im Cluster.", source: `${RV} · vCluster · „# Hosts“` },
-  runningVms: { term: "Laufende VMs", description: "Anzahl eingeschalteter VMs im Cluster.", source: `${RV} · vInfo · „Powerstate“` },
-  avgVmsPerHost: { term: "Ø VMs/Host", description: "Durchschnittlich laufende VMs je Host; ein Maß für den Konsolidierungsgrad.", source: "berechnet" },
+  vms: { term: "VMs", description: "Anzahl der VMs im Cluster nach Anwendung des globalen Powerstate- und vCLS-Filters.", source: `${RV} · vInfo` },
+  avgVmsPerHost: { term: "Ø VMs/Host", description: "Durchschnittliche Anzahl der VMs im aktuellen Filter-Scope je Host; ein Maß für den Konsolidierungsgrad.", source: "berechnet" },
   maxVmsPerHost: { term: "Max. VMs/Host", description: "Höchster vHost-Wert inklusive betroffenem Host; macht Lastspitzen sichtbar.", source: `${RV} · vHost · „# VMs“` },
   maxHostFailures: { term: "Ausfallskapazität", description: "Anzahl der ESXi-Hosts, die gleichzeitig ausfallen dürfen, bevor CPU, RAM, vCPU/Core oder RAM Commit rot werden.", source: "berechnet · vHost + vInfo" },
   vcpuPerCore: { term: "vCPU/Core", description: "Zugewiesene vCPUs je physischem CPU-Core. Höhere Werte erhöhen das Risiko von CPU-Contention.", source: "berechnet · Σ vCPU / Σ Cores" },
@@ -35,7 +35,7 @@ export const CLUSTER_OS_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 export const CLUSTER_CHARTS: Record<string, GlossaryEntry> = {
-  density: { term: "Cluster-Dichtekarte", description: "Jeder Punkt ist ein Cluster: X = Ø VMs pro Host, Y = vCPU/Core, Punktgröße = laufende VMs. Die Farbe zeigt die Risikostufe." },
+  density: { term: "Cluster-Dichtekarte", description: "Jeder Punkt ist ein Cluster: X = Ø VMs pro Host, Y = vCPU/Core, Punktgröße = VMs im aktuellen Filter-Scope. Die Farbe zeigt die Risikostufe." },
   risk: { term: "Risikoscore je Cluster", description: "Vergleicht die abgeleiteten Risikoscores der Cluster. Hohe Werte zuerst untersuchen." },
   vmDistribution: { term: "Ø und Maximum VMs je Host", description: "Vergleicht durchschnittliche und maximale Hostdichte je Cluster, um Lastungleichgewichte aufzuspüren." },
 };

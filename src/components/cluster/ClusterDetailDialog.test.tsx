@@ -51,5 +51,11 @@ describe("ClusterDetailDialog", () => {
     expect(screen.getByText("Laufende VMs (1)")).toBeInTheDocument();
     expect(screen.getByText("APP-01")).toBeInTheDocument();
     expect(screen.getByTestId("vrops-trend")).not.toHaveAttribute("data-secondary-label");
+
+    const kpi = screen.getByText("CPU-Auslastung");
+    const trend = screen.getByRole("heading", { name: "Auslastung · sieben Tage" });
+    const capacity = screen.getByRole("heading", { name: "Kapazität & Cluster-Services" });
+    expect(kpi.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trend.compareDocumentPosition(capacity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -12,7 +12,7 @@ vi.mock("@/components/charts/recharts", () => {
     ComposedChart: Chart,
     Line: Empty,
     ReferenceArea: Empty,
-    ReferenceDot: ({ yAxisId }: { yAxisId?: string }) => <g data-testid={`reference-dot-${yAxisId}`} />,
+    ReferenceDot: ({ yAxisId, label }: { yAxisId?: string; label?: { value?: string } }) => <g data-testid={`reference-dot-${yAxisId}`} data-label={label?.value} />,
     ReferenceLine: Empty,
     ResponsiveContainer: Responsive,
     Tooltip: Empty,
@@ -46,6 +46,7 @@ describe("VropsTrendChart", () => {
     expect(screen.getByTestId("axis-cpu")).toBeInTheDocument();
     expect(screen.queryByTestId("axis-secondary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("reference-dot-secondary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("reference-dot-cpu")).toHaveAttribute("data-label", "Peak · 30,00 %");
   });
 
   it("zeigt den sekundären Peak nur zusammen mit der zugehörigen Achse", () => {
@@ -63,6 +64,6 @@ describe("VropsTrendChart", () => {
     );
 
     expect(screen.getByTestId("axis-secondary")).toBeInTheDocument();
-    expect(screen.getByTestId("reference-dot-secondary")).toBeInTheDocument();
+    expect(screen.getByTestId("reference-dot-secondary")).toHaveAttribute("data-label", "Peak · 50,00 %");
   });
 });

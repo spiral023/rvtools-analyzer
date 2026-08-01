@@ -130,7 +130,7 @@ describe("clusterWorkspace", () => {
       datacenter: "DC1",
       cluster: "Production",
       hosts: 2,
-      runningVms: 10,
+      vms: 10,
       avgVmsPerHost: 5,
       maxVmsPerHost: 7,
       maxVmsHost: "esx-02",
@@ -160,7 +160,7 @@ describe("clusterWorkspace", () => {
     expect(row).toMatchObject({
       datacenter: "DC1",
       hosts: 1,
-      runningVms: 1,
+      vms: 1,
       maxVmsHost: "esx-01",
     });
   });
@@ -193,7 +193,7 @@ describe("clusterWorkspace", () => {
       snapshots,
     });
 
-    expect(rows.map((row) => [row.vcenterId, row.clusterKey, row.runningVms])).toEqual([
+    expect(rows.map((row) => [row.vcenterId, row.clusterKey, row.vms])).toEqual([
       ["vc-a", clusterScopeKey("vc-a", "DC1", "Production"), 1],
       ["vc-b", clusterScopeKey("vc-b", "DC1", "Production"), 1],
     ]);
@@ -216,7 +216,7 @@ describe("clusterWorkspace", () => {
     expect(withoutRawCounts).toMatchObject({ maxVmsPerHost: null, maxVmsHost: null });
   });
 
-  it("builds KPI and chart data without inventing density for clusters without hosts", () => {
+  it("blendet Cluster ohne Hosts aus den KPI- und Diagrammdaten aus", () => {
     const rows = buildClusterOverviewRows({
       clusters: [
         cluster({ haEnabled: false }),
@@ -229,26 +229,44 @@ describe("clusterWorkspace", () => {
     });
 
     expect(buildClusterOverviewKpis(rows)).toMatchObject({
-      clusters: 2,
+      clusters: 1,
       hosts: 1,
-      runningVms: 1,
+      vms: 1,
       highRiskClusters: 0,
       maxVmsPerHost: 3,
       maxVmsCluster: "Production",
       maxVmsHost: "esx-01",
-      haDrsIssues: 2,
+      haDrsIssues: 1,
     });
     expect(buildClusterDensityChart(rows)).toEqual([
-      expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, vcpuPerCore: 3, runningVms: 1 }),
+      expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, vcpuPerCore: 3, vms: 1 }),
     ]);
     expect(buildRiskChart(rows).map((point) => point.name)).toEqual([
-      "No hosts",
       "Production",
     ]);
     expect(buildVmDistributionChart(rows)).toEqual([
       expect.objectContaining({ name: "vcsa-a · DC1 · Production", avgVmsPerHost: 1, maxVmsPerHost: 3 }),
-      expect.objectContaining({ name: "vcsa-a · DC1 · No hosts", avgVmsPerHost: null, maxVmsPerHost: null }),
     ]);
+  });
+
+  it("zählt genau die vom globalen Scope übergebenen VMs unabhängig vom Powerstate", () => {
+    const allScopedVms = [
+      vm({ vmKey: "vm-on", vmName: "APP-ON", powerState: "poweredOn" }),
+      vm({ vmKey: "vm-off", vmName: "APP-OFF", powerState: "poweredOff" }),
+      vm({ vmKey: "vm-vcls", vmName: "vCLS-1", powerState: "poweredOn" }),
+    ];
+
+    const allRows = buildClusterOverviewRows({
+      clusters: [cluster()], hosts: [host()], vms: allScopedVms,
+      rawVHostRows: [rawHost()], snapshots,
+    });
+    const poweredOnWithoutVclsRows = buildClusterOverviewRows({
+      clusters: [cluster()], hosts: [host()], vms: [allScopedVms[0]],
+      rawVHostRows: [rawHost()], snapshots,
+    });
+
+    expect(allRows[0]).toMatchObject({ vms: 3, avgVmsPerHost: 3 });
+    expect(poweredOnWithoutVclsRows[0]).toMatchObject({ vms: 1, avgVmsPerHost: 1 });
   });
 
   it("gewichtet vROps-Ausfallskonzept-Werte in den Capacity-Risk-Score ein und markiert Cluster ohne vROps-Import", () => {

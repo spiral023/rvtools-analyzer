@@ -85,6 +85,30 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 
+  it("zeigt Details verwandter Tools in einer festen Fläche statt als überlagernden Tooltip", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.queryByText("Tool auswählen")).not.toBeInTheDocument();
+
+    const markdownEditorLink = screen.getByRole("link", { name: "Markdown Editor" });
+    fireEvent.mouseEnter(markdownEditorLink);
+
+    expect(screen.getByText("Einfacher Markdown-Editor mit verschiedenen Exportformaten")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(markdownEditorLink);
+
+    expect(screen.queryByText("Einfacher Markdown-Editor mit verschiedenen Exportformaten")).not.toBeInTheDocument();
+  });
+
+  it("zeigt die verwandten Tools ohne Überschrift und Trennlinie", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    renderSidebar();
+
+    expect(screen.queryByText("Weitere Tools")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Markdown Editor" }).closest('[data-sidebar="footer"]')).not.toHaveClass("border-t");
+  });
+
   it("übergibt per Drag & Drop auf den Uploads-Menüpunkt gedroppte Dateien an den Import-Controller", () => {
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
     renderSidebar();
