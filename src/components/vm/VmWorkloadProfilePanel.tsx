@@ -28,6 +28,8 @@ import { formatNum } from "@/lib/xlsx/parseHelpers";
 const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
 /** Aufsteigend nach Auslastung, damit die Achse als Skala lesbar bleibt. */
 const INTENSITY_ORDER: VmWorkloadIntensity[] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
+const CLASSIFIABLE_SHAPE_ORDER = SHAPE_ORDER.filter((shape) => shape !== "unclassified");
+const CLASSIFIABLE_INTENSITY_ORDER = INTENSITY_ORDER.filter((intensity) => intensity !== "unknown");
 
 function formatPercent(value: number | null, digits = 1): string {
   return value === null || !Number.isFinite(value) ? "—" : `${value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })} %`;
@@ -37,6 +39,20 @@ function confidenceBadgeVariant(confidence: VmWorkloadProfile["confidence"]): "d
   if (confidence === "high") return "default";
   if (confidence === "not-computable") return "destructive";
   return "secondary";
+}
+
+function notComputableReason(profile: VmWorkloadProfile): string {
+  if (profile.demand.sampleCount === 0) return "Keine verwertbaren CPU-Demand-Messwerte im Import.";
+  const reasons: string[] = [];
+  if (profile.shape === "unclassified") {
+    reasons.push(`Datenabdeckung ${formatPercent(profile.demand.coverageRatio * 100, 0)} reicht für ein Lastmuster nicht aus.`);
+  }
+  if (profile.intensity === "unknown") {
+    reasons.push(profile.configuredCpuCapacityMHz === null
+      ? "Konfigurierte CPU-Kapazität fehlt; das Niveau kann nicht als Prozentwert berechnet werden."
+      : "Das Niveau wird ohne belastbares Lastmuster nicht abgeleitet.");
+  }
+  return reasons.join(" ") || "Lastmuster oder Niveau konnten nicht berechnet werden.";
 }
 
 const CONFIDENCE_LABEL: Record<VmWorkloadProfile["confidence"], string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
@@ -77,25 +93,33 @@ export function VmWorkloadProfilePanel() {
     () => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery, techInfoIndex),
     [allProfiles, searchQuery, techInfoIndex],
   );
-  const [visibleProfileCount, setVisibleProfileCount] = useState(profiles.length);
+  const uncomputableProfiles = useMemo(
+    () => profiles.filter((profile) => profile.shape === "unclassified" || profile.intensity === "unknown"),
+    [profiles],
+  );
+  const classifiableProfiles = useMemo(
+    () => profiles.filter((profile) => profile.shape !== "unclassified" && profile.intensity !== "unknown"),
+    [profiles],
+  );
+  const [visibleProfileCount, setVisibleProfileCount] = useState(classifiableProfiles.length);
 
   const shapeDistribution = useMemo(() => {
     const counts = new Map<VmWorkloadShape, number>();
-    for (const profile of profiles) counts.set(profile.shape, (counts.get(profile.shape) ?? 0) + 1);
-    return SHAPE_ORDER.map((shape) => ({ key: shape, label: VM_WORKLOAD_SHAPE_LABEL[shape], count: counts.get(shape) ?? 0 }));
-  }, [profiles]);
+    for (const profile of classifiableProfiles) counts.set(profile.shape, (counts.get(profile.shape) ?? 0) + 1);
+    return CLASSIFIABLE_SHAPE_ORDER.map((shape) => ({ key: shape, label: VM_WORKLOAD_SHAPE_LABEL[shape], count: counts.get(shape) ?? 0 }));
+  }, [classifiableProfiles]);
 
   const intensityDistribution = useMemo(() => {
     const counts = new Map<VmWorkloadIntensity, number>();
-    for (const profile of profiles) counts.set(profile.intensity, (counts.get(profile.intensity) ?? 0) + 1);
-    return INTENSITY_ORDER.map((intensity) => ({ key: intensity, label: VM_WORKLOAD_INTENSITY_LABEL[intensity], count: counts.get(intensity) ?? 0 }));
-  }, [profiles]);
+    for (const profile of classifiableProfiles) counts.set(profile.intensity, (counts.get(profile.intensity) ?? 0) + 1);
+    return CLASSIFIABLE_INTENSITY_ORDER.map((intensity) => ({ key: intensity, label: VM_WORKLOAD_INTENSITY_LABEL[intensity], count: counts.get(intensity) ?? 0 }));
+  }, [classifiableProfiles]);
 
   const lowConfidenceCount = useMemo(() => profiles.filter((profile) => profile.confidence === "low" || profile.confidence === "not-computable").length, [profiles]);
   const averageCoveragePct = useMemo(() => (average(profiles.map((profile) => profile.demand.coverageRatio)) ?? 0) * 100, [profiles]);
   const idleCount = useMemo(() => profiles.filter((profile) => profile.intensity === "idle").length, [profiles]);
   const highIntensityCount = useMemo(() => profiles.filter((profile) => profile.intensity === "high").length, [profiles]);
-  const unclassifiedCount = useMemo(() => profiles.filter((profile) => profile.shape === "unclassified").length, [profiles]);
+  const unclassifiedCount = uncomputableProfiles.length;
 
   const columns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
@@ -145,6 +169,20 @@ export function VmWorkloadProfilePanel() {
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
   ], [techInfoIndex]);
 
+  const uncomputableColumns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
+    { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: VM_PROFILE_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
+    { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
+    {
+      id: "missing-classification",
+      header: "Grund",
+      meta: { info: VM_PROFILE_SECTIONS.uncomputableTable },
+      accessorFn: notComputableReason,
+      cell: ({ row }) => <span className="block max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{notComputableReason(row.original)}</span>,
+    },
+  ], []);
+
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Activity className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="VM-Profile benötigen einen vollständig gespeicherten vROps-Zeitreihenimport (VM/Cluster/Host, stündlich). Importieren Sie einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;
   }
@@ -162,7 +200,7 @@ export function VmWorkloadProfilePanel() {
           <KpiCard title="Nicht klassifizierbar" value={formatNum(unclassifiedCount)} severity={unclassifiedCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={VM_PROFILE_KPI.unclassified} />
         </KpiGrid>
 
-        {profiles.length > 0 && <div className="grid gap-4 lg:grid-cols-2">
+        {classifiableProfiles.length > 0 && <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">
             <InfoTooltip entry={VM_PROFILE_SECTIONS.distribution} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Verteilung der Lastmuster</h3></InfoTooltip>
             <ResponsiveContainer width="100%" height={220}>
@@ -189,9 +227,14 @@ export function VmWorkloadProfilePanel() {
 
         <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({visibleProfileCount})</h3></InfoTooltip>
-          {/* Ohne `globalFilter`: die Suche ist bereits auf `profiles` angewandt, damit Kennzahlen, Diagramme und Tabelle denselben Ausschnitt zeigen. */}
-          <VirtualTable data={profiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine profilierten VMs" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster, Host und Systemverantwortliche:r."} onFilteredCountChange={setVisibleProfileCount} />
+          {/* Ohne `globalFilter`: die Suche ist bereits auf den Klassifikationsbestand angewandt, damit Kennzahlen, Diagramme und Tabelle denselben Ausschnitt zeigen. */}
+          <VirtualTable data={classifiableProfiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine berechenbaren VM-Profile" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit belastbar berechenbarem Lastmuster und Niveau." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster, Host und Systemverantwortliche:r."} onFilteredCountChange={setVisibleProfileCount} />
         </div>
+
+        {uncomputableProfiles.length > 0 && <div>
+          <InfoTooltip entry={VM_PROFILE_SECTIONS.uncomputableTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Nicht berechenbare Profile ({uncomputableProfiles.length})</h3></InfoTooltip>
+          <VirtualTable data={uncomputableProfiles} columns={uncomputableColumns} height={280} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile-nicht-berechenbar" emptyTitle="Keine nicht berechenbaren Profile" />
+        </div>}
       </>}
       {vmDetailDialog}
     </div>

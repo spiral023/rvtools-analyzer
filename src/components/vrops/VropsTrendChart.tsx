@@ -294,7 +294,18 @@ export function VropsTrendChart({
             </defs>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.55} />
             {weekendRanges.map((range) => (
-              <ReferenceArea key={`weekend-${range.start}`} yAxisId="cpu" x1={range.start} x2={chartView === "average-week" ? range.end : range.end + HOUR_MS} fill="hsl(var(--muted-foreground))" fillOpacity={0.065} strokeOpacity={0} />
+              <ReferenceArea
+                key={`weekend-${range.start}`}
+                yAxisId="cpu"
+                x1={range.start}
+                x2={chartView === "average-week" ? range.end : range.end + HOUR_MS}
+                // Das kanonische Ende der Ø-Woche liegt exakt nach Sonntag 23 Uhr.
+                // Recharts verwirft eine Fläche außerhalb der Datenachse sonst komplett.
+                ifOverflow={chartView === "average-week" ? "extendDomain" : "hidden"}
+                fill="hsl(var(--muted-foreground))"
+                fillOpacity={0.065}
+                strokeOpacity={0}
+              />
             ))}
             {holidayRanges.map((range) => (
               <ReferenceArea key={`holiday-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--warning))" fillOpacity={0.11} strokeOpacity={0} />

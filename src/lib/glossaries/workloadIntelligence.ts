@@ -109,7 +109,11 @@ export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
   },
   table: {
     term: "VM-Profile",
-    description: "Alle VMs mit eindeutig zugeordneter Zeitreihe, sortiert nach Namen. Klick auf eine Zeile öffnet die Detailansicht.",
+    description: "Alle VMs mit eindeutig zugeordneter Zeitreihe und berechenbarem Lastmuster sowie Niveau, sortiert nach Namen. Klick auf eine Zeile öffnet die Detailansicht.",
+  },
+  uncomputableTable: {
+    term: "Nicht berechenbare Profile",
+    description: "VMs, für die Lastmuster oder Auslastungsniveau nicht belastbar abgeleitet werden konnten. Die Spalte „Grund“ zeigt, ob Messwerte, ausreichende Datenabdeckung oder die konfigurierte CPU-Kapazität fehlen.",
   },
 };
 

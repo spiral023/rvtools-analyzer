@@ -11,7 +11,7 @@ import {
   View,
 } from "@react-pdf/renderer";
 import type { DetailDossier, DetailField, DetailTable } from "@/lib/detailExport";
-import { formatCpuDemand, formatDetailTimestamp, getTrendPeak } from "@/lib/detailExport";
+import { formatDetailTimestamp, getTrendPeak } from "@/lib/detailExport";
 import { buildAverageWeekTrendPoints } from "@/lib/trendDownsampling";
 
 const colors = {
@@ -92,6 +92,7 @@ function PdfTable({ table }: { table: DetailTable }) {
 function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; view?: "timeline" | "average-week" }) {
   const trend = dossier.trend;
   if (!trend?.points.length) return null;
+  const cpuCapacityMHz = trend.cpuCapacityMHz && trend.cpuCapacityMHz > 0 ? trend.cpuCapacityMHz : null;
   const points = view === "average-week"
     ? buildAverageWeekTrendPoints(trend.points.map((point) => ({
       timestampMs: point.timestampUtc,
@@ -105,8 +106,12 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
       secondaryValue: point.secondary,
     }))
     : trend.points;
-  const values = points.map((point) => point.cpuDemandMHz ?? 0);
-  const maximum = Math.max(...values, 1);
+  const toPercent = (value: number | null) => value === null || cpuCapacityMHz === null ? null : (value / cpuCapacityMHz) * 100;
+  const formatPercent = (value: number | null) => value === null ? "—" : `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+  const values = points.map((point) => toPercent(point.cpuDemandMHz) ?? 0);
+  // Eine 0–100-%-Skala macht die beiden Ansichten direkt vergleichbar; echte
+  // Überlast bleibt sichtbar, statt am oberen Rand abgeschnitten zu werden.
+  const maximum = Math.max(...values, 100);
   const width = 520;
   const height = 150;
   const plotLeft = 34;
@@ -115,7 +120,7 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
   const plotHeight = height - plotTop - 28;
   const xFor = (index: number) => plotLeft + (index / Math.max(points.length - 1, 1)) * plotWidth;
   const yFor = (value: number) => plotTop + plotHeight - (value / maximum) * plotHeight;
-  const polyline = points.map((point, index) => `${xFor(index)},${yFor(point.cpuDemandMHz ?? 0)}`).join(" ");
+  const polyline = points.map((point, index) => `${xFor(index)},${yFor(toPercent(point.cpuDemandMHz) ?? 0)}`).join(" ");
   const peak = getTrendPeak(points);
   const peakIndex = peak ? points.indexOf(peak) : -1;
   const dayStarts = points.reduce<number[]>((indices, point, index) => {
@@ -127,10 +132,10 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
     <View style={styles.section} wrap={false}>
       <View style={styles.sectionTitleRow}><View style={styles.sectionMarker} /><Text style={styles.sectionTitle}>{view === "average-week" ? `${trend.title} · Durchschnittliche Woche` : trend.title}</Text></View>
       <View style={styles.trendMeta}>
-        <Text>{view === "average-week" ? "Mittelwert je Wochenstunde · Wochenende grau markiert" : "Stündliche CPU-Demand-Werte · Wochenende grau markiert"}</Text>
+        <Text>{cpuCapacityMHz === null ? "CPU-Kapazität fehlt · Prozentansicht nicht berechenbar" : view === "average-week" ? "CPU-Auslastung in % · Mittelwert je Wochenstunde · Wochenende grau markiert" : "CPU-Auslastung in % · stündliche Werte · Wochenende grau markiert"}</Text>
         <Text>{trend.importedAt ? `Import ${new Date(trend.importedAt).toLocaleDateString("de-DE")}` : ""}</Text>
       </View>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+      {cpuCapacityMHz === null ? <Text style={styles.note}>Für diese VM ist keine konfigurierte CPU-Kapazität verfügbar. Die Auslastung kann deshalb nicht als Prozentwert dargestellt werden.</Text> : <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         {dayStarts.map((start, dayIndex) => {
           const end = dayStarts[dayIndex + 1] ?? points.length - 1;
           const isWeekend = [0, 6].includes(new Date(points[start].timestampUtc).getDay());
@@ -142,14 +147,14 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
         <Polyline points={polyline} fill="none" stroke={colors.primary} strokeWidth={1.8} />
         {peak && peakIndex >= 0 && (
           <>
-            <Circle cx={xFor(peakIndex)} cy={yFor(peak.cpuDemandMHz ?? 0)} r={3.2} fill={colors.critical} />
-            <Text x={Math.min(xFor(peakIndex) + 5, width - 94)} y={Math.max(yFor(peak.cpuDemandMHz ?? 0) - 5, 9)} style={{ fontSize: 6.5, fill: colors.critical }}>
-              Peak {formatCpuDemand(peak.cpuDemandMHz)}
+            <Circle cx={xFor(peakIndex)} cy={yFor(toPercent(peak.cpuDemandMHz) ?? 0)} r={3.2} fill={colors.critical} />
+            <Text x={Math.min(xFor(peakIndex) + 5, width - 94)} y={Math.max(yFor(toPercent(peak.cpuDemandMHz) ?? 0) - 5, 9)} style={{ fontSize: 6.5, fill: colors.critical }}>
+              Peak {formatPercent(toPercent(peak.cpuDemandMHz))}
             </Text>
           </>
         )}
-        <Text x={2} y={plotTop + 3} style={{ fontSize: 6, fill: colors.muted }}>{formatCpuDemand(maximum)}</Text>
-        <Text x={20} y={plotTop + plotHeight + 2} style={{ fontSize: 6, fill: colors.muted }}>0</Text>
+        <Text x={2} y={plotTop + 3} style={{ fontSize: 6, fill: colors.muted }}>{formatPercent(maximum)}</Text>
+        <Text x={20} y={plotTop + plotHeight + 2} style={{ fontSize: 6, fill: colors.muted }}>0 %</Text>
         {dayStarts.map((index) => (
           <Text key={index} x={xFor(index)} y={height - 8} style={{ fontSize: 6, fill: colors.muted }}>
             {view === "average-week"
@@ -157,8 +162,8 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
               : new Date(points[index].timestampUtc).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
           </Text>
         ))}
-      </Svg>
-      {peak && <Text style={styles.note}>{view === "average-week" ? "Höchster Wochenstunden-Peak" : "Höchster gemessener CPU-Demand"}: {formatCpuDemand(peak.cpuDemandMHz)} am {view === "average-week" ? new Date(peak.timestampUtc).toLocaleString("de-DE", { weekday: "long", hour: "2-digit", minute: "2-digit" }) : formatDetailTimestamp(peak.timestampUtc)}.</Text>}
+      </Svg>}
+      {peak && cpuCapacityMHz !== null && <Text style={styles.note}>{view === "average-week" ? "Höchster Wochenstunden-Peak" : "Höchster gemessener CPU-Peak"}: {formatPercent(toPercent(peak.cpuDemandMHz))} am {view === "average-week" ? new Date(peak.timestampUtc).toLocaleString("de-DE", { weekday: "long", hour: "2-digit", minute: "2-digit" }) : formatDetailTimestamp(peak.timestampUtc)}.</Text>}
     </View>
   );
 }
