@@ -13,7 +13,7 @@ import { decodeAnalysisSeries, type SeriesEncoding } from "@/lib/export/analysis
 import { buildHourGrid, classifyVmBehavior } from "@/domain/services/vmWorkloadProfileService";
 import type { VropsTimeSeriesImport } from "@/domain/models/types";
 
-const ROOT = "c:/Users/asi/Documents/GitHub/rvtools-analyzer/rvtools-analyse_2026-08-01";
+const ROOT = process.argv[2] ?? "c:/Users/asi/Documents/GitHub/rvtools-analyzer/rvtools-analyse_2026-08-01";
 
 /* ------------------------------------------------------------------ */
 /*  Einlesen                                                           */
@@ -1356,4 +1356,123 @@ section("20  Empfindlichkeit gegenüber den Zielauslastungen");
     ["Muster irregular/unclassified", blocked((entry) => ["irregular", "unclassified"].includes(entry.vm.shape))],
     ["bursty ohne Wochenwiederholung", blocked((entry) => entry.vm.shape === "bursty" && !((entry.weekCorrMedian ?? -1) >= 0.5 && (entry.weeklyMaxCv ?? 9) <= 0.4))],
   ]);
+}
+
+/* ------------------------------------------------------------------ */
+/* 21  Einzelkern-Engpass: hilft ein schnellerer Takt statt mehr Kerne? */
+/* ------------------------------------------------------------------ */
+
+section("21  Einzelkern-Engpass — Kandidaten für einen höheren Takt statt mehr vCPU");
+{
+  // Der heißeste Kern ergibt sich aus mittlerer Kernlast und Abstand zwischen höchster
+  // und niedrigster vCPU. Läuft er am Anschlag, während die VM insgesamt Luft hat,
+  // bringen zusätzliche vCPU nichts – dann hilft nur ein Kern, der schneller ist.
+  const SATURATED_CORE_PCT = 90;
+  const HEADROOM_MAX_PCT = 60;
+  interface CoreBound {
+    vmId: string;
+    vcpu: number;
+    mhzPerVcpu: number;
+    saturatedHours: number;
+    boundHours: number;
+    utilizationAtBound: number[];
+    overEstimateHours: number;
+  }
+  const bound: CoreBound[] = [];
+  let totalHours = 0;
+  let overEstimate = 0;
+  for (const entry of metrics) {
+    if (!entry.capacity || entry.vcpu <= 1) continue;
+    const disp = disparity.get(entry.vm.vmId);
+    if (!disp) continue;
+    let saturatedHours = 0;
+    let boundHours = 0;
+    let vmOverEstimate = 0;
+    const utilizationAtBound: number[] = [];
+    for (let slot = 0; slot < SLOTS; slot += 1) {
+      const demand = entry.avg[slot];
+      const disparityPct = disp[slot];
+      if (!Number.isFinite(demand) || !Number.isFinite(disparityPct)) continue;
+      const utilizationPct = (demand / entry.capacity) * 100;
+      if (utilizationPct < 1) continue;
+      totalHours += 1;
+      const rawHighestCore = utilizationPct + (disparityPct * (entry.vcpu - 1)) / entry.vcpu;
+      if (rawHighestCore > 105) { vmOverEstimate += 1; overEstimate += 1; }
+      const highestCorePct = Math.min(100, rawHighestCore);
+      if (highestCorePct < SATURATED_CORE_PCT) continue;
+      saturatedHours += 1;
+      // Der Engpass zählt nur, wenn die VM als Ganzes noch Luft hat – sonst ist sie
+      // schlicht ausgelastet und braucht mehr Kerne, nicht schnellere.
+      if (utilizationPct <= HEADROOM_MAX_PCT) {
+        boundHours += 1;
+        utilizationAtBound.push(utilizationPct);
+      }
+    }
+    if (saturatedHours > 0) {
+      bound.push({
+        vmId: entry.vm.vmId, vcpu: entry.vcpu,
+        mhzPerVcpu: entry.capacity / entry.vcpu,
+        saturatedHours, boundHours, utilizationAtBound, overEstimate: 0 as never, overEstimateHours: vmOverEstimate,
+      } as CoreBound);
+    }
+  }
+  console.log(`Modellprüfung: in ${pct(overEstimate, totalHours)} der lasthaltigen Stunden übersteigt die geschätzte höchste Kernlast 105 % – dort ist die Schätzung zu grob.`);
+  console.log(`VMs mit mindestens einer Stunde gesättigtem Einzelkern: ${bound.length} von ${metrics.length}`);
+
+  for (const minHours of [1, 24, 72, 168]) {
+    const group = bound.filter((entry) => entry.boundHours >= minHours);
+    console.log(`  davon einzelkern-begrenzt (Kern ≥ ${SATURATED_CORE_PCT} %, VM ≤ ${HEADROOM_MAX_PCT} %) in ≥ ${minHours} Stunden: ${group.length}`);
+  }
+
+  const candidates = bound.filter((entry) => entry.boundHours >= 24);
+  if (candidates.length) {
+    // Erreichbar ist nur, was in Clustern mit vergleichbaren Workloads tatsaechlich steht.
+    const clockCounts = new Map();
+    for (const item of metrics) {
+      if (!item.capacity) continue;
+      const clock = Math.round(item.capacity / item.vcpu / 10) * 10;
+      clockCounts.set(clock, (clockCounts.get(clock) ?? 0) + 1);
+    }
+    const reachable = [...clockCounts.entries()].filter(([, count]) => count >= 50).map(([clock]) => clock).sort((left, right) => right - left);
+    const fastest = reachable[0];
+    console.log(`\nTaktklassen mit mindestens 50 vermessenen VMs: ${reachable.join(", ")} MHz je vCPU.`);
+    console.log(`Als Ziel angesetzt: ${fastest} MHz. Schnellere Hosts im Bestand stehen fast ausschließlich in VDI-Clustern ohne Server-Workload.`);
+    const byClock = new Map<number, number>();
+    for (const entry of candidates) {
+      const clock = Math.round(entry.mhzPerVcpu / 10) * 10;
+      byClock.set(clock, (byClock.get(clock) ?? 0) + 1);
+    }
+    console.log("\nAusgangstakt der einzelkern-begrenzten VMs:");
+    table(["MHz/vCPU", "VMs", "Gewinn bis " + fastest],
+      [...byClock.entries()].sort((left, right) => right[0] - left[0]).map(([clock, count]) => [
+        String(clock), String(count), clock >= fastest ? "—" : `+${(((fastest / clock) - 1) * 100).toFixed(0)} %`,
+      ]));
+    table(["vmId", "vCPU", "MHz/vCPU", "Std. Kern voll", "davon mit Luft", "Auslastung dabei p50", "Gewinn durch schnellsten Takt"],
+      candidates
+        .sort((left, right) => right.boundHours - left.boundHours)
+        .slice(0, 25)
+        .map((entry) => [
+          entry.vmId, String(entry.vcpu), fmt(entry.mhzPerVcpu, 0),
+          String(entry.saturatedHours), String(entry.boundHours),
+          fmt(quantile(sortedCopy(entry.utilizationAtBound), 0.5), 1),
+          entry.mhzPerVcpu >= fastest ? "—" : `+${(((fastest / entry.mhzPerVcpu) - 1) * 100).toFixed(0)} %`,
+        ]));
+    const gains = candidates.map((entry) => Math.max(1, fastest / entry.mhzPerVcpu));
+    table(QUANTILE_HEADER, [quantileRow("möglicher Taktgewinn (Faktor)", gains, 3)]);
+    const alreadyFastest = candidates.filter((entry) => Math.round(entry.mhzPerVcpu) >= fastest - 10).length;
+    console.log(`bereits auf der schnellsten erreichbaren Klasse und damit ohne Hebel: ${alreadyFastest} von ${candidates.length}`);
+
+    // Für eine einzelkern-begrenzte VM ist jede Vergrößerung wirkungslos – die
+    // vorhandenen Kerne liegen ja bereits brach. Die Überschneidung mit den
+    // Vergrößerungskandidaten zeigt, ob die Empfehlungslogik das schon berücksichtigt.
+    const candidateIds = new Set(candidates.map((entry) => entry.vmId));
+    const boundMetrics = metrics.filter((entry) => candidateIds.has(entry.vm.vmId));
+    const alsoGrowing = boundMetrics.filter((entry) => entry.hoursAbove75 >= 24);
+    console.log(`\ndavon zugleich dauerhaft nahe der Kapazität (und damit Vergrößerungskandidat): ${alsoGrowing.length}`);
+    console.log(`Überdimensionierung dieser Gruppe: ${boundMetrics.reduce((sum, entry) => sum + entry.vcpu, 0)} konfigurierte vCPU bei einem einzigen tatsächlich belasteten Kern.`);
+    table(QUANTILE_HEADER, [
+      quantileRow("konfigurierte vCPU", boundMetrics.map((entry) => entry.vcpu), 0),
+      quantileRow("Auslastung p95 (% Kapazität)", boundMetrics.flatMap((entry) => (entry.utilP95Pct === null ? [] : [entry.utilP95Pct])), 1),
+    ]);
+  }
 }
