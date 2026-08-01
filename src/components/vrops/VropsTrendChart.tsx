@@ -4,7 +4,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { findWeekTimeMarkerTimestamp } from "@/lib/weekTimeMarker";
-import { aggregateTrendPoints, buildAverageWeekTrendPoints, describeTrendRange } from "@/lib/trendDownsampling";
+import { aggregateTrendPoints, buildAverageWeekTrendPoints, cpuDemandAvoidanceThreshold, describeTrendRange } from "@/lib/trendDownsampling";
 import { findAustrianPublicHolidayRanges } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
@@ -154,6 +154,12 @@ export function VropsTrendChart({
     : findWeekTimeMarkerTimestamp(chartData.map((point) => point.timestampMs));
   const cpuPeak = valuePeak(chartData, "cpuHigh");
   const secondaryPeak = valuePeak(chartData, secondaryDataKey);
+  const avoidanceThreshold = cpuDemandAvoidanceThreshold(cpuCapacityMHz, chartUnit);
+  const avoidanceZoneMax = typeof cpuPeak?.cpuHigh === "number"
+    && avoidanceThreshold !== null
+    && cpuPeak.cpuHigh > avoidanceThreshold
+    ? cpuPeak.cpuHigh
+    : null;
 
   // Bewusst aus den unverdichteten Stundenwerten: Sonst bekämen die Flächen Lücken.
   const shadeTimestamps = chartView === "average-week" ? sampled.map((point) => point.timestampMs) : hourly.map((point) => point.timestampUtc);
@@ -285,6 +291,26 @@ export function VropsTrendChart({
             {holidayRanges.map((range) => (
               <ReferenceArea key={`holiday-${range.start}`} yAxisId="cpu" x1={range.start} x2={range.end + HOUR_MS} fill="hsl(var(--warning))" fillOpacity={0.11} strokeOpacity={0} />
             ))}
+            {cpuVisible && avoidanceZoneMax !== null && avoidanceThreshold !== null && (
+              <>
+                <ReferenceArea
+                  yAxisId="cpu"
+                  y1={avoidanceThreshold}
+                  y2={avoidanceZoneMax}
+                  fill="hsl(var(--destructive))"
+                  fillOpacity={0.085}
+                  strokeOpacity={0}
+                  label={{ value: "Vermeiden · > 80 %", position: "insideTopRight", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
+                />
+                <ReferenceLine
+                  yAxisId="cpu"
+                  y={avoidanceThreshold}
+                  stroke="hsl(var(--destructive))"
+                  strokeDasharray="3 4"
+                  strokeOpacity={0.5}
+                />
+              </>
+            )}
             <XAxis
               type="number"
               scale="time"
@@ -366,6 +392,7 @@ export function VropsTrendChart({
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-success" />geringe Last</span>
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-warning" />erhöhte Last</span>
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-destructive" />Spitzenlast</span>
+          {avoidanceZoneMax !== null && <span className="flex items-center gap-1.5 font-medium text-destructive"><span className="h-2 w-4 rounded-sm bg-destructive/10 shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.25)]" />Vermeidungszone &gt; 80 % CPU</span>}
           {holidayNames.length > 0 && <span>Feiertage: {holidayNames.join(", ")}</span>}
         </div>
         {cpuVisible && cpuPeak && typeof cpuPeak.cpuHigh === "number" && (

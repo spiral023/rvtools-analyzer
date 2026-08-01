@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateTrendPoints,
   buildAverageWeekTrendPoints,
+  cpuDemandAvoidanceThreshold,
   describeTrendRange,
   downsampleTrendPoints,
   type TrendSamplePoint,
@@ -102,6 +103,20 @@ describe("wählbare Verlaufsansichten", () => {
     expect(result[0]).toMatchObject({ weekHour: 9, cpu: 200, cpuLow: 100, cpuHigh: 700, secondary: 4, sampleCount: 2 });
     expect(new Date(result[0].timestampMs).getDay()).toBe(1);
     expect(new Date(result[0].timestampMs).getHours()).toBe(9);
+  });
+});
+
+describe("CPU-Vermeidungsbereich", () => {
+  it("liegt in der Prozentansicht bei 80 Prozent", () => {
+    expect(cpuDemandAvoidanceThreshold(16_000, "percent")).toBe(80);
+  });
+
+  it("rechnet 80 Prozent der Kapazität für die Absolutansicht in GHz um", () => {
+    expect(cpuDemandAvoidanceThreshold(16_000, "absolute")).toBe(12.8);
+  });
+
+  it("entfällt in der Absolutansicht ohne bekannte CPU-Kapazität", () => {
+    expect(cpuDemandAvoidanceThreshold(null, "absolute")).toBeNull();
   });
 });
 

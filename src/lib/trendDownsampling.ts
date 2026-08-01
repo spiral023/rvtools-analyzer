@@ -45,6 +45,19 @@ export interface AverageWeekTrendPoint extends TrendBandPoint {
 /** Richtwert aus der Chartbreite: darunter bleibt je Punkt mehr als ein Pixel. */
 export const DEFAULT_MAX_TREND_POINTS = 336;
 
+/** Oberhalb dieser CPU-Auslastung beginnt der visuell markierte Vermeidungsbereich. */
+export const CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT = 80;
+
+/** Liefert die 80-%-Schwelle passend zur gewählten Chart-Einheit. */
+export function cpuDemandAvoidanceThreshold(
+  cpuCapacityMHz: number | null,
+  unit: "absolute" | "percent",
+): number | null {
+  if (unit === "percent") return CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT;
+  if (cpuCapacityMHz === null || !Number.isFinite(cpuCapacityMHz) || cpuCapacityMHz <= 0) return null;
+  return (cpuCapacityMHz * CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT) / 100 / 1_000;
+}
+
 function averageOf(values: readonly number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
