@@ -587,7 +587,7 @@ export function VirtualTable<T, TColumn = T>({
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground"><span className="tabular-nums">{filteredConfigurableColumns.length}</span> von {configurableColumns.length} Spalten</p>
               </div>
-              <ScrollArea className="max-h-[min(28rem,calc(100vh-23rem))]">
+              <ScrollArea className="h-[min(28rem,calc(100vh-23rem))]">
                 <div className="space-y-2 p-4">
                 {filteredConfigurableColumns.map((column) => {
                   const index = configurableColumns.findIndex((entry) => entry.id === column.id);
