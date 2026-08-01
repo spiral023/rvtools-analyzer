@@ -9,6 +9,13 @@ export interface VropsObjectTrendPoint {
   timestampUtc: number;
   /** CPU-Demand in MHz; die primäre Kennzahl über alle drei Objekttypen hinweg. */
   cpuDemandMHz: number | null;
+  /**
+   * Höchster CPU-Demand innerhalb der Stunde, sofern die vROps-View ihn liefert.
+   * Der Mittelwert allein glättet kurze Lastspitzen vollständig weg; erst mit
+   * dieser Reihe wird im Chart sichtbar, wie stark eine VM innerhalb der Stunde
+   * schwankt.
+   */
+  cpuDemandMaxMHz: number | null;
   /** VM: CPU-Ready in %; Host/Cluster: Memory-Utilization in MiB. */
   secondaryValue: number | null;
 }
@@ -31,6 +38,13 @@ const SECONDARY_METRIC_BY_TYPE: Record<VropsTimeSeriesObjectType, VropsTimeSerie
   vm: "vmCpuReadyMaxPct",
   host: "hostMemoryUtilizationAvgMiB",
   cluster: "clusterMemoryUtilizationAvgMiB",
+};
+
+/** Optional: fehlt die Spalte im Import, bleibt die Reihe leer und das Chart zeigt nur den Mittelwert. */
+const CPU_MAX_METRIC_BY_TYPE: Record<VropsTimeSeriesObjectType, VropsTimeSeriesMetricKey> = {
+  vm: "vmCpuDemandMaxMHz",
+  host: "hostCpuDemandMaxMHz",
+  cluster: "clusterCpuDemandMaxMHz",
 };
 
 /**
@@ -71,10 +85,12 @@ export function useVropsObjectSeries({
 
     const hourGrid = buildHourGrid(importMeta);
     const cpuSeries = readVropsTimeSeriesMetric(chunks, matched.objectKey, CPU_METRIC_BY_TYPE[objectType]);
+    const cpuMaxSeries = readVropsTimeSeriesMetric(chunks, matched.objectKey, CPU_MAX_METRIC_BY_TYPE[objectType]);
     const secondarySeries = readVropsTimeSeriesMetric(chunks, matched.objectKey, SECONDARY_METRIC_BY_TYPE[objectType]);
     const hourly: VropsObjectTrendPoint[] = hourGrid.map((entry) => ({
       timestampUtc: entry.timestampUtc,
       cpuDemandMHz: finiteOrNull(cpuSeries.get(entry.timestampUtc)),
+      cpuDemandMaxMHz: finiteOrNull(cpuMaxSeries.get(entry.timestampUtc)),
       secondaryValue: finiteOrNull(secondarySeries.get(entry.timestampUtc)),
     }));
     const hasAnyValue = hourly.some((point) => point.cpuDemandMHz !== null || point.secondaryValue !== null);

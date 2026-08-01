@@ -4,6 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import { pwaOptions } from "./pwa.config";
+import packageJson from "./package.json";
 
 const excludeViteEntryFromRocketLoader = {
   name: "exclude-vite-entry-from-rocket-loader",
@@ -32,6 +33,11 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  // Erlaubt es, einen Analyse-Export dem erzeugenden Codestand zuzuordnen.
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   build: {
     rollupOptions: {

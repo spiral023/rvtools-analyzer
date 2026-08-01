@@ -169,15 +169,51 @@ VM|CPU|Ready (%)|Max
 Die Spaltennamen bilden den verbindlichen Importvertrag. Interne Metric Keys
 können im Metric Dictionary ergänzt werden.
 
+### Metriken für das CPU-Rightsizing
+
+Optional im Sinne des Imports — fehlt eine Spalte, bleibt die Reihe leer und der
+Import läuft unverändert durch. Fachlich tragen sie das Rightsizing in beide
+Richtungen; ohne sie ist nur eine Verkleinerung beurteilbar.
+
+| Fachliche Metrik | Transformation | Einheit | Zweck |
+|---|---|---|---|
+| VM CPU Demand | `max` | MHz | echte Spitze innerhalb der Stunde; der Mittelwert glättet kurze Lastspitzen vollständig weg |
+| VM CPU Total Capacity | `last` | MHz | exakte VM-Kapazität statt Schätzung aus `hostCpuTotalMHz / hostCpuCores`, die Turbo-Boost und Power-Management ignoriert |
+| VM vCPU Usage Disparity | `avg` | % | Abstand zwischen höchster und niedrigster vCPU-Auslastung; trennt „Anwendung skaliert“ von „ein Kern trägt alles“ |
+| VM Peak vCPU Ready within collection cycle | `max` | % | schlechteste einzelne vCPU; der reguläre Ready-Wert ist über die vCPU gemittelt und verdeckt Contention bei breiten VMs |
+| VM Peak vCPU Co-Stop within collection cycle | `max` | % | Co-Scheduling-Verzögerung; der einzige direkte Nachweis, dass die vCPU-Anzahl selbst schadet |
+| Config Number of CPUs | `last` | Anzahl | erkennt vCPU-Änderungen im Messfenster, die sonst ein Mischprofil aus zwei Konfigurationen erzeugen |
+
+Erwartete Spaltennamen (weitere Schreibweisen sind als Alias hinterlegt, siehe
+`vropsTimeSeriesSchema.ts`):
+
+```text
+VM|CPU|Demand (MHz)|Max
+VM|CPU|Total Capacity (MHz)|Last
+VM|CPU|vCPU Usage Disparity (%)|Avg
+VM|CPU|Peak vCPU Ready within collection cycle (%)|Max
+VM|CPU|Peak vCPU Co-Stop within collection cycle (%)|Max
+VM|Config|Number of CPUs|Last
+```
+
+`CPU|Peak vCPU Usage` wäre die direkteste Kennzahl für „heißester Kern am
+Limit“, ist in der eingesetzten Version aber nicht sammelbar. Sie wird ersatzweise
+aus Disparity, Auslastung und vCPU-Anzahl rekonstruiert:
+
+```text
+Peak vCPU Usage ≈ Auslastung + Disparity × (vCPU − 1) / vCPU
+```
+
 ### Nicht benötigte VM-Metriken
 
-In der ersten Stufe werden nicht importiert:
+Nicht importiert werden:
 
-- VM CPU Usage, wenn CPU Demand verfügbar ist,
-- VM Memory Utilization,
-- VM Active, Consumed oder Guest Needed Memory,
+- VM Memory Utilization, Active, Consumed und Guest Needed Memory,
 - VM Ballooned und Swapped,
 - VM Memory Contention,
+- VM Peak vCPU Overlap (misst Hypervisor-Systemdienste, kein Rightsizing-Signal),
+- VM Peak Other Wait (I/O-Wartezeit belegt keine CPU-Zeit),
+- VM CPU Contention (redundant, solange Ready und Co-Stop einzeln vorliegen),
 - Minimum, Summe, Standardabweichung oder Forecast.
 
 Die harte RAM-Planung verwendet den konfigurierten RAM aus RVTools. Das
@@ -194,6 +230,8 @@ VM CPU Demand Avg
 VM CPU Ready Max
 ```
 
+Für das Rightsizing zusätzlich die sechs Spalten aus dem Abschnitt oben.
+
 Optional zusätzlich:
 
 ```text
@@ -209,7 +247,13 @@ object_id
 vm_name
 interval_start
 cpu_demand_avg_mhz
+cpu_demand_max_mhz
 cpu_ready_max_pct
+cpu_peak_vcpu_ready_max_pct
+cpu_peak_vcpu_costop_max_pct
+cpu_vcpu_usage_disparity_avg_pct
+cpu_total_capacity_last_mhz
+configured_vcpu_last
 ```
 
 ## View 2: Cluster-Zeitreihen
@@ -660,11 +704,29 @@ Nachgelagert:
 Diese Punkte sind Abnahmekriterien, aber kein Start-Gate für die
 Implementierung.
 
-## Sieben-Tage-Gesamtexport
+## Gesamtexport und Länge des Messfensters
 
-Für einen späteren Gesamtexport:
+Der Analyzer ist nicht auf sieben Tage festgelegt; Zeitraum und Rasterlänge
+kommen aus dem Import. Für das CPU-Rightsizing sind längere Fenster deutlich
+belastbarer, weil sich die Muster `bursty` und `irregular` in einer einzelnen
+Woche nicht verlässlich von einmaligen Ausschlägen unterscheiden lassen.
 
-1. absoluten Zeitraum mit sieben vollständigen Tagen festlegen,
+Empfohlen sind **28 Tage ab einem Montag**, nicht 30 oder 31:
+
+- Bei 28 Tagen kommt jeder Wochentag exakt viermal vor. Bei 31 Tagen erscheinen
+  drei Wochentage fünfmal und vier nur viermal. Fallen dabei Samstag und Sonntag
+  auf die fünffache Seite, steigt die Wochenendkonzentration rein rechnerisch um
+  rund 11 % — genug, um bei einem Schwellwert von 1,35 die Klasse zu kippen.
+- Vier vollständige, gleich lange Wochen erlauben zusätzlich einen Vergleich der
+  Wochen untereinander. Genau das trennt planbare monatliche Lastspitzen von
+  unvorhersehbaren Ausschlägen.
+
+Längere Fenster funktionieren, erfordern aber eine Gewichtung der Wochentage in
+der Auswertung. Ein Fenster über die Zeitumstellung ist zu vermeiden.
+
+Für den Gesamtexport:
+
+1. absoluten Zeitraum mit vollständigen Tagen festlegen, bevorzugt 28 ab Montag,
 2. denselben Start, dasselbe Ende und dieselbe Zeitzone in allen Reports
    verwenden,
 3. VM-Report für die ungefähr 5.000 Server-VMs ausführen,

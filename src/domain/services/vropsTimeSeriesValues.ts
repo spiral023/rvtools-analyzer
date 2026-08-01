@@ -78,6 +78,11 @@ function defaultUnit(kind: VropsTimeSeriesValueKind): string {
   return "";
 }
 
+/** Einheitenlose Zählwerte wie die konfigurierte vCPU-Anzahl. */
+function normalizeCount(value: number, unit: string): number | null {
+  return unit === "" ? value : null;
+}
+
 function normalizeUnit(value: number, rawUnit: string, kind: VropsTimeSeriesValueKind): number | null {
   const unit = rawUnit.trim().toLocaleLowerCase("en-US");
   if (kind === "cpu") {
@@ -97,6 +102,7 @@ function normalizeUnit(value: number, rawUnit: string, kind: VropsTimeSeriesValu
     return null;
   }
   if (kind === "percent") return unit === "%" || unit === "pct" || unit === "percent" ? value : null;
+  if (kind === "count") return normalizeCount(value, unit);
   return null;
 }
 

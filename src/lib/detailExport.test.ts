@@ -26,8 +26,8 @@ const dossier: DetailDossier = {
     title: "CPU-Auslastung",
     cpuCapacityMHz: 20_000,
     points: [
-      { timestampUtc: Date.UTC(2026, 6, 25, 12), cpuDemandMHz: 2_000, secondaryValue: 0.2 },
-      { timestampUtc: Date.UTC(2026, 6, 26, 12), cpuDemandMHz: 8_000, secondaryValue: 0.8 },
+      { timestampUtc: Date.UTC(2026, 6, 25, 12), cpuDemandMHz: 2_000, cpuDemandMaxMHz: null, secondaryValue: 0.2 },
+      { timestampUtc: Date.UTC(2026, 6, 26, 12), cpuDemandMHz: 8_000, cpuDemandMaxMHz: null, secondaryValue: 0.8 },
     ],
   },
   sections: [

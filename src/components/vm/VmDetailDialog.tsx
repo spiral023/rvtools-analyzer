@@ -33,6 +33,7 @@ import {
 } from "@/components/detail/SystemDetailLayout";
 import type { DetailDossier, DetailField, DetailKpi } from "@/lib/detailExport";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
+import { describeTrendRange } from "@/lib/trendDownsampling";
 import { VmTechnicalSections } from "@/components/vm/VmTechnicalSections";
 
 interface VmDetailDialogProps {
@@ -198,10 +199,11 @@ export function VmDetailDialog({
       ? new Date(vropsImportedAt || techInfo!.importedAt).toLocaleString("de-DE")
       : null,
     trend: workloadProfile ? {
-      title: "CPU-Auslastung · sieben Tage",
+      title: `CPU-Auslastung · ${describeTrendRange(workloadProfile.hourly.length)}`,
       points: workloadProfile.hourly.map((point) => ({
         timestampUtc: point.timestampUtc,
         cpuDemandMHz: point.cpuDemandMHz,
+        cpuDemandMaxMHz: point.cpuDemandMaxMHz,
         secondaryValue: point.cpuReadyPct,
       })),
       cpuCapacityMHz: workloadProfile.configuredCpuCapacityMHz,
@@ -319,12 +321,17 @@ export function VmDetailDialog({
         <DetailKpiGrid items={kpis} />
 
         {/* Der Verlauf steht bewusst vor den Stammdaten: er ist die Frage, mit der die Systemakte geöffnet wird. */}
-        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="Stündliche CPU-Demand- und CPU-Ready-Werte; Wochenende, höchster Peak und die aktuelle Wochenzeit sind hervorgehoben.">
+        <DetailSection
+          icon={<Activity className="size-4" />}
+          title={`Auslastung · ${describeTrendRange(workloadProfile?.hourly.length ?? 0)}`}
+          description="CPU-Demand- und CPU-Ready-Werte; Wochenende, höchster Peak und die aktuelle Wochenzeit sind hervorgehoben."
+        >
           {workloadProfile ? (
             <VropsTrendChart
               hourly={workloadProfile.hourly.map((point) => ({
                 timestampUtc: point.timestampUtc,
                 cpuDemandMHz: point.cpuDemandMHz,
+                cpuDemandMaxMHz: point.cpuDemandMaxMHz,
                 secondaryValue: point.cpuReadyPct,
               }))}
               cpuCapacityMHz={workloadProfile.configuredCpuCapacityMHz}

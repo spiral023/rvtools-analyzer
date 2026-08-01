@@ -7,7 +7,7 @@ import type {
 
 export const VROPS_TIME_SERIES_SCHEMA_VERSION = 1;
 
-export type VropsTimeSeriesValueKind = "cpu" | "memory" | "percent" | "state";
+export type VropsTimeSeriesValueKind = "cpu" | "memory" | "percent" | "state" | "count";
 
 interface MetricDefinition {
   key: VropsTimeSeriesMetricKey;
@@ -45,6 +45,94 @@ export const VROPS_TIME_SERIES_SCHEMAS: readonly VropsTimeSeriesSchemaDefinition
         required: true,
         valueKind: "percent",
         aliases: ["VM|CPU|Ready (%)|Max", "VM|CPU|Ready|Max", "VM CPU Ready Max", "CPU Ready Max"],
+      },
+      // Ab hier optional: ältere Importe und Exporte ohne die erweiterte vROps-View
+      // bleiben gültig, die Metriken fehlen dann schlicht. Fachlicher Hintergrund
+      // siehe VROPS_METRICS.md — sie tragen das CPU-Rightsizing in beide Richtungen.
+      {
+        // Der Avg-Wert mittelt Spitzen innerhalb der Stunde vollständig heraus. Ohne
+        // diesen Max-Wert ist der Peak-Pfad des Rightsizings ein Maximum von
+        // Stundenmittelwerten und unterschätzt kurze Lastspitzen systematisch.
+        key: "vmCpuDemandMaxMHz",
+        required: false,
+        valueKind: "cpu",
+        aliases: ["VM|CPU|Demand (MHz)|Max", "VM|CPU|Demand|Max", "VM CPU Demand Max", "CPU Demand Max"],
+      },
+      {
+        // Absoluter Abstand zwischen der höchsten und niedrigsten vCPU-Auslastung.
+        // Trennt „Anwendung skaliert über die vCPU“ von „ein Kern trägt alles“ und
+        // ist damit das Ausschlusskriterium für Vergrößerungsempfehlungen.
+        key: "vmCpuUsageDisparityAvgPct",
+        required: false,
+        valueKind: "percent",
+        aliases: [
+          "VM|CPU|vCPU Usage Disparity (%)|Avg",
+          "VM|CPU|vCPU Usage Disparity|Avg",
+          "VM|CPU|CPU Usage Disparity (%)|Avg",
+          "VM|CPU|Usage Disparity (%)|Avg",
+          "VM CPU vCPU Usage Disparity Avg",
+          "vCPU Usage Disparity Avg",
+        ],
+      },
+      {
+        // Schlechteste einzelne vCPU im Sammelzyklus. Der reguläre Ready-Wert ist über
+        // die vCPU gemittelt und verdeckt Contention bei breiten VMs.
+        key: "vmCpuPeakReadyMaxPct",
+        required: false,
+        valueKind: "percent",
+        aliases: [
+          "VM|CPU|Peak vCPU Ready within collection cycle (%)|Max",
+          "VM|CPU|Peak vCPU Ready within collection cycle|Max",
+          "VM|CPU|20-second Peak vCPU Ready (%)|Max",
+          "VM|CPU|Peak vCPU Ready (%)|Max",
+          "VM CPU Peak vCPU Ready Max",
+          "Peak vCPU Ready Max",
+        ],
+      },
+      {
+        // Co-Stop entsteht durch Co-Scheduling zu breiter VMs, nicht durch Überbuchung
+        // des Hosts. Damit der einzige direkte Nachweis, dass die vCPU-Anzahl selbst schadet.
+        key: "vmCpuPeakCostopMaxPct",
+        required: false,
+        valueKind: "percent",
+        aliases: [
+          "VM|CPU|Peak vCPU Co-Stop within collection cycle (%)|Max",
+          "VM|CPU|Peak vCPU Co-stop within collection cycle (%)|Max",
+          "VM|CPU|Peak vCPU Co-Stop within collection cycle|Max",
+          "VM|CPU|20-second Peak vCPU Co-Stop (%)|Max",
+          "VM|CPU|Peak vCPU Co-Stop (%)|Max",
+          "VM CPU Peak vCPU Co-Stop Max",
+          "Peak vCPU Co-Stop Max",
+        ],
+      },
+      {
+        // Ersetzt die Schätzung der VM-Kapazität aus Hostdaten (cpuTotalMHz / cpuCores),
+        // die Turbo-Boost und Power-Management ignoriert.
+        key: "vmCpuTotalCapacityLastMHz",
+        required: false,
+        valueKind: "cpu",
+        aliases: [
+          "VM|CPU|Total Capacity (MHz)|Last",
+          "VM|CPU|Total Capacity|Last",
+          "VM|CPU|Provisioned Capacity (MHz)|Last",
+          "VM CPU Total Capacity Last",
+          "CPU Total Capacity Last",
+        ],
+      },
+      {
+        // Erkennt vCPU-Änderungen innerhalb des Messfensters. Ohne sie liefert eine
+        // während des Zeitraums umkonfigurierte VM ein Mischprofil aus zwei Größen.
+        key: "vmConfiguredVcpuLast",
+        required: false,
+        valueKind: "count",
+        aliases: [
+          "VM|Config|Number of CPUs|Last",
+          "VM|Configuration|Number of CPUs|Last",
+          "VM|Config|Hardware|Number of CPUs|Last",
+          "Config|Number of CPUs|Last",
+          "VM Number of CPUs Last",
+          "Number of CPUs Last",
+        ],
       },
     ],
   },

@@ -182,6 +182,7 @@ function makeProfile(
     hourly: timestamps.map((timestampUtc, index): VmWorkloadHourlyPoint => ({
       timestampUtc,
       cpuDemandMHz: demand[index] ?? null,
+      cpuDemandMaxMHz: null,
       cpuReadyPct: null,
     })),
     demand: {

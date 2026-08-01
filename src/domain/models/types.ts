@@ -406,6 +406,12 @@ export type VropsTimeSeriesObjectType = "vm" | "cluster" | "host";
 export type VropsTimeSeriesMetricKey =
   | "vmCpuDemandAvgMHz"
   | "vmCpuReadyMaxPct"
+  | "vmCpuDemandMaxMHz"
+  | "vmCpuUsageDisparityAvgPct"
+  | "vmCpuPeakReadyMaxPct"
+  | "vmCpuPeakCostopMaxPct"
+  | "vmCpuTotalCapacityLastMHz"
+  | "vmConfiguredVcpuLast"
   | "clusterCpuDemandAvgMHz"
   | "clusterCpuDemandMaxMHz"
   | "clusterMemoryUtilizationAvgMiB"
@@ -952,6 +958,12 @@ export interface VmWorkloadClassificationSignals {
 export interface VmWorkloadHourlyPoint {
   timestampUtc: number;
   cpuDemandMHz: number | null;
+  /**
+   * Höchster Demand innerhalb der Stunde. Nur belegt, wenn die vROps-View
+   * `Demand Max` liefert; der Mittelwert allein glättet kurze Lastspitzen
+   * vollständig weg.
+   */
+  cpuDemandMaxMHz: number | null;
   cpuReadyPct: number | null;
 }
 
@@ -1507,6 +1519,12 @@ export interface UiState {
   exportStudioTemplates?: ExportStudioTemplate[];
   /** Deaktivierte Pseudonymisierungsfelder je Export-Datenquelle ("quelle:spalte"). */
   exportStudioPseudonymizationDisabledFields?: string[];
+  /**
+   * Einmalig erzeugter Zufallswert für die Kürzel des Analyse-Exports. Bleibt
+   * bewusst über alle Exporte konstant, damit dieselbe VM in aufeinanderfolgenden
+   * Exporten dasselbe Kürzel behält und Vorher/Nachher vergleichbar wird.
+   */
+  analysisExportPseudonymSalt?: string;
 }
 
 export type ScenarioType = "cluster-migration";
