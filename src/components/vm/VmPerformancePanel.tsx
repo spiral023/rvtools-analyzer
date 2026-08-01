@@ -12,6 +12,7 @@ import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { PERFORMANCE_KPI, PERFORMANCE_MEM_COLUMNS, PERFORMANCE_ENTITLEMENT_COLUMNS, PERFORMANCE_FT_COLUMNS, PERFORMANCE_PERF_COLUMNS, PERFORMANCE_SECTIONS, PERFORMANCE_VMNET_COLUMNS } from "@/lib/glossaries/performance";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import type { NormalizedVm } from "@/domain/models/types";
 
@@ -28,6 +29,11 @@ const perfColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster", meta: { info: PERFORMANCE_PERF_COLUMNS.cluster } },
   { accessorKey: "host", header: "Host", meta: { info: PERFORMANCE_PERF_COLUMNS.host } },
   { accessorKey: "powerState", header: "Power", meta: { info: PERFORMANCE_PERF_COLUMNS.powerState } },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID der VM.", "RVTools · Snapshot-Metadaten") },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung der VM.", "RVTools · vInfo · „Datacenter“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "memoryMiB", header: "RAM", meta: normalizedOptionalColumnMeta("RAM", "Konfigurierter Arbeitsspeicher der VM.", "RVTools · vInfo · „Memory“"), cell: ({ getValue }) => formatBytes(getValue() as number | null) },
+  { accessorKey: "configStatus", header: "Config", meta: normalizedOptionalColumnMeta("Config", "vCenter-Konfigurationsstatus der VM.", "RVTools · vInfo · „Config status“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "connectionState", header: "Verbindung", meta: normalizedOptionalColumnMeta("Verbindung", "Verbindungszustand der VM zum Host.", "RVTools · vInfo · „Connection state“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
 ];
 const memColumns: ColumnDef<MemoryIssueVm, unknown>[] = [
   { accessorKey: "vmName", header: "VM", meta: { info: PERFORMANCE_MEM_COLUMNS.vmName } },
@@ -156,12 +162,12 @@ export function VmPerformancePanel() {
         </ResponsiveContainer>
       </div>}
 
-      <div><InfoTooltip entry={PERFORMANCE_SECTIONS.cpuReadyDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">CPU Ready Details ({cpuReadyVms.length})</h3></InfoTooltip><VirtualTable data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
-      {memoryIssues.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.memoryPressure} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3></InfoTooltip><VirtualTable data={memoryIssues} columns={memColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>}
-      {entitlementFull.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.entitlementGaps} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3></InfoTooltip><VirtualTable data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>}
-      {ftData.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.ftLatency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3></InfoTooltip><VirtualTable data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} onRowClick={openVmDetail} /></div>}
-      {vmNetAnomalies.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.vmNetAnomalies} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3></InfoTooltip><VirtualTable data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>}
-      {latencyCases.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.latencyCases} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-warning">Latency Sensitivity Sonderfälle ({latencyCases.length})</h3></InfoTooltip><VirtualTable data={latencyCases} columns={latencyColumns} globalFilter={filters.search} height={260} onRowClick={openVmDetail} /></div>}
+      <div><InfoTooltip entry={PERFORMANCE_SECTIONS.cpuReadyDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">CPU Ready Details ({cpuReadyVms.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-cpu-ready" columnPicker data={cpuReadyVms} columns={perfColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+      {memoryIssues.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.memoryPressure} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Memory Pressure — Swapped / Ballooned ({memoryIssues.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-memory-pressure" columnPicker data={memoryIssues} columns={memColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>}
+      {entitlementFull.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.entitlementGaps} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Entitlement Gaps ({entitlementFull.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-entitlement-gaps" columnPicker data={entitlementFull} columns={entitlementColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>}
+      {ftData.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.ftLatency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">FT Latenz Monitoring ({ftData.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-ft-latency" columnPicker data={ftData} columns={ftColumns} globalFilter={filters.search} height={250} onRowClick={openVmDetail} /></div>}
+      {vmNetAnomalies.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.vmNetAnomalies} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Netzwerkanomalien ({vmNetAnomalies.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-vm-network" columnPicker data={vmNetAnomalies} columns={vmNetColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>}
+      {latencyCases.length > 0 && <div><InfoTooltip entry={PERFORMANCE_SECTIONS.latencyCases} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-warning">Latency Sensitivity Sonderfälle ({latencyCases.length})</h3></InfoTooltip><VirtualTable tableId="vms/performance-latency-sensitivity" columnPicker data={latencyCases} columns={latencyColumns} globalFilter={filters.search} height={260} onRowClick={openVmDetail} /></div>}
       {vmDetailDialog}
     </div>
   );

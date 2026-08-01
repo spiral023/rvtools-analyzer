@@ -24,7 +24,7 @@ export function LicenseDetailsTable({ licenses, globalFilter }: { licenses: Lice
       <InfoTooltip entry={LICENSING_SECTIONS.licenseTable} side="bottom">
         <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Lizenz Details</h3>
       </InfoTooltip>
-      <VirtualTable data={licenses} columns={licenseColumns} globalFilter={globalFilter} />
+      <VirtualTable tableId="licensing/details" columnPicker data={licenses} columns={licenseColumns} globalFilter={globalFilter} />
     </div>
   );
 }

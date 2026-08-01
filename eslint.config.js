@@ -35,6 +35,7 @@ export default tseslint.config(
       "src/hooks/useImportController.tsx",
       "src/hooks/useOnboarding.tsx",
       "src/hooks/useSelection.tsx",
+      "src/hooks/useTableDisplayPreferences.tsx",
       "src/lib/metricColor.tsx",
     ],
     rules: {

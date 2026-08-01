@@ -23,6 +23,7 @@ import { PLANNING_COLUMNS, PLANNING_KPI, PLANNING_SECTIONS } from "@/lib/glossar
 import { getScenarioTargetDisplay } from "@/lib/scenarioTargets";
 import { getRangeKeys } from "@/lib/selectionRange";
 import { coloredNum, coloredPct, maxHostFailuresClassName, riskSeverity, severityBadge, siteFailoverBadge } from "@/lib/metricColor";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import { shortHostName } from "@/lib/utils";
 
 const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
@@ -33,6 +34,15 @@ const vmColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "powerState", header: "Power", meta: { info: PLANNING_COLUMNS.powerState } },
   { accessorKey: "cpuCount", header: "vCPU", meta: { info: PLANNING_COLUMNS.cpuCount } },
   { accessorKey: "memoryMiB", header: "RAM GiB", meta: { info: PLANNING_COLUMNS.memoryMiB }, cell: ({ row }) => (row.original.memoryMiB / 1024).toFixed(1) },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID der ausgewählten VM.", "RVTools · Snapshot-Metadaten") },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung der VM.", "RVTools · vInfo · „Datacenter“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "resourcePool", header: "Resource Pool", meta: normalizedOptionalColumnMeta("Resource Pool", "Resource Pool der VM.", "RVTools · vInfo · „Resource pool“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "configStatus", header: "Config", meta: normalizedOptionalColumnMeta("Config", "vCenter-Konfigurationsstatus der VM.", "RVTools · vInfo · „Config status“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "connectionState", header: "Verbindung", meta: normalizedOptionalColumnMeta("Verbindung", "Verbindungszustand der VM zum Host.", "RVTools · vInfo · „Connection state“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "osConfig", header: "OS", meta: normalizedOptionalColumnMeta("OS", "Gastbetriebssystem laut VM-Konfiguration.", "RVTools · vInfo · „OS according to the configuration file“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "osTools", header: "OS (Tools)", meta: normalizedOptionalColumnMeta("OS (Tools)", "Gastbetriebssystem laut VMware Tools.", "RVTools · vInfo · „OS according to the VMware Tools“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "hwVersion", header: "HW-Version", meta: normalizedOptionalColumnMeta("HW-Version", "Virtuelle Hardware-Version der VM.", "RVTools · vInfo · „HW version“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "toolsStatus", header: "Tools-Status", meta: normalizedOptionalColumnMeta("Tools-Status", "Status der VMware Tools.", "RVTools · vInfo · „Tools status“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
 ];
 
 const makeId = () => `scn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -127,7 +137,7 @@ export function ClusterPlanningPanel() {
             </Card>)}</div></div>
             </div>}
           </> : <Card className="p-8 text-center text-sm text-muted-foreground">Wählen Sie ein Szenario aus oder erstellen Sie ein neues, um zu beginnen.</Card>}
-          <div><InfoTooltip entry={PLANNING_SECTIONS.vmSelection} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Auswahl</h3></InfoTooltip><VirtualTable data={vms} columns={vmColumns} selectionEnabled getRowId={(vm) => vm.vmKey} selectedKeys={selectedVmKeys} onToggleRow={(vmKey, shiftKey, sortedKeys, index) => { if (shiftKey && anchorIndexRef.current >= 0) { const keys = getRangeKeys(sortedKeys, anchorIndexRef.current, index); if (keys.every((key) => selectedVmKeys.has(key))) deselectMany(keys); else selectMany(keys); } else { toggleVm(vmKey); anchorIndexRef.current = index; } }} onToggleAll={(selectAll) => { if (selectAll) selectMany(allVmKeys); else clear(); }} height={500} /></div>
+          <div><InfoTooltip entry={PLANNING_SECTIONS.vmSelection} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Auswahl</h3></InfoTooltip><VirtualTable tableId="planning/vm-selection" columnPicker data={vms} columns={vmColumns} selectionEnabled getRowId={(vm) => vm.vmKey} selectedKeys={selectedVmKeys} onToggleRow={(vmKey, shiftKey, sortedKeys, index) => { if (shiftKey && anchorIndexRef.current >= 0) { const keys = getRangeKeys(sortedKeys, anchorIndexRef.current, index); if (keys.every((key) => selectedVmKeys.has(key))) deselectMany(keys); else selectMany(keys); } else { toggleVm(vmKey); anchorIndexRef.current = index; } }} onToggleAll={(selectAll) => { if (selectAll) selectMany(allVmKeys); else clear(); }} height={500} /></div>
         </div>
       </div>
     </div>

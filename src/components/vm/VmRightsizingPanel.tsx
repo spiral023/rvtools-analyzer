@@ -264,7 +264,7 @@ export function VmRightsizingPanel() {
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p><span className="font-semibold">Sammelaussage:</span> Gleichartige Grow-Kandidaten desselben Ressourcenpools gemeinsam bewerten. Einzelziele bleiben als Nachweis erhalten; ein gemeinsamer Rollout kann Co-Stop und Scheduling-Breite verstärken.</p>
           </div>
-          <VirtualTable data={growthGroups} columns={growthGroupColumns} height={220} getRowId={(row) => row.key} emptyTitle="Keine gemeinsamen Grow-Gruppen" />
+          <VirtualTable tableId="vms/rightsizing-growth-groups" columnPicker data={growthGroups} columns={growthGroupColumns} height={220} getRowId={(row) => row.key} emptyTitle="Keine gemeinsamen Grow-Gruppen" />
         </div> : null}
 
         {densityGrid.vmCount > 0 && <div className="grid gap-6 xl:grid-cols-3">
@@ -313,17 +313,17 @@ export function VmRightsizingPanel() {
         <div>
           <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({visibleCandidateCount})</h3></InfoTooltip>
           {/* Ohne `globalFilter`: die Suche ist bereits auf `candidates` angewandt, damit Kennzahlen und Tabelle denselben Ausschnitt zeigen. */}
-          <VirtualTable data={candidates} columns={candidateColumns} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Systemverantwortliche:r."} onFilteredCountChange={setVisibleCandidateCount} />
+          <VirtualTable tableId="vms/rightsizing-candidates" columnPicker data={candidates} columns={candidateColumns} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Systemverantwortliche:r."} onFilteredCountChange={setVisibleCandidateCount} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
             <InfoTooltip entry={RIGHTSIZING_SECTIONS.clusterSummary} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Rückgewinnbare vCPU je Cluster</h3></InfoTooltip>
-            <VirtualTable data={clusterSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
+            <VirtualTable tableId="vms/rightsizing-cluster-summary" columnPicker data={clusterSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
           </div>
           <div>
             <InfoTooltip entry={RIGHTSIZING_SECTIONS.shapeSummary} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Rückgewinnbare vCPU je Lastmuster</h3></InfoTooltip>
-            <VirtualTable data={shapeSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
+            <VirtualTable tableId="vms/rightsizing-shape-summary" columnPicker data={shapeSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
           </div>
         </div>
       </>}

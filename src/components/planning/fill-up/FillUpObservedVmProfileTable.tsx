@@ -53,7 +53,7 @@ export function FillUpObservedVmProfileTable({
         <InfoTooltip entry={FILL_UP_UI.observedProfiles} side="right"><h3 className="w-fit cursor-help text-sm font-semibold">Typische VM aus Cluster / Resource Pool</h3></InfoTooltip>
         <p className="text-xs text-muted-foreground">„Gesamt“ und jeder Resource Pool werden aus der gewählten vROps-Zeitreihe abgeleitet. Übernehmen erzeugt ein editierbares Profil mit CPU Ø und P95 – inklusive Nachkommastellen.</p>
       </div>
-      <VirtualTable data={[...rows]} columns={columns} height={324} getRowId={(row) => row.id} exportFileName="fill-up-beobachtete-vm-profile" emptyTitle="Keine verknüpften VM-Zeitreihen" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen mit einem RVTools-Cluster." />
+      <VirtualTable tableId="planning/fill-up-observed-vm-profiles" columnPicker data={[...rows]} columns={columns} height={324} getRowId={(row) => row.id} exportFileName="fill-up-beobachtete-vm-profile" emptyTitle="Keine verknüpften VM-Zeitreihen" emptyDescription="Für den gewählten Import fehlen eindeutig zugeordnete VM-Zeitreihen mit einem RVTools-Cluster." />
     </section>
   );
 }

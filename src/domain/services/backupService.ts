@@ -17,6 +17,12 @@ import {
 } from "@/data/db";
 import { buildUserDataBackup, parseUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
 import { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
+import {
+  LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
+  TABLE_DISPLAY_PREFERENCES_UI_STATE_ID,
+  TECH_INFO_ORGANISATION_TABLE_ID,
+  notifyTableDisplayPreferencesChanged,
+} from "@/lib/tableDisplayPreferences";
 
 export interface UserDataImportResult {
   settingsImported: boolean;
@@ -26,20 +32,29 @@ export interface UserDataImportResult {
   vcenterGroupsImported: number;
   vmScopeSettingsImported: boolean;
   techInfoOrganisationTablePreferencesImported: boolean;
+  tableDisplayPreferencesImported: boolean;
 }
-
-const TECHINFO_ORGANISATION_UI_STATE_ID = "tech-info-organisation";
 
 /** Sammelt alle Benutzerdaten (ohne RVTools-/Tech-Info-Daten) für den Export. */
 export async function collectUserDataBackup(): Promise<UserDataBackup> {
-  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups, techInfoOrganisationUiState] = await Promise.all([
+  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups, tablePreferencesUiState, legacyTechInfoUiState] = await Promise.all([
     getMaintenanceSettings(),
     getMaintenanceAssignments(),
     getMaintenanceWindows(),
     getScenarios(),
     getVcenterGroups(),
-    getUiState(TECHINFO_ORGANISATION_UI_STATE_ID),
+    getUiState(TABLE_DISPLAY_PREFERENCES_UI_STATE_ID),
+    getUiState(LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID),
   ]);
+
+  const tableDisplayPreferences = {
+    ...(legacyTechInfoUiState?.techInfoOrganisationTablePreferences
+      ? { [TECH_INFO_ORGANISATION_TABLE_ID]: legacyTechInfoUiState.techInfoOrganisationTablePreferences }
+      : {}),
+    ...(tablePreferencesUiState?.tableDisplayPreferences ?? {}),
+  };
+  const techInfoOrganisationTablePreferences = tableDisplayPreferences[TECH_INFO_ORGANISATION_TABLE_ID]
+    ?? legacyTechInfoUiState?.techInfoOrganisationTablePreferences;
 
   return buildUserDataBackup({
     maintenanceSettings: settings ?? null,
@@ -48,7 +63,8 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     scenarios,
     vcenterGroups,
     vmScopeSettings: getStoredVmScopeSettings(),
-    techInfoOrganisationTablePreferences: techInfoOrganisationUiState?.techInfoOrganisationTablePreferences,
+    techInfoOrganisationTablePreferences,
+    tableDisplayPreferences: Object.keys(tableDisplayPreferences).length > 0 ? tableDisplayPreferences : undefined,
   });
 }
 
@@ -69,13 +85,31 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     ...backup.vcenterGroups.map((group) => putVcenterGroup(group)),
   ]);
   if (backup.vmScopeSettings) saveVmScopeSettings(backup.vmScopeSettings);
-  if (backup.techInfoOrganisationTablePreferences) {
-    const existing = await getUiState(TECHINFO_ORGANISATION_UI_STATE_ID);
+  const tableDisplayPreferences = {
+    ...(backup.techInfoOrganisationTablePreferences
+      ? { [TECH_INFO_ORGANISATION_TABLE_ID]: backup.techInfoOrganisationTablePreferences }
+      : {}),
+    ...(backup.tableDisplayPreferences ?? {}),
+  };
+  if (Object.keys(tableDisplayPreferences).length > 0) {
+    const existing = await getUiState(TABLE_DISPLAY_PREFERENCES_UI_STATE_ID);
     await putUiState({
-      ...(existing ?? { id: TECHINFO_ORGANISATION_UI_STATE_ID, theme: "dark" }),
-      id: TECHINFO_ORGANISATION_UI_STATE_ID,
-      techInfoOrganisationTablePreferences: backup.techInfoOrganisationTablePreferences,
+      ...(existing ?? { id: TABLE_DISPLAY_PREFERENCES_UI_STATE_ID, theme: "dark" }),
+      id: TABLE_DISPLAY_PREFERENCES_UI_STATE_ID,
+      // Tabellenweise mergen: Ansichten, die das Backup nicht kennt, bleiben erhalten.
+      tableDisplayPreferences: { ...existing?.tableDisplayPreferences, ...tableDisplayPreferences },
     });
+
+    const techInfoPreferences = tableDisplayPreferences[TECH_INFO_ORGANISATION_TABLE_ID];
+    if (techInfoPreferences) {
+      const legacyExisting = await getUiState(LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID);
+      await putUiState({
+        ...(legacyExisting ?? { id: LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID, theme: "dark" }),
+        id: LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
+        techInfoOrganisationTablePreferences: techInfoPreferences,
+      });
+    }
+    notifyTableDisplayPreferencesChanged();
   }
 
   return {
@@ -85,7 +119,8 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     scenariosImported: backup.scenarios.length,
     vcenterGroupsImported: backup.vcenterGroups.length,
     vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
-    techInfoOrganisationTablePreferencesImported: Boolean(backup.techInfoOrganisationTablePreferences),
+    techInfoOrganisationTablePreferencesImported: Boolean(tableDisplayPreferences[TECH_INFO_ORGANISATION_TABLE_ID]),
+    tableDisplayPreferencesImported: Object.keys(tableDisplayPreferences).length > 0,
   };
 }
 

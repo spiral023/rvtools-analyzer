@@ -12,6 +12,7 @@ import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { filterCdpRows } from "@/lib/cdp";
 import { NET_CDP_KPI, NET_CDP_COLUMNS, NET_CDP_SECTIONS } from "@/lib/glossaries/networking";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import type { CdpLatest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -40,6 +41,8 @@ function createColumns(onOpenHostDetail: (row: CdpLatest) => void): ColumnDef<Cd
       ),
     },
     { accessorKey: "cluster", header: "Cluster", meta: { info: NET_CDP_COLUMNS.cluster }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+    { accessorKey: "vcenter", header: "vCenter", meta: normalizedOptionalColumnMeta("vCenter", "vCenter-Angabe aus dem CDP-Import.", "CDP-CSV · „vCenter“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
+    { accessorKey: "hostConnectionState", header: "Host-Verbindung", meta: normalizedOptionalColumnMeta("Host-Verbindung", "Verbindungszustand des ESXi-Hosts.", "CDP-CSV · „HostConnectionState“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
     { accessorKey: "adapter", header: "Adapter", meta: { info: NET_CDP_COLUMNS.adapter }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
     {
       accessorKey: "linkStatus",
@@ -61,12 +64,16 @@ function createColumns(onOpenHostDetail: (row: CdpLatest) => void): ColumnDef<Cd
         return <div className="max-w-[280px] truncate" title={row.original.cdpSoftware ? `${v} — ${row.original.cdpSoftware}` : v}>{v}</div>;
       },
     },
+    { accessorKey: "cdpSwitchAddress", header: "Switch-Adresse", meta: normalizedOptionalColumnMeta("Switch-Adresse", "Management- oder Chassis-Adresse des CDP-Nachbarn.", "CDP-CSV · „CDPSwitchAddress“"), cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+    { accessorKey: "cdpSoftware", header: "Switch-Software", meta: normalizedOptionalColumnMeta("Switch-Software", "Software-Version des CDP-Nachbarn.", "CDP-CSV · „CDPSoftware“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
     { accessorKey: "cdpPortId", header: "Port", meta: { info: NET_CDP_COLUMNS.cdpPortId }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
     { accessorKey: "nativeVlan", header: "Native VLAN", meta: { info: NET_CDP_COLUMNS.nativeVlan }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
     { accessorKey: "mtu", header: "MTU", meta: { info: NET_CDP_COLUMNS.mtu }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
     { accessorKey: "cdpPlatform", header: "Plattform", meta: { info: NET_CDP_COLUMNS.cdpPlatform }, cell: ({ getValue }) => textCell(getValue() as string | null) },
     { accessorKey: "cdpMgmtIp", header: "Mgmt-IP", meta: { info: NET_CDP_COLUMNS.cdpMgmtIp }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
     { accessorKey: "mac", header: "MAC", meta: { info: NET_CDP_COLUMNS.mac }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+    { accessorKey: "cdpAvailable", header: "CDP verfügbar", meta: normalizedOptionalColumnMeta("CDP verfügbar", "Kennzeichnet, ob für den Adapter CDP-Daten vorliegen.", "CDP-CSV · „CDPAvailable“"), cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
+    { accessorKey: "queryStatus", header: "Abfrage-Status", meta: normalizedOptionalColumnMeta("Abfrage-Status", "Status der CDP-Abfrage für diesen Adapter.", "CDP-CSV · „QueryStatus“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
   ];
 }
 
@@ -144,7 +151,7 @@ export function CdpPanel() {
             Abruf-Skript
           </Button>
         </div>
-        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="cdp-switch-ports" />
+        <VirtualTable tableId="network/cdp-switch-ports" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="cdp-switch-ports" />
       </div>
       {scriptDialog}
       {hostDetailDialog}

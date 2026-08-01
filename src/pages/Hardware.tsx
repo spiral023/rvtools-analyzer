@@ -440,6 +440,8 @@ function VariantSummaryTable({
 
   return (
     <VirtualTable
+      tableId="hardware/variants"
+      columnPicker
       data={rows}
       columns={columns}
       initialSorting={[{ id: "hosts", desc: true }]}

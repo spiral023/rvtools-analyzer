@@ -27,7 +27,7 @@ export function ResourcePoolPressurePanel({ rawResourcePools, search }: { rawRes
   return (
     <section>
       <InfoTooltip entry={CAPACITY_SECTIONS.resourcePool} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Resource Pool Pressure ({rows.length})</h3></InfoTooltip>
-      <VirtualTable data={rows} columns={columns} globalFilter={search} height={300} />
+      <VirtualTable tableId="clusters/resource-pools" columnPicker data={rows} columns={columns} globalFilter={search} height={300} />
     </section>
   );
 }

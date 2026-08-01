@@ -87,7 +87,7 @@ export function VlanUsagePanel() {
         <InfoTooltip entry={NET_VLANUSAGE_SECTIONS.table} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VLAN-Nutzung pro Cluster ({rows.length})</h3>
         </InfoTooltip>
-        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} />
+        <VirtualTable tableId="network/vlan-usage" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={500} />
       </div>
     </div>
   );

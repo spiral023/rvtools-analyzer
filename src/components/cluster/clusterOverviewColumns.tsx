@@ -6,10 +6,12 @@ import { CLUSTER_OVERVIEW_COLUMNS } from "@/lib/glossaries/clusters";
 import { coloredNum, coloredPct, hostFailureTooltipText, maxHostFailuresClassName, RiskTooltipContent, riskSeverity, severityBadge, vropsMissingBadge } from "@/lib/metricColor";
 import { shortHostName } from "@/lib/utils";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 
 export const clusterOverviewColumns: ColumnDef<ClusterOverviewRow, unknown>[] = [
   { accessorKey: "vcenterDisplayName", header: "vCenter", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vcenterDisplayName } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: CLUSTER_OVERVIEW_COLUMNS.cluster } },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung des Clusters.", "RVTools · vCluster/vHost/vInfo · „Datacenter“") },
   { accessorKey: "hosts", header: "Hosts", meta: { info: CLUSTER_OVERVIEW_COLUMNS.hosts }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "vms", header: "VMs", meta: { info: CLUSTER_OVERVIEW_COLUMNS.vms }, cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "avgVmsPerHost", header: "Ø VMs/Host", meta: { info: CLUSTER_OVERVIEW_COLUMNS.avgVmsPerHost }, cell: ({ getValue }) => {
@@ -81,4 +83,6 @@ export const clusterOverviewColumns: ColumnDef<ClusterOverviewRow, unknown>[] = 
     meta: { info: CLUSTER_OVERVIEW_COLUMNS.haDrs },
     accessorFn: (row) => `${row.haEnabled === true ? "Aktiv" : "Aus/—"} / ${row.drsEnabled === true ? "Aktiv" : "Aus/—"}`,
   },
+  { accessorKey: "haEnabled", header: "HA", meta: normalizedOptionalColumnMeta("HA", "Zeigt, ob vSphere HA für den Cluster aktiviert ist.", "RVTools · vCluster · „HA enabled“"), cell: ({ getValue }) => getValue() === true ? "Aktiv" : getValue() === false ? "Aus" : "—" },
+  { accessorKey: "drsEnabled", header: "DRS", meta: normalizedOptionalColumnMeta("DRS", "Zeigt, ob Distributed Resource Scheduler für den Cluster aktiviert ist.", "RVTools · vCluster · „DRS enabled“"), cell: ({ getValue }) => getValue() === true ? "Aktiv" : getValue() === false ? "Aus" : "—" },
 ];

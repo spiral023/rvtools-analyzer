@@ -256,7 +256,7 @@ export default function FleetCompare() {
         <PageHeader title="vCenter" />
         {kpis}
         <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
-        {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>)}
+        {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable tableId="fleet/current-vcenter" columnPicker data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>)}
         <VCenterVersionsTable />
         <LicenseDetailsTable licenses={licenses} />
         {vcenterDetailDialog}
@@ -278,7 +278,7 @@ export default function FleetCompare() {
         </ResponsiveContainer>
       </div>
 
-      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>
+      <div><InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3></InfoTooltip><VirtualTable tableId="fleet/vcenter-overview" columnPicker data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>
       <VCenterVersionsTable />
       <LicenseDetailsTable licenses={licenses} />
       {vcenterDetailDialog}

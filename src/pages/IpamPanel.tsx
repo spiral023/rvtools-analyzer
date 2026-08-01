@@ -82,7 +82,7 @@ export function IpamPanel() {
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">IP-Adressen ({rows.length})</h3>
-        <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="ipam" />
+        <VirtualTable tableId="network/ipam" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="ipam" />
       </div>
     </div>
   );

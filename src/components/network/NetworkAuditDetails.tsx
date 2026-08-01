@@ -292,6 +292,8 @@ export function PortAuditDetail({
       onScopeChange={onScopeChange}
     >
       <VirtualTable
+        tableId="network-audit/port-mappings"
+        columnPicker
         data={visibleRows}
         columns={portColumns}
         globalFilter={search}
@@ -445,6 +447,8 @@ export function HostDataAuditDetail({
 
         {isRvtoolsPerspective ? (
           <VirtualTable
+            tableId="network-audit/host-rvtools"
+            columnPicker
             data={filteredRvtoolsRows}
             columns={rvtoolsHostColumns}
             globalFilter={search}
@@ -461,6 +465,8 @@ export function HostDataAuditDetail({
           />
         ) : (
           <VirtualTable
+            tableId="network-audit/host-tech-info"
+            columnPicker
             data={filteredTechInfoRows}
             columns={techInfoHostColumns}
             globalFilter={search}
@@ -518,6 +524,8 @@ export function MacAuditDetail({
       onScopeChange={onScopeChange}
     >
       <VirtualTable
+        tableId="network-audit/mac-cdp"
+        columnPicker
         data={visibleRows}
         columns={cdpMacColumns}
         globalFilter={search}
@@ -573,6 +581,8 @@ export function NetworkDiscoveryDetail({
       onScopeChange={onScopeChange}
     >
       <VirtualTable
+        tableId="network-audit/mac-discovery"
+        columnPicker
         data={visibleRows}
         columns={l2DiscoveryColumns}
         globalFilter={search}

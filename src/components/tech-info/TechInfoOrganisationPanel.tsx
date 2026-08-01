@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { AlertTriangle, BarChart3, Building2, Boxes, ListTree, Network, UserRoundCog, Users, UserX } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { VirtualTable } from "@/components/tables/VirtualTable";
-import { getUiState, putUiState } from "@/data/db";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { TECHINFO_ORG_KPI, TECHINFO_ORG_SECTIONS } from "@/lib/glossaries/techInfo";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -24,7 +23,8 @@ import { getExportColumnInfo } from "@/lib/glossaries/exportStudio";
 import { buildTechInfoOrgTree, formatRamGiB, type TechInfoOrgTreeNode } from "@/components/tech-info/techInfoOrgTree";
 import { TechInfoOrgHierarchyTree } from "@/components/tech-info/TechInfoOrgHierarchyTree";
 import { TechInfoOrgBereichChart } from "@/components/tech-info/TechInfoOrgBereichChart";
-import type { NormalizedVm, TechInfoOrganisationTablePreferences } from "@/domain/models/types";
+import type { NormalizedVm } from "@/domain/models/types";
+import { TECH_INFO_ORGANISATION_TABLE_ID } from "@/lib/tableDisplayPreferences";
 
 const ROLE_LABEL: Record<TechInfoOrgRoleMode, string> = { primary: "Primär (SysV)", deputy: "Stellvertretung (SysVStv)", both: "Beide Rollen" };
 const ROLE_DESCRIPTION: Record<TechInfoOrgRoleMode, string> = {
@@ -92,12 +92,6 @@ const drilldownColumnVisibility: VisibilityState = Object.fromEntries(
   extraDrilldownColumns.map((column) => [column.id as string, false]),
 );
 
-const TECHINFO_ORGANISATION_UI_STATE_ID = "tech-info-organisation";
-
-function defaultDrilldownTablePreferences(): TechInfoOrganisationTablePreferences {
-  return { columnVisibility: { ...drilldownColumnVisibility }, columnOrder: [], sorting: [] };
-}
-
 export function TechInfoOrganisationPanel({
   sources,
   search,
@@ -115,33 +109,6 @@ export function TechInfoOrganisationPanel({
 }) {
   const [roleMode, setRoleMode] = useState<TechInfoOrgRoleMode>("primary");
   const [selection, setSelection] = useState<{ id: string | null; label: string; vmNames: string[] } | null>(null);
-  const [drilldownTablePreferences, setDrilldownTablePreferences] = useState<TechInfoOrganisationTablePreferences>(defaultDrilldownTablePreferences);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getUiState(TECHINFO_ORGANISATION_UI_STATE_ID).then((state) => {
-      if (cancelled || !state?.techInfoOrganisationTablePreferences) return;
-      const stored = state.techInfoOrganisationTablePreferences;
-      setDrilldownTablePreferences({
-        columnVisibility: { ...drilldownColumnVisibility, ...stored.columnVisibility },
-        columnOrder: stored.columnOrder,
-        sorting: stored.sorting,
-      });
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const saveDrilldownTablePreferences = useCallback((next: TechInfoOrganisationTablePreferences) => {
-    setDrilldownTablePreferences(next);
-    void (async () => {
-      const existing = await getUiState(TECHINFO_ORGANISATION_UI_STATE_ID);
-      await putUiState({
-        ...(existing ?? { id: TECHINFO_ORGANISATION_UI_STATE_ID, theme: "dark" as const }),
-        id: TECHINFO_ORGANISATION_UI_STATE_ID,
-        techInfoOrganisationTablePreferences: next,
-      });
-    })();
-  }, []);
 
   const result = useMemo(() => buildTechInfoOrganisation(sources, roleMode), [sources, roleMode]);
   const tree = useMemo(() => buildTechInfoOrgTree(result.tree), [result.tree]);
@@ -321,10 +288,9 @@ export function TechInfoOrganisationPanel({
               columns={drilldownColumns}
               height={360}
               exportFileName="techinfo-organisation"
+              tableId={TECH_INFO_ORGANISATION_TABLE_ID}
               columnPicker
               initialColumnVisibility={drilldownColumnVisibility}
-              tablePreferences={drilldownTablePreferences}
-              onTablePreferencesChange={saveDrilldownTablePreferences}
               columnConfigurationDialog
               exportDialog
               onRowClick={(row) => {

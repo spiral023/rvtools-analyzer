@@ -47,5 +47,5 @@ const columns: ColumnDef<WhatIfClusterResult, unknown>[] = [
 ];
 
 export function WhatIfComparisonTable({ results }: { results: WhatIfClusterResult[] }) {
-  return <VirtualTable data={results} columns={columns} height={400} />;
+  return <VirtualTable tableId="planning/what-if-clusters" columnPicker data={results} columns={columns} height={400} />;
 }

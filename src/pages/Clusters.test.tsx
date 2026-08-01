@@ -209,11 +209,11 @@ vi.mock("@/hooks/useWhatIf", () => ({
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: ({ data, columns = [], onRowClick }: {
     data: Array<Record<string, unknown>>;
-    columns?: Array<{ id?: string; accessorKey?: string; header?: string }>;
+    columns?: Array<{ id?: string; accessorKey?: string; header?: string; meta?: { initiallyVisible?: boolean } }>;
     onRowClick?: (row: Record<string, unknown>) => void;
   }) => (
     <div>
-      {columns.map((column) => typeof column.header === "string" && <span key={column.id ?? column.accessorKey ?? column.header}>{column.header}</span>)}
+      {columns.filter((column) => column.meta?.initiallyVisible !== false).map((column) => typeof column.header === "string" && <span key={column.id ?? column.accessorKey ?? column.header}>{column.header}</span>)}
       {data.map((row) => (
         <div key={String(row.clusterKey ?? row.snapshotId ?? row.key ?? Object.values(row).join("|"))}>
           {Object.entries(row).map(([field, value]) => <span key={field}>{String(value)}</span>)}

@@ -8,12 +8,14 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useActiveSnapshotIds, useHealthEvents } from "@/hooks/useActiveSnapshots";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { DAILY_OPS_COLUMNS, DAILY_OPS_SECTIONS } from "@/lib/glossaries/dailyOps";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import type { NormalizedHealth } from "@/domain/models/types";
 
 const healthColumns: ColumnDef<NormalizedHealth, unknown>[] = [
   { accessorKey: "entity", header: "Entity", meta: { info: DAILY_OPS_COLUMNS.entity } },
   { accessorKey: "messageType", header: "Typ", meta: { info: DAILY_OPS_COLUMNS.messageType } },
   { accessorKey: "message", header: "Meldung", meta: { info: DAILY_OPS_COLUMNS.message } },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID des Health-Events.", "RVTools · Snapshot-Metadaten") },
 ];
 
 export function HealthEventsPanel() {
@@ -56,7 +58,7 @@ export function HealthEventsPanel() {
           <InfoTooltip entry={DAILY_OPS_SECTIONS.healthTable} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Health-Events ({healthEvents.length})</h3>
           </InfoTooltip>
-          <VirtualTable data={healthEvents} columns={healthColumns} globalFilter={filters.search} height={320} />
+          <VirtualTable tableId="dashboard/health-events" columnPicker data={healthEvents} columns={healthColumns} globalFilter={filters.search} height={320} />
         </div>
       </div>
     </section>

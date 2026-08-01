@@ -55,7 +55,7 @@ export function VmToolsWavePlan() {
       <InfoTooltip entry={COMPLIANCE_SECTIONS.toolsWavePlan} side="bottom">
         <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMTools Upgrade Wellenplanung</h3>
       </InfoTooltip>
-      <VirtualTable data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={filters.search} height={250} />
+      <VirtualTable tableId="vms/tools-wave-plan" columnPicker data={toolsWavePlan} columns={toolsWaveColumns} globalFilter={filters.search} height={250} />
     </div>
   );
 }

@@ -350,6 +350,7 @@ function useUploadSnapshotsView() {
       id: "actions",
       header: "",
       enableSorting: false,
+      meta: { configurable: false, exportable: false },
       cell: ({ row }) => (
         <Button
           variant="ghost"
@@ -542,7 +543,7 @@ function useUploadSnapshotsView() {
         {uploads.length === 0 ? (
           <Card><CardContent className="py-10 text-center"><FileSpreadsheet className="mx-auto h-8 w-8 text-muted-foreground/50" /><p className="mt-3 text-sm font-medium">Noch keine Uploads gespeichert</p><p className="mt-1 text-sm text-muted-foreground">Ziehe oben eine Datei hierher, um den ersten Import zu starten.</p></CardContent></Card>
         ) : (
-          <VirtualTable data={uploadRows} columns={uploadColumns} height={560} getRowId={(row) => `${row.kind}:${row.id}`} exportFileName="rvtools-uploads" emptyTitle="Keine Uploads" />
+          <VirtualTable tableId="imports/upload-inventory" columnPicker data={uploadRows} columns={uploadColumns} height={560} getRowId={(row) => `${row.kind}:${row.id}`} exportFileName="rvtools-uploads" emptyTitle="Keine Uploads" />
         )}
       </section>
       </TabsContent>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -37,16 +37,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-
-export interface TableDisplayPreferences {
-  columnVisibility: VisibilityState;
-  columnOrder: string[];
-  sorting: SortingState;
-}
+import type { TableDisplayPreferences } from "@/domain/models/types";
+import { useTableDisplayPreferences } from "@/hooks/useTableDisplayPreferences";
 
 interface VirtualTableProps<T, TColumn = T> {
   data: T[];
   columns: ColumnDef<TColumn, unknown>[];
+  /** Dauerhaft stabile ID der fachlichen Tabelle für die persönliche Ansicht. */
+  tableId?: string;
   globalFilter?: string;
   height?: number;
   className?: string;
@@ -90,6 +88,124 @@ function columnPickerLabel<T>(column: Column<T, unknown>): string {
 const ESTIMATED_ROW_HEIGHT = 33;
 const HEADER_HEIGHT = 38;
 const FOOTER_HEIGHT = 36;
+const TECHNICAL_COLUMN_IDS = new Set(["__selection", "select", "actions", "expand", "collapse", "sparkline"]);
+
+interface ColumnDefinitionLike {
+  id?: string;
+  accessorKey?: string | number;
+  accessorFn?: unknown;
+  header?: unknown;
+  columns?: ColumnDefinitionLike[];
+  enableSorting?: boolean;
+  meta?: { configurable?: boolean; initiallyVisible?: boolean };
+}
+
+interface TableColumnDescriptor {
+  id: string;
+  configurable: boolean;
+  sortable: boolean;
+  initiallyVisible: boolean;
+}
+
+function getColumnDefinitionId(columnDef: ColumnDefinitionLike): string | undefined {
+  if (columnDef.id) return columnDef.id;
+  if (columnDef.accessorKey !== undefined) return String(columnDef.accessorKey).replace(/\./g, "_");
+  return typeof columnDef.header === "string" && columnDef.header.trim() ? columnDef.header : undefined;
+}
+
+function getTableColumnDescriptors(columnDefs: ColumnDefinitionLike[]): TableColumnDescriptor[] {
+  return columnDefs.flatMap((columnDef) => {
+    if (columnDef.columns) return getTableColumnDescriptors(columnDef.columns);
+    const id = getColumnDefinitionId(columnDef);
+    if (!id) return [];
+    return [{
+      id,
+      configurable: !isTechnicalColumnId(id) && columnDef.meta?.configurable !== false,
+      sortable: columnDef.enableSorting !== false && (columnDef.accessorKey !== undefined || typeof columnDef.accessorFn === "function"),
+      initiallyVisible: columnDef.meta?.initiallyVisible !== false,
+    }];
+  });
+}
+
+function isTechnicalColumnId(id: string): boolean {
+  return TECHNICAL_COLUMN_IDS.has(id);
+}
+
+function isTechnicalColumn<T>(column: Column<T, unknown>): boolean {
+  return isTechnicalColumnId(column.id) || column.columnDef.meta?.configurable === false;
+}
+
+function isExportableColumn<T>(column: Column<T, unknown>): boolean {
+  return !isTechnicalColumn(column) && column.columnDef.meta?.exportable !== false;
+}
+
+function normalizePreferencesForColumns(
+  preferences: TableDisplayPreferences,
+  descriptors: TableColumnDescriptor[],
+): TableDisplayPreferences {
+  const knownIds = new Set(descriptors.map((descriptor) => descriptor.id));
+  const configurableDescriptors = descriptors.filter((descriptor) => descriptor.configurable);
+  /**
+   * Identitätsspalte: die erste fachliche Spalte in Definitionsreihenfolge. Sie bleibt
+   * immer sichtbar, damit eine Zeile zuordenbar bleibt – und zwar unabhängig von
+   * `initialColumnVisibility` und `meta.initiallyVisible`. Eine Tabelle darf ihre erste
+   * fachliche Spalte deshalb nicht ausgeblendet starten lassen; optionale Spalten gehören
+   * hinter die Identitätsspalte.
+   */
+  const identityId = configurableDescriptors[0]?.id;
+  const sortableIds = new Set<string>();
+  for (const descriptor of configurableDescriptors) {
+    if (descriptor.sortable) sortableIds.add(descriptor.id);
+  }
+  const columnVisibility = Object.fromEntries(
+    Object.entries(preferences.columnVisibility).filter(([id]) => knownIds.has(id)),
+  );
+
+  for (const descriptor of descriptors) {
+    if (!descriptor.configurable) columnVisibility[descriptor.id] = true;
+    if (descriptor.configurable && !descriptor.initiallyVisible && !Object.prototype.hasOwnProperty.call(columnVisibility, descriptor.id)) {
+      columnVisibility[descriptor.id] = false;
+    }
+  }
+  if (identityId) columnVisibility[identityId] = true;
+
+  return {
+    columnVisibility,
+    columnOrder: preferences.columnOrder.filter((id) => knownIds.has(id)),
+    sorting: preferences.sorting.filter((entry) => sortableIds.has(entry.id)),
+  };
+}
+
+function sortingEqual(left: SortingState, right: SortingState): boolean {
+  return left.length === right.length && left.every((entry, index) => entry.id === right[index]?.id && entry.desc === right[index]?.desc);
+}
+
+function stringArrayEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function visibilityEqual(left: VisibilityState, right: VisibilityState): boolean {
+  const ids = new Set([...Object.keys(left), ...Object.keys(right)]);
+  return [...ids].every((id) => left[id] === right[id]);
+}
+
+function orderColumnsByPreference<T>(columns: Column<T, unknown>[], columnOrder: string[]): Column<T, unknown>[] {
+  if (columnOrder.length === 0) return columns;
+  const byId = new Map(columns.map((column) => [column.id, column]));
+  const ordered: Column<T, unknown>[] = [];
+  const included = new Set<string>();
+  for (const id of columnOrder) {
+    const column = byId.get(id);
+    if (column && !included.has(id)) {
+      ordered.push(column);
+      included.add(id);
+    }
+  }
+  for (const column of columns) {
+    if (!included.has(column.id)) ordered.push(column);
+  }
+  return ordered;
+}
 
 function getDefaultExportFileName(): string {
   if (typeof window === "undefined") return "rvtools-table-export";
@@ -101,6 +217,7 @@ function getDefaultExportFileName(): string {
 export function VirtualTable<T, TColumn = T>({
   data,
   columns,
+  tableId,
   globalFilter = "",
   height = 500,
   className,
@@ -122,48 +239,107 @@ export function VirtualTable<T, TColumn = T>({
   columnConfigurationDialog = false,
   exportDialog = false,
 }: VirtualTableProps<T, TColumn>) {
-  const [sorting, setSorting] = useState<SortingState>(tablePreferences?.sorting ?? initialSorting ?? []);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(tablePreferences?.columnVisibility ?? initialColumnVisibility ?? {});
-  const [columnOrder, setColumnOrder] = useState<string[]>(tablePreferences?.columnOrder ?? []);
+  const tableColumnDescriptors = useMemo(
+    () => getTableColumnDescriptors(columns as unknown as ColumnDefinitionLike[]),
+    [columns],
+  );
+  const defaultTablePreferences = useMemo<TableDisplayPreferences>(() => ({
+    sorting: initialSorting ?? [],
+    columnVisibility: {
+      ...Object.fromEntries(
+        tableColumnDescriptors
+          .filter((descriptor) => descriptor.configurable && !descriptor.initiallyVisible)
+          .map((descriptor) => [descriptor.id, false]),
+      ),
+      ...(initialColumnVisibility ?? {}),
+    },
+    columnOrder: [],
+  }), [initialColumnVisibility, initialSorting, tableColumnDescriptors]);
+  const normalizedDefaultTablePreferences = useMemo(
+    () => normalizePreferencesForColumns(defaultTablePreferences, tableColumnDescriptors),
+    [defaultTablePreferences, tableColumnDescriptors],
+  );
+  const sharedTablePreferences = useTableDisplayPreferences(tableId, normalizedDefaultTablePreferences);
+  const activeTablePreferences = tablePreferences ?? sharedTablePreferences.tablePreferences;
+  const normalizedActiveTablePreferences = useMemo(
+    () => normalizePreferencesForColumns(activeTablePreferences, tableColumnDescriptors),
+    [activeTablePreferences, tableColumnDescriptors],
+  );
+  const activePreferencesChange = onTablePreferencesChange ?? sharedTablePreferences.onTablePreferencesChange;
+  const [sorting, setSorting] = useState<SortingState>(normalizedActiveTablePreferences.sorting);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(normalizedActiveTablePreferences.columnVisibility);
+  const [columnOrder, setColumnOrder] = useState<string[]>(normalizedActiveTablePreferences.columnOrder);
   const [columnConfigurationOpen, setColumnConfigurationOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   const [columnSearch, setColumnSearch] = useState("");
   const [previewColumnId, setPreviewColumnId] = useState<string | null>(null);
+  const [horizontalScrollbarHeight, setHorizontalScrollbarHeight] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Die horizontale Scrollleiste liegt innerhalb der Containerhöhe. Ohne diesen Zuschlag
+   * verdeckt sie bei kurzen oder mehrzeiligen Tabellen die letzte Zeile – und weil der
+   * Container dann exakt so hoch wie sein Inhalt ist, bleibt sie ohne vertikalen
+   * Scrollbereich unerreichbar. Die Content-Box schrumpft beim Einblenden der Leiste,
+   * deshalb meldet der ResizeObserver auch das Zu- und Abschalten von Spalten.
+   */
   useEffect(() => {
-    if (!tablePreferences) return;
-    setSorting(tablePreferences.sorting);
-    setColumnVisibility(tablePreferences.columnVisibility);
-    setColumnOrder(tablePreferences.columnOrder);
-  }, [tablePreferences]);
+    const element = parentRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const gutter = element.scrollWidth > element.clientWidth ? element.offsetHeight - element.clientHeight : 0;
+      setHorizontalScrollbarHeight(Number.isFinite(gutter) && gutter > 0 ? gutter : 0);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setSorting((current) => sortingEqual(current, normalizedActiveTablePreferences.sorting) ? current : normalizedActiveTablePreferences.sorting);
+    setColumnVisibility((current) => visibilityEqual(current, normalizedActiveTablePreferences.columnVisibility) ? current : normalizedActiveTablePreferences.columnVisibility);
+    setColumnOrder((current) => stringArrayEqual(current, normalizedActiveTablePreferences.columnOrder) ? current : normalizedActiveTablePreferences.columnOrder);
+  }, [normalizedActiveTablePreferences]);
 
   const updatePreferences = useCallback((next: Partial<TableDisplayPreferences>) => {
-    onTablePreferencesChange?.({
+    activePreferencesChange?.({
       sorting: next.sorting ?? sorting,
       columnVisibility: next.columnVisibility ?? columnVisibility,
       columnOrder: next.columnOrder ?? columnOrder,
     });
-  }, [columnOrder, columnVisibility, onTablePreferencesChange, sorting]);
+  }, [activePreferencesChange, columnOrder, columnVisibility, sorting]);
 
   const handleSortingChange: OnChangeFn<SortingState> = useCallback((updater) => {
-    const next = functionalUpdate(updater, sorting);
+    const next = normalizePreferencesForColumns({
+      sorting: functionalUpdate(updater, sorting),
+      columnVisibility,
+      columnOrder,
+    }, tableColumnDescriptors).sorting;
     setSorting(next);
     updatePreferences({ sorting: next });
-  }, [sorting, updatePreferences]);
+  }, [columnOrder, columnVisibility, sorting, tableColumnDescriptors, updatePreferences]);
 
   const handleColumnVisibilityChange: OnChangeFn<VisibilityState> = useCallback((updater) => {
-    const next = functionalUpdate(updater, columnVisibility);
+    const next = normalizePreferencesForColumns({
+      sorting,
+      columnVisibility: functionalUpdate(updater, columnVisibility),
+      columnOrder,
+    }, tableColumnDescriptors).columnVisibility;
     setColumnVisibility(next);
     updatePreferences({ columnVisibility: next });
-  }, [columnVisibility, updatePreferences]);
+  }, [columnOrder, columnVisibility, sorting, tableColumnDescriptors, updatePreferences]);
 
   const handleColumnOrderChange: OnChangeFn<string[]> = useCallback((updater) => {
-    const next = functionalUpdate(updater, columnOrder);
+    const next = normalizePreferencesForColumns({
+      sorting,
+      columnVisibility,
+      columnOrder: functionalUpdate(updater, columnOrder),
+    }, tableColumnDescriptors).columnOrder;
     setColumnOrder(next);
     updatePreferences({ columnOrder: next });
-  }, [columnOrder, updatePreferences]);
+  }, [columnOrder, columnVisibility, sorting, tableColumnDescriptors, updatePreferences]);
 
   const table = useReactTable({
     data,
@@ -180,9 +356,14 @@ export function VirtualTable<T, TColumn = T>({
   });
 
   const { rows } = table.getRowModel();
+  const allLeafColumns = table.getAllLeafColumns();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
-
-  const configurableColumns = table.getAllLeafColumns().filter((column) => column.id !== "__selection");
+  const orderedLeafColumns = orderColumnsByPreference(allLeafColumns, columnOrder);
+  const configurableColumns = orderedLeafColumns.filter((column) => !isTechnicalColumn(column));
+  const exportableColumns = table.getVisibleLeafColumns().filter(isExportableColumn);
+  const identityColumnId = tableColumnDescriptors.find((descriptor) => descriptor.configurable)?.id;
+  const identityColumn = configurableColumns.find((column) => column.id === identityColumnId);
+  const visibleConfigurableColumnCount = configurableColumns.filter((column) => column.getIsVisible()).length;
   const normalizedColumnSearch = columnSearch.trim().toLocaleLowerCase("de-DE");
   const filteredConfigurableColumns = normalizedColumnSearch
     ? configurableColumns.filter((column) => {
@@ -217,7 +398,7 @@ export function VirtualTable<T, TColumn = T>({
     : false;
 
   const getExportData = () => buildExportData(
-      table.getVisibleLeafColumns().map((column) => ({
+      exportableColumns.map((column) => ({
         id: column.id,
         header: column.columnDef.header,
       })),
@@ -305,19 +486,21 @@ export function VirtualTable<T, TColumn = T>({
   // Container nur so hoch wie nötig: kurze Tabellen erzeugen sonst große Leerflächen.
   // Nach der ersten Messung enthält getTotalSize() auch mehrzeilige Zeilen.
   const contentHeight = HEADER_HEIGHT + virtualizer.getTotalSize() + (hasFooter ? FOOTER_HEIGHT : 0) + (rows.length === 0 ? 112 : 0);
-  const effectiveHeight = Math.min(height, contentHeight);
-  const needsVerticalScroll = contentHeight > height;
+  const requiredHeight = contentHeight + horizontalScrollbarHeight;
+  const effectiveHeight = Math.min(height, requiredHeight);
+  const needsVerticalScroll = requiredHeight > height;
 
   const applyTablePreferences = (next: TableDisplayPreferences) => {
-    setSorting(next.sorting);
-    setColumnVisibility(next.columnVisibility);
-    setColumnOrder(next.columnOrder);
-    onTablePreferencesChange?.(next);
+    const normalized = normalizePreferencesForColumns(next, tableColumnDescriptors);
+    setSorting(normalized.sorting);
+    setColumnVisibility(normalized.columnVisibility);
+    setColumnOrder(normalized.columnOrder);
+    activePreferencesChange?.(normalized);
   };
 
   const reorderColumn = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
-    const next = configurableColumns.map((column) => column.id);
+    const next = orderedLeafColumns.map((column) => column.id);
     const sourceIndex = next.indexOf(sourceId);
     const targetIndex = next.indexOf(targetId);
     if (sourceIndex < 0 || targetIndex < 0) return;
@@ -327,8 +510,7 @@ export function VirtualTable<T, TColumn = T>({
   };
 
   const resetTablePreferences = () => applyTablePreferences({
-    sorting: initialSorting ?? [],
-    columnVisibility: initialColumnVisibility ?? {},
+    ...normalizedDefaultTablePreferences,
     columnOrder: [],
   });
 
@@ -356,17 +538,18 @@ export function VirtualTable<T, TColumn = T>({
                 {headerGroup.headers.map((header) => {
                   const sorted = header.column.getIsSorted();
                   const isSelectionCol = selectionEnabled && header.id === "__selection";
+                  const canSort = header.column.getCanSort();
                   return (
                     <th
                       key={header.id}
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
-                      tabIndex={isSelectionCol ? undefined : 0}
+                      tabIndex={isSelectionCol || !canSort ? undefined : 0}
                       className={cn(
                         "whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none",
-                        !isSelectionCol && "cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        !isSelectionCol && canSort && "cursor-pointer hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                       )}
-                      onClick={isSelectionCol ? undefined : header.column.getToggleSortingHandler()}
-                      onKeyDown={isSelectionCol ? undefined : (e) => {
+                      onClick={isSelectionCol || !canSort ? undefined : header.column.getToggleSortingHandler()}
+                      onKeyDown={isSelectionCol || !canSort ? undefined : (e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           header.column.getToggleSortingHandler()?.(e);
@@ -402,9 +585,9 @@ export function VirtualTable<T, TColumn = T>({
                               <ArrowUp className="h-3 w-3 text-primary" />
                             ) : sorted === "desc" ? (
                               <ArrowDown className="h-3 w-3 text-primary" />
-                            ) : (
+                            ) : canSort ? (
                               <ArrowUpDown className="h-3 w-3 opacity-30" />
-                            )}
+                            ) : null}
                           </div>
                         </InfoTooltip>
                       )}
@@ -542,7 +725,7 @@ export function VirtualTable<T, TColumn = T>({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  {columnConfigurationDialog ? "Spaltenansicht bearbeiten" : `Spalten konfigurieren (${visibleColumnCount} von ${configurableColumns.length} sichtbar)`}
+                  {columnConfigurationDialog ? "Spaltenansicht bearbeiten" : `Spalten konfigurieren (${visibleConfigurableColumnCount} von ${configurableColumns.length} sichtbar)`}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -617,7 +800,7 @@ export function VirtualTable<T, TColumn = T>({
                           <Checkbox
                             id={`column-visible-${column.id}`}
                             checked={visible}
-                            disabled={visible && visibleColumnCount <= 1}
+                            disabled={column.id === identityColumn?.id || (visible && visibleConfigurableColumnCount <= 1)}
                             onCheckedChange={() => column.toggleVisibility()}
                           />
                           <span className="text-sm font-semibold text-foreground">{columnPickerLabel(column)}</span>
@@ -651,7 +834,7 @@ export function VirtualTable<T, TColumn = T>({
             <aside className="space-y-4 bg-muted/20 p-4">
               <div className="rounded-xl border border-primary/15 bg-primary/5 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Sichtbare Spalten</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{visibleColumnCount}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {configurableColumns.length}</span></p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{visibleConfigurableColumnCount}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {configurableColumns.length}</span></p>
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Sortierung</p>
@@ -659,7 +842,7 @@ export function VirtualTable<T, TColumn = T>({
                   <SelectTrigger aria-label="Sortierspalte auswählen"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Keine Standardsortierung</SelectItem>
-                    {configurableColumns.map((column) => <SelectItem key={column.id} value={column.id}>{columnPickerLabel(column)}</SelectItem>)}
+                    {configurableColumns.map((column) => <SelectItem key={column.id} value={column.id} disabled={!column.getCanSort()}>{columnPickerLabel(column)}{column.getCanSort() ? "" : " (nicht sortierbar)"}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={sorting[0]?.desc ? "desc" : "asc"} disabled={sorting.length === 0} onValueChange={(direction) => sorting[0] && handleSortingChange([{ id: sorting[0].id, desc: direction === "desc" }])}>
@@ -702,7 +885,7 @@ export function VirtualTable<T, TColumn = T>({
           <DialogHeader className="border-b border-border/60 bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-14">
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary"><Download className="h-4 w-4" aria-hidden="true" /> Tabellenexport</div>
             <DialogTitle className="text-balance">Sichtbare Tabelle weitergeben</DialogTitle>
-            <DialogDescription>Exportiert werden {rows.length.toLocaleString("de-DE")} gefilterte Zeilen und {visibleColumnCount} sichtbare Spalten – genau wie aktuell in der Tabelle.</DialogDescription>
+            <DialogDescription>Exportiert werden {rows.length.toLocaleString("de-DE")} gefilterte Zeilen und {exportableColumns.length} sichtbare Spalten – genau wie aktuell in der Tabelle.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 p-5 sm:grid-cols-2">
             <section className="rounded-xl border border-border/70 bg-card/70 p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">

@@ -24,6 +24,6 @@ export function HostHygienePanel() {
   if (isLoading) return <PanelLoadingState />;
 
   return <section className="space-y-4">
-    {rows.length > 0 && <div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 flex w-fit cursor-help items-center gap-2 text-sm font-semibold text-muted-foreground"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({rows.length})</h3></InfoTooltip><VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={300} /></div>}
+    {rows.length > 0 && <div><InfoTooltip entry={COMPLIANCE_SECTIONS.ntpDnsHygiene} side="bottom"><h3 className="mb-3 flex w-fit cursor-help items-center gap-2 text-sm font-semibold text-muted-foreground"><Clock className="h-4 w-4" /> NTP/DNS Hygiene ({rows.length})</h3></InfoTooltip><VirtualTable tableId="hosts/hygiene" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={300} /></div>}
   </section>;
 }

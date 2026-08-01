@@ -12,6 +12,7 @@ import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { buildVmJoinKey } from "@/lib/globalFilter";
 import { DAILY_OPS_COLUMNS, DAILY_OPS_KPI, DAILY_OPS_SECTIONS } from "@/lib/glossaries/dailyOps";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type { NormalizedSnapshot, NormalizedVm } from "@/domain/models/types";
 
@@ -54,10 +55,20 @@ const issueColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "cluster", header: "Cluster", meta: { info: DAILY_OPS_COLUMNS.cluster } },
   { accessorKey: "host", header: "Host", meta: { info: DAILY_OPS_COLUMNS.host } },
   { accessorKey: "osConfig", header: "OS", meta: { info: DAILY_OPS_COLUMNS.osConfig } },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID der VM.", "RVTools · Snapshot-Metadaten") },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung der VM.", "RVTools · vInfo · „Datacenter“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "cpuCount", header: "vCPU", meta: normalizedOptionalColumnMeta("vCPU", "Anzahl der zugewiesenen virtuellen CPUs.", "RVTools · vInfo · „CPUs“"), cell: ({ getValue }) => (getValue() as number | null)?.toLocaleString("de-DE") ?? "—" },
+  { accessorKey: "memoryMiB", header: "RAM", meta: normalizedOptionalColumnMeta("RAM", "Konfigurierter Arbeitsspeicher der VM.", "RVTools · vInfo · „Memory“"), cell: ({ getValue }) => formatNum(getValue() as number | null) },
+  { accessorKey: "consolidationNeeded", header: "Konsolidierung nötig", meta: normalizedOptionalColumnMeta("Konsolidierung nötig", "Kennzeichnet VMs mit ausstehender Snapshot-Konsolidierung.", "RVTools · vInfo · „Consolidation Needed“"), cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
+  { accessorKey: "hwVersion", header: "HW-Version", meta: normalizedOptionalColumnMeta("HW-Version", "Virtuelle Hardware-Version der VM.", "RVTools · vInfo · „HW version“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "toolsStatus", header: "Tools-Status", meta: normalizedOptionalColumnMeta("Tools-Status", "Status der VMware Tools.", "RVTools · vInfo · „Tools status“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "toolsVersion", header: "Tools-Version", meta: normalizedOptionalColumnMeta("Tools-Version", "Versionsstring der VMware Tools.", "RVTools · vInfo · „Tools version string“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "annotation", header: "Annotation", meta: normalizedOptionalColumnMeta("Annotation", "Freitext-Notiz der VM.", "RVTools · vInfo · „Annotation“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
 ];
 
 const snapshotColumns: ColumnDef<NormalizedSnapshot, unknown>[] = [
   { accessorKey: "vmName", header: "VM", meta: { info: DAILY_OPS_COLUMNS.vmName } },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID des Snapshots.", "RVTools · Snapshot-Metadaten") },
   { accessorKey: "snapshotName", header: "Snapshot", meta: { info: DAILY_OPS_COLUMNS.snapshotName } },
   { accessorKey: "description", header: "Beschreibung", meta: { info: DAILY_OPS_COLUMNS.description } },
   { accessorKey: "dateTaken", header: "Erstellt", meta: { info: DAILY_OPS_COLUMNS.dateTaken }, cell: ({ getValue }) => formatSnapshotCreated((getValue() as string | null) ?? null) },
@@ -126,14 +137,14 @@ export function VmOperationsPanel() {
           <InfoTooltip entry={DAILY_OPS_SECTIONS.configIssuesTable} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VMs mit Konfigurationsproblemen ({configIssues.length})</h3>
           </InfoTooltip>
-          <VirtualTable data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
+          <VirtualTable tableId="vms/operations-config" columnPicker data={configIssues} columns={issueColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
         </div>
         {filteredSnapshots.length > 0 && (
           <div>
             <InfoTooltip entry={DAILY_OPS_SECTIONS.snapshotsTable} side="bottom">
               <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Snapshots ({filteredSnapshots.length})</h3>
             </InfoTooltip>
-            <VirtualTable data={filteredSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
+          <VirtualTable tableId="vms/operations-snapshots" columnPicker data={filteredSnapshots} columns={snapshotColumns} globalFilter={filters.search} onRowClick={openVmDetail} />
           </div>
         )}
         <VmToolsWavePlan />

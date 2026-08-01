@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
 import type { MaintenanceWindowAssignmentResult } from "@/lib/maintenanceWindows";
 import { summarizeWeeklySlots } from "@/lib/maintenanceWindows";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 
 interface AssignmentRow {
   id: string;
@@ -33,6 +34,14 @@ const systemColumns: ColumnDef<TechInfoLatest, unknown>[] = [
   { accessorKey: "sysvDepartment", header: "Abteilung", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
   { accessorKey: "operatingSystem", header: "Betriebssystem", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
   { accessorKey: "serverType", header: "Servertyp", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "maintenanceWindow", header: "Wartungsfenster", meta: normalizedOptionalColumnMeta("Wartungsfenster", "Im Tech-Info-Datensatz hinterlegtes Wartungsfenster.", "Tech-Info · Wartungsfenster"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "sysvDeputy", header: "SysVStv", meta: normalizedOptionalColumnMeta("SysVStv", "Stellvertretung der Systemverantwortung.", "Tech-Info · SysVStv"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "sysvDeputyDepartment", header: "SysVStv-Abteilung", meta: normalizedOptionalColumnMeta("SysVStv-Abteilung", "Abteilung der Stellvertretung.", "Tech-Info · SysVStv Abteilung"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "clusterFromTechInfo", header: "Cluster (Tech-Info)", meta: normalizedOptionalColumnMeta("Cluster (Tech-Info)", "Cluster-Zuordnung laut Tech-Info.", "Tech-Info · Cluster"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "cvBackup", header: "CV-Backup", meta: normalizedOptionalColumnMeta("CV-Backup", "Kennzeichen für CommVault-Backup laut Tech-Info.", "Tech-Info · CV-Backup"), cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
+  { accessorKey: "bz", header: "BZ", meta: normalizedOptionalColumnMeta("BZ", "Betriebszeit-/Kennzeichen aus Tech-Info.", "Tech-Info · BZ"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "az", header: "AZ", meta: normalizedOptionalColumnMeta("AZ", "Zusätzliches Kennzeichen aus Tech-Info.", "Tech-Info · AZ"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+  { accessorKey: "comment", header: "Kommentar", meta: normalizedOptionalColumnMeta("Kommentar", "Freitext-Kommentar aus Tech-Info.", "Tech-Info · Kommentar"), cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
 ];
 
 function buildRows(assignments: MaintenanceWindowAssignmentResult): AssignmentRow[] {
@@ -139,6 +148,8 @@ export function MaintenanceAssignmentsPanel({
         </div>
       </div>
       <VirtualTable
+        tableId="maintenance/system-assignments"
+        columnPicker
         data={rows}
         columns={columns}
         height={420}
@@ -162,6 +173,8 @@ export function MaintenanceAssignmentsPanel({
           </DialogHeader>
           <div className="min-h-0 flex-1 p-4">
             <VirtualTable
+              tableId="maintenance/window-systems"
+              columnPicker
               data={selected?.systems ?? []}
               columns={systemColumns}
               height={480}

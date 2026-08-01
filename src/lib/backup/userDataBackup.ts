@@ -3,6 +3,7 @@ import type {
   MaintenanceSettings,
   MaintenanceWindowDefinition,
   Scenario,
+  TableDisplayPreferencesByTableId,
   TechInfoOrganisationTablePreferences,
   VCenterGroup,
   VmScopeSettings,
@@ -14,6 +15,7 @@ import {
   weeklySlotsToRanges,
   type MaintenanceWeeklySlotRanges,
 } from "@/lib/maintenanceWindows";
+import { normalizeTableDisplayPreferencesByTableId, normalizeTableDisplayPreferences } from "@/lib/tableDisplayPreferences";
 import { DEFAULT_VM_SCOPE_SETTINGS } from "@/lib/vmScopeSettings";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
@@ -21,13 +23,14 @@ export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
  * Formatversionen:
  * 1 – Grundbestand, 2 – Wartungsfenster, 3 – vCenter-Gruppen, 4 – VM-Scope-Vorgaben,
  * 5 – Wochenpläne als Zeitbereiche statt als 48er-Boolean-Matrix,
- * 6 – persönliche Ansicht des Tech-Info-Organisations-Drill-downs.
+ * 6 – persönliche Ansicht des Tech-Info-Organisations-Drill-downs,
+ * 7 – persönliche Tabellenansichten für alle VirtualTables.
  *
  * Geschrieben wird stets die neueste Version; gelesen werden alle. Die Feldweichen unten
  * vergleichen deshalb numerisch (`version >= n`) und nicht gegen diese Konstante – sonst
  * verliert jede Versionserhöhung stillschweigend die Felder der Vorgängerversion.
  */
-export const USER_DATA_BACKUP_VERSION = 6;
+export const USER_DATA_BACKUP_VERSION = 7;
 const OLDEST_SUPPORTED_VERSION = 1;
 
 export interface UserDataBackup {
@@ -41,6 +44,7 @@ export interface UserDataBackup {
   vcenterGroups: VCenterGroup[];
   vmScopeSettings?: VmScopeSettings;
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
+  tableDisplayPreferences?: TableDisplayPreferencesByTableId;
 }
 
 export function buildUserDataBackup(input: {
@@ -51,6 +55,7 @@ export function buildUserDataBackup(input: {
   vcenterGroups?: VCenterGroup[];
   vmScopeSettings?: VmScopeSettings;
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
+  tableDisplayPreferences?: TableDisplayPreferencesByTableId;
   exportedAt?: Date;
 }): UserDataBackup {
   return {
@@ -64,6 +69,7 @@ export function buildUserDataBackup(input: {
     vcenterGroups: input.vcenterGroups ?? [],
     vmScopeSettings: input.vmScopeSettings ?? DEFAULT_VM_SCOPE_SETTINGS,
     techInfoOrganisationTablePreferences: input.techInfoOrganisationTablePreferences,
+    tableDisplayPreferences: input.tableDisplayPreferences,
   };
 }
 
@@ -181,24 +187,6 @@ function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
     excludeVclsVms: value.excludeVclsVms,
     excludeDummyVms: typeof value.excludeDummyVms === "boolean" ? value.excludeDummyVms : false,
   };
-}
-
-function normalizeTechInfoOrganisationTablePreferences(value: unknown): TechInfoOrganisationTablePreferences | null {
-  if (!isRecord(value) || !isRecord(value.columnVisibility)
-    || !Array.isArray(value.columnOrder) || !Array.isArray(value.sorting)) return null;
-
-  const columnVisibility = Object.entries(value.columnVisibility).reduce<Record<string, boolean>>((result, [id, visible]) => {
-    if (id.trim() && typeof visible === "boolean") result[id] = visible;
-    return result;
-  }, {});
-  const columnOrder = [...new Set(value.columnOrder.filter((id): id is string => typeof id === "string" && id.trim().length > 0))];
-  const sorting = value.sorting.reduce<TechInfoOrganisationTablePreferences["sorting"]>((result, item) => {
-    if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim() || typeof item.desc !== "boolean") return result;
-    if (!result.some((entry) => entry.id === item.id)) result.push({ id: item.id, desc: item.desc });
-    return result;
-  }, []);
-
-  return { columnVisibility, columnOrder, sorting };
 }
 
 function normalizeTimestamp(value: unknown, fallback: string): string {
@@ -322,7 +310,10 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     ? normalizeVmScopeSettings(parsed.vmScopeSettings) ?? undefined
     : undefined;
   const techInfoOrganisationTablePreferences = version >= 6
-    ? normalizeTechInfoOrganisationTablePreferences(parsed.techInfoOrganisationTablePreferences) ?? undefined
+    ? normalizeTableDisplayPreferences(parsed.techInfoOrganisationTablePreferences) ?? undefined
+    : undefined;
+  const tableDisplayPreferences = version >= 7
+    ? normalizeTableDisplayPreferencesByTableId(parsed.tableDisplayPreferences) ?? undefined
     : undefined;
 
   return {
@@ -336,5 +327,6 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     vcenterGroups,
     vmScopeSettings,
     techInfoOrganisationTablePreferences,
+    tableDisplayPreferences,
   };
 }

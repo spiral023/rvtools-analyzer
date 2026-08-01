@@ -24,6 +24,12 @@ declare module "@tanstack/react-table" {
     info?: GlossaryEntry;
     /** Überschrift, unter der die Spaltenkonfiguration der VirtualTable diese Spalte einsortiert. */
     group?: string;
+    /** Bedien- oder Darstellungsspalten bleiben aus der fachlichen Konfiguration heraus. */
+    configurable?: boolean;
+    /** Optionale Fachspalten starten ausgeblendet und können über den Picker zugeschaltet werden. */
+    initiallyVisible?: boolean;
+    /** Explizite Ausnahme für Spalten, die nicht in Datei-/Zwischenablage-Exporte gehören. */
+    exportable?: boolean;
   }
 }
 

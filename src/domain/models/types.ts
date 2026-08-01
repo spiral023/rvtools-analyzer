@@ -1612,15 +1612,19 @@ export interface VmScopeSettings {
 }
 
 /**
- * Persönliche Ansicht für den VM-Drill-down in Tech-Info → Organisation. Die
- * Spalten-IDs bleiben stabil, damit die Konfiguration auch nach einem Reload oder
- * Backup-Import erhalten bleibt.
+ * Persönliche Ansicht einer einzelnen Tabelle. Die Spalten-IDs bleiben stabil,
+ * damit die Konfiguration auch nach einem Reload oder Backup-Import erhalten bleibt.
  */
-export interface TechInfoOrganisationTablePreferences {
+export interface TableDisplayPreferences {
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   sorting: Array<{ id: string; desc: boolean }>;
 }
+
+export type TableDisplayPreferencesByTableId = Record<string, TableDisplayPreferences>;
+
+/** Kompatibilitätsalias für Backups und ältere Tech-Info-Datensätze. */
+export type TechInfoOrganisationTablePreferences = TableDisplayPreferences;
 
 export interface FilterState extends VmScopeSettings {
   vcenterIds: VCenterId[];
@@ -1687,6 +1691,8 @@ export interface UiState {
   analysisExportPseudonymSalt?: string;
   /** Persönliche Tabellenansicht des Organisations-Drill-downs. */
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
+  /** Persönliche Tabellenansichten, jeweils unter einer stabilen fachlichen Tabellen-ID. */
+  tableDisplayPreferences?: TableDisplayPreferencesByTableId;
 }
 
 export type ScenarioType = "cluster-migration";

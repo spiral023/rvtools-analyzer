@@ -218,15 +218,15 @@ export function ClusterCapacityPanel({ capacityRows, overcommitRows, hostDensity
 
       <section>
         <InfoTooltip entry={CAPACITY_SECTIONS.clusterCapacityHealth} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Capacity Health (vHost + vCluster) · Klick öffnet Detailansicht</h3></InfoTooltip>
-        <VirtualTable data={capacityRows} columns={capacityColumns} globalFilter={search} height={340} initialSorting={[{ id: "riskScore", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
+        <VirtualTable tableId="clusters/capacity-health" columnPicker data={capacityRows} columns={capacityColumns} globalFilter={search} height={340} initialSorting={[{ id: "riskScore", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
       <section>
         <InfoTooltip entry={CAPACITY_SECTIONS.clusterOvercommit} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Overcommit · Klick öffnet Detailansicht</h3></InfoTooltip>
-        <VirtualTable data={overcommitRows} columns={overcommitColumns} globalFilter={search} height={300} initialSorting={[{ id: "cpuRatio", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
+        <VirtualTable tableId="clusters/capacity-overcommit" columnPicker data={overcommitRows} columns={overcommitColumns} globalFilter={search} height={300} initialSorting={[{ id: "cpuRatio", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
       <section>
         <InfoTooltip entry={LICENSING_SECTIONS.clusterDensity} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Cluster Dichte & Effizienz</h3></InfoTooltip>
-        <VirtualTable data={clusterDensity} columns={densityColumns} globalFilter={search} height={300} initialSorting={[{ id: "vmsPerHost", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
+        <VirtualTable tableId="clusters/density" columnPicker data={clusterDensity} columns={densityColumns} globalFilter={search} height={300} initialSorting={[{ id: "vmsPerHost", desc: true }]} onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
       <ResourcePoolPressurePanel rawResourcePools={rawResourcePools} search={search} />
     </div>

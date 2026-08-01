@@ -887,6 +887,8 @@ export function ClusterMaintenancePanel() {
           aria-label={`${row.original.name} auswählen`}
         />
       ),
+      enableSorting: false,
+      meta: { configurable: false, exportable: false },
     },
     {
       accessorKey: "vcenterId",
@@ -1029,6 +1031,8 @@ export function ClusterMaintenancePanel() {
           </h3>
         </InfoTooltip>
         <VirtualTable
+          tableId="maintenance/cluster-assignments"
+          columnPicker
           data={searchedRows}
           columns={columns}
           height={336}

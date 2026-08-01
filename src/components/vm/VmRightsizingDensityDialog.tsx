@@ -191,6 +191,8 @@ export function VmRightsizingDensityDialog({
         </DialogHeader>
         <div className="min-h-0 flex-1 p-4">
           <VirtualTable
+            tableId="vms/rightsizing-density-details"
+            columnPicker
             data={rows}
             columns={columns}
             height={460}

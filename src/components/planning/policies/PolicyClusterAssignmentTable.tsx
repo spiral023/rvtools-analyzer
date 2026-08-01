@@ -92,6 +92,8 @@ export function PolicyClusterAssignmentTable() {
   return (
     <>
       <VirtualTable
+        tableId="planning/policy-cluster-assignment"
+        columnPicker
         data={rows}
         columns={columns}
         height={360}

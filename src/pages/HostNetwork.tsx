@@ -280,7 +280,7 @@ export function HostNetworkPanel() {
             <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Konfigurations-Abweichungen ({driftRows.length})</h3>
           </InfoTooltip>
           <p className="text-xs text-muted-foreground mb-3">Hosts, deren vmnic-Belegung von der Mehrheit ihres Clusters abweicht — potenzieller Standardisierungs-Drift.</p>
-          <VirtualTable data={driftRows} columns={driftColumns} globalFilter={filters.search} height={Math.min(300, 80 + driftRows.length * 40)} onRowClick={openHostDetail} />
+          <VirtualTable tableId="network/host-drift" columnPicker data={driftRows} columns={driftColumns} globalFilter={filters.search} height={Math.min(300, 80 + driftRows.length * 40)} onRowClick={openHostDetail} />
         </div>
       )}
 
@@ -288,7 +288,7 @@ export function HostNetworkPanel() {
         <InfoTooltip entry={NET_HOST_SECTIONS.variantTable} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Konfigurations-Varianten ({variants.length}) · Klick öffnet Detailansicht</h3>
         </InfoTooltip>
-        <VirtualTable data={variants} columns={variantColumns} globalFilter={filters.search} height={Math.min(360, 80 + variants.length * 44)} onRowClick={(row) => setSelectedVariantLabel(row.label)} />
+        <VirtualTable tableId="network/host-variants" columnPicker data={variants} columns={variantColumns} globalFilter={filters.search} height={Math.min(360, 80 + variants.length * 44)} onRowClick={(row) => setSelectedVariantLabel(row.label)} />
       </div>
 
       {dvsRows.length > 0 && (
@@ -296,7 +296,7 @@ export function HostNetworkPanel() {
           <InfoTooltip entry={NET_HOST_SECTIONS.dvsTable} side="bottom">
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vDS-Membership ({dvsRows.length})</h3>
           </InfoTooltip>
-          <VirtualTable data={dvsRows} columns={dvsColumns} globalFilter={filters.search} height={Math.min(320, 80 + dvsRows.length * 44)} />
+          <VirtualTable tableId="network/vds-membership" columnPicker data={dvsRows} columns={dvsColumns} globalFilter={filters.search} height={Math.min(320, 80 + dvsRows.length * 44)} />
         </div>
       )}
 
@@ -304,7 +304,7 @@ export function HostNetworkPanel() {
         <InfoTooltip entry={NET_HOST_SECTIONS.nicDetailTable} side="bottom">
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Layers className="h-4 w-4" /> Uplink-Belegung Detail ({nicDetail.length})</h3>
         </InfoTooltip>
-        <VirtualTable data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} onRowClick={openHostDetail} />
+        <VirtualTable tableId="network/uplink-detail" columnPicker data={nicDetail} columns={nicColumns} globalFilter={filters.search} height={400} onRowClick={openHostDetail} />
       </div>
       <VariantDetailDialog
         variant={selectedVariantLabel ? variantDetails.get(selectedVariantLabel) ?? null : null}

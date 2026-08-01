@@ -76,6 +76,13 @@ const techInfoOrganisationTablePreferences: TechInfoOrganisationTablePreferences
   columnOrder: ["server", "cluster", "comment"],
   sorting: [{ id: "cluster", desc: false }],
 };
+const tableDisplayPreferences = {
+  "hosts/inventory": {
+    columnVisibility: { serviceTag: false },
+    columnOrder: ["host", "serviceTag"],
+    sorting: [{ id: "host", desc: false }],
+  },
+};
 
 describe("buildUserDataBackup / serialize / parse roundtrip", () => {
   it("erhält alle Benutzerdaten über einen Export/Import-Zyklus", () => {
@@ -86,6 +93,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       scenarios: [scenario],
       vcenterGroups: [vcenterGroup],
       techInfoOrganisationTablePreferences,
+      tableDisplayPreferences,
       exportedAt: new Date("2026-07-03T12:00:00.000Z"),
     } as never);
 
@@ -105,6 +113,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       excludeDummyVms: false,
     });
     expect(parsed.techInfoOrganisationTablePreferences).toEqual(techInfoOrganisationTablePreferences);
+    expect(parsed.tableDisplayPreferences).toEqual(tableDisplayPreferences);
   });
 
   it("kommt mit leerem Datenbestand zurecht", () => {
@@ -427,6 +436,37 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
 
     expect(result.techInfoOrganisationTablePreferencesImported).toBe(true);
     expect((await getUiState("tech-info-organisation"))?.techInfoOrganisationTablePreferences).toEqual(imported);
+  });
+
+  it("exportiert und importiert die generische Zuordnung aller Tabellenansichten", async () => {
+    const { getUiState, putUiState } = await import("@/data/db");
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    await putUiState({ id: "table-display-preferences", theme: "dark", tableDisplayPreferences });
+
+    const collected = await collectUserDataBackup();
+    expect(collected.tableDisplayPreferences).toEqual(tableDisplayPreferences);
+
+    const imported = {
+      "vms/inventory": {
+        columnVisibility: { host: false },
+        columnOrder: ["vm", "host"],
+        sorting: [{ id: "vm", desc: true }],
+      },
+    };
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+      tableDisplayPreferences: imported,
+    }));
+
+    expect(result.tableDisplayPreferencesImported).toBe(true);
+    // Merge statt Ersetzen: lokale Ansichten, die das Backup nicht kennt, überleben den Import.
+    expect((await getUiState("table-display-preferences"))?.tableDisplayPreferences).toEqual({
+      ...tableDisplayPreferences,
+      ...imported,
+    });
   });
 
   it("validates invalid maintenance-window batches before writing other backup data", async () => {

@@ -8,6 +8,8 @@ import { HOST_COLUMNS, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
 import { shortenVendor } from "@/lib/hardwareVariants";
 import { buildHostServiceTagMap, findHostServiceTag } from "@/lib/hostServiceTag";
 import { shortHostName } from "@/lib/utils";
+import { formatBytes } from "@/lib/xlsx/parseHelpers";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 
 /**
  * Der Service Tag liegt bewusst auf der Zeile statt in einer Accessor-Closure:
@@ -37,6 +39,14 @@ const hostColumns: ColumnDef<HostInventoryRow, unknown>[] = [
     },
   },
   { accessorKey: "maintenanceMode", header: "Maintenance", meta: { info: HOST_COLUMNS.maintenanceMode }, cell: ({ getValue }) => getValue() === "True" ? <span className="text-warning">Ja</span> : "Nein" },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung des ESXi-Hosts.", "RVTools · vHost · „Datacenter“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "cpuTotalMHz", header: "CPU gesamt", meta: normalizedOptionalColumnMeta("CPU gesamt", "Gesamte CPU-Kapazität des Hosts in MHz.", "RVTools · vHost · „CPU MHz“"), cell: ({ getValue }) => { const value = getValue() as number | null; return value === null ? "—" : `${value.toLocaleString("de-DE")} MHz`; } },
+  { accessorKey: "cpuCores", header: "Cores", meta: normalizedOptionalColumnMeta("Cores", "Anzahl physischer CPU-Cores des Hosts.", "RVTools · vHost · „# Cores“"), cell: ({ getValue }) => (getValue() as number | null)?.toLocaleString("de-DE") ?? "—" },
+  { accessorKey: "cpuThreads", header: "Threads", meta: normalizedOptionalColumnMeta("Threads", "Anzahl logischer CPU-Threads des Hosts.", "RVTools · vHost · „# Threads“"), cell: ({ getValue }) => (getValue() as number | null)?.toLocaleString("de-DE") ?? "—" },
+  { accessorKey: "memoryTotalMiB", header: "RAM gesamt", meta: normalizedOptionalColumnMeta("RAM gesamt", "Gesamter physischer Arbeitsspeicher des Hosts.", "RVTools · vHost · „Memory“"), cell: ({ getValue }) => formatBytes(getValue() as number | null) },
+  { accessorKey: "connectionState", header: "Verbindung", meta: normalizedOptionalColumnMeta("Verbindung", "Verbindungszustand des ESXi-Hosts.", "RVTools · vHost · „Connection state“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "powerState", header: "Power", meta: normalizedOptionalColumnMeta("Power", "Energiezustand des ESXi-Hosts.", "RVTools · vHost · „Power state“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "vmCount", header: "VMs", meta: normalizedOptionalColumnMeta("VMs", "Anzahl der VMs auf dem Host.", "RVTools · vHost · „# VMs“"), cell: ({ getValue }) => (getValue() as number | null)?.toLocaleString("de-DE") ?? "—" },
 ];
 
 export function HostInventoryPanel({
@@ -63,7 +73,7 @@ export function HostInventoryPanel({
       <InfoTooltip entry={COMPLIANCE_SECTIONS.hostInventory} side="bottom">
         <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Host Inventar ({sortedHosts.length})</h3>
       </InfoTooltip>
-      <VirtualTable data={sortedHosts} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={openHostDetail} />
+      <VirtualTable tableId="hosts/inventory" columnPicker data={sortedHosts} columns={hostColumns} globalFilter={globalFilter} height={350} onRowClick={openHostDetail} />
       {hostDetailDialog}
     </section>
   );

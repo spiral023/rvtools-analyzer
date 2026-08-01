@@ -83,7 +83,7 @@ export function VCenterOverviewTable({ summaries, onRowClick }: { summaries: VCe
       <InfoTooltip entry={FLEET_SECTIONS.fleetTable} side="bottom">
         <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Übersicht</h3>
       </InfoTooltip>
-      <VirtualTable data={summaries} columns={columns} onRowClick={onRowClick} />
+      <VirtualTable tableId="overview/vcenter-summaries" columnPicker data={summaries} columns={columns} onRowClick={onRowClick} />
     </div>
   );
 }

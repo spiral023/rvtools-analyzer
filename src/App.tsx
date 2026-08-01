@@ -11,6 +11,7 @@ import { AppLayout } from "@/app/layout/AppLayout";
 import { ImportProvider } from "@/hooks/useImportController";
 import { OnboardingProvider } from "@/hooks/useOnboarding";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+import { TableDisplayPreferencesProvider } from "@/hooks/useTableDisplayPreferences";
 import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 import { isLazyImportFailure, recoverFromLazyImportFailure } from "@/lib/lazyImportRecovery";
 import { AnalysisErrorPage } from "@/components/errors/AnalysisErrorPage";
@@ -120,7 +121,9 @@ const App = () => (
           <OnboardingProvider>
             <FilterProvider>
               <SelectionProvider>
-                <RouterProvider router={router} fallbackElement={<PageFallback />} />
+                <TableDisplayPreferencesProvider>
+                  <RouterProvider router={router} fallbackElement={<PageFallback />} />
+                </TableDisplayPreferencesProvider>
               </SelectionProvider>
             </FilterProvider>
           </OnboardingProvider>

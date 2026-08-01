@@ -53,7 +53,7 @@ export function FillUpClusterTable({ rows, onSelect }: { rows: readonly FillUpPl
       cell: ({ row }) => <LimiterValue guardrail={row.original.recommendation.workloadMixRecommendation?.limitingGuardrail ?? null} />,
     },
   ], []);
-  return <VirtualTable data={[...rows]} columns={columns} height={440} onRowClick={onSelect} getRowId={(row) => row.cluster.clusterKey} exportFileName="fill-up-cluster" emptyTitle="Keine berechenbaren Cluster" emptyDescription="Der gewählte Import benötigt eindeutige Clusterbeziehungen und einen passenden RVTools-Snapshot." />;
+  return <VirtualTable tableId="planning/fill-up-clusters" columnPicker data={[...rows]} columns={columns} height={440} onRowClick={onSelect} getRowId={(row) => row.cluster.clusterKey} exportFileName="fill-up-cluster" emptyTitle="Keine berechenbaren Cluster" emptyDescription="Der gewählte Import benötigt eindeutige Clusterbeziehungen und einen passenden RVTools-Snapshot." />;
 }
 
 function MixValue({ recommendation }: { recommendation: FillUpPlanningClusterResult["recommendation"]["workloadMixRecommendation"] }) {

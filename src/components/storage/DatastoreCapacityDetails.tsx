@@ -6,6 +6,7 @@ import type { NormalizedDatastore, NormalizedHost, NormalizedVm, SheetRow } from
 import { buildDatastoreDetailRows, type DatastoreDetailRow } from "@/lib/datastoreDetails";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { CAPACITY_DS_COLUMNS, CAPACITY_SECTIONS, CAPACITY_THIN_COLUMNS, CAPACITY_THIN_DISK_COLUMNS } from "@/lib/glossaries/capacity";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import { formatBytes, formatPct, parseDatastoreFromDiskPath } from "@/lib/xlsx/parseHelpers";
 
 interface ThinRiskRow { datastore: string; freePct: number | null; thinDisks: number; totalThinMiB: number; risk: string }
@@ -40,6 +41,20 @@ const datastoreColumns: ColumnDef<DatastoreDetailRow, unknown>[] = [
   { accessorKey: "inUseMiB", header: "Belegt", meta: { info: CAPACITY_DS_COLUMNS.inUseMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
   { accessorKey: "freeMiB", header: "Frei", meta: { info: CAPACITY_DS_COLUMNS.freeMiB }, cell: ({ getValue }) => formatBytes(getValue() as number | null) },
   { accessorKey: "freePct", header: "Frei %", meta: { info: CAPACITY_DS_COLUMNS.freePct }, cell: ({ getValue }) => { const value = getValue() as number | null; return <span className={value !== null && value < 10 ? "text-destructive font-semibold" : value !== null && value < 20 ? "text-warning" : "text-success"}>{formatPct(value)}</span>; } },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID des Datastore-Snapshots.", "RVTools · Snapshot-Metadaten") },
+  { accessorKey: "clusterName", header: "Cluster-Zuordnung", meta: normalizedOptionalColumnMeta("Cluster-Zuordnung", "Direkte Cluster-Zuordnung des Datastores, sofern vom Export geliefert.", "RVTools · vDatastore · „Cluster“"), cell: ({ getValue }) => (getValue() as string | null | undefined) || "—" },
+  {
+    id: "hostNames",
+    header: "Verbundene Hosts",
+    meta: normalizedOptionalColumnMeta("Verbundene Hosts", "ESXi-Hosts, die den Datastore verbunden haben.", "RVTools · vDatastore · „Hosts“"),
+    accessorFn: (row) => row.hostNames.join(", "),
+    cell: ({ row }) => {
+      const value = row.original.hostNames.join(", ");
+      return <div className="max-w-[320px] truncate" title={value || "—"}>{value || "—"}</div>;
+    },
+  },
+  { accessorKey: "version", header: "Version", meta: normalizedOptionalColumnMeta("Version", "Dateisystem- bzw. Datastore-Version.", "RVTools · vDatastore · „Version“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "siocEnabled", header: "SIOC", meta: normalizedOptionalColumnMeta("SIOC", "Kennzeichnet aktiviertes Storage I/O Control.", "RVTools · vDatastore · „SIOC enabled“"), cell: ({ getValue }) => getValue() === true ? "Ja" : getValue() === false ? "Nein" : "—" },
 ];
 
 const thinRiskColumns: ColumnDef<ThinRiskRow, unknown>[] = [
@@ -98,9 +113,9 @@ export function DatastoreCapacityDetails({ datastores, hosts, allVms, rawDatasto
 
   return (
     <>
-      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable data={datastoreDetailRows} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>
-      {thinRiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable data={thinRiskRows} columns={thinRiskColumns} globalFilter={search} height={250} /></div>}
-      {thinDiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinDiskDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin Disks – Migrationsplanung ({thinDiskRows.length})</h3></InfoTooltip><VirtualTable data={thinDiskRows} columns={thinDiskColumns} globalFilter={search} height={400} onRowClick={onOpenVm} /></div>}
+      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable tableId="storage/datastore-details" columnPicker data={datastoreDetailRows} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>
+      {thinRiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable tableId="storage/thin-risk" columnPicker data={thinRiskRows} columns={thinRiskColumns} globalFilter={search} height={250} /></div>}
+      {thinDiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinDiskDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin Disks – Migrationsplanung ({thinDiskRows.length})</h3></InfoTooltip><VirtualTable tableId="storage/thin-disk-details" columnPicker data={thinDiskRows} columns={thinDiskColumns} globalFilter={search} height={400} onRowClick={onOpenVm} /></div>}
     </>
   );
 }

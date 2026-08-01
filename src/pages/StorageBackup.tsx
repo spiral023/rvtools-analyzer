@@ -359,7 +359,7 @@ export default function StorageBackup() {
             </div>
           )}
 
-          <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
+          <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable tableId="storage/guest-partitions" columnPicker data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
           <DatastoreCapacityDetails datastores={datastores} hosts={hosts} allVms={allVms} rawDatastores={rawDatastore} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} />
 
@@ -382,9 +382,9 @@ export default function StorageBackup() {
             </div>
           )}
 
-          <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz ({dsEfficiency.length})</h3></InfoTooltip><VirtualTable data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
-          {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
-          {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
+          <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz ({dsEfficiency.length})</h3></InfoTooltip><VirtualTable tableId="storage/datastore-efficiency" columnPicker data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
+          {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable tableId="storage/sioc" columnPicker data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
+          {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable tableId="storage/datastore-lifecycle" columnPicker data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
         </TabsContent>
 
         <TabsContent value="paths" className="space-y-6">
@@ -402,12 +402,12 @@ export default function StorageBackup() {
                 <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Hosts mit toten Storage-Pfaden ({deadPathHosts.length})</h3>
               </InfoTooltip>
               <p className="mb-3 text-xs text-muted-foreground">Pfad-Redundanz reduziert — Fabric/Zoning/HBA prüfen. Mit „Oper. State != ok“ abgleichen für akute Device-Ausfälle.</p>
-              <VirtualTable data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
+              <VirtualTable tableId="storage/dead-path-hosts" columnPicker data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
             </div>
           )}
-          {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
-          {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
-          {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
+          {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable tableId="storage/multipath" columnPicker data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+          {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable tableId="storage/virtual-disks" columnPicker data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+          {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable tableId="storage/scsi-mapping" columnPicker data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
         </TabsContent>
 
         <TabsContent value="backup" className="space-y-6">
@@ -436,14 +436,14 @@ export default function StorageBackup() {
             </ResponsiveContainer>
           </div>
 
-          {backupData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.backupTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3></InfoTooltip><VirtualTable data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
+          {backupData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.backupTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Backup Frische / Coverage ({backupData.length})</h3></InfoTooltip><VirtualTable tableId="storage/backup-coverage" columnPicker data={backupData} columns={backupColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
           {snapshotBackupConflicts.length > 0 && (
             <div className="rounded-lg border border-destructive/30 bg-card/30 p-4">
               <InfoTooltip entry={STORAGE_SECTIONS.snapshotConflicts} side="bottom">
                 <h3 className="mb-2 w-fit cursor-help text-sm font-semibold text-destructive">Snapshot + Backup Konflikte ({snapshotBackupConflicts.length})</h3>
               </InfoTooltip>
               <p className="mb-3 text-xs text-muted-foreground">VMs mit aktivem Snapshot UND Backup-Problemen — Restore-Risiko!</p>
-              <VirtualTable data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
+              <VirtualTable tableId="storage/backup-conflicts" columnPicker data={snapshotBackupConflicts} columns={backupColumns} globalFilter={filters.search} height={200} onRowClick={openVmDetail} />
             </div>
           )}
         </TabsContent>

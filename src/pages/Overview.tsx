@@ -126,7 +126,7 @@ export default function Overview() {
             <h3 className="text-sm font-semibold text-muted-foreground">Clusterübersicht</h3>
             <span className="text-xs text-muted-foreground">({formatNum(clusterRows.length)})</span>
           </div>
-          <VirtualTable data={clusterRows} columns={clusterOverviewColumns} globalFilter={filters.search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="overview-cluster-uebersicht" />
+          <VirtualTable tableId="overview/cluster-overview" columnPicker data={clusterRows} columns={clusterOverviewColumns} globalFilter={filters.search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="overview-cluster-uebersicht" />
         </section>
       )}
       <VmInventoryTable vms={vmsForTable} globalFilter={filters.search} onRowClick={openVmDetail} />

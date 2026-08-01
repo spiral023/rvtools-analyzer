@@ -33,6 +33,7 @@ import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
 import { buildVmExportDataset } from "@/lib/export/exportStudio";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildTechInfoOrgMetricsByVmName } from "@/lib/techInfoOrgMetrics";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 
 type TechInfoTab = "systeme" | "organisation";
 
@@ -121,6 +122,14 @@ const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
   { accessorKey: "host", header: "Host", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "powerState", header: "Power-Status", cell: ({ getValue }) => getValue() || "—" },
   { accessorKey: "osConfig", header: "Betriebssystem", cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vcenterId", header: "vCenter-ID", meta: normalizedOptionalColumnMeta("vCenter-ID", "Technische vCenter-ID der nicht zugeordneten VM.", "RVTools · Snapshot-Metadaten") },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter-Zuordnung der VM.", "RVTools · vInfo · „Datacenter“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "cpuCount", header: "vCPU", meta: normalizedOptionalColumnMeta("vCPU", "Anzahl der zugewiesenen virtuellen CPUs.", "RVTools · vInfo · „CPUs“"), cell: ({ getValue }) => (getValue() as number | null)?.toLocaleString("de-DE") ?? "—" },
+  { accessorKey: "memoryMiB", header: "RAM", meta: normalizedOptionalColumnMeta("RAM", "Konfigurierter Arbeitsspeicher der VM.", "RVTools · vInfo · „Memory“"), cell: ({ getValue }) => formatNum(getValue() as number | null) },
+  { accessorKey: "connectionState", header: "Verbindung", meta: normalizedOptionalColumnMeta("Verbindung", "Verbindungszustand der VM zum Host.", "RVTools · vInfo · „Connection state“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "hwVersion", header: "HW-Version", meta: normalizedOptionalColumnMeta("HW-Version", "Virtuelle Hardware-Version der VM.", "RVTools · vInfo · „HW version“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "toolsStatus", header: "Tools-Status", meta: normalizedOptionalColumnMeta("Tools-Status", "Status der VMware Tools.", "RVTools · vInfo · „Tools status“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
+  { accessorKey: "toolsVersion", header: "Tools-Version", meta: normalizedOptionalColumnMeta("Tools-Version", "Versionsstring der VMware Tools.", "RVTools · vInfo · „Tools version string“"), cell: ({ getValue }) => (getValue() as string | null) || "—" },
 ];
 
 export default function TechInfo() {
@@ -355,7 +364,7 @@ export default function TechInfo() {
             <InfoTooltip entry={TECHINFO_SECTIONS.serverTable} side="bottom">
               <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM Tech-Info Server ({searchedRows.length})</h3>
             </InfoTooltip>
-            <VirtualTable data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
+            <VirtualTable tableId="tech-info/servers" columnPicker data={searchedRows} columns={columns} height={460} onRowClick={openVmDetail} />
           </div>
           <div>
             <InfoTooltip entry={TECHINFO_SECTIONS.clientTable} side="bottom">
@@ -364,12 +373,12 @@ export default function TechInfo() {
             {techInfoClients.length === 0 ? (
               <p className="text-sm text-muted-foreground">Noch keine Tech-Info-Client-Datei importiert.</p>
             ) : (
-              <VirtualTable data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
+              <VirtualTable tableId="tech-info/clients" columnPicker data={searchedClientRows} columns={clientColumns} height={460} exportFileName="tech-info-clients" onRowClick={openClientDetail} />
             )}
           </div>
           <div>
             <h3 className="mb-3 text-sm font-semibold text-muted-foreground">VMs ohne Tech-Info ({searchedUnassignedRows.length})</h3>
-            <VirtualTable data={searchedUnassignedRows} columns={unassignedColumns} height={460} onRowClick={openVmDetail} />
+            <VirtualTable tableId="tech-info/unassigned-vms" columnPicker data={searchedUnassignedRows} columns={unassignedColumns} height={460} onRowClick={openVmDetail} />
           </div>
         </TabsContent>
 

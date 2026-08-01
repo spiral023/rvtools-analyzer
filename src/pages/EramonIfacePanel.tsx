@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { formatBandwidth } from "@/lib/eramon";
 import { NET_ERAMON_IFACE_COLUMNS, NET_ERAMON_IFACE_KPI } from "@/lib/glossaries/networking";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import type { EramonIfaceLatest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -41,6 +42,7 @@ const columns: ColumnDef<EramonIfaceLatest, unknown>[] = [
     },
   },
   { accessorKey: "statusLabel", header: "Status", meta: { info: NET_ERAMON_IFACE_COLUMNS.status }, cell: ({ row }) => statusBadge(row.original) },
+  { accessorKey: "portStatus", header: "Statuscode", meta: normalizedOptionalColumnMeta("Statuscode", "Normalisierter numerischer Portstatus aus dem Eramon-Import.", "Eramon · „port_status“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
 ];
 
 export function EramonIfacePanel() {
@@ -77,7 +79,7 @@ export function EramonIfacePanel() {
         <KpiCard title="Ø Ports/Switch" value={portsPerSwitch.toLocaleString("de-DE", { maximumFractionDigits: 1 })} icon={<Cable className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.portsPerSwitch} />
         <KpiCard title="Bandbreite gesamt" value={formatBandwidth(totalBandwidthBps)} icon={<Gauge className="h-4 w-4" />} info={NET_ERAMON_IFACE_KPI.totalBandwidth} />
       </KpiGrid>
-      <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-switch-ports" />
+      <VirtualTable tableId="network/eramon-iface" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-switch-ports" />
     </div>
   );
 }

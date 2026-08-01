@@ -8,6 +8,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { NormalizedCluster, NormalizedHost, SheetRow } from "@/domain/models/types";
 import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@/lib/clusterIdentity";
 import { DRIVER_COLUMNS, INFRASTRUCTURE_KPI, COMPLIANCE_SECTIONS } from "@/lib/glossaries/compliance";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 interface InfrastructureHostRow extends NormalizedHost {
@@ -45,6 +46,7 @@ interface ClusterInfrastructurePanelProps {
 
 const driverColumns: ColumnDef<DriverRow, unknown>[] = [
   { accessorKey: "vcenterId", header: "vCenter" },
+  { accessorKey: "datacenter", header: "Datacenter", meta: normalizedOptionalColumnMeta("Datacenter", "Datacenter des Hosts, aus deren normalisiertem Host-Inventar der Treibereintrag stammt.", "RVTools · vHost · „Datacenter“") },
   { accessorKey: "host", header: "Host", meta: { info: DRIVER_COLUMNS.host } },
   { accessorKey: "cluster", header: "Cluster", meta: { info: DRIVER_COLUMNS.cluster } },
   { accessorKey: "device", header: "Device", meta: { info: DRIVER_COLUMNS.device } },
@@ -147,7 +149,7 @@ export function ClusterInfrastructurePanel({ hosts, clusters, rawHbaRows, rawNic
 
       <section>
         <InfoTooltip entry={COMPLIANCE_SECTIONS.driverInventory} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground flex items-center gap-2"><Wifi className="h-4 w-4" /> HBA/NIC Treiberinventar ({driverRows.length})</h3></InfoTooltip>
-        <VirtualTable data={driverRows} columns={driverColumns} globalFilter={search} height={350} />
+        <VirtualTable tableId="clusters/infrastructure-drivers" columnPicker data={driverRows} columns={driverColumns} globalFilter={search} height={350} />
       </section>
     </div>
   );

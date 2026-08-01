@@ -163,7 +163,7 @@ export function VmWorkloadProfilePanel() {
       cell: ({ row }) => <Badge variant={confidenceBadgeVariant(row.original.confidence)}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
     { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
-    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline }, cell: ({ row }) => <Sparkline profile={row.original} /> },
+    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <Sparkline profile={row.original} /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
@@ -228,12 +228,12 @@ export function VmWorkloadProfilePanel() {
         <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.table} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Profile ({visibleProfileCount})</h3></InfoTooltip>
           {/* Ohne `globalFilter`: die Suche ist bereits auf den Klassifikationsbestand angewandt, damit Kennzahlen, Diagramme und Tabelle denselben Ausschnitt zeigen. */}
-          <VirtualTable data={classifiableProfiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine berechenbaren VM-Profile" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit belastbar berechenbarem Lastmuster und Niveau." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster, Host und Systemverantwortliche:r."} onFilteredCountChange={setVisibleProfileCount} />
+          <VirtualTable tableId="vms/workload-profile" columnPicker data={classifiableProfiles} columns={columns} height={500} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile" emptyTitle="Keine berechenbaren VM-Profile" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit belastbar berechenbarem Lastmuster und Niveau." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster, Host und Systemverantwortliche:r."} onFilteredCountChange={setVisibleProfileCount} />
         </div>
 
         {uncomputableProfiles.length > 0 && <div>
           <InfoTooltip entry={VM_PROFILE_SECTIONS.uncomputableTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Nicht berechenbare Profile ({uncomputableProfiles.length})</h3></InfoTooltip>
-          <VirtualTable data={uncomputableProfiles} columns={uncomputableColumns} height={280} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile-nicht-berechenbar" emptyTitle="Keine nicht berechenbaren Profile" />
+          <VirtualTable tableId="vms/workload-profile-uncomputable" columnPicker data={uncomputableProfiles} columns={uncomputableColumns} height={280} getRowId={(row: VmWorkloadProfile) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-profile-nicht-berechenbar" emptyTitle="Keine nicht berechenbaren Profile" />
         </div>}
       </>}
       {vmDetailDialog}

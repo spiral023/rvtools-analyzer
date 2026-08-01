@@ -8,6 +8,7 @@ import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { NET_ERAMON_L2_COLUMNS, NET_ERAMON_L2_KPI } from "@/lib/glossaries/networking";
+import { normalizedOptionalColumnMeta } from "@/lib/normalizedColumnMeta";
 import type { EramonL2Latest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -22,6 +23,8 @@ const columns: ColumnDef<EramonL2Latest, unknown>[] = [
   { accessorKey: "switchName", header: "Switch", meta: { info: NET_ERAMON_L2_COLUMNS.switchName }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "interface", header: "Interface", meta: { info: NET_ERAMON_L2_COLUMNS.interface }, cell: ({ getValue }) => <span className="font-mono-data">{getValue() as string}</span> },
   { accessorKey: "vlan", header: "VLAN", meta: { info: NET_ERAMON_L2_COLUMNS.vlan }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "type", header: "Gerätetyp", meta: normalizedOptionalColumnMeta("Gerätetyp", "Vom Eramon-Import gelieferter Gerätetyp des L2-Eintrags.", "Eramon · „type“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "interfaceDescription", header: "Interface-Beschreibung", meta: normalizedOptionalColumnMeta("Interface-Beschreibung", "Beschreibung des Switch-Interfaces.", "Eramon · „interface_description“"), cell: ({ getValue }) => textCell(getValue() as string | null) },
 ];
 
 export function EramonL2Panel() {
@@ -58,7 +61,7 @@ export function EramonL2Panel() {
         <KpiCard title="Eindeutige Switches" value={formatNum(switchCount)} icon={<Server className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.switches} />
         <KpiCard title="Ohne VLAN" value={formatNum(withoutVlanCount)} severity={withoutVlanCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={NET_ERAMON_L2_KPI.withoutVlan} />
       </KpiGrid>
-      <VirtualTable data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-mac-tabelle" />
+      <VirtualTable tableId="network/eramon-l2" columnPicker data={rows} columns={columns} globalFilter={filters.search} height={500} exportFileName="eramon-mac-tabelle" />
     </div>
   );
 }

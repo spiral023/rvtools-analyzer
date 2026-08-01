@@ -163,7 +163,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
           <h3 className="text-sm font-semibold text-muted-foreground">Clusterübersicht</h3>
           <span className="text-xs text-muted-foreground">({formatNum(rows.length)})</span>
         </div>
-        <VirtualTable data={rows} columns={clusterOverviewColumns} globalFilter={search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="rvtools-cluster-uebersicht" onRowClick={(row) => onOpenCluster(row.clusterKey)} />
+        <VirtualTable tableId="clusters/overview" columnPicker data={rows} columns={clusterOverviewColumns} globalFilter={search} height={420} initialSorting={[{ id: "riskScore", desc: true }]} exportFileName="rvtools-cluster-uebersicht" onRowClick={(row) => onOpenCluster(row.clusterKey)} />
       </section>
 
       <section>
@@ -176,7 +176,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
             <ToggleGroupItem value="config" aria-label="Configuration file">Configuration file</ToggleGroupItem>
           </ToggleGroup>
         </div>
-        <VirtualTable data={osRows} columns={osColumns(vcenterDisplayNames, osSource)} globalFilter={search} height={360} initialSorting={[{ id: "cluster", desc: false }]} exportFileName="rvtools-os-je-cluster" onRowClick={onOpenOsDetail} />
+        <VirtualTable tableId="clusters/os-distribution" columnPicker data={osRows} columns={osColumns(vcenterDisplayNames, osSource)} globalFilter={search} height={360} initialSorting={[{ id: "cluster", desc: false }]} exportFileName="rvtools-os-je-cluster" onRowClick={onOpenOsDetail} />
       </section>
     </div>
   );
