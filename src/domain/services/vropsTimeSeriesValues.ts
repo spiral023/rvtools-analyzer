@@ -78,9 +78,15 @@ function defaultUnit(kind: VropsTimeSeriesValueKind): string {
   return "";
 }
 
-/** Einheitenlose Zählwerte wie die konfigurierte vCPU-Anzahl. */
+/**
+ * Zählwerte wie die konfigurierte vCPU-Anzahl. vROps führt die Einheit im
+ * Spaltennamen mit („Number of CPUs (vCPUs)“), deshalb sind die gängigen
+ * Schreibweisen neben der leeren Einheit ausdrücklich zugelassen.
+ */
+const COUNT_UNITS = new Set(["", "vcpu", "vcpus", "cpu", "cpus", "count", "#"]);
+
 function normalizeCount(value: number, unit: string): number | null {
-  return unit === "" ? value : null;
+  return COUNT_UNITS.has(unit) ? value : null;
 }
 
 function normalizeUnit(value: number, rawUnit: string, kind: VropsTimeSeriesValueKind): number | null {

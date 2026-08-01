@@ -126,9 +126,13 @@ export const VROPS_TIME_SERIES_SCHEMAS: readonly VropsTimeSeriesSchemaDefinition
         required: false,
         valueKind: "count",
         aliases: [
-          "VM|Config|Number of CPUs|Last",
-          "VM|Configuration|Number of CPUs|Last",
+          // Schreibweise des geprüften Exports; „Configuration“ ist ausgeschrieben
+          // und der Zweig „Hardware“ liegt dazwischen.
+          "VM|Configuration|Hardware|Number of CPUs (vCPUs)|Last",
+          "VM|Configuration|Hardware|Number of CPUs|Last",
           "VM|Config|Hardware|Number of CPUs|Last",
+          "VM|Configuration|Number of CPUs|Last",
+          "VM|Config|Number of CPUs|Last",
           "Config|Number of CPUs|Last",
           "VM Number of CPUs Last",
           "Number of CPUs Last",

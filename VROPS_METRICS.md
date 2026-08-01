@@ -184,17 +184,27 @@ Richtungen; ohne sie ist nur eine Verkleinerung beurteilbar.
 | VM Peak vCPU Co-Stop within collection cycle | `max` | % | Co-Scheduling-Verzögerung; der einzige direkte Nachweis, dass die vCPU-Anzahl selbst schadet |
 | Config Number of CPUs | `last` | Anzahl | erkennt vCPU-Änderungen im Messfenster, die sonst ein Mischprofil aus zwei Konfigurationen erzeugen |
 
-Erwartete Spaltennamen (weitere Schreibweisen sind als Alias hinterlegt, siehe
-`vropsTimeSeriesSchema.ts`):
+Spaltennamen des geprüften produktiven Exports (weitere Schreibweisen sind als
+Alias hinterlegt, siehe `vropsTimeSeriesSchema.ts`):
 
 ```text
 VM|CPU|Demand (MHz)|Max
-VM|CPU|Total Capacity (MHz)|Last
 VM|CPU|vCPU Usage Disparity (%)|Avg
 VM|CPU|Peak vCPU Ready within collection cycle (%)|Max
 VM|CPU|Peak vCPU Co-Stop within collection cycle (%)|Max
-VM|Config|Number of CPUs|Last
+VM|CPU|Total Capacity (GHz)|Last
+VM|Configuration|Hardware|Number of CPUs (vCPUs)|Last
 ```
+
+Zwei Details, die der Import ausdrücklich abdeckt und die in
+`vropsTimeSeriesRightsizingSchema.test.ts` an der unveränderten Kopf- und
+Datenzeile abgesichert sind:
+
+- **Die Kapazität wird in GHz geführt, nicht in MHz.** Die Einheit aus dem
+  Spaltennamen wird ausgewertet und auf MHz normalisiert; ohne diese Umrechnung
+  läge die berechnete Auslastung um den Faktor 1.000 daneben.
+- **Die vCPU-Anzahl trägt die Einheit `(vCPUs)` im Namen** und liegt unter
+  `Configuration|Hardware`, nicht unter `Config`.
 
 `CPU|Peak vCPU Usage` wäre die direkteste Kennzahl für „heißester Kern am
 Limit“, ist in der eingesetzten Version aber nicht sammelbar. Sie wird ersatzweise
