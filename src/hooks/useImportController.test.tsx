@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { importMaintenanceWindowsTxt, importRvtoolsXlsx } from "@/domain/services/importService";
 import { importVropsTimeSeriesFileSet } from "@/domain/services/vropsTimeSeriesImportService";
+import { importUserDataBackupFile } from "@/domain/services/backupService";
 import { ImportProvider, useImportController } from "@/hooks/useImportController";
 
 vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn(), importMaintenanceWindowsTxt: vi.fn() }));
 vi.mock("@/domain/services/vropsTimeSeriesImportService", () => ({ importVropsTimeSeriesFileSet: vi.fn() }));
+vi.mock("@/domain/services/backupService", () => ({ importUserDataBackupFile: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
@@ -16,6 +18,7 @@ vi.mock("sonner", () => ({
 const mockedImport = vi.mocked(importRvtoolsXlsx);
 const mockedMaintenanceImport = vi.mocked(importMaintenanceWindowsTxt);
 const mockedVropsTimeSeriesImport = vi.mocked(importVropsTimeSeriesFileSet);
+const mockedUserDataBackupImport = vi.mocked(importUserDataBackupFile);
 
 /** jsdom's File-Polyfill kennt kein `arrayBuffer()` (anders als jeder echte Browser) – hier nachgerüstet, analog zu src/test/importService.test.ts. */
 function zipFileFrom(entries: Parameters<typeof zipSync>[0]): File {
@@ -95,6 +98,25 @@ describe("ImportProvider", () => {
     expect(mockedMaintenanceImport).toHaveBeenCalledTimes(1);
     expect(mockedImport).not.toHaveBeenCalled();
     expect(result.current.items[0]).toMatchObject({ status: "success", fileKind: "maintenance-windows" });
+  });
+
+  it("importiert einen Backup-Export über den normalen Upload", async () => {
+    mockedUserDataBackupImport.mockResolvedValue({
+      settingsImported: true,
+      assignmentsImported: 1,
+      maintenanceWindowsImported: 2,
+      scenariosImported: 3,
+      vcenterGroupsImported: 4,
+      vmScopeSettingsImported: true,
+    });
+    const backup = new File(["{}"], "rvtools-analyzer-backup-2026-08-01.json", { type: "application/json" });
+    const { result } = renderHook(() => useImportController(), { wrapper: createWrapper() });
+
+    await act(() => result.current.importFiles([backup]));
+
+    expect(mockedUserDataBackupImport).toHaveBeenCalledWith(backup);
+    expect(mockedImport).not.toHaveBeenCalled();
+    expect(result.current.items[0]).toMatchObject({ status: "success", fileKind: "user-data-backup" });
   });
 
   it("entpackt hochgeladene ZIP-Archive und importiert die enthaltenen Dateien", async () => {

@@ -5,8 +5,6 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -18,7 +16,6 @@ import {
   type TechInfoOrgVmSource,
 } from "@/domain/services/techInfoOrganisationService";
 import {
-  pseudonymizeExportDataset,
   VM_EXPORT_COLUMNS,
   type ExportStudioDataset,
 } from "@/lib/export/exportStudio";
@@ -43,6 +40,13 @@ interface TechInfoOrgDrilldownRow extends TechInfoOrgVmSource {
 }
 
 const BASE_COLUMN_GROUP = "Standardspalten";
+const VM_EXPORT_COLUMNS_BY_ID = new Map(VM_EXPORT_COLUMNS.map((column) => [column.id, column]));
+
+function getVmExportColumnInfo(id: string) {
+  const column = VM_EXPORT_COLUMNS_BY_ID.get(id);
+  if (!column) throw new Error(`Unbekannte VM-Exportspalte: ${id}`);
+  return getExportColumnInfo("vms", column);
+}
 
 /**
  * Exportspalten, die der Drill-down bereits typisiert führt – dort mit korrekter
@@ -53,31 +57,33 @@ const BASE_EXPORT_COLUMN_IDS = new Set(["server", "techInfoSysv", "techInfoSysvD
 const EXCLUDED_EXPORT_COLUMN_IDS = new Set(["cpuDemandRaw"]);
 
 const baseDrilldownColumns: ColumnDef<TechInfoOrgDrilldownRow, unknown>[] = [
-  { accessorKey: "vmName", header: "VM", meta: { group: BASE_COLUMN_GROUP } },
-  { accessorKey: "sysv", header: "SysV", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => getValue() || "—" },
-  { accessorKey: "sysvDeputy", header: "SysVStv", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "vmName", header: "VM", meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("server") } },
+  { accessorKey: "sysv", header: "SysV", meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("techInfoSysv") }, cell: ({ getValue }) => getValue() || "—" },
+  { accessorKey: "sysvDeputy", header: "SysVStv", meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("techInfoSysvDeputy") }, cell: ({ getValue }) => getValue() || "—" },
   {
     accessorKey: "poweredOn",
     header: "Power",
-    meta: { group: BASE_COLUMN_GROUP },
+    meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("powerState") },
     cell: ({ getValue }) => (getValue() ? <Badge variant="secondary">Ein</Badge> : <Badge variant="outline">Aus</Badge>),
   },
-  { accessorKey: "cpuCount", header: "vCPU", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
-  { accessorKey: "memoryMiB", header: "RAM", meta: { group: BASE_COLUMN_GROUP }, cell: ({ getValue }) => formatRamGiB((getValue() as number | null) ?? 0) },
+  { accessorKey: "cpuCount", header: "vCPU", meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("vcpus") }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
+  { accessorKey: "memoryMiB", header: "RAM", meta: { group: BASE_COLUMN_GROUP, info: getVmExportColumnInfo("memory") }, cell: ({ getValue }) => formatRamGiB((getValue() as number | null) ?? 0) },
 ];
 
 /**
  * Derselbe Spaltenvorrat wie die Export-Studio-Datenquelle „VM“, hier zuschaltbar.
  * Die Werte sind bereits als Text aufbereitet, sortiert wird deshalb alphanumerisch.
  */
-const extraDrilldownColumns: ColumnDef<TechInfoOrgDrilldownRow, unknown>[] = VM_EXPORT_COLUMNS
-  .filter((column) => !BASE_EXPORT_COLUMN_IDS.has(column.id) && !EXCLUDED_EXPORT_COLUMN_IDS.has(column.id))
-  .map((column) => ({
+const extraDrilldownColumns = VM_EXPORT_COLUMNS.reduce<ColumnDef<TechInfoOrgDrilldownRow, unknown>[]>((columns, column) => {
+  if (BASE_EXPORT_COLUMN_IDS.has(column.id) || EXCLUDED_EXPORT_COLUMN_IDS.has(column.id)) return columns;
+  columns.push({
     id: column.id,
     header: column.label,
     accessorFn: (row: TechInfoOrgDrilldownRow) => row.exportValues[column.id] ?? "—",
     meta: { group: column.category, info: getExportColumnInfo("vms", column) },
-  }));
+  });
+  return columns;
+}, []);
 
 const drilldownColumns = [...baseDrilldownColumns, ...extraDrilldownColumns];
 /** Die zugeschalteten Spalten starten ausgeblendet; sichtbar bleibt die gewohnte Standardauswahl. */
@@ -89,19 +95,19 @@ export function TechInfoOrganisationPanel({
   sources,
   search,
   vmByName,
-  vmDataset,
+  buildDrilldownVmDataset,
   onOpenVm,
 }: {
   sources: TechInfoOrgVmSource[];
   search: string;
   vmByName: Map<string, NormalizedVm>;
   /** VM-Datensatz der Export-Studio-Datenquelle „VM“; speist die zuschaltbaren Drill-down-Spalten. */
-  vmDataset: ExportStudioDataset;
+  /** Baut den vollständigen Exportwertsatz erst für die tatsächlich ausgewählte Organisationseinheit. */
+  buildDrilldownVmDataset: (vmNames: readonly string[]) => ExportStudioDataset;
   onOpenVm: (vm: NormalizedVm) => void;
 }) {
   const [roleMode, setRoleMode] = useState<TechInfoOrgRoleMode>("primary");
   const [selection, setSelection] = useState<{ id: string | null; label: string; vmNames: string[] } | null>(null);
-  const [pseudonymize, setPseudonymize] = useState(false);
 
   const result = useMemo(() => buildTechInfoOrganisation(sources, roleMode), [sources, roleMode]);
   const tree = useMemo(() => buildTechInfoOrgTree(result.tree), [result.tree]);
@@ -118,15 +124,17 @@ export function TechInfoOrganisationPanel({
     setSelection(null);
   };
 
-  /**
-   * Die Pseudonymisierung läuft über den Exportdatensatz, damit VM-Name und zugeschaltete
-   * Spalten dieselben Platzhalter tragen. Die Zeilenreihenfolge bleibt dabei erhalten,
-   * deshalb trägt der Originaldatensatz den Schlüssel.
-   */
+  // Der umfangreiche Exportwertsatz wird erst nach einer Auswahl erzeugt, statt beim Öffnen
+  // der Organisationsansicht alle VMs und optionalen Workload-Felder aufzubereiten.
+  const drilldownVmDataset = useMemo(
+    () => (selection ? buildDrilldownVmDataset(selection.vmNames) : null),
+    [buildDrilldownVmDataset, selection],
+  );
+
   const exportValuesByVmName = useMemo(() => {
-    const dataset = pseudonymize ? pseudonymizeExportDataset(vmDataset) : vmDataset;
-    return new Map(dataset.rows.map((row, index) => [(vmDataset.rows[index]?.server ?? "").trim().toLowerCase(), row]));
-  }, [vmDataset, pseudonymize]);
+    if (!drilldownVmDataset) return new Map<string, Record<string, string>>();
+    return new Map(drilldownVmDataset.rows.map((row) => [row.server.trim().toLowerCase(), row]));
+  }, [drilldownVmDataset]);
 
   const drilldownRows = useMemo<TechInfoOrgDrilldownRow[]>(() => {
     if (!selection) return [];
@@ -139,18 +147,9 @@ export function TechInfoOrganisationPanel({
     return filtered.map((source) => {
       const vmKeyNorm = source.vmName.trim().toLowerCase();
       const exportValues = exportValuesByVmName.get(vmKeyNorm) ?? {};
-      if (!pseudonymize) return { ...source, vmKeyNorm, exportValues };
-      // Ohne Exportzeile fehlt der Platzhalter – dann „—“ statt des Klarnamens.
-      return {
-        ...source,
-        vmKeyNorm,
-        exportValues,
-        vmName: exportValues.server ?? "—",
-        sysv: exportValues.techInfoSysv ?? "—",
-        sysvDeputy: exportValues.techInfoSysvDeputy ?? "—",
-      };
+      return { ...source, vmKeyNorm, exportValues };
     });
-  }, [selection, sourceByVmName, search, pseudonymize, exportValuesByVmName]);
+  }, [selection, sourceByVmName, search, exportValuesByVmName]);
 
   return (
     <div className="space-y-6">
@@ -279,10 +278,6 @@ export function TechInfoOrganisationPanel({
                 ? "Server der gewählten Organisationseinheit. Über das Spaltensymbol unten rechts lassen sich alle VM-Spalten zuschalten."
                 : "Noch keine Organisationseinheit ausgewählt."}
             </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2">
-            <Checkbox id="techinfo-org-pseudonymize" checked={pseudonymize} onCheckedChange={(checked) => setPseudonymize(checked === true)} />
-            <Label htmlFor="techinfo-org-pseudonymize" className="cursor-pointer text-xs text-muted-foreground">Namen pseudonymisieren</Label>
           </div>
         </CardHeader>
         {selection ? (

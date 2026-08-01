@@ -13,7 +13,7 @@ import {
   deleteUserData as deleteUserDataStores,
   type DeleteProgressCallback,
 } from "@/data/db";
-import { buildUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
+import { buildUserDataBackup, parseUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
 import { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
 export interface UserDataImportResult {
@@ -71,6 +71,11 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     vcenterGroupsImported: backup.vcenterGroups.length,
     vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
   };
+}
+
+/** Liest und übernimmt einen über den normalen Upload ausgewählten Backup-Export. */
+export async function importUserDataBackupFile(file: File): Promise<UserDataImportResult> {
+  return applyUserDataBackup(parseUserDataBackup(await file.text()));
 }
 
 /**

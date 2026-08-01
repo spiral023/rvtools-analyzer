@@ -15,6 +15,7 @@ import {
   importRvtoolsXlsx,
   type ImportProgress,
 } from "@/domain/services/importService";
+import { importUserDataBackupFile } from "@/domain/services/backupService";
 import {
   detectVropsTimeSeriesCsvFile,
   inferVropsTimeSeriesObjectTypeFromFileName,
@@ -154,8 +155,10 @@ export function isSupportedImportFile(file: File): boolean {
     name.endsWith(".xls") ||
     name.endsWith(".csv") ||
     name.endsWith(".txt") ||
+    name.endsWith(".json") ||
     file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    file.type === "text/csv"
+    file.type === "text/csv" ||
+    file.type === "application/json"
   );
 }
 
@@ -169,6 +172,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "vrops") return "vROps-Kapazitätsmetriken";
   if (kind === "vrops-timeseries") return "vROps-Zeitreihen";
   if (kind === "maintenance-windows") return "Wartungsfenster";
+  if (kind === "user-data-backup") return "Userdaten-Backup";
   return "RVTools";
 }
 
@@ -247,13 +251,16 @@ export function ImportProvider({ children }: { children: ReactNode }) {
           });
 
           try {
-            const result = await (file.name.toLocaleLowerCase("de-DE").endsWith(".txt")
-              ? importMaintenanceWindowsTxt(file, (progress) => {
+            const lowerCaseFileName = file.name.toLocaleLowerCase("de-DE");
+            const result = lowerCaseFileName.endsWith(".txt")
+              ? await importMaintenanceWindowsTxt(file, (progress) => {
                 patchItem(item.id, { progress });
               })
-              : importRvtoolsXlsx(file, (progress) => {
-                patchItem(item.id, { progress });
-              }));
+              : lowerCaseFileName.endsWith(".json")
+                ? await importUserDataBackupFile(file).then(() => ({ success: true, fileKind: "user-data-backup" as const, warnings: [], errors: [] }))
+                : await importRvtoolsXlsx(file, (progress) => {
+                  patchItem(item.id, { progress });
+                });
             const status: ImportItemStatus = result.success
               ? result.warnings.length > 0
                 ? "warning"

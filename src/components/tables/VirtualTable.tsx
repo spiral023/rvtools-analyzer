@@ -436,21 +436,28 @@ export function VirtualTable<T, TColumn = T>({
                   <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     {group.label}
                   </DropdownMenuLabel>
-                  {group.columns.map((column) => (
-                    <DropdownMenuCheckboxItem
-                      key={column.id}
-                      checked={column.getIsVisible()}
-                      // Die letzte sichtbare Spalte bleibt an, sonst bliebe eine Tabelle ohne Spalten zurück.
-                      disabled={column.getIsVisible() && visibleColumnCount <= 1}
-                      // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        column.toggleVisibility();
-                      }}
-                    >
-                      {columnPickerLabel(column)}
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  {group.columns.map((column) => {
+                    const item = (
+                      <DropdownMenuCheckboxItem
+                        key={column.id}
+                        checked={column.getIsVisible()}
+                        // Die letzte sichtbare Spalte bleibt an, sonst bliebe eine Tabelle ohne Spalten zurück.
+                        disabled={column.getIsVisible() && visibleColumnCount <= 1}
+                        // Das Menü bleibt offen, damit mehrere Spalten in einem Zug zugeschaltet werden können.
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          column.toggleVisibility();
+                        }}
+                      >
+                        {columnPickerLabel(column)}
+                      </DropdownMenuCheckboxItem>
+                    );
+                    return (
+                      <InfoTooltip key={column.id} entry={column.columnDef.meta?.info} side="left" align="center">
+                        {item}
+                      </InfoTooltip>
+                    );
+                  })}
                 </div>
               ))}
             </DropdownMenuContent>

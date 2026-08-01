@@ -36,9 +36,10 @@ describe("TechInfoOrgHierarchyTree", () => {
 
     expect(screen.getByText("CPU Demand Ø")).toBeInTheDocument();
     expect(screen.getByText("CPU-Intensität")).toBeInTheDocument();
-    expect(screen.getByText("800 MHz")).toBeInTheDocument();
+    expect(screen.getByText("0,8 GHz")).toBeInTheDocument();
     expect(screen.getByText("10 %")).toBeInTheDocument();
     expect(screen.getByText("16,7 %")).toBeInTheDocument();
+    expect(screen.queryByText("Ein / Aus")).not.toBeInTheDocument();
   });
 
   it("zeigt bei fehlenden optionalen Messwerten keinen Fehler, sondern Platzhalter", () => {

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useActiveSnapshotIds, useVms, useTechInfoLatestByVmNames, useAllTechInfoClientLatest } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -298,12 +298,12 @@ export default function TechInfo() {
     [serverVms, byVmName, orgMetricsByVmName],
   );
   const vmByNameForOrg = useMemo(() => new Map(scopeVms.map((vm) => [vm.vmName.trim().toLowerCase(), vm])), [scopeVms]);
-  /**
-   * Derselbe Datensatz, den die Export-Studio-Quelle „VM“ erzeugt. Er liefert dem
-   * Organisations-Drill-down den vollen Spaltenvorrat samt Pseudonymisierungsregeln.
-   */
-  const orgVmDataset = useMemo(
-    () => buildVmExportDataset(serverVms, snapshots, "Tech-Info · Organisation", workloadProfiles, workloadHosts, techInfoLatest),
+  const buildOrgDrilldownVmDataset = useCallback(
+    (vmNames: readonly string[]) => {
+      const selectedVmNames = new Set(vmNames.map(normalizeVmName));
+      const selectedVms = serverVms.filter((vm) => selectedVmNames.has(normalizeVmName(vm.vmName)));
+      return buildVmExportDataset(selectedVms, snapshots, "Tech-Info · Organisation", workloadProfiles, workloadHosts, techInfoLatest);
+    },
     [serverVms, snapshots, techInfoLatest, workloadHosts, workloadProfiles],
   );
 
@@ -374,7 +374,7 @@ export default function TechInfo() {
         </TabsContent>
 
         <TabsContent value="organisation" className="space-y-6">
-          <TechInfoOrganisationPanel sources={orgSources} search={filters.search} vmByName={vmByNameForOrg} vmDataset={orgVmDataset} onOpenVm={openVmDetail} />
+          <TechInfoOrganisationPanel sources={orgSources} search={filters.search} vmByName={vmByNameForOrg} buildDrilldownVmDataset={buildOrgDrilldownVmDataset} onOpenVm={openVmDetail} />
         </TabsContent>
       </Tabs>
       {vmDetailDialog}

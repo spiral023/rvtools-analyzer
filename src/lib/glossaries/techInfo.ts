@@ -295,7 +295,7 @@ export const TECHINFO_ORG_SECTIONS: Record<string, GlossaryEntry> = {
   hierarchyTable: {
     term: "Organisationshierarchie",
     description:
-      "Bereich, Abteilung und Person als auf- und zuklappbare Baumstruktur mit VM-Anzahl, Power-Status, Ressourcen, CPU Demand und Rightsizing-Potenzial je Ebene. Optionale vROps-Werte erscheinen nur bei vorhandener Datenbasis. Ein Klick auf eine Zeile filtert die VM-Liste darunter.",
+      "Bereich, Abteilung und Person als auf- und zuklappbare Baumstruktur mit VM-Anzahl, Ressourcen, CPU Demand und Rightsizing-Potenzial je Ebene. Optionale vROps-Werte erscheinen nur bei vorhandener Datenbasis. Ein Klick auf eine Zeile filtert die VM-Liste darunter.",
   },
   chart: {
     term: "Ressourcen je Bereich",
@@ -317,11 +317,6 @@ export const TECHINFO_ORG_COLUMNS: Record<string, GlossaryEntry> = {
     term: "Server-VMs",
     description: "Anzahl der Server-VMs, die dieser Ebene im aktuellen Rollenmodus zugeordnet sind.",
     source: TECH,
-  },
-  poweredOn: {
-    term: "Ein / Aus",
-    description: "Anzahl eingeschalteter und ausgeschalteter VMs dieser Ebene laut RVTools-Power-Status.",
-    source: "RVTools · vInfo",
   },
   vCpu: {
     term: "vCPU",

@@ -48,8 +48,9 @@ describe("UploadSnapshots", () => {
     expect(screen.getByText("RVTools-Snapshots")).toBeInTheDocument();
 
     const input = screen.getByLabelText(
-      /RVTools-, Tech-Info-, Netzwerk-, vROps-, Wartungsfenster-Datei oder ZIP-Archiv/i,
+      /RVTools-, Tech-Info-, Netzwerk-, vROps-, Wartungsfenster- oder Backup-Datei/i,
     );
+    expect(input).toHaveAttribute("accept", expect.stringContaining(".json"));
     const files = [new File(["a"], "a.xlsx"), new File(["b"], "SRV Wartungsfenster Tech-Info Server.txt", { type: "text/plain" })];
 
     fireEvent.change(input, { target: { files } });

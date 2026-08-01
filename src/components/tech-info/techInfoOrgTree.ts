@@ -83,7 +83,7 @@ export function formatRamGiB(memoryMiB: number): string {
 
 export function formatCpuDemandAverage(aggregate: TechInfoOrgAggregate): string {
   if (aggregate.cpuDemandVmCount === 0) return "—";
-  return `${aggregate.cpuDemandAverageMHzSum.toLocaleString("de-DE", { maximumFractionDigits: 0 })} MHz`;
+  return `${(aggregate.cpuDemandAverageMHzSum / 1_000).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GHz`;
 }
 
 export function formatCpuIntensity(aggregate: TechInfoOrgAggregate): string {
