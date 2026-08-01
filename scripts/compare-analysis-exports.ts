@@ -91,9 +91,12 @@ const oldVms = readVms(oldRoot);
 const newVms = readVms(newRoot);
 const oldMeta = JSON.parse(readFileSync(`${oldRoot}/meta.json`, "utf8"));
 const newMeta = JSON.parse(readFileSync(`${newRoot}/meta.json`, "utf8"));
+const exportedLevel = (meta: { rightsizing?: { level?: string } }, vms: Map<string, Row>) =>
+  meta.rightsizing?.level ?? [...vms.values()].find((row) => row.rightsizingLevel)?.rightsizingLevel ?? "(nicht exportiert)";
 
 console.log(`alt: ${oldRoot.split("/").pop()} — Format ${oldMeta.formatVersion}, Import ${oldMeta.timeSeries.importId}, ${oldVms.size} VMs mit Reihe`);
 console.log(`neu: ${newRoot.split("/").pop()} — Format ${newMeta.formatVersion}, Import ${newMeta.timeSeries.importId}, ${newVms.size} VMs mit Reihe`);
+console.log(`Rightsizing-Stufe: alt ${exportedLevel(oldMeta, oldVms)} → neu ${exportedLevel(newMeta, newVms)}`);
 console.log(oldMeta.timeSeries.importId === newMeta.timeSeries.importId
   ? "Gleiche importId: identische Messdaten, jede Abweichung stammt aus der Auswertungslogik."
   : "ACHTUNG: verschiedene Importe – Unterschiede können auch aus den Messdaten stammen.");
@@ -124,6 +127,8 @@ section("1  Vorhergesagte gegen tatsächliche Wirkung");
     line("zusätzlich nötige vCPU", (vms) => sum(vms, "additionalVcpu")),
     line("VMs mit Vergrößerung", (vms) => count(vms, (row) => (num(row, "additionalVcpu") ?? 0) > 0)),
     line("Summe „nächster Schritt“", (vms) => sum(vms, "nextReclaimStepVcpu")),
+    line("VMs mit Einzelkern-Engpass", (vms) => count(vms, (row) => row.flagSingleCoreBound === "1")),
+    line("Grow mit Einzelkern-Warnung", (vms) => count(vms, (row) => row.flagSingleCoreBound === "1" && (num(row, "additionalVcpu") ?? 0) > 0)),
   ]);
 
   console.log("\nRückhaltegründe:");
@@ -304,11 +309,12 @@ section("5  Nachrechnung der neuen Kennzahlen aus den Rohreihen");
     record("measuredCapacityMHz", cap, num(row, "measuredCapacityMHz"));
     record("measuredVcpu", vcpu, num(row, "measuredVcpu"));
 
-    // Peak-Pfad: P99 der Demand-Max-Reihe
+    // Peak-Pfad: alle von den geschlossenen Stufen verwendeten Perzentile.
     const maxSeries = demandMax.get(vmId);
     if (maxSeries) {
       const finite = sortedCopy([...maxSeries].filter((value) => Number.isFinite(value)));
       record("demandMaxP99MHz", quantile(finite, 0.99), num(row, "demandMaxP99MHz"));
+      record("demandMaxP995MHz", quantile(finite, 0.995), num(row, "demandMaxP995MHz"));
     }
 
     if (!cap || cap <= 0 || !vcpu) continue;
@@ -317,6 +323,8 @@ section("5  Nachrechnung der neuen Kennzahlen aus den Rohreihen");
     const costopUnderLoad: number[] = [];
     const concentration: number[] = [];
     let effectiveMax: number | null = null;
+    let singleCoreBoundHours = 0;
+    let hasSingleCoreObservations = false;
     const capSeries = capacity.get(vmId);
     const costopSeries = costop.get(vmId);
     const dispSeries = disparity.get(vmId);
@@ -330,9 +338,12 @@ section("5  Nachrechnung der neuen Kennzahlen aus den Rohreihen");
       if (utilization > 90) above90 += 1;
       if (utilization >= 25 && costopSeries && Number.isFinite(costopSeries[slot])) costopUnderLoad.push(costopSeries[slot]);
       const slotVcpu = vcpuSeries.get(vmId) && Number.isFinite(vcpuSeries.get(vmId)![slot]) ? vcpuSeries.get(vmId)![slot] : vcpu;
-      if (!dispSeries || !Number.isFinite(dispSeries[slot]) || slotVcpu <= 1 || utilization < 5) continue;
-      concentration.push((dispSeries[slot] / utilization) / slotVcpu);
+      if (!dispSeries || !Number.isFinite(dispSeries[slot]) || slotVcpu <= 1) continue;
+      hasSingleCoreObservations = true;
       const highestCore = Math.min(100, utilization + (dispSeries[slot] * (slotVcpu - 1)) / slotVcpu);
+      if (utilization >= 1 && highestCore >= 90 && utilization <= 60) singleCoreBoundHours += 1;
+      if (utilization < 5) continue;
+      concentration.push((dispSeries[slot] / utilization) / slotVcpu);
       if (highestCore > 0) {
         const effective = (slotVcpu * utilization) / highestCore;
         if (effectiveMax === null || effective > effectiveMax) effectiveMax = effective;
@@ -344,6 +355,7 @@ section("5  Nachrechnung der neuen Kennzahlen aus den Rohreihen");
     if (costopUnderLoad.length >= 12) record("costopUnderLoadP95Pct", quantile(sortedCopy(costopUnderLoad), 0.95), num(row, "costopUnderLoadP95Pct"));
     record("concentrationIndexP90", quantile(sortedCopy(concentration), 0.9), num(row, "concentrationIndexP90"));
     record("effectiveCoresMax", effectiveMax, num(row, "effectiveCoresMax"));
+    if (hasSingleCoreObservations) record("singleCoreBoundHours", singleCoreBoundHours, num(row, "singleCoreBoundHours"));
   }
 
   console.log(`unabhängig nachgerechnet für ${checked} VMs; gezeigt ist die absolute Abweichung zur exportierten Kennzahl.`);
@@ -478,10 +490,10 @@ section("8  VMs, die im Messzeitraum umkonfiguriert wurden");
 section("7  Vollständigkeit der neuen Spalten");
 {
   const columns = [
-    "demandP99MHz", "demandMaxP95MHz", "demandMaxP99MHz", "demandMaxMaximumMHz",
+    "demandP99MHz", "demandP995MHz", "demandMaxP95MHz", "demandMaxP99MHz", "demandMaxP995MHz", "demandMaxMaximumMHz",
     "measuredCapacityMHz", "measuredVcpu", "measuredMhzPerVcpu",
     "hoursAboveCapacity75", "hoursAboveCapacity90", "costopUnderLoadP95Pct", "loadHourCount",
-    "concentrationIndexP90", "effectiveCoresMax", "weeklyRepeatability", "weeklyPeakVariation",
+    "concentrationIndexP90", "effectiveCoresMax", "singleCoreBoundHours", "weeklyRepeatability", "weeklyPeakVariation",
     "mhzPerVcpu", "nextReclaimStepVcpu", "additionalVcpu",
   ];
   table(["Spalte", "belegt", "Anteil", "p50", "p95"],

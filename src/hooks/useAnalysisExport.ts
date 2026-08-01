@@ -17,6 +17,7 @@ import type {
 import { buildVmWorkloadProfiles } from "@/domain/services/vmWorkloadProfileService";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { buildAnalysisExportFiles, type AnalysisExportFile } from "@/lib/export/analysisExport";
+import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
 
 const UI_STATE_ID = "analysis-export";
 
@@ -83,6 +84,7 @@ function downloadZip(data: Uint8Array, fileName: string): void {
  * seine eigenen, eingefrorenen Snapshot-IDs mit — analog zu den VM-Profilen.
  */
 export function useAnalysisExport() {
+  const { level: rightsizingLevel } = useCpuRightsizingLevel();
   const [isExporting, setIsExporting] = useState(false);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
 
@@ -109,7 +111,7 @@ export function useAnalysisExport() {
 
       setProgressLabel("Berechne Profile und Rightsizing…");
       const profiles = buildVmWorkloadProfiles({ import: timeSeriesImport, objects, chunks, vms, hosts });
-      const candidates = buildVmRightsizingCandidates({ profiles, hosts });
+      const candidates = buildVmRightsizingCandidates({ profiles, hosts, level: rightsizingLevel });
 
       setProgressLabel("Schreibe Exportdateien…");
       const files = buildAnalysisExportFiles({
@@ -122,6 +124,7 @@ export function useAnalysisExport() {
         chunks,
         profiles,
         candidates,
+        rightsizingLevel,
         includeSeries: options.includeSeries,
         pseudonymize: options.pseudonymize,
         pseudonymSalt: salt,
@@ -145,7 +148,7 @@ export function useAnalysisExport() {
       setIsExporting(false);
       setProgressLabel(null);
     }
-  }, []);
+  }, [rightsizingLevel]);
 
   return { exportData, isExporting, progressLabel };
 }

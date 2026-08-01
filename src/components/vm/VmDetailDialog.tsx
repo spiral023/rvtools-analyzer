@@ -240,6 +240,7 @@ export function VmDetailDialog({
     { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity75) },
     { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity90) },
     { label: "Co-Stop unter Last P95", value: percent(workloadProfile.capacitySignals.costopUnderLoadP95Pct) },
+    { label: "Stunden Einzelkern-Engpass", value: workloadProfile.capacitySignals.singleCoreBoundHours === null ? "—" : String(workloadProfile.capacitySignals.singleCoreBoundHours) },
     { label: "Lastkonzentration", value: decimal(workloadProfile.capacitySignals.concentrationIndexP90) },
     { label: "Belastete Kerne (max.)", value: decimal(workloadProfile.capacitySignals.effectiveCoresMax) },
   ] : [];
@@ -264,6 +265,7 @@ export function VmDetailDialog({
     { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand) },
     { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady) },
     { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad) },
+    { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound) },
     { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores) },
     { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity) },
   ] : [];
@@ -313,7 +315,15 @@ export function VmDetailDialog({
         note: techInfo ? undefined : "Keine verknüpften Tech-Info-Daten vorhanden.",
       },
       { title: "Auslastungsprofil", fields: workloadFields, note: workloadProfile ? undefined : "Keine zugeordnete vROps-Zeitreihe vorhanden." },
-      { title: "CPU-Rightsizing", fields: rightsizingFields, note: rightsizing ? "Empfehlungen sind prüfpflichtig und werden nicht automatisch umgesetzt." : "Keine Rightsizing-Auswertung vorhanden." },
+      {
+        title: "CPU-Rightsizing",
+        fields: rightsizingFields,
+        note: rightsizing
+          ? (additional > 0 && rightsizing.flags.singleCoreBound
+            ? "Warnung: In anderen Stunden ist ein Kern gesättigt, obwohl die VM insgesamt Luft hat. Zusätzliche vCPU helfen in diesen Stunden nicht. Empfehlung gemeinsam mit dem Anwendungsmuster prüfen."
+            : "Empfehlungen sind prüfpflichtig und werden nicht automatisch umgesetzt.")
+          : "Keine Rightsizing-Auswertung vorhanden.",
+      },
       ...(client ? [{ title: "Ergänzende Client-Informationen", fields: clientFields }] : []),
       {
         title: "Plattform & Ressourcen",

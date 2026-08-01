@@ -9,8 +9,10 @@ import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
 import { resolveVmDetailTarget } from "@/lib/vmDetail";
 import type { NormalizedVm } from "@/domain/models/types";
+import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
 
 export function useVmDetailDialog(vms: NormalizedVm[]) {
+  const { level: rightsizingLevel } = useCpuRightsizingLevel();
   const [selectedVm, setSelectedVm] = useState<NormalizedVm | null>(null);
   const loadDetailRows = selectedVm !== null;
 
@@ -25,8 +27,8 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
     useTechInfoClientLatestByClientNames(techInfoVmNames, loadDetailRows);
   const workload = useVmWorkloadProfiles(null, loadDetailRows);
   const rightsizingCandidates = useMemo(
-    () => buildVmRightsizingCandidates({ profiles: workload.profiles, hosts: workload.hosts }),
-    [workload.hosts, workload.profiles],
+    () => buildVmRightsizingCandidates({ profiles: workload.profiles, hosts: workload.hosts, level: rightsizingLevel }),
+    [rightsizingLevel, workload.hosts, workload.profiles],
   );
 
   const matchedClient = useMemo(() => {

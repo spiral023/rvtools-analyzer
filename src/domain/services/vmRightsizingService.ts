@@ -1,18 +1,34 @@
-import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
+import type {
+  CpuRightsizingLevel,
+  NormalizedHost,
+  VmRightsizingCandidate,
+  VmRightsizingGroupSummary,
+  VmRightsizingGrowthGroupSummary,
+  VmWorkloadProfile,
+  VmWorkloadProfileMetricStats,
+  VmWorkloadShape,
+} from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL, hasRepeatableWeeklyPeak } from "@/domain/services/vmWorkloadProfileService";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
-/** Zielauslastung der empfohlenen vCPU-Größe beim P95-Bedarf. */
-const TARGET_UTILIZATION_P95 = 0.65;
-/**
- * Zweite Bedingung gegen die Lastspitze. Ohne sie richtet sich die Empfehlung allein
- * nach dem P95 *stündlicher Mittelwerte* – vROps liefert `cpuCpuDemandAvg`, womit
- * Spitzen innerhalb einer Stunde vollständig herausgemittelt sind. Eine VM mit kurzen,
- * heftigen Lastspitzen sähe dadurch harmlos aus und würde zu klein empfohlen. An 4.018
- * VMs gemessen liegt die Spitze im Median beim Doppelten des Stundenmittels, bei
- * `night-batch` und `variable` im P90 beim Siebenfachen.
- */
-const TARGET_UTILIZATION_PEAK = 0.9;
+export interface CpuRightsizingPolicy {
+  level: CpuRightsizingLevel;
+  label: string;
+  peakStatistic: "p95" | "p99" | "p995" | "maximum";
+  peakPercentile: number;
+  targetUtilizationP95: number;
+  targetUtilizationPeak: number;
+}
+
+/** Vier geschlossene, datenbelegte Stufen; die drei Stellgrößen bleiben gekoppelt. */
+export const CPU_RIGHTSIZING_POLICIES: Readonly<Record<CpuRightsizingLevel, CpuRightsizingPolicy>> = {
+  "very-conservative": { level: "very-conservative", label: "Sehr vorsichtig", peakStatistic: "maximum", peakPercentile: 1, targetUtilizationP95: 0.55, targetUtilizationPeak: 0.8 },
+  conservative: { level: "conservative", label: "Vorsichtig", peakStatistic: "p995", peakPercentile: 0.995, targetUtilizationP95: 0.6, targetUtilizationPeak: 0.85 },
+  balanced: { level: "balanced", label: "Ausgewogen", peakStatistic: "p99", peakPercentile: 0.99, targetUtilizationP95: 0.65, targetUtilizationPeak: 0.9 },
+  offensive: { level: "offensive", label: "Offensiv", peakStatistic: "p95", peakPercentile: 0.95, targetUtilizationP95: 0.7, targetUtilizationPeak: 0.95 },
+};
+
+export const DEFAULT_CPU_RIGHTSIZING_LEVEL: CpuRightsizingLevel = "balanced";
 /** Untergrenze der Empfehlung: gerade Zahl und gängige Mindestgröße gängiger Gast-Betriebssysteme. */
 const MIN_RECOMMENDED_VCPU = 2;
 /**
@@ -65,6 +81,8 @@ const HIGH_CPU_READY_PCT = 5;
  * dass eine Verkleinerung die VM schneller macht statt langsamer.
  */
 const COSTOP_UNDER_LOAD_PCT = 5;
+/** Ein voller Tag trennt wiederkehrende Einzelkern-Sättigung von sporadischen Stunden. */
+const SINGLE_CORE_BOUND_MIN_HOURS = 24;
 /**
  * Ab diesem Konzentrationsindex trägt ein Bruchteil der vCPU die Last. Die erwartete
  * zweigipflige Verteilung besteht nicht – der Median liegt bei 0,061 –, weshalb der Wert
@@ -99,6 +117,7 @@ function ceilToEven(value: number): number {
 export interface BuildVmRightsizingCandidatesInput {
   profiles: readonly VmWorkloadProfile[];
   hosts: readonly NormalizedHost[];
+  level?: CpuRightsizingLevel;
 }
 
 /**
@@ -108,6 +127,8 @@ export interface BuildVmRightsizingCandidatesInput {
  */
 export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidatesInput): VmRightsizingCandidate[] {
   const hostByKey = new Map(input.hosts.map((host) => [host.hostKey, host]));
+  const level = input.level ?? DEFAULT_CPU_RIGHTSIZING_LEVEL;
+  const policy = CPU_RIGHTSIZING_POLICIES[level];
 
   return input.profiles.flatMap((profile): VmRightsizingCandidate[] => {
     if (profile.vcpu === null || profile.vcpu <= 0) return [];
@@ -119,10 +140,9 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     // die beschreibt der Host von heute den Zeitraum von gestern falsch.
     const mhzPerVcpu = profile.capacitySignals.mhzPerVcpu ?? mhzPerCore;
     const usedVcpuEquivalentP95 = mhzPerVcpu !== null && profile.demand.p95 !== null ? profile.demand.p95 / mhzPerVcpu : null;
-    // P99 des höchsten Demand *innerhalb* der Stunde, nicht dessen Monatsmaximum: jenes
-    // ist ein einzelner 20-Sekunden-Wert und würde 27,6 % statt 2,9 % der VMs als zu
-    // klein ausweisen. Fällt die Metrik aus, bleibt das Maximum der Stundenmittel.
-    const peakDemandMHz = profile.demandMax.p99 ?? profile.demand.maximum;
+    // Das Perzentil ist die wirksamste Stellschraube und wird durch die globale Stufe
+    // gewählt. Fällt Demand Max aus, bleibt das Maximum der Stundenmittel als Fallback.
+    const peakDemandMHz = peakDemandForPolicy(profile.demandMax, policy) ?? profile.demand.maximum;
     const usedVcpuEquivalentPeak = mhzPerVcpu !== null && peakDemandMHz !== null ? peakDemandMHz / mhzPerVcpu : null;
 
     // Bedarfsgerechte Zielgröße: was die Messung allein hergibt, ohne Zurückhaltung und
@@ -130,8 +150,8 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     // konfigurierte VM überhaupt sichtbar. Bleibt auch dann stehen, wenn keine
     // Empfehlung ausgesprochen wird.
     const demandBasedVcpu = usedVcpuEquivalentP95 === null ? null : ceilToEven(Math.max(
-      usedVcpuEquivalentP95 / TARGET_UTILIZATION_P95,
-      (usedVcpuEquivalentPeak ?? 0) / TARGET_UTILIZATION_PEAK,
+      usedVcpuEquivalentP95 / policy.targetUtilizationP95,
+      (usedVcpuEquivalentPeak ?? 0) / policy.targetUtilizationPeak,
       MIN_RECOMMENDED_VCPU,
     ));
 
@@ -168,18 +188,21 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     const manyVcpuLowDemand = profile.vcpu >= MANY_VCPU_MIN && usedVcpuEquivalentP95 !== null && usedVcpuEquivalentP95 <= profile.vcpu * MANY_VCPU_LOW_DEMAND_RATIO_MAX;
     const highCpuReady = profile.ready.p95 !== null && profile.ready.p95 > HIGH_CPU_READY_PCT;
     const costopUnderLoad = (profile.capacitySignals.costopUnderLoadP95Pct ?? 0) > COSTOP_UNDER_LOAD_PCT;
+    const singleCoreBound = (profile.capacitySignals.singleCoreBoundHours ?? 0) >= SINGLE_CORE_BOUND_MIN_HOURS;
     const concentratedOnFewCores = (profile.capacitySignals.concentrationIndexP90 ?? 0) >= CONCENTRATION_INDEX_MIN;
     return [{
       objectKey: profile.objectKey,
       vmName: profile.vmName,
       clusterKey: profile.clusterKey,
       clusterName: profile.clusterName,
+      resourcePool: profile.resourcePool,
       hostName: host?.host ?? profile.host,
       vcpu: profile.vcpu,
       shape: profile.shape,
       intensity: profile.intensity,
       behaviorClass: profile.behaviorClass,
       confidence: profile.confidence,
+      rightsizingLevel: level,
       demand: profile.demand,
       ready: profile.ready,
       mhzPerCore,
@@ -192,7 +215,7 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       reclaimableVcpu,
       nextReclaimStepVcpu,
       additionalVcpu,
-      flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, concentratedOnFewCores, sustainedNearCapacity },
+      flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, singleCoreBound, concentratedOnFewCores, sustainedNearCapacity },
     }];
   }).sort((left, right) => (right.reclaimableVcpu ?? -1) - (left.reclaimableVcpu ?? -1));
 }
@@ -227,6 +250,7 @@ export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate)
   return candidate.flags.manyVcpuLowDemand
     || candidate.flags.highCpuReady
     || candidate.flags.costopUnderLoad
+    || candidate.flags.singleCoreBound
     || candidate.flags.concentratedOnFewCores
     || (candidate.reclaimableVcpu ?? 0) > 0
     || (candidate.additionalVcpu ?? 0) > 0;
@@ -272,6 +296,44 @@ export function summarizeReclaimableVcpuByShape(candidates: readonly VmRightsizi
   return summarizeBy(candidates, (candidate) => ({ key: candidate.shape, label: VM_WORKLOAD_SHAPE_LABEL[candidate.shape] }));
 }
 
+/**
+ * Bündelt gleichartige Grow-Kandidaten ohne zusätzlichen Risikoschwellwert. Einzelziele
+ * bleiben erhalten, gemeinsame Ressourcenpool-Entscheidungen werden aber sichtbar.
+ */
+export function summarizeGrowthCandidatesByResourcePool(
+  candidates: readonly VmRightsizingCandidate[],
+): VmRightsizingGrowthGroupSummary[] {
+  const groups = new Map<string, VmRightsizingGrowthGroupSummary>();
+  for (const candidate of candidates) {
+    if ((candidate.additionalVcpu ?? 0) <= 0 || candidate.vcpu === null) continue;
+    const resourcePool = candidate.resourcePool ?? "Ohne Ressourcenpool";
+    const key = `${resourcePool}\u0000${candidate.vcpu}\u0000${candidate.shape}`;
+    const recommended = candidate.recommendedVcpu ?? candidate.vcpu;
+    const group = groups.get(key) ?? {
+      key,
+      resourcePool,
+      vcpu: candidate.vcpu,
+      shape: candidate.shape,
+      vmCount: 0,
+      totalAdditionalVcpu: 0,
+      recommendedVcpuMin: recommended,
+      recommendedVcpuMax: recommended,
+      costopUnderLoadCount: 0,
+      singleCoreBoundCount: 0,
+    };
+    group.vmCount += 1;
+    group.totalAdditionalVcpu += candidate.additionalVcpu ?? 0;
+    group.recommendedVcpuMin = Math.min(group.recommendedVcpuMin, recommended);
+    group.recommendedVcpuMax = Math.max(group.recommendedVcpuMax, recommended);
+    if (candidate.flags.costopUnderLoad) group.costopUnderLoadCount += 1;
+    if (candidate.flags.singleCoreBound) group.singleCoreBoundCount += 1;
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .filter((group) => group.vmCount > 1)
+    .sort((left, right) => right.totalAdditionalVcpu - left.totalAdditionalVcpu);
+}
+
 function summarizeBy(
   candidates: readonly VmRightsizingCandidate[],
   keyOf: (candidate: VmRightsizingCandidate) => { key: string; label: string },
@@ -302,4 +364,13 @@ function summarizeBy(
         : null,
     }))
     .sort((left, right) => right.reclaimableVcpu - left.reclaimableVcpu);
+}
+
+function peakDemandForPolicy(stats: VmWorkloadProfileMetricStats, policy: CpuRightsizingPolicy): number | null {
+  switch (policy.peakStatistic) {
+    case "p95": return stats.p95;
+    case "p99": return stats.p99;
+    case "p995": return stats.p995;
+    case "maximum": return stats.maximum;
+  }
 }

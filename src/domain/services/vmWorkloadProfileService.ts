@@ -247,6 +247,7 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         vmName: vm.vmName,
         clusterKey: object.clusterKey,
         clusterName: vm.cluster,
+        resourcePool: vm.resourcePool,
         hostKey: object.hostKey,
         host: vm.host,
         vcpu: vm.cpuCount,
@@ -272,14 +273,21 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
 
 function buildMetricStats(values: readonly (number | null)[], expectedSlots: number): VmWorkloadProfileMetricStats {
   const finite = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  // Die Profile werden von mehreren Tabs geteilt und sind teuer. Alle Perzentile
+  // deshalb aus genau einer Sortierung lesen, statt die Reihe je Kennzahl neu zu sortieren.
+  const sorted = [...finite].sort((left, right) => left - right);
+  const fromSorted = (fraction: number): number | null => sorted.length
+    ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))]
+    : null;
   return {
     expectedSlots,
     sampleCount: finite.length,
     coverageRatio: expectedSlots > 0 ? finite.length / expectedSlots : 0,
     average: average(finite),
-    p50: percentile(finite, 0.5),
-    p95: percentile(finite, 0.95),
-    p99: percentile(finite, 0.99),
+    p50: fromSorted(0.5),
+    p95: fromSorted(0.95),
+    p995: fromSorted(0.995),
+    p99: fromSorted(0.99),
     // `Math.max(...finite)` würde bei einem Monat Stundenwerten über alle VMs hinweg
     // den Aufrufstack sprengen; die Schleife bleibt unabhängig von der Reihenlänge.
     maximum: finite.length ? finite.reduce((left, right) => (right > left ? right : left), finite[0]) : null,
@@ -292,6 +300,10 @@ const COSTOP_LOAD_MIN_CAPACITY_PCT = 25;
 const CONCENTRATION_MIN_CORE_PCT = 5;
 /** Ohne diese Zahl an Laststunden ist ein P95 des Co-Stop nicht belastbar. */
 const COSTOP_MIN_LOAD_HOURS = 12;
+/** Datenbelegte Grenzen des Einzelkern-Signals, siehe Analyseabschnitt 21. */
+const SINGLE_CORE_LOAD_MIN_PCT = 1;
+const SINGLE_CORE_SATURATION_PCT = 90;
+const SINGLE_CORE_VM_HEADROOM_MAX_PCT = 60;
 
 interface BuildCapacitySignalsInput {
   hourGrid: readonly HourGridEntry[];
@@ -320,6 +332,7 @@ function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySi
     loadHourCount: null,
     concentrationIndexP90: null,
     effectiveCoresMax: null,
+    singleCoreBoundHours: null,
   };
   const totalCapacityMHz = lastFiniteValue(input.hourGrid, input.capacitySeries);
   const configuredVcpu = lastFiniteValue(input.hourGrid, input.vcpuSeries) ?? input.fallbackVcpu;
@@ -331,6 +344,8 @@ function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySi
   const costopUnderLoad: number[] = [];
   const concentrationIndices: number[] = [];
   let effectiveCoresMax: number | null = null;
+  let singleCoreBoundHours = 0;
+  let hasSingleCoreObservations = false;
 
   for (const entry of input.hourGrid) {
     const demand = input.demandSeries.get(entry.timestampUtc);
@@ -359,14 +374,19 @@ function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySi
 
     const vcpu = finiteOrNull(input.vcpuSeries.get(entry.timestampUtc)) ?? configuredVcpu;
     const disparity = finiteOrNull(input.disparitySeries.get(entry.timestampUtc));
-    if (disparity === null || vcpu === null || vcpu <= 1 || utilizationPct < CONCENTRATION_MIN_CORE_PCT) continue;
+    if (disparity === null || vcpu === null || vcpu <= 1) continue;
+    hasSingleCoreObservations = true;
+    const highestCorePct = Math.min(100, utilizationPct + (disparity * (vcpu - 1)) / vcpu);
+    if (utilizationPct >= SINGLE_CORE_LOAD_MIN_PCT
+      && highestCorePct >= SINGLE_CORE_SATURATION_PCT
+      && utilizationPct <= SINGLE_CORE_VM_HEADROOM_MAX_PCT) singleCoreBoundHours += 1;
+    if (utilizationPct < CONCENTRATION_MIN_CORE_PCT) continue;
     // `utilizationPct` ist zugleich die mittlere Auslastung eines einzelnen Kerns, weil
     // die Kapazität alle vCPU umfasst. Der Index wird damit 1, wenn ein Kern voll läuft
     // und alle anderen ruhen, und 0 bei gleichmäßiger Verteilung.
     concentrationIndices.push((disparity / utilizationPct) / vcpu);
     // Höchste Kernlast aus mittlerer Last und Abstand; daraus, wie viele Kerne die
     // Gesamtlast tatsächlich tragen. Mehr vCPU als dieser Wert können nichts bewirken.
-    const highestCorePct = Math.min(100, utilizationPct + (disparity * (vcpu - 1)) / vcpu);
     if (highestCorePct > 0) {
       const effectiveCores = (vcpu * utilizationPct) / highestCorePct;
       if (effectiveCoresMax === null || effectiveCores > effectiveCoresMax) effectiveCoresMax = effectiveCores;
@@ -383,6 +403,7 @@ function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySi
     loadHourCount: costopUnderLoad.length,
     concentrationIndexP90: percentile(concentrationIndices, 0.9),
     effectiveCoresMax,
+    singleCoreBoundHours: hasSingleCoreObservations ? singleCoreBoundHours : null,
   };
 }
 

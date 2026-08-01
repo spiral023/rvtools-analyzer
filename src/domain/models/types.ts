@@ -919,6 +919,8 @@ export interface VmWorkloadProfileMetricStats {
   average: number | null;
   p50: number | null;
   p95: number | null;
+  /** 99,5. Perzentil; konservativer Peak-Pfad der Rightsizing-Stufe „Vorsichtig“. */
+  p995: number | null;
   /**
    * Gebraucht für den Peak-Pfad des Rightsizings. Das Maximum von `vmCpuDemandMaxMHz`
    * ist ein 20-Sekunden-Wert eines einzelnen Zeitpunkts im Monat; an 4.018 VMs gemessen
@@ -1024,7 +1026,16 @@ export interface VmCpuCapacitySignals {
    * Obergrenze dessen, was mehr vCPU überhaupt nützen könnten.
    */
   effectiveCoresMax: number | null;
+  /**
+   * Stunden mit geschätzter Sättigung des heißesten Kerns (≥ 90 %), während die VM
+   * insgesamt höchstens 60 % ihrer Kapazität nutzt. `null`, wenn Demand, Disparity,
+   * Kapazität oder eine auswertbare Mehrkern-Konfiguration fehlen.
+   */
+  singleCoreBoundHours: number | null;
 }
+
+/** Geschlossene, global gültige Risikostufe des CPU-Rightsizings. */
+export type CpuRightsizingLevel = "very-conservative" | "conservative" | "balanced" | "offensive";
 
 export interface VmWorkloadHourlyPoint {
   timestampUtc: number;
@@ -1049,6 +1060,7 @@ export interface VmWorkloadProfile {
   vmName: string;
   clusterKey: string | null;
   clusterName: string | null;
+  resourcePool: string | null;
   hostKey: string | null;
   host: string | null;
   vcpu: number | null;
@@ -1090,12 +1102,15 @@ export interface VmRightsizingCandidate {
   vmName: string;
   clusterKey: string | null;
   clusterName: string | null;
+  resourcePool: string | null;
   hostName: string | null;
   vcpu: number | null;
   shape: VmWorkloadShape;
   intensity: VmWorkloadIntensity;
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
+  /** Globale Stufe, mit der diese Kandidatenbewertung berechnet wurde. */
+  rightsizingLevel: CpuRightsizingLevel;
   demand: VmWorkloadProfileMetricStats;
   ready: VmWorkloadProfileMetricStats;
   /** MHz pro Core des zum Importzeitpunkt zugeordneten Hosts; Näherung, da VMs migrieren können. */
@@ -1166,11 +1181,27 @@ export interface VmRightsizingCandidate {
      * Der einzige direkte Nachweis dafür, dass eine Verkleinerung die VM schneller macht.
      */
     costopUnderLoad: boolean;
+    /** Ein Kern ist wiederholt gesättigt, obwohl die VM als Ganzes Kapazitätsluft hat. */
+    singleCoreBound: boolean;
     /** Die Last konzentriert sich auf einen Bruchteil der vCPU; zusätzliche Kerne bleiben wirkungslos. */
     concentratedOnFewCores: boolean;
     /** Dauerhaft nahe der Kapazitätsgrenze – Grundlage jeder Vergrößerungsempfehlung. */
     sustainedNearCapacity: boolean;
   };
+}
+
+/** Gemeinsame Grow-Bewertung gleichartiger VMs eines Ressourcenpools. */
+export interface VmRightsizingGrowthGroupSummary {
+  key: string;
+  resourcePool: string;
+  vcpu: number;
+  shape: VmWorkloadShape;
+  vmCount: number;
+  totalAdditionalVcpu: number;
+  recommendedVcpuMin: number;
+  recommendedVcpuMax: number;
+  costopUnderLoadCount: number;
+  singleCoreBoundCount: number;
 }
 
 /** Je Cluster oder Verhaltensklasse aufsummierte, potenziell rückgewinnbare vCPU-Kapazität. */

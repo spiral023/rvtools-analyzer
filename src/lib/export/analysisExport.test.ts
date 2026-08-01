@@ -166,6 +166,7 @@ function buildFiles(overrides: Partial<Parameters<typeof buildAnalysisExportFile
     chunks: [makeChunk({ vmCpuDemandAvgMHz: DEMAND })],
     profiles: [],
     candidates: [],
+    rightsizingLevel: "balanced",
     includeSeries: true,
     pseudonymize: false,
     pseudonymSalt: "salt",
@@ -198,6 +199,14 @@ describe("buildAnalysisExportFiles", () => {
     const meta = JSON.parse(fileByPath(buildFiles(), "meta.json"));
     expect(meta.missingSeries).toContain("vmCpuDemandMaxMHz");
     expect(meta.series.map((entry: { metric: string }) => entry.metric)).toEqual(["vmCpuDemandAvgMHz"]);
+    expect(meta.rightsizing).toMatchObject({
+      level: "balanced",
+      label: "Ausgewogen",
+      peakStatistic: "p99",
+      peakPercentile: 0.99,
+      targetUtilizationP95: 0.65,
+      targetUtilizationPeak: 0.9,
+    });
   });
 
   it("lässt die Reihen weg, wenn nur Kennzahlen gefragt sind", () => {
@@ -232,12 +241,12 @@ describe("buildAnalysisExportFiles", () => {
         objectKey: "vrops-vm-1",
         rvtoolsObjectKey: "vm-key-1",
         vmName: "PROD-SQL-01",
-        demandMax: metricStatsFixture({ p95: 3_000, p99: 5_400, maximum: 20_000 }),
+        demandMax: metricStatsFixture({ p95: 3_000, p99: 5_400, p995: 7_200, maximum: 20_000 }),
         capacitySignals: capacitySignalsFixture({
           totalCapacityMHz: 16_000, configuredVcpu: 8, mhzPerVcpu: 2_000,
           hoursAboveCapacity75: 30, hoursAboveCapacity90: 12,
           costopUnderLoadP95Pct: 9.6, loadHourCount: 120,
-          concentrationIndexP90: 0.52, effectiveCoresMax: 5.125,
+          concentrationIndexP90: 0.52, effectiveCoresMax: 5.125, singleCoreBoundHours: 48,
         }),
         signals: classificationSignalsFixture({ weeklyRepeatability: 0.81, weeklyPeakVariation: 0.12 }),
       })],
@@ -248,7 +257,7 @@ describe("buildAnalysisExportFiles", () => {
         demandBasedVcpu: 12,
         additionalVcpu: 4,
         recommendedVcpu: 12,
-        flags: { manyVcpuLowDemand: false, highCpuReady: false, costopUnderLoad: true, concentratedOnFewCores: true, sustainedNearCapacity: true },
+        flags: { manyVcpuLowDemand: false, highCpuReady: false, costopUnderLoad: true, singleCoreBound: true, concentratedOnFewCores: true, sustainedNearCapacity: true },
       })],
     });
     const [headerLine, row] = fileByPath(files, "vms.csv").split("\n");
@@ -257,16 +266,20 @@ describe("buildAnalysisExportFiles", () => {
     const cellOf = (name: string) => cells[headers.indexOf(name)];
 
     expect(cellOf("demandMaxP99MHz")).toBe("5400");
+    expect(cellOf("demandMaxP995MHz")).toBe("7200");
     expect(cellOf("measuredCapacityMHz")).toBe("16000");
     expect(cellOf("measuredMhzPerVcpu")).toBe("2000");
     expect(cellOf("hoursAboveCapacity75")).toBe("30");
     expect(cellOf("costopUnderLoadP95Pct")).toBe("9.6");
     expect(cellOf("concentrationIndexP90")).toBe("0.52");
     expect(cellOf("effectiveCoresMax")).toBe("5.125");
+    expect(cellOf("singleCoreBoundHours")).toBe("48");
     expect(cellOf("weeklyRepeatability")).toBe("0.81");
     expect(cellOf("weeklyPeakVariation")).toBe("0.12");
     expect(cellOf("additionalVcpu")).toBe("4");
     expect(cellOf("flagCostopUnderLoad")).toBe("1");
+    expect(cellOf("flagSingleCoreBound")).toBe("1");
+    expect(cellOf("rightsizingLevel")).toBe("balanced");
     expect(cellOf("flagSustainedNearCapacity")).toBe("1");
     expect(cellOf("flagManyVcpuLowDemand")).toBe("0");
   });

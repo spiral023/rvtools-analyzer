@@ -29,6 +29,7 @@ import type { NormalizedVm, TechInfoClientLatest } from "@/domain/models/types";
 import type { TechInfoOrgVmSource } from "@/domain/services/techInfoOrganisationService";
 import { TechInfoOrganisationPanel } from "@/components/tech-info/TechInfoOrganisationPanel";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
+import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
 import { buildVmExportDataset } from "@/lib/export/exportStudio";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildTechInfoOrgMetricsByVmName } from "@/lib/techInfoOrgMetrics";
@@ -123,6 +124,7 @@ const unassignedColumns: ColumnDef<NormalizedVm, unknown>[] = [
 ];
 
 export default function TechInfo() {
+  const { level: rightsizingLevel } = useCpuRightsizingLevel();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab: TechInfoTab = searchParams.get("tab") === "organisation" ? "organisation" : "systeme";
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
@@ -267,8 +269,8 @@ export default function TechInfo() {
   }, [rows]);
 
   const rightsizingCandidates = useMemo(
-    () => buildVmRightsizingCandidates({ profiles: workloadProfiles, hosts: workloadHosts }),
-    [workloadHosts, workloadProfiles],
+    () => buildVmRightsizingCandidates({ profiles: workloadProfiles, hosts: workloadHosts, level: rightsizingLevel }),
+    [rightsizingLevel, workloadHosts, workloadProfiles],
   );
   const orgMetricsByVmName = useMemo(
     () => buildTechInfoOrgMetricsByVmName(workloadProfiles, rightsizingCandidates),

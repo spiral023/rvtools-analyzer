@@ -189,12 +189,12 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
   usedVcpuEquivalentPeak: {
     term: "Genutzt Spitze",
-    description: "Dasselbe für die Lastspitze innerhalb der Stunde. Der P95 stündlicher Mittelwerte verbirgt kurze Spitzen – über den Bestand gemessen liegt die tatsächliche Spitze im Median beim Doppelten des Stundenmittels. Verwendet wird das 99.-Perzentil dieser Spitzenwerte, nicht ihr Monatsmaximum: Jenes ist ein einzelner 20-Sekunden-Wert und würde ein Viertel aller VMs als zu klein ausweisen.",
+    description: "Dasselbe für die Lastspitze innerhalb der Stunde. Der P95 stündlicher Mittelwerte verbirgt kurze Spitzen – über den Bestand gemessen liegt die tatsächliche Spitze im Median beim Doppelten des Stundenmittels. Die globale Rightsizing-Stufe wählt geschlossen zwischen P95, P99, P99,5 und Maximum; es gibt keinen separaten Peak-Regler.",
     source: VROPS,
   },
   demandBasedVcpu: {
     term: "Bedarfsgerecht",
-    description: "Zielgröße, die der gemessene Bedarf allein hergibt: kleinste gerade vCPU-Zahl mit höchstens 65 % Auslastung beim P95 und höchstens 90 % bei der Lastspitze. Bewusst nicht auf die heutige Größe gedeckelt – liegt der Wert darüber, ist die VM zu klein konfiguriert. Das Endziel der Planung, nicht der nächste Schritt, und auch dort ausgewiesen, wo keine Empfehlung ausgesprochen wird.",
+    description: "Zielgröße, die der gemessene Bedarf allein hergibt. Peak-Perzentil sowie P95- und Spitzen-Zielauslastung kommen als geschlossene Kombination aus der globalen Rightsizing-Stufe. Bewusst nicht auf die heutige Größe gedeckelt – liegt der Wert darüber, ist die VM zu klein konfiguriert. Das Endziel der Planung, nicht der nächste Schritt, und auch dort ausgewiesen, wo keine Empfehlung ausgesprochen wird.",
     source: "berechnet",
   },
   additionalVcpu: {
@@ -205,6 +205,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   costopUnderLoad: {
     term: "Co-Stop unter Last",
     description: "95.-Perzentil des Peak-vCPU-Co-Stop, ausgewertet nur in Stunden über 25 % Kapazität. Co-Stop entsteht, wenn der Hypervisor die vCPU einer breiten VM nicht gleichzeitig einplanen kann – es ist der einzige direkte Nachweis, dass die vCPU-Anzahl selbst Leistung kostet und eine Verkleinerung die VM schneller macht. Über alle Stunden gerechnet wäre der Wert wertlos, weil fast jede VM irgendwann einen Ausschlag zeigt.",
+    source: VROPS,
+  },
+  singleCoreBound: {
+    term: "Einzelkern-Engpass",
+    description: "Mindestens 24 Stunden, in denen der geschätzte heißeste Kern zu mindestens 90 % ausgelastet ist, während die VM insgesamt höchstens 60 % ihrer Kapazität nutzt. Die Anwendung nutzt einen Kern; zusätzliche vCPU können nie helfen. Eigenständiges Verkleinerungsargument und sichtbare Warnung bei Vergrößerungsvorschlägen.",
     source: VROPS,
   },
   concentrationIndex: {
@@ -244,6 +249,10 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
 };
 
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
+  growthGroups: {
+    term: "Gemeinsam zu prüfende Vergrößerungen",
+    description: "Bündelt mehrere Grow-Kandidaten mit gleichem Ressourcenpool, gleicher Ausgangsgröße und gleichem Lastmuster. Die Einzelziele bleiben erhalten, die operative Prüfung erfolgt aber gemeinsam: synchron verbreiterte VMs können Scheduling-Breite und Co-Stop für die ganze Gruppe erhöhen.",
+  },
   densityGrid: {
     term: "Konfigurierte vCPU vs. CPU Demand P95 %",
     description: "Das Raster gruppiert VMs nach konfigurierten vCPU (Spalten) und CPU-Bedarf in stark ausgelasteten Stunden (Zeilen). P95 bedeutet: In 95 % der gemessenen Stunden lag der Bedarf höchstens bei diesem Wert – einzelne kurze Spitzen zählen nicht. Die Zahl zeigt die VM-Anzahl, die Farbtiefe deren Dichte. Rechts unten liegen Kandidaten für eine Verkleinerung; gelbe und rote Zeilen ab 90 % weisen auf möglicherweise zu klein konfigurierte VMs hin. Belegte Kacheln öffnen per Klick die zugehörigen VMs mit ihren wichtigsten Rightsizing-Metriken.",

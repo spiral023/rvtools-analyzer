@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
 import { capacitySignalsFixture, classificationSignalsFixture, metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
-import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
+import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeGrowthCandidatesByResourcePool, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
 
 function metricStats(overrides: Partial<VmWorkloadProfileMetricStats>): VmWorkloadProfileMetricStats {
   return metricStatsFixture(overrides);
@@ -282,6 +282,22 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.demandBasedVcpu).toBe(6);
   });
 
+  it("wendet die vier globalen Stufen als geschlossene Kombinationen an", () => {
+    const workload = profile({
+      objectKey: "vm-stufen",
+      vcpu: 20,
+      demand: metricStats({ p95: 1_000 }),
+      demandMax: metricStats({ p95: 4_500, p99: 7_200, p995: 9_000, maximum: 12_000 }),
+    });
+    const target = (level: "very-conservative" | "conservative" | "balanced" | "offensive") =>
+      buildVmRightsizingCandidates({ profiles: [workload], hosts, level })[0];
+
+    expect(target("very-conservative")).toMatchObject({ rightsizingLevel: "very-conservative", demandBasedVcpu: 16 });
+    expect(target("conservative")).toMatchObject({ rightsizingLevel: "conservative", demandBasedVcpu: 12 });
+    expect(target("balanced")).toMatchObject({ rightsizingLevel: "balanced", demandBasedVcpu: 8 });
+    expect(target("offensive")).toMatchObject({ rightsizingLevel: "offensive", demandBasedVcpu: 6 });
+  });
+
   it("markiert Co-Stop unter Last und Lastkonzentration auf wenige Kerne", () => {
     const [candidate] = buildVmRightsizingCandidates({
       profiles: [profile({
@@ -298,6 +314,20 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.flags.costopUnderLoad).toBe(true);
     expect(candidate.flags.concentratedOnFewCores).toBe(true);
     expect(isNotableRightsizingCandidate(candidate)).toBe(true);
+  });
+
+  it("markiert den Einzelkern-Engpass ab 24 Stunden als eigenständiges Argument", () => {
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vm-23h", capacitySignals: capacitySignalsFixture({ singleCoreBoundHours: 23 }), demand: metricStats({ p95: 1_300 }) }),
+        profile({ objectKey: "vm-24h", capacitySignals: capacitySignalsFixture({ singleCoreBoundHours: 24 }), demand: metricStats({ p95: 1_300 }) }),
+      ],
+      hosts,
+    });
+    expect(candidates.find((candidate) => candidate.objectKey === "vm-23h")?.flags.singleCoreBound).toBe(false);
+    const flagged = candidates.find((candidate) => candidate.objectKey === "vm-24h")!;
+    expect(flagged.flags.singleCoreBound).toBe(true);
+    expect(isNotableRightsizingCandidate(flagged)).toBe(true);
   });
 
   it("empfiehlt nie unter zwei vCPU", () => {
@@ -355,6 +385,41 @@ describe("summarizeReclaimableVcpuByCluster / summarizeReclaimableVcpuByBehavior
 
     const byBehavior = summarizeReclaimableVcpuByBehaviorClass(candidates);
     expect(byBehavior.map((entry) => entry.label)).toEqual(["Gering genutzt", "Dauerlast"]);
+  });
+});
+
+describe("summarizeGrowthCandidatesByResourcePool", () => {
+  it("bündelt gleichartige Grow-Kandidaten und zählt Konfliktsignale", () => {
+    const growProfile = (objectKey: string, costop: number, singleCoreBoundHours: number) => profile({
+      objectKey,
+      resourcePool: "Pool HIGH",
+      vcpu: 4,
+      shape: "business-hours",
+      demand: metricStats({ p95: 5_000 }),
+      capacitySignals: capacitySignalsFixture({
+        totalCapacityMHz: 4_000,
+        configuredVcpu: 4,
+        mhzPerVcpu: 1_000,
+        hoursAboveCapacity75: 30,
+        costopUnderLoadP95Pct: costop,
+        singleCoreBoundHours,
+      }),
+    });
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [growProfile("vm-1", 8, 0), growProfile("vm-2", 0, 48)],
+      hosts,
+    });
+    expect(summarizeGrowthCandidatesByResourcePool(candidates)).toEqual([expect.objectContaining({
+      resourcePool: "Pool HIGH",
+      vcpu: 4,
+      shape: "business-hours",
+      vmCount: 2,
+      totalAdditionalVcpu: 8,
+      recommendedVcpuMin: 8,
+      recommendedVcpuMax: 8,
+      costopUnderLoadCount: 1,
+      singleCoreBoundCount: 1,
+    })]);
   });
 });
 

@@ -12,6 +12,7 @@
  * Dezimaltrennzeichen, ISO-Zeitstempel, keine Einheiten in den Werten.
  */
 import type {
+  CpuRightsizingLevel,
   NormalizedCluster,
   NormalizedHost,
   NormalizedVm,
@@ -23,6 +24,7 @@ import type {
   VropsTimeSeriesImportedObject,
   VropsTimeSeriesMetricKey,
 } from "@/domain/models/types";
+import { CPU_RIGHTSIZING_POLICIES } from "@/domain/services/vmRightsizingService";
 import {
   COUNT_ENCODING,
   MHZ_ENCODING,
@@ -39,7 +41,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * Version des Exportformats. Erhöhen, sobald sich Spalten oder Kodierung ändern —
  * Auswertungsskripte prüfen sie, statt Spaltenpositionen zu raten.
  */
-export const ANALYSIS_EXPORT_FORMAT_VERSION = 2;
+export const ANALYSIS_EXPORT_FORMAT_VERSION = 3;
 
 /** Metriken, die als Rohreihe ausgegeben werden, samt Kodierung und Einheit. */
 const SERIES_METRICS: ReadonlyArray<{
@@ -74,6 +76,8 @@ export interface BuildAnalysisExportInput {
   chunks: readonly VropsTimeSeriesChunk[];
   profiles: readonly VmWorkloadProfile[];
   candidates: readonly VmRightsizingCandidate[];
+  /** Globale CPU-Rightsizing-Stufe, die Kandidaten und Export reproduzierbar macht. */
+  rightsizingLevel: CpuRightsizingLevel;
   /** Rohreihen weglassen, wenn nur die verdichteten Kennzahlen gebraucht werden. */
   includeSeries: boolean;
   /** Namen durch stabile Kürzel ersetzen. */
@@ -282,19 +286,19 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       "hostCpuTotalMHz", "hostCpuCores", "mhzPerCore", "configuredCpuCapacityMHz",
       "shape", "intensity", "behaviorClass", "confidence",
       "demandCoverageRatio", "demandSampleCount",
-      "demandAvgMHz", "demandP50MHz", "demandP95MHz", "demandP99MHz", "demandMaxMHz",
-      "demandMaxP95MHz", "demandMaxP99MHz", "demandMaxMaximumMHz",
+      "demandAvgMHz", "demandP50MHz", "demandP95MHz", "demandP99MHz", "demandP995MHz", "demandMaxMHz",
+      "demandMaxP95MHz", "demandMaxP99MHz", "demandMaxP995MHz", "demandMaxMaximumMHz",
       "readyAvgPct", "readyP95Pct", "readyMaxPct",
       "measuredCapacityMHz", "measuredVcpu", "measuredMhzPerVcpu",
       "hoursAboveCapacity75", "hoursAboveCapacity90",
-      "costopUnderLoadP95Pct", "loadHourCount", "concentrationIndexP90", "effectiveCoresMax",
+      "costopUnderLoadP95Pct", "loadHourCount", "concentrationIndexP90", "effectiveCoresMax", "singleCoreBoundHours",
       "coefficientOfVariation", "activeHourSharePct", "dutyCyclePct", "baselineRatio",
       "utilizationP95Pct", "dailyRepeatability", "weeklyRepeatability", "weeklyPeakVariation",
       "businessHoursConcentration", "nightConcentration", "weekendConcentration",
-      "mhzPerVcpu", "usedVcpuEquivalentP95", "usedVcpuEquivalentPeak", "demandBasedVcpu",
+      "rightsizingLevel", "mhzPerVcpu", "usedVcpuEquivalentP95", "usedVcpuEquivalentPeak", "demandBasedVcpu",
       "recommendedVcpu", "reclaimableVcpu", "nextReclaimStepVcpu", "additionalVcpu", "recommendationWithheldReason",
       "flagManyVcpuLowDemand", "flagHighCpuReady",
-      "flagCostopUnderLoad", "flagConcentratedOnFewCores", "flagSustainedNearCapacity",
+      "flagCostopUnderLoad", "flagSingleCoreBound", "flagConcentratedOnFewCores", "flagSustainedNearCapacity",
       "techInfoServerType", "techInfoMaintenanceWindow", "techInfoOperatingSystem",
       "techInfoDepartment", "techInfoBz", "techInfoAz",
     ];
@@ -344,9 +348,11 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         round(profile?.demand.p50 ?? null, 1),
         round(profile?.demand.p95 ?? null, 1),
         round(profile?.demand.p99 ?? null, 1),
+        round(profile?.demand.p995 ?? null, 1),
         round(profile?.demand.maximum ?? null, 1),
         round(profile?.demandMax.p95 ?? null, 1),
         round(profile?.demandMax.p99 ?? null, 1),
+        round(profile?.demandMax.p995 ?? null, 1),
         round(profile?.demandMax.maximum ?? null, 1),
         round(profile?.ready.average ?? null, 4),
         round(profile?.ready.p95 ?? null, 4),
@@ -360,6 +366,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         capacity?.loadHourCount ?? null,
         round(capacity?.concentrationIndexP90 ?? null, 4),
         round(capacity?.effectiveCoresMax ?? null, 3),
+        capacity?.singleCoreBoundHours ?? null,
         round(signals?.coefficientOfVariation ?? null, 4),
         round(signals?.activeHourSharePct ?? null, 2),
         round(signals?.dutyCyclePct ?? null, 2),
@@ -371,6 +378,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         round(signals?.businessHoursConcentration ?? null, 4),
         round(signals?.nightConcentration ?? null, 4),
         round(signals?.weekendConcentration ?? null, 4),
+        candidate?.rightsizingLevel ?? input.rightsizingLevel,
         round(candidate?.mhzPerVcpu ?? null, 2),
         round(candidate?.usedVcpuEquivalentP95 ?? null, 3),
         round(candidate?.usedVcpuEquivalentPeak ?? null, 3),
@@ -383,6 +391,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         candidate?.flags.manyVcpuLowDemand ?? null,
         candidate?.flags.highCpuReady ?? null,
         candidate?.flags.costopUnderLoad ?? null,
+        candidate?.flags.singleCoreBound ?? null,
         candidate?.flags.concentratedOnFewCores ?? null,
         candidate?.flags.sustainedNearCapacity ?? null,
         techInfo?.serverType ?? null,
@@ -509,6 +518,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       missingSeries: SERIES_METRICS
         .filter((entry) => !seriesMetrics.includes(entry.metric))
         .map((entry) => entry.metric),
+      rightsizing: CPU_RIGHTSIZING_POLICIES[input.rightsizingLevel],
       counts: {
         vms: input.vms.length,
         hosts: input.hosts.length,
@@ -544,6 +554,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       "- `hosts.csv` — Hostkapazität; `mhzPerCore` ist die Umrechnungsbasis von MHz auf vCPU.",
       "- `clusters.csv` — Clusterkapazität.",
       "- `series/*.csv` — stündliche Rohreihen, eine Zeile je VM.",
+      `- CPU-Rightsizing-Stufe: ${CPU_RIGHTSIZING_POLICIES[input.rightsizingLevel].label} (${input.rightsizingLevel}).`,
       "",
       "## Zeitreihenformat",
       "",

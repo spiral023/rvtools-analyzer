@@ -22,6 +22,7 @@ const ROOT = process.argv[2] ?? "c:/Users/asi/Documents/GitHub/rvtools-analyzer/
 interface Meta {
   timeSeries: { expectedSlots: number; rangeStartUtc: number; timezone: string };
   series: { metric: string; file: string; encoding: SeriesEncoding }[];
+  rightsizing?: { level: string; label: string; peakPercentile: number; targetUtilizationP95: number; targetUtilizationPeak: number };
 }
 const meta: Meta = JSON.parse(readFileSync(`${ROOT}/meta.json`, "utf8"));
 const SLOTS = meta.timeSeries.expectedSlots;
@@ -98,6 +99,9 @@ interface Vm {
   appReclaim: number | null;
   appDemandBased: number | null;
   appWithheld: string;
+  appSingleCoreBoundHours: number | null;
+  appSingleCoreBound: boolean | null;
+  appRightsizingLevel: string;
 }
 
 const vms: Vm[] = [];
@@ -119,6 +123,9 @@ const vms: Vm[] = [];
   const cReclaim = col("reclaimableVcpu");
   const cDemandBased = col("demandBasedVcpu");
   const cWithheld = col("recommendationWithheldReason");
+  const cSingleCoreHours = h.indexOf("singleCoreBoundHours");
+  const cSingleCoreFlag = h.indexOf("flagSingleCoreBound");
+  const cRightsizingLevel = h.indexOf("rightsizingLevel");
   const num = (raw: string): number | null => {
     if (raw === undefined || raw.trim() === "") return null;
     const value = Number(raw);
@@ -141,6 +148,9 @@ const vms: Vm[] = [];
       appReclaim: num(row[cReclaim]),
       appDemandBased: num(row[cDemandBased]),
       appWithheld: row[cWithheld] ?? "",
+      appSingleCoreBoundHours: cSingleCoreHours >= 0 ? num(row[cSingleCoreHours]) : null,
+      appSingleCoreBound: cSingleCoreFlag >= 0 ? row[cSingleCoreFlag] === "1" : null,
+      appRightsizingLevel: cRightsizingLevel >= 0 ? row[cRightsizingLevel] : "",
     });
   }
 }
@@ -208,6 +218,7 @@ function maxFinite(values: Float64Array | undefined): number | null {
 }
 
 console.log(`Export ${ROOT.split("/").pop()} — ${SLOTS} Slots, ${vms.length} VMs mit Reihe (von ${vmsTable.rows.length} Zeilen in vms.csv).`);
+console.log(`Rightsizing-Stufe: ${meta.rightsizing ? `${meta.rightsizing.label} (${meta.rightsizing.level})` : "nicht im Export enthalten"}.`);
 
 /* ------------------------------------------------------------------ */
 /*  0  Gegenprobe: stimmt die Dekodierung mit vms.csv überein?         */
@@ -1474,5 +1485,13 @@ section("21  Einzelkern-Engpass — Kandidaten für einen höheren Takt statt me
       quantileRow("konfigurierte vCPU", boundMetrics.map((entry) => entry.vcpu), 0),
       quantileRow("Auslastung p95 (% Kapazität)", boundMetrics.flatMap((entry) => (entry.utilP95Pct === null ? [] : [entry.utilP95Pct])), 1),
     ]);
+  }
+
+  const exported = vms.filter((vm) => vm.appSingleCoreBoundHours !== null);
+  if (exported.length > 0) {
+    const computedByVm = new Map(bound.map((entry) => [entry.vmId, entry.boundHours]));
+    const deviations = exported.map((vm) => Math.abs((computedByVm.get(vm.vmId) ?? 0) - vm.appSingleCoreBoundHours!));
+    const flagMismatches = exported.filter((vm) => vm.appSingleCoreBound !== ((computedByVm.get(vm.vmId) ?? 0) >= 24));
+    console.log(`\nGegenprobe Exportfeld singleCoreBoundHours: ${exported.length} VMs, maximale Abweichung ${Math.max(...deviations)} Stunden, Flag-Abweichungen ${flagMismatches.length}.`);
   }
 }

@@ -258,8 +258,8 @@ describe("buildVmWorkloadProfiles", () => {
     expect(profiles).toHaveLength(2);
     expect(profiles.map((profile) => profile.vmName)).toEqual(["alpha-vm", "beta-vm"]);
     const beta = profiles.find((profile) => profile.vmName === "beta-vm")!;
-    expect(beta).toMatchObject({ clusterKey: "cluster-1", clusterName: "Cluster A", hostKey: "host-1", host: "esx01", vcpu: 4 });
-    expect(beta.demand).toMatchObject({ expectedSlots: 4, sampleCount: 4, coverageRatio: 1, average: 250, p50: 200, p95: 400, maximum: 400 });
+    expect(beta).toMatchObject({ clusterKey: "cluster-1", clusterName: "Cluster A", resourcePool: null, hostKey: "host-1", host: "esx01", vcpu: 4 });
+    expect(beta.demand).toMatchObject({ expectedSlots: 4, sampleCount: 4, coverageRatio: 1, average: 250, p50: 200, p95: 400, p995: 400, maximum: 400 });
     expect(beta.ready.average).toBe(2.5);
   });
 
@@ -299,8 +299,29 @@ describe("buildVmWorkloadProfiles", () => {
     expect(profile.capacitySignals.costopUnderLoadP95Pct).toBe(10);
     // In der Spitzenstunde tragen 3,8 von 4 Kernen die Last.
     expect(profile.capacitySignals.effectiveCoresMax).toBeCloseTo(3.8, 6);
+    expect(profile.capacitySignals.singleCoreBoundHours).toBe(12);
     // Die gemessene Kapazität ersetzt die Schätzung aus der Hostfrequenz.
     expect(profile.configuredCpuCapacityMHz).toBe(4_000);
+  });
+
+  it("zählt Einzelkern-Sättigung und behandelt Messlücken nicht als Null", () => {
+    const rangeStartUtc = Date.UTC(2024, 0, 8, 0, 0, 0);
+    const measured = Array.from({ length: 30 }, (_, slot) => slot < 6 ? Number.NaN : 40);
+    const chunks: VropsTimeSeriesChunk[] = [
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuDemandAvgMHz", values: [Array.from({ length: 30 }, () => 2_400)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuTotalCapacityLastMHz", values: [Array.from({ length: 30 }, () => 4_000)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmConfiguredVcpuLast", values: [Array.from({ length: 30 }, () => 4)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuUsageDisparityAvgPct", values: [measured] }),
+    ];
+    const [profile] = buildVmWorkloadProfiles({
+      import: makeImport({ rangeStartUtc, expectedSlots: 30 }),
+      objects: [makeVmObject({ objectKey: "vm:a", rvtoolsObjectKey: "a-key" })],
+      chunks,
+      vms: [makeVm({ vmKey: "a-key", vmName: "app-01", cpuCount: 4 })],
+    });
+
+    // 60 % mittlere Last + 40 Punkte Disparity × 3/4 = 90 % am heißesten Kern.
+    expect(profile.capacitySignals.singleCoreBoundHours).toBe(24);
   });
 
   it("zählt Kapazitätsnähe gegen die heutige Größe, nicht gegen die der Messstunde", () => {
@@ -341,6 +362,7 @@ describe("buildVmWorkloadProfiles", () => {
 
     expect(profile.capacitySignals.totalCapacityMHz).toBeNull();
     expect(profile.capacitySignals.costopUnderLoadP95Pct).toBeNull();
+    expect(profile.capacitySignals.singleCoreBoundHours).toBeNull();
     // Die vCPU-Anzahl fällt auf RVTools zurück, damit die Umrechnung nicht ganz ausfällt.
     expect(profile.capacitySignals.configuredVcpu).toBe(4);
   });
