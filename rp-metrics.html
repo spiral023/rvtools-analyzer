@@ -1,0 +1,4030 @@
+
+
+
+  
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Google Tag Manager -->
+<script defer="defer" type="text/javascript" src="https://rum.hlx.page/.rum/@adobe/helix-rum-js@%5E2/dist/rum-standalone.js" data-routing="env=prod,tier=publish,ams=Broadcom Corporation TechDocs2" integrity="" crossorigin="anonymous" data-enhancer-version="" data-enhancer-hash=""></script>
+<script>
+    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer',"GTM-KF7XWD");
+</script>
+<!-- End Google Tag Manager -->
+    <title>Resource Pool
+	 Metrics</title>
+    <!-- add more -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="icon" type="image/x-icon" href="favicon.ico"/>
+    
+    
+      <meta name="description" content="VMware Aria
+					Operations collects configuration, CPU usage, memory, and summary metrics for
+		resource pool objects."/>
+    
+    
+      <meta name="division" content="VMware® Cloud Infrastructure Software"/>
+    
+    
+      <meta name="category" content="VMware Aria"/>
+    
+    
+      <meta name="product" content="VMware Aria Operations"/>
+    
+    
+      <meta name="language" content="en"/>
+    
+    
+    
+      <meta name="resource" content="/content/broadcom/techdocs/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics.html"/>
+    
+    
+      <meta name="toc" content="/us/en/vmware-cis/aria/aria-operations/8-18/_jcr_content.toc.html"/>
+    
+    
+      <meta name="searchpage" content="/content/broadcom/techdocs/us/en/vmware-cis/aria/aria-operations/8-18/search.html"/>
+    
+    
+      <meta name="spacename" content="VMware Aria Operations 8.18"/>
+    
+    
+      <meta name="instance" content="TD2"/>
+    
+
+    
+    
+
+    
+    <link rel="preload" href="/etc.clientlibs/techdocs-next/clientlibs/clientlib-inter-font/resources/webfonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
+
+<link rel="preload" href="/etc.clientlibs/techdocs-next/clientlibs/clientlib-inter-font/resources/webfonts/Inter-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
+
+<link rel="preload" href="/etc.clientlibs/techdocs-next/clientlibs/clientlib-inter-font/resources/webfonts/Inter-ExtraBold.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
+
+    
+    <script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js" type="text/javascript" charset="UTF-8" data-domain-script="6a5fee8c-80be-4b9a-ab7e-b607e3f8ad3e" nonce="brcmtd2409pThL2s9R8o9Q=="></script>
+    <script type="text/javascript" nonce="brcmtd2409pThL2s9R8o9Q==">
+        function OptanonWrapper() {
+            const activeGroups = window.OnetrustActiveGroups ? OnetrustActiveGroups.split(',') : [];
+            const targetingEnabled = activeGroups.includes('4');
+
+            const $message = $('.onetrust-message-4');
+            const $objects = $('object');
+
+            // Always enable videos regardless or cookie options
+            if (targetingEnabled || true) {
+                $message.hide();
+
+                $objects.filter('[data-onetrust]').each(function () {
+                    const $el = $(this);
+                    $el.attr('data', $el.attr('data-onetrust')).removeAttr('data-onetrust');
+                });
+            } else {
+                $message.show();
+
+                $objects.filter('[data]').each(function () {
+                    const $el = $(this);
+                    $el.attr('data-onetrust', $el.attr('data')).removeAttr('data');
+                });
+            }
+        }
+    </script>
+
+
+    
+    
+<link rel="stylesheet" href="/etc.clientlibs/techdocs-next/clientlibs/clientlib-base.min.2712561930b1bc6d4f517f087bf4e425.css" type="text/css">
+<link rel="stylesheet" href="/etc.clientlibs/techdocs-next/clientlibs/clientlib-components.min.243a0bc46b4395a44f290fa84cbcb475.css" type="text/css">
+<link rel="stylesheet" href="/etc.clientlibs/techdocs-next/components/dita/topicpage/clientlibs.min.37f3de05fc2bb03579a800d5cfa4146d.css" type="text/css">
+
+
+
+
+    
+      
+    <script>
+        (function () {
+            const html = document.documentElement;
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                html.setAttribute('data-bs-theme', savedTheme);
+
+                /* Swagger UI */
+                const swaggerUiClass = savedTheme === "light" ? 'light-mode' : "dark-mode";
+                const swaggerUiClassToRemove = savedTheme === "light" ? 'dark-mode' : "light-mode";
+                html.classList.add(swaggerUiClass);
+                html.classList.remove(swaggerUiClassToRemove);
+            }
+        })();
+    </script>
+
+    
+
+    
+      <script type="application/ld+json" nonce="brcmtd2409pThL2s9R8o9Q==">
+        {"spacename":"VMware Aria Operations 8.18","keywords":"","@type":"Article","author":"CA Inc","alternateName":"","dateModified":"Thu Oct 16 2025 07:37:18 GMT+0000","language":"en","mainEntityOfPage":{"@type":"Webpage","URL":"/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics"},"@context":"http://schema.org","url":"/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics","datePublished":"2025-10-17T04:49:24.567Z","spacekey":"","currentpagetitle":"Resource Pool\n\t Metrics","appname":[],"appid":[],"name":"Resource Pool\n\t Metrics","siteversion":"8-18","publisher":{"@type":"Organization","name":"CA INC","logo":{"@type":"ImageObject","url":"https://static.broadcom.com/static/css/img/logo-broadcom-bw.png"}},"productname":"VMware Aria Operations","searchurl":"/us/en/vmware-cis/aria/aria-operations/8-18/search.html","supportid":["1600739","1600574"],"ux-context-string":[],"headline":"Resource Pool\n\t Metrics"}
+      </script>
+    
+  </head>
+
+  <body class="cmp-topicpage">
+    <!-- Google Tag Manager (noscript) -->
+<noscript>
+    <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KF7XWD" height="0" width="0" style="display:none;visibility:hidden"></iframe>
+</noscript>
+<!-- End Google Tag Manager (noscript) -->
+    
+
+
+<nav class="cmp-header navbar">
+  <div class="navbar-left">
+    <a href="/">
+      <i class="broadcom-logo"></i>
+      <i class="broadcom-logo-dark"></i>
+    </a>
+    <a class="brand-label" href="/">
+      TechDocs
+    </a>
+  </div>
+
+
+  <div class="navbar-right">
+    
+
+    
+      <a class="navbar-action" href="https://access.broadcom.com/default/saml/v1/idp/login?appId=49ad37d2-6e0f-42f2-aca7-337a63abc2e4">Login</a>
+      <span>|</span>
+      <a class="navbar-action" href="https://profile.broadcom.com/web/registration">Register</a>
+    
+
+   
+  </div>
+</nav>
+
+<div class="header-gradient"></div>
+
+    <div class="main">
+      <div class="main-left">
+        <button class="main-left-toggle btn btn-sm">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <div class="main-left-upper">
+          <div class="main-left-upper-title">VMware Aria Operations 8.18</div>
+          
+
+
+  <div class="cmp-version-dropdown">
+    <div class="version-dropdown-label">CHANGE VERSION</div>
+    <select class="form-select" id="version-select">
+      
+        <option class="version-option" selected data-link="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">8.18
+        </option>
+      
+        <option class="version-option" data-link="/us/en/vmware-cis/aria/aria-operations/8-17-1">8.17.1
+        </option>
+      
+        <option class="version-option" data-link="/us/en/vmware-cis/aria/aria-operations/8-16">8.16
+        </option>
+      
+        <option class="version-option" data-link="/us/en/vmware-cis/aria/aria-operations/9-0">9.0
+        </option>
+      
+    </select>
+  </div>
+
+
+<!-- <script>
+  window.versionDropdown = JSON.parse("");
+</script> -->
+          
+
+
+  <div class="cmp-language-select">
+    <select class="form-select" id="language-select">
+      
+        <option class="language-option" selected data-link="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">English
+        </option>
+      
+        <option class="language-option" data-link="/de/de/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">Deutsch
+        </option>
+      
+        <option class="language-option" data-link="/fr/fr/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">Français
+        </option>
+      
+        <option class="language-option" data-link="/es/es/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">Español
+        </option>
+      
+        <option class="language-option" data-link="/jp/ja/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">日本語
+        </option>
+      
+        <option class="language-option" data-link="/kr/ko/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">한국어
+        </option>
+      
+        <option class="language-option" data-link="/tw/zh-tw/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">繁體中文
+        </option>
+      
+        <option class="language-option" data-link="/cn/zh-cn/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics">简体中文
+        </option>
+      
+    </select>
+  </div>
+
+
+          
+            
+            
+    <div class="cmp-brand-input input-group" id="toc-filter">
+        <input type="text" class="form-control border-end-0" placeholder="Filter by title" autocomplete="off"/>
+        <div class="input-right border-start-0 rounded-start-0">
+        <button class="btn clear-btn is-hidden" type="button" aria-label="Clear search">
+            <span class="fa fa-xmark"></span>
+        </button>
+        <div class="vertical-divide"></div>
+        <button type="submit" class="btn search-btn" aria-label="Search">
+            <span class="fa fa-search"></span>
+        </button>
+        </div>
+    </div>
+
+          
+        </div>
+        <div class="main-left-toc">
+          
+
+<div class="cmp-tableofcontents">
+    <div class="toc-heading"> <a href="/us/en/vmware-cis/aria/aria-operations/8-18.html" class="toc-link">Overview</a></div>
+    <ul class="top-list">
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations.html" class="toc-link">Next Release Is Part of VCF 9.0</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8187-release-notes.html" class="toc-link">VMware Aria Operations 8.18.7 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8186-release-notes.html" class="toc-link">VMware Aria Operations 8.18.6 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8185-release-notes.html" class="toc-link">VMware Aria Operations 8.18.5 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8184-release-notes.html" class="toc-link">VMware Aria Operations 8.18.4 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8183-release-notes.html" class="toc-link">VMware Aria Operations 8.18.3 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8182-release-notes.html" class="toc-link">VMware Aria Operations 8.18.2 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-8181-release-notes.html" class="toc-link">VMware Aria Operations 8.18.1 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-818-release-notes.html" class="toc-link">VMware Aria Operations 8.18 Release Notes</a>
+        </div>
+    </li>
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-reference-architecture-8-18.html" class="toc-link">VMware Aria Operations Reference Architecture (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#ba81cf29-f5dc-4a26-9087-6866536fc7eb" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="ba81cf29-f5dc-4a26-9087-6866536fc7eb">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vrealize-operations-manager-security-guide-8-18.html" class="toc-link">VMware Aria Operations Secure Configuration Guide (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#c0d58390-1eb8-4ccb-9222-1c6f9af5c8a2" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="c0d58390-1eb8-4ccb-9222-1c6f9af5c8a2">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/getting-started-with-vmware-aria-operations-8-18.html" class="toc-link">Getting Started with VMware Aria Operations (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#443e4049-5ba8-4099-8858-f24489e00e95" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="443e4049-5ba8-4099-8858-f24489e00e95">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-configuration-guide-8-18.html" class="toc-link">VMware Aria Operations Configuration Guide (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#99ffab66-dcb9-48a3-aae5-1de1b1892a08" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="99ffab66-dcb9-48a3-aae5-1de1b1892a08">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ancestor-active">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18.html" class="toc-link">VMware Aria Operations User Guide (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#21cb548f-f42d-4475-8fd4-43cca7d8214f" aria-expanded="true">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse show" id="21cb548f-f42d-4475-8fd4-43cca7d8214f">
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/what-is-configuration-management.html" class="toc-link">Managing your Environment Configurations </a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#23d96218-7975-41d6-a841-8ae276fb18d6" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="23d96218-7975-41d6-a841-8ae276fb18d6">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/what-is-vmware-cloud-foundation-operations-diagnostics.html" class="toc-link">What is Diagnostics for VMware Cloud Foundation</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#b0a7aed4-659e-4823-a631-55290c96d906" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="b0a7aed4-659e-4823-a631-55290c96d906">
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/troubleshooting-your-managed-environment.html" class="toc-link">Monitoring Objects in Your Managed Environment </a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#314c2007-9111-4984-a8ee-3240dfeb6315" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="314c2007-9111-4984-a8ee-3240dfeb6315">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ancestor-active">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions.html" class="toc-link">Metric, Property, and Alert Definitions</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#9b066670-ce5f-44de-aa3b-10dd7f4e0b92" aria-expanded="true">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse show" id="9b066670-ce5f-44de-aa3b-10dd7f4e0b92">
+            
+    <li>
+        <div class="nested-entry  ancestor-active">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager.html" class="toc-link">Metric Definitions in VMware Aria Operations</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#d15ef202-4532-4614-b677-d29efbff5a7e" aria-expanded="true">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse show" id="d15ef202-4532-4614-b677-d29efbff5a7e">
+            
+    <li>
+        <div class="nested-entry  ancestor-active">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components.html" class="toc-link">Metrics for vCenter Server Components</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#6e198093-f231-4fe1-91ac-2471c0d0aae5" aria-expanded="true">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse show" id="6e198093-f231-4fe1-91ac-2471c0d0aae5">
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/vsphere-world-metrics.html" class="toc-link">vSphere Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/vcenter-server-metrics.html" class="toc-link">vCenter Server Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/virtual-machine-metrics.html" class="toc-link">Virtual Machine Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/host-system-metrics.html" class="toc-link">Host System Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/cluster-compute-resource-metrics.html" class="toc-link">Cluster Compute Resource Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry active">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/resource-pool-metrics.html" class="toc-link">Resource Pool Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/datacenter-metrics.html" class="toc-link">Data Center Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/custom-datacenter-metrics.html" class="toc-link">Custom Data Center Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/storage-pod-metrics.html" class="toc-link">Storage Pod Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/vmware-distributed-virtual-switch-metrics.html" class="toc-link">VMware Distributed Virtual Switch Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/distributed-virtual-portgroup-metrics.html" class="toc-link">Distributed Virtual Port Group Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/datastore-cluster-metrics.html" class="toc-link">Datastore Cluster Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/datastore-metrics.html" class="toc-link">Datastore Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/cluster-compute-metrics-for-allocation-model.html" class="toc-link">Cluster Compute Metrics for Allocation Model </a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/virtual-machine-metrics-for-allocation-model.html" class="toc-link">Virtual Machine Metrics for Allocation Model </a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/metrics-for-namespace.html" class="toc-link">Metrics for Namespace</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/metrics-for-tanzu-kubernetes-cluster.html" class="toc-link">Metrics for Tanzu Kubernetes cluster</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/metrics-for-vsphere-pods.html" class="toc-link">Metrics for vSphere Pods</a>
+        </div>
+    </li>
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/os-and-application-monitoring-metrics.html" class="toc-link">OS and Application Monitoring Metrics</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#2af223e2-77ba-4b91-b6f3-373818130289" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="2af223e2-77ba-4b91-b6f3-373818130289">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-configuration-guide-8-18/connect-to-data-sources/about-service-discovery/service-discovery-metrics.html" class="toc-link">Service Discovery Metrics</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#2165cfb9-50a5-4640-8d60-766a960ded42" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="2165cfb9-50a5-4640-8d60-766a960ded42">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/calculated-metrics.html" class="toc-link">Calculated Metrics</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#093f00d2-264a-404e-b7d6-979236d0e2b6" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="093f00d2-264a-404e-b7d6-979236d0e2b6">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/self-monitoring-metrics-for-vrealize-operations-manager.html" class="toc-link">Self-Monitoring Metrics for VMware Aria Operations</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#74e78356-f563-4425-a352-940e4a38c2ae" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="74e78356-f563-4425-a352-940e4a38c2ae">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-vra-8-x.html" class="toc-link">VMware Aria Automation Metrics</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#b073208e-ae47-4ccf-bab0-7f4d84440277" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="b073208e-ae47-4ccf-bab0-7f4d84440277">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/vsan-metrics.html" class="toc-link">Metrics for vSAN</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#7d64e380-e789-4aaa-83c7-040a5920e322" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="7d64e380-e789-4aaa-83c7-040a5920e322">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/gcve-metrics.html" class="toc-link">Google Cloud VMware Engine Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-in-vmware-cloud-on-aws.html" class="toc-link">Metrics in VMware Cloud on AWS</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-in-nsx-adapter.html" class="toc-link">Metrics in NSX Adapter</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/sustainability-metrics.html" class="toc-link">Sustainability Metrics</a>
+        </div>
+    </li>
+
+        
+            
+    
+    <li>
+        <div class="nested-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-policies.html" class="toc-link">Metrics for Policies</a>
+        </div>
+    </li>
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/alert-definitions-in-vrealize-operations-manager.html" class="toc-link">Alert Definitions in VMware Aria Operations</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#951a6057-76a1-4a16-a658-ae7bfbed9200" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="951a6057-76a1-4a16-a658-ae7bfbed9200">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        
+            
+    <li>
+        <div class="nested-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/property-definitions-in-vrealize-operations-manager.html" class="toc-link">Property Definitions in VMware Aria Operations</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#40e8935c-8d32-4310-a554-02e81f519cdb" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="40e8935c-8d32-4310-a554-02e81f519cdb">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+        </ul>
+    </li>
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-api-programming-guide-8-18.html" class="toc-link">VMware Aria Operations API Programming Guide (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#3b5db0ab-a191-4372-a22f-6baf8cb4c39b" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="3b5db0ab-a191-4372-a22f-6baf8cb4c39b">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-best-practices--8-18-.html" class="toc-link">VMware Aria Operations Best Practices (8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#c2157411-e45e-4f6c-8003-4205f701ffe1" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="c2157411-e45e-4f6c-8003-4205f701ffe1">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    <li>
+        <div class="top-entry  ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-load-balancing-guide-8-18-.html" class="toc-link">VMware Aria Operations Load Balancing Guide(8.18)</a>       
+            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#e0b506f5-d460-4f5b-ba24-7c0b0656e5d1" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+        </div>
+        <ul class="nested-list collapse " id="e0b506f5-d460-4f5b-ba24-7c0b0656e5d1">
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        
+            
+    
+    
+
+        </ul>
+    </li>
+    
+
+    
+        
+    
+    <li>
+        <div class="top-entry ">
+            <a href="/us/en/vmware-cis/aria/aria-operations/8-18/documentation-legal-notice-english-public.html" class="toc-link">Documentation Legal Notice</a>
+        </div>
+    </li>
+
+    </ul>
+</div>
+
+        </div>
+      </div>
+
+      <div class="main-mid container">
+        <div class="main-mid-top">
+          
+
+<nav class="cmp-breadcrumbs">
+    <ol class="breadcrumb">
+        
+            <li class="breadcrumb-item"><a href='/'>Home</a></li>
+        
+
+        
+            <li class="breadcrumb-item">
+                <a href='/us/en/vmware-cis/aria/aria-operations/8-18.html'>VMware Aria Operations 8.18</a>
+            </li>
+        
+
+        
+            <li class="breadcrumb-item dropdown">
+                <a class="dropdown-toggle" role="button" data-bs-toggle="dropdown">...</a>
+
+                <ul class="dropdown-menu">
+                    
+                        <li>
+                            <a class="dropdown-item" href='/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18.html'>VMware Aria Operations User Guide (8.18)</a>
+                        </li>
+                    
+                        <li>
+                            <a class="dropdown-item" href='/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions.html'>Metric, Property, and Alert Definitions</a>
+                        </li>
+                    
+                        <li>
+                            <a class="dropdown-item" href='/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager.html'>Metric Definitions in VMware Aria Operations</a>
+                        </li>
+                    
+                        <li>
+                            <a class="dropdown-item" href='/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components.html'>Metrics for vCenter Server Components</a>
+                        </li>
+                    
+                </ul>
+            </li>
+        
+
+        
+            <li class="breadcrumb-item last">
+                <span>Resource Pool Metrics</span>
+            </li>
+        
+    </ol>
+</nav>
+
+          <h1 class="main-mid-top-title">Resource Pool
+	 Metrics</h1>
+          <div class="main-mid-top-description">
+            
+              
+                <span data-audience="onprem" class="ph"><div  style="display: inline;">VMware Aria
+					Operations</div></span> collects configuration, CPU usage, memory, and summary metrics for
+		resource pool objects. 
+
+                
+              
+            
+            
+          </div>
+
+          <div class="main-mid-top-search-pdf">
+            <div class="left-section">
+              
+                <a class="position-absolute" href="/content/dam/broadcom/techdocs/us/en/pdf/vmware/aria/aria-operations/vmware-aria-operations-8-18.pdf" target="_blank">
+                  <button type="button" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-file-arrow-down fa-lg"></i>
+                    <span>Download PDF</span>
+                  </button>
+                </a>
+              
+            </div>
+            <div class="right-section">
+                
+                  
+                  
+    <div class="cmp-brand-input input-group" id="product-search">
+        <input type="text" class="form-control border-end-0" placeholder="Search this product" autocomplete="off"/>
+        <div class="input-right border-start-0 rounded-start-0">
+        <button class="btn clear-btn is-hidden" type="button" aria-label="Clear search">
+            <span class="fa fa-xmark"></span>
+        </button>
+        <div class="vertical-divide"></div>
+        <button type="submit" class="btn search-btn" aria-label="Search">
+            <span class="fa fa-search"></span>
+        </button>
+        </div>
+    </div>
+
+                
+
+                <button type="button" class="btn product-search-tooltip" data-bs-custom-class="product-search-tooltip-box" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="right" data-bs-title="<p>Broadcom recently implemented an agentic search tool on <a href='https://techdocs.broadcom.com'>techdocs.broadcom.com</a>. To help you navigate the search tool and improve your search experience, we recommend the following best practices when entering your search request:<p><ul><li>Use natural, conversational language while also including product-specific terms.</li><li>Ask complete questions. (or a declarative statement of need)</li><li>Ask for links to specific content. Avoid brief keyword searches</li><li>Ask follow-up questions.</li></ul><p>Examples:</p><ul><li>Can you provide a link to message ACF01001?</li><li>I need a list of articles that explain how to use the REST API?</li><li>Create a list with links to all topics about how to configure cerificates.</li></ul>">
+                  <i class="bi bi-info-circle"></i>
+                </button>
+            </div>
+          </div>
+        </div>
+
+        
+
+        <div class="main-content">
+          
+            <div class="dita">
+                <div class="topic section">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="topic topic reference" id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en" lang="en">
+
+    <h1 id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_GUID-2BAA9601-6AC3-4F5A-AA27-D0D0A39632A0" class="title"><div  style="display: inline;">Resource Pool
+	 Metrics</div></h1>
+
+    <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_shortdesc_957DAF5E7FD947BE8F240439E6FD81BE" class="shortdesc"><div  style="display: inline;"><span data-audience="onprem" class="ph"><div  style="display: inline;">VMware Aria
+					Operations</div></span> collects configuration, CPU usage, memory, and summary metrics for
+		resource pool objects. </div></div>
+
+    <div  style="display: inline;"><section id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_section_CFE5CE28C789486B9CBA96FD0F9C35EA" class="section"><div  style="display: inline;"><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_08E71190D7EC4C2C9CF9545E5668E359" class="p"><div  style="display: inline;">Resource Pool metrics include
+		  capacity and badge metrics. See definitions in: 
+		<ul id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_ul_94612A82EFFD4BE185B76E52A3BE2641" class="ul"><div  style="display: inline;"><li id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_li_F20DD23655D64C64B27025621015E2A0" class="li"><div  style="display: inline;"><a class="xref" href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/calculated-metrics/capacity-metrics.html#GUID-090A780F-50AD-4F36-817C-ED947069C562-en" title="" data-scope="local" data-format="dita" data-type="" target="_self">Capacity Analytics Generated Metrics</a></div></li><li id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_li_CAB6E6B30A0A4345B6DECE13F43D21B5" class="li"><div  style="display: inline;"><a class="xref" href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/calculated-metrics/badge-metrics.html#GUID-D04D495F-6FA7-483F-9EC9-C0EC35A6D887-en" title="" data-scope="local" data-format="dita" data-type="" target="_self">Badge Metrics</a></div></li></div></ul></div></div></div></section><section id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_SECTION_E5370EDD616448B88D76B92ED94507BE" class="section"><div  style="display: inline;"><h2 id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_TITLE_0DC106F53EE04C8782DAD2E344B59D99" class="title"><div  style="display: inline;">Configuration Metrics
+		  for Resource Pools</div></h2><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_P_0AAB18AE23AE4C11AE4A841F8DFCEA3C" class="p"><div  style="display: inline;">Configuration metrics provide
+		  information about memory and CPU allocation configuration. 
+		</div></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <table  class="table" >
+    <div  style="display: inline;">
+
+
+
+
+
+
+
+<!--cq:include script="../../common/tablestack.jsp" /-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<colgroup >
+  <col style="width: 49.26108374384236%" /><col style="width: 50.73891625615763%" /></colgroup>
+<div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<thead class="thead" >
+  <div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><th  class="entry"><div  style="display: inline;">Metric Name 
+				  </div></th><th  class="entry"><div  style="display: inline;">Description 
+				  </div></th></div></tr>
+</div>    
+</thead>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tbody class="tbody"><div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Memory Allocation Reservation 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory Allocation Reservation. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_55B9E3CCCED7415680A9EDC1D3617D70" class="p"><div  style="display: inline;">Key:
+						config|mem_alloc_reservation 
+					 </div></div></div></td></div></tr>
+</div></tbody>
+</div>
+</div> 
+  </table>
+</div></section><section id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_SECTION_8560F500AAEE42BC8BE28A076B9723C8" class="section"><div  style="display: inline;"><h2 id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_TITLE_20AD8CDA28EF4077ACDB6AFFAD04A2E6" class="title"><div  style="display: inline;">CPU Usage Metrics for
+		  Resource Pools</div></h2><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_P_A3AA3330D8CB463CADB5704DE8123148" class="p"><div  style="display: inline;">CPU usage metrics provide
+		  information about CPU use. 
+		</div></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <table  class="table" >
+    <div  style="display: inline;">
+
+
+
+
+
+
+
+<!--cq:include script="../../common/tablestack.jsp" /-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<colgroup >
+  <col style="width: 50.0%" /><col style="width: 50.0%" /></colgroup>
+<div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<thead class="thead" >
+  <div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><th  class="entry"><div  style="display: inline;">Metric Name 
+				  </div></th><th  class="entry"><div  style="display: inline;">Description 
+				  </div></th></div></tr>
+</div>    
+</thead>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tbody class="tbody"><div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Capacity Demand Entitlement (%) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU Capacity Demand Entitlement Percentage.
+					 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_00F860B92B0446E79C60CF075119CC81" class="p"><div  style="display: inline;">Key:
+						cpu|capacity_demandEntitlementPct 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Capacity entitlement (MHz) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU Capacity Entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_69C795EF28CC4A1898E970A124D35C16" class="p"><div  style="display: inline;">Key:
+						cpu|capacity_entitlement 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">CPU Contention (%) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;"> CPU capacity contention. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_701831ED21AE45FF9E57AE88919FBCE7" class="p"><div  style="display: inline;">Key:
+						cpu|capacity_contentionPct 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Demand (MHz) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU demand in megahertz. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_580E1428D90441279FF3D7A825927743" class="p"><div  style="display: inline;">Key: cpu|demandmhz 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Overall CPU Contention</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Overall CPU contention in milliseconds. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_21AE06F243BE4451A37A9B4F127ACB62" class="p"><div  style="display: inline;">Key:
+						cpu|capacity_contention
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Usage 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Average CPU use in megahertz. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_3A312884D0764D2795B21A1BA6E3BE15" class="p"><div  style="display: inline;">Key:
+						cpu|usagemhz_average
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Effective limit 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU effective limit. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_6533460243314323AAEE8C8A7EEC1D4F" class="p"><div  style="display: inline;">Key:
+						cpu|effective_limit 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Reservation Used 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU reservation used. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_50CB8DF9895F45BD9FE061B3ECED7815" class="p"><div  style="display: inline;">Key:
+						cpu|reservation_used 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Estimated entitlement 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU estimated entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_8922E10390934FBCAC8B346E61225CF4" class="p"><div  style="display: inline;">Key:
+						cpu|estimated_entitlement 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Dynamic entitlement 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">CPU dynamic entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_62A8D2BE83A44313805FE3224F53AEAA" class="p"><div  style="display: inline;">Key:
+						cpu|dynamic_entitlement 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Demand without overhead 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Value of demand excluding any overhead.
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_B1C5D9D223414C7B936B9E45875746C2" class="p"><div  style="display: inline;">Key:
+						cpu|demand_without_overhead 
+					 </div></div></div></td></div></tr>
+</div></tbody>
+</div>
+</div> 
+  </table>
+</div></section><section id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_SECTION_63D68848BD154E0BBE70D63379A65074" class="section"><div  style="display: inline;"><h2 id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_TITLE_7FFD6CD0471144CE994550E4DC22DDC3" class="title"><div  style="display: inline;">Memory Metrics for
+		  Resource Pools</div></h2><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_P_B042975FEB03462884394430C3D1D757" class="p"><div  style="display: inline;">Memory metrics provide
+		  information about memory use and allocation. 
+		</div></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <table  class="table" >
+    <div  style="display: inline;">
+
+
+
+
+
+
+
+<!--cq:include script="../../common/tablestack.jsp" /-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<colgroup >
+  <col style="width: 49.26108374384236%" /><col style="width: 50.73891625615763%" /></colgroup>
+<div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<thead class="thead" >
+  <div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><th  class="entry"><div  style="display: inline;">Metric Name 
+				  </div></th><th  class="entry"><div  style="display: inline;">Description 
+				  </div></th></div></tr>
+</div>    
+</thead>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tbody class="tbody"><div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Balloon</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory currently used by the
+					 virtual machine memory control.
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_522A6CD5BF9F48B4BF53EC53D293CAF4" class="p"><div  style="display: inline;">Key:
+						mem|vmmemctl_average
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Compression Rate</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Compression rate in kilobytes per second. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_E835EA2E23E7475C81796771187803CB" class="p"><div  style="display: inline;">Key:
+						mem|compressionRate_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Consumed </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of host memory consumed by the
+					 virtual machine for guest memory. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_D7AE8772300445A1BD7A8EB8A6ACFD74" class="p"><div  style="display: inline;">Key:
+						mem|consumed_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Contention</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Machine contention. <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_17DD9B770F864CB6BEF9DF2A5E47638B" class="p"><div  style="display: inline;">Key:
+									mem|host_contentionPct </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Guest usage 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Guest memory entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_6D32F04883254322A3B915B70A6D4BD3" class="p"><div  style="display: inline;">Key: mem|guest_usage
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Guest demand 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Guest memory entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_4AD72E21DE314E2AA8FB4A730D2CE744" class="p"><div  style="display: inline;">Key:
+						mem|guest_demand 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Contention (KB) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Machine contention in kilobytes. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_EAA36D95C7D94B41B1403C63D11E6B48" class="p"><div  style="display: inline;">Key:
+						mem|host_contention 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Decompression Rate</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Decompression rate in kilobytes per second.
+					 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_D537D7098F7B4E09B82AB5A5D6FE8C75" class="p"><div  style="display: inline;">Key:
+						mem|decompressionRate_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Granted </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Average of memory available for use. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_F4A09673BCBF4AE890A092CE4D22998C" class="p"><div  style="display: inline;">Key:
+						mem|granted_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Guest Active </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory that is actively used. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_BDF083677522411E999743E498C9841A" class="p"><div  style="display: inline;">Key:
+						mem|active_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">VM Overhead </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory overhead reported by host. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_9A3B810EB2F84349907242851B6B2D78" class="p"><div  style="display: inline;">Key:
+						mem|overhead_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Shared</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of shared memory. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_BF909AA4D32E4FC88345B65D6AE4F143" class="p"><div  style="display: inline;">Key:
+						mem|shared_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Reservation Used 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory Reservation Used. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_EE27DBA6E87246758CD15F6B1BF4F740" class="p"><div  style="display: inline;">Key:
+						mem|reservation_used 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Dynamic Entitlement 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory Dynamic Entitlement. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_1334A9CE02C54DD2832D3731FEEDD0AC" class="p"><div  style="display: inline;">Key:
+						mem|dynamic_entitlement 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Effective Limit 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory Effective Limit. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_9218C8DB38984198917A953EFCE08333" class="p"><div  style="display: inline;">Key:
+						mem|effective_limit 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swap In Rate</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Rate at which memory is swapped from disk
+					 into active memory during the interval. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_A7D46B37C9DA4206ABB2B8F37B29E6C7" class="p"><div  style="display: inline;">Key:
+						mem|swapinRate_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swap Out Rate</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Rate at which memory is being swapped from
+					 active memory to disk during the current interval. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_E366FA6DD6224D2FB292029705A66EA2" class="p"><div  style="display: inline;">Key:
+						mem|swapoutRate_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swapped</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of unreserved memory. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_4F48BD28C197444784090511420E2E32" class="p"><div  style="display: inline;">Key:
+						mem|swapped_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Usage (%) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Memory currently in use as a percentage of
+					 total available memory. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_39899482FE9E4202821D897F389D78F3" class="p"><div  style="display: inline;">Key:
+						mem|usage_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Zero</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory that is all zero. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_355ED9367A9F4D1991B6A7EE5970FADB" class="p"><div  style="display: inline;">Key:
+						mem|zero_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Zipped (KB) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Latest zipped memory in kilobytes. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_311C3E41F5344F429FFEE44E6B2C0758" class="p"><div  style="display: inline;">Key:
+						mem|zipped_latest 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swap In (KB) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory swapped in kilobytes. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_70E0604F786A486ABD620F9F11D3FB73" class="p"><div  style="display: inline;">Key:
+						mem|swapin_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swap Out (KB) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory swapped out in kilobytes. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_341D5371E0E343C085E0677859F55BCD" class="p"><div  style="display: inline;">Key:
+						mem|swapout_average 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Swap Used</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Amount of memory used for swap space in
+					 kilobytes. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_138172BB5FA84F7B81C7C07B11B64C61" class="p"><div  style="display: inline;">Key:
+						mem|swapused_average
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Total Capacity </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Total capacity. <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_4509C06666AD4530BD98E135952064A2" class="p"><div  style="display: inline;">Key:
+									mem|guest_provisioned </div></div></div></td></div></tr>
+</div></tbody>
+</div>
+</div> 
+  </table>
+</div></section><section id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_SECTION_F8ACDB96BD7640C28A0BD14B8F16B109" class="section"><div  style="display: inline;"><h2 id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_TITLE_64F030D074914C55A2FF718AA0BD96BE" class="title"><div  style="display: inline;">Summary Metrics for
+		  Resource Pools</div></h2><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_P_EDE81CC682DA42DAA5CEFC60E1887892" class="p"><div  style="display: inline;">Summary metrics provide
+		  information about overall performance. 
+		</div></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <table  class="table" >
+    <div  style="display: inline;">
+
+
+
+
+
+
+
+<!--cq:include script="../../common/tablestack.jsp" /-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<colgroup >
+  <col style="width: 49.26108374384236%" /><col style="width: 50.73891625615763%" /></colgroup>
+<div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<thead class="thead" >
+  <div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><th  class="entry"><div  style="display: inline;">Metric Name 
+				  </div></th><th  class="entry"><div  style="display: inline;">Description 
+				  </div></th></div></tr>
+</div>    
+</thead>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tbody class="tbody"><div  style="display: inline;">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Number of Running VMs 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Number of running virtual machines. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_EFBBFD52EA4341A5B450750527FEDC68" class="p"><div  style="display: inline;">Key:
+						summary|number_running_vms 
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Total Number of VMs </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Total number of virtual machines. <div class="note" data-label="NOTE"> <div  style="display: inline;">This shows the
+									total number of VMs excluding VM templates.</div></div><div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_F2F18C137C0842DF9DCE937B7D358ECE" class="p"><div  style="display: inline;">Key:
+									summary|total_number_vms </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">IO Wait (ms) 
+				  </div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">IO wait time in milliseconds. 
+					 <div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_p_E0257C66914548CFAFF0C9A92E1F7510" class="p"><div  style="display: inline;">Key: summary|iowait
+					 </div></div></div></td></div></tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<tr class="row"><div  style="display: inline;"><td  class="entry" ><div  style="display: inline;">Number of VM Templates</div></td><td  class="entry" class="entry relcol" ><div  style="display: inline;">Number of VM Templates.<div id="GUID-6F436275-169F-4DE5-B393-3B771623C0F8-en_P_CA0E45A9-8E1E-4E00-A3E7-83D4EDD0D50D" class="p"><div  style="display: inline;">Key:
+									summary|number_vm_templates</div></div></div></td></div></tr>
+</div></tbody>
+</div>
+</div> 
+  </table>
+</div></section></div>
+
+    
+
+
+
+
+
+
+
+
+
+
+<div class="linklist relatedlinks" data-label="Related information" ><div><div class="linkpool linklist">
+
+
+
+
+
+
+
+
+<div data-scope="" data-format="" data-type="" ><a class="link" href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components.html" title="VMware Aria 					Operations connects to VMware vCenter 					Server®         instances through the vCenter adapter to collect metrics for vCenter 					Server         components and uses formulas to derive statistics from those metrics. You can use metrics to         troubleshoot problems in your environment. " data-scope="local" data-format="dita" data-type="concept" target="_self"><span class="linktext"><div  style="display: inline;">Metrics for vCenter Server Components</div></span></a></div>
+</div>
+</div></div>
+
+
+</div>
+</div>
+
+
+            </div>
+          
+          
+          
+    
+
+
+
+        </div>
+
+        <div class="previous-next-navigation">
+
+<div class="cmp-previous-next-navigation">
+    <div class="previous">
+        <div class="arrow"><i class="fa-solid fa-chevron-left"></i></div>
+        <div class="previous-container">
+            <div class="previous-label">PREVIOUS</div>
+            <a class="previous-link" href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/cluster-compute-resource-metrics.html">Cluster Compute Resource Metrics</a>
+        </div>
+    </div>
+    
+    <div class="next">
+        <div class="next-container">
+            <div class="next-label">NEXT</div>
+            <a class="next-link" href="/us/en/vmware-cis/aria/aria-operations/8-18/vmware-aria-operations-user-guide-8-18/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/datacenter-metrics.html">Data Center Metrics</a>
+        </div>
+        <div class="arrow"><i class="fa-solid fa-chevron-right"></i></div>
+    </div>
+    
+</div></div>
+
+        <div class="main-right-mobile">
+          <div class="cmp-feedback">
+  <div class="feedback-header">Was this page helpful?</div>
+  <div class="feedback-buttons">
+    <button id="feedback-button" type="button" class="btn btn-sm btn-outline-primary feedback-button">
+      Documentation Feedback
+    </button>
+  </div>
+  <div class="feedback-footer">
+      <p>Last Updated October 16, 2025</p>
+  </div>
+
+  <!-- Modal injected in <body> -->
+  <div class="modal fade feedback-modal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">Feedback and Comments</div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Feedback Form -->
+          <form id="feedback-form" class="needs-validation" novalidate>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="required-label">First Name</label>
+                <input type="text" class="form-control" name="firstName" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Last Name</label>
+                <input type="text" class="form-control" name="lastName" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Email</label>
+                <input type="email" class="form-control" name="email" maxlength="256" pattern=".*\S+.*" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Product</label>
+                <input type="text" class="form-control" name="product" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Country</label>
+                <select class="form-select" name="country" required>
+                  <option value="" selected disabled>Select Country</option>
+                  <option>Afghanistan</option>
+                  <option>Africa</option>
+                  <option>Albania</option>
+                  <option>Algeria</option>
+                  <option>Andorra</option>
+                  <option>Angola</option>
+                  <option>Antigua and Barbuda</option>
+                  <option>Argentina</option>
+                  <option>Armenia</option>
+                  <option>Asean</option>
+                  <option>Asia Pacific</option>
+                  <option>Australia</option>
+                  <option>Austria</option>
+                  <option>Azerbaijan</option>
+                  <option>Bahamas</option>
+                  <option>Bahrain</option>
+                  <option>Bangladesh</option>
+                  <option>Barbados</option>
+                  <option>Belarus</option>
+                  <option>Belgium</option>
+                  <option>Belize</option>
+                  <option>Benin</option>
+                  <option>Bhutan</option>
+                  <option>Bolivia</option>
+                  <option>Bosnia Herzegovina</option>
+                  <option>Botswana</option>
+                  <option>Brazil</option>
+                  <option>Brunei</option>
+                  <option>Bulgaria</option>
+                  <option>Burkina Faso</option>
+                  <option>Burundi</option>
+                  <option>Cambodia</option>
+                  <option>Cameroon</option>
+                  <option>Canada</option>
+                  <option>Cape Verde</option>
+                  <option>Central African Republic</option>
+                  <option>Chad</option>
+                  <option>Chile</option>
+                  <option>China</option>
+                  <option>Colombia</option>
+                  <option>Comoros</option>
+                  <option>Congo (Brazzaville)</option>
+                  <option>Congo, Democratic Republic of</option>
+                  <option>Costa Rica</option>
+                  <option>Cote d Ivoire (Ivory Coast)</option>
+                  <option>Croatia</option>
+                  <option>Curacao</option>
+                  <option>Cyprus</option>
+                  <option>Czech Republic</option>
+                  <option>Denmark</option>
+                  <option>Djibouti</option>
+                  <option>Dominica</option>
+                  <option>Dominican Republic</option>
+                  <option>East Timor</option>
+                  <option>Ecuador</option>
+                  <option>Egypt</option>
+                  <option>El Salvador</option>
+                  <option>Equatorial Guinea</option>
+                  <option>Eritrea</option>
+                  <option>Estonia</option>
+                  <option>Ethiopia</option>
+                  <option>Europe</option>
+                  <option>Fiji</option>
+                  <option>Finland</option>
+                  <option>France</option>
+                  <option>Gabon</option>
+                  <option>Gambia</option>
+                  <option>Georgia</option>
+                  <option>Germany</option>
+                  <option>Ghana</option>
+                  <option>Greece</option>
+                  <option>Grenada</option>
+                  <option>Guatemala</option>
+                  <option>Guinea</option>
+                  <option>Guinea-Bissau</option>
+                  <option>Guyana</option>
+                  <option>Haiti</option>
+                  <option>Honduras</option>
+                  <option>Hong Kong, China</option>
+                  <option>Hungary</option>
+                  <option>Iceland</option>
+                  <option>India</option>
+                  <option>Indonesia</option>
+                  <option>Iraq</option>
+                  <option>Ireland</option>
+                  <option>Israel</option>
+                  <option>Italy</option>
+                  <option>Jamaica</option>
+                  <option>Japan</option>
+                  <option>Jordan</option>
+                  <option>Kazakhstan</option>
+                  <option>Kenya</option>
+                  <option>Kiribati</option>
+                  <option>Korea North</option>
+                  <option>Korea South</option>
+                  <option>Kuwait</option>
+                  <option>Kyrgyzstan</option>
+                  <option>Laos</option>
+                  <option>Latin America</option>
+                  <option>Latvia</option>
+                  <option>Lebanon</option>
+                  <option>Lesotho</option>
+                  <option>Liberia</option>
+                  <option>Libya</option>
+                  <option>Liechtenstein</option>
+                  <option>Lithuania</option>
+                  <option>Luxembourg</option>
+                  <option>Macedonia</option>
+                  <option>Madagascar</option>
+                  <option>Malawi</option>
+                  <option>Malaysia</option>
+                  <option>Maldives</option>
+                  <option>Mali</option>
+                  <option>Malta</option>
+                  <option>Maroc</option>
+                  <option>Marshall Islands</option>
+                  <option>Mauritania</option>
+                  <option>Mauritius</option>
+                  <option>Mexico</option>
+                  <option>Micronesia</option>
+                  <option>Middle East</option>
+                  <option>Moldova</option>
+                  <option>Monaco</option>
+                  <option>Mongolia</option>
+                  <option>Montenegro</option>
+                  <option>Morocco</option>
+                  <option>Mozambique</option>
+                  <option>Myanmar</option>
+                  <option>Namibia</option>
+                  <option>Nauru</option>
+                  <option>Nepal</option>
+                  <option>Netherlands</option>
+                  <option>New Zealand</option>
+                  <option>Nicaragua</option>
+                  <option>Niger</option>
+                  <option>Nigeria</option>
+                  <option>Norway</option>
+                  <option>Oman</option>
+                  <option>Pakistan</option>
+                  <option>Palau</option>
+                  <option>Panama</option>
+                  <option>Papua New Guinea</option>
+                  <option>Paraguay</option>
+                  <option>Peru</option>
+                  <option>Philippines</option>
+                  <option>Poland</option>
+                  <option>Portugal</option>
+                  <option>Puerto Rico</option>
+                  <option>Qatar</option>
+                  <option>Romania</option>
+                  <option>Russia</option>
+                  <option>Rwanda</option>
+                  <option>Saint Kitts and Nevis</option>
+                  <option>Saint Lucia</option>
+                  <option>Saint Vincent and The Grenadines</option>
+                  <option>Samoa</option>
+                  <option>San Marino</option>
+                  <option>Sao Tome and Principe</option>
+                  <option>Saudi Arabia</option>
+                  <option>Senegal</option>
+                  <option>Serbia</option>
+                  <option>Seychelles</option>
+                  <option>Sierra Leone</option>
+                  <option>Singapore</option>
+                  <option>Slovakia</option>
+                  <option>Slovenia</option>
+                  <option>Solomon Islands</option>
+                  <option>Somalia</option>
+                  <option>South Africa</option>
+                  <option>Spain</option>
+                  <option>Sri Lanka</option>
+                  <option>Suriname</option>
+                  <option>Swaziland</option>
+                  <option>Sweden</option>
+                  <option>Switzerland</option>
+                  <option>Taiwan, China</option>
+                  <option>Tajikistan</option>
+                  <option>Tchad</option>
+                  <option>Thailand</option>
+                  <option>Togo</option>
+                  <option>Tonga</option>
+                  <option>Trinidad and Tobago</option>
+                  <option>Tunisia</option>
+                  <option>Turkey</option>
+                  <option>Turkmenistan</option>
+                  <option>Tuvalu</option>
+                  <option>Uganda</option>
+                  <option>Ukraine</option>
+                  <option>United Arab Emirates</option>
+                  <option>United Kingdom</option>
+                  <option>United Republic of Tanzania</option>
+                  <option>United States</option>
+                  <option>Uruguay</option>
+                  <option>Uzbekistan</option>
+                  <option>Vanuatu</option>
+                  <option>Vatican City</option>
+                  <option>Venezuela</option>
+                  <option>Vietnam</option>
+                  <option>Western Sahara</option>
+                  <option>Yemen</option>
+                  <option>Zambia</option>
+                  <option>Zimbabwe</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="required-label">I have questions/feedback about</label>
+                <select class="form-select" name="feedbackAbout" required>
+                  <option value="" selected disabled>Choose an option...</option>
+                  <option>Broken hyperlink or page not found</option>
+                  <option>Incorrect or Missing Content</option>
+                  <option>Other/General Feedback</option>
+                  <option>Slow Web Performance</option>
+                  <option>Where to find something</option>
+                </select>
+              </div>
+
+              <div class="col-12">
+                <label>For comments about a specific page, enter URL</label>
+                <input type="text" class="form-control" name="url" maxlength="512" pattern="^(?!.*<[^>]*>)(?!\s*$).+"/>
+              </div>
+              <div class="col-12 my-2">
+                <label class="required-label d-block">Would you like us to respond to your
+                  comments?</label>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="respond" id="respYes" value="yes" required/>
+                  <label class="form-check-label" for="respYes">Yes</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="respond" id="respNo" value="no"/>
+                  <label class="form-check-label" for="respNo">No</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label>Comments</label>
+                <textarea class="form-control" name="comments" maxlength="6000" rows="4"></textarea>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="terms" id="termsCheck" required/>
+                  <label class="form-check-label small required-label" for="termsCheck">
+                    I understand and agree to the <a href="https://www.broadcom.com/company/legal/terms-of-use">Broadcom
+                      Terms of Use</a> and <a href="https://www.broadcom.com/company/legal/privacy-policy">Privacy
+                      Statement</a>.
+                  </label>
+                </div>
+              </div>
+
+              <!-- INLINE CAPTCHA -->
+              <div class="col-12 mt-4">
+                <div class="captcha-box">
+                  <label class="required-label mb-3">Security Check</label>
+                  <div class="captcha-row">
+                    <span id="captcha-question" class="captcha-question-text"></span>
+                    <input type="text" id="captcha-answer" class="form-control captcha-input" name="answer" placeholder="" required/>
+                    <button type="button" class="btn-refresh-icon" id="refreshCaptcha" title="Refresh">↻</button>
+                  </div>
+                  <div id="captcha-fail" class="text-danger small mt-2" style="display:none;">Incorrect
+                    security answer.</div>
+                </div>
+              </div>
+
+              <div class="col-12 d-none">
+                <button type="submit" id="submit-btn" class="btn btn-danger">
+                  <span>Submit Feedback</span>
+                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Thank You Message (Hidden by default) -->
+          <div id="thank-you-message" class="text-center py-5">
+            <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+            <h2 class="mt-3">Thank You!</h2>
+            <p class="lead">Thank you for your interest in Broadcom. Your submission has been received.</p>
+          </div>
+        </div>
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary modal-submit-button">
+            <span class="btn-text">Submit Feedback</span>
+            <span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+        </div>
+        <div class="border-top cmp-support-resources">
+    <div class="support-resources-container container">
+        <div class="support-resources-title">
+            Other Product Support Resources
+        </div>
+
+        <div class="support-hyperlinks-container">
+            <div class="hyperlinks-container">
+                <div class="hyperlinks-container-title">Support</div>
+                <div class="hyperlinks-container-body">
+                    <a class="resource-link" href="https://support.broadcom.com">Support Portal</a>
+                    <a class="resource-link" href="https://community.broadcom.com">Product Communities</a>
+                    <a class="resource-link" href="https://www.broadcom.com/support/knowledgebase">Knowledge Base</a>
+                </div>
+            </div>
+            <div class="hyperlinks-container">
+                <div class="hyperlinks-container-title">Learning</div>
+                <div class="hyperlinks-container-body">
+                    <a class="resource-link" href="https://www.broadcom.com/support/education/brocade">Brocade Education</a>
+                    <a class="resource-link" href="https://www.broadcom.com/support/education/mainframe/education-program">Mainframe Software Education</a>
+                    <a class="resource-link" href="https://www.broadcom.com/support/education/software">Software Education</a>
+                    <a class="resource-link" href="https://www.broadcom.com/support/education/vmware">VMware Learning</a>
+                </div>
+            </div>
+            <div class="hyperlinks-container">
+                <div class="hyperlinks-container-title">Need more help?</div>
+                <div class="hyperlinks-container-body">
+                    <a class="resource-link" href="https://support.broadcom.com">Virtual Agent</a>
+                    <a class="resource-link" href="https://www.broadcom.com/support/services-support/ca-support/support-programs">Advanced Support</a>
+                    <a class="resource-link" href="https://support.broadcom.com/web/ecx/contact-support">Contact Us</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+      </div>
+
+      <div class="main-right">
+        <button class="main-right-toggle btn btn-sm">
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <div class="main-right-navigation"><div class="cmp-navigation" data-heading="On this page">
+
+</div></div>
+        <div class="main-right-feedback">
+          <div class="cmp-feedback">
+  <div class="feedback-header">Was this page helpful?</div>
+  <div class="feedback-buttons">
+    <button id="feedback-button" type="button" class="btn btn-sm btn-outline-primary feedback-button">
+      Documentation Feedback
+    </button>
+  </div>
+  <div class="feedback-footer">
+      <p>Last Updated October 16, 2025</p>
+  </div>
+
+  <!-- Modal injected in <body> -->
+  <div class="modal fade feedback-modal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">Feedback and Comments</div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Feedback Form -->
+          <form id="feedback-form" class="needs-validation" novalidate>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="required-label">First Name</label>
+                <input type="text" class="form-control" name="firstName" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Last Name</label>
+                <input type="text" class="form-control" name="lastName" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Email</label>
+                <input type="email" class="form-control" name="email" maxlength="256" pattern=".*\S+.*" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Product</label>
+                <input type="text" class="form-control" name="product" maxlength="256" pattern="^(?!.*<[^>]*>)(?!\s*$).+" required/>
+              </div>
+              <div class="col-md-6">
+                <label class="required-label">Country</label>
+                <select class="form-select" name="country" required>
+                  <option value="" selected disabled>Select Country</option>
+                  <option>Afghanistan</option>
+                  <option>Africa</option>
+                  <option>Albania</option>
+                  <option>Algeria</option>
+                  <option>Andorra</option>
+                  <option>Angola</option>
+                  <option>Antigua and Barbuda</option>
+                  <option>Argentina</option>
+                  <option>Armenia</option>
+                  <option>Asean</option>
+                  <option>Asia Pacific</option>
+                  <option>Australia</option>
+                  <option>Austria</option>
+                  <option>Azerbaijan</option>
+                  <option>Bahamas</option>
+                  <option>Bahrain</option>
+                  <option>Bangladesh</option>
+                  <option>Barbados</option>
+                  <option>Belarus</option>
+                  <option>Belgium</option>
+                  <option>Belize</option>
+                  <option>Benin</option>
+                  <option>Bhutan</option>
+                  <option>Bolivia</option>
+                  <option>Bosnia Herzegovina</option>
+                  <option>Botswana</option>
+                  <option>Brazil</option>
+                  <option>Brunei</option>
+                  <option>Bulgaria</option>
+                  <option>Burkina Faso</option>
+                  <option>Burundi</option>
+                  <option>Cambodia</option>
+                  <option>Cameroon</option>
+                  <option>Canada</option>
+                  <option>Cape Verde</option>
+                  <option>Central African Republic</option>
+                  <option>Chad</option>
+                  <option>Chile</option>
+                  <option>China</option>
+                  <option>Colombia</option>
+                  <option>Comoros</option>
+                  <option>Congo (Brazzaville)</option>
+                  <option>Congo, Democratic Republic of</option>
+                  <option>Costa Rica</option>
+                  <option>Cote d Ivoire (Ivory Coast)</option>
+                  <option>Croatia</option>
+                  <option>Curacao</option>
+                  <option>Cyprus</option>
+                  <option>Czech Republic</option>
+                  <option>Denmark</option>
+                  <option>Djibouti</option>
+                  <option>Dominica</option>
+                  <option>Dominican Republic</option>
+                  <option>East Timor</option>
+                  <option>Ecuador</option>
+                  <option>Egypt</option>
+                  <option>El Salvador</option>
+                  <option>Equatorial Guinea</option>
+                  <option>Eritrea</option>
+                  <option>Estonia</option>
+                  <option>Ethiopia</option>
+                  <option>Europe</option>
+                  <option>Fiji</option>
+                  <option>Finland</option>
+                  <option>France</option>
+                  <option>Gabon</option>
+                  <option>Gambia</option>
+                  <option>Georgia</option>
+                  <option>Germany</option>
+                  <option>Ghana</option>
+                  <option>Greece</option>
+                  <option>Grenada</option>
+                  <option>Guatemala</option>
+                  <option>Guinea</option>
+                  <option>Guinea-Bissau</option>
+                  <option>Guyana</option>
+                  <option>Haiti</option>
+                  <option>Honduras</option>
+                  <option>Hong Kong, China</option>
+                  <option>Hungary</option>
+                  <option>Iceland</option>
+                  <option>India</option>
+                  <option>Indonesia</option>
+                  <option>Iraq</option>
+                  <option>Ireland</option>
+                  <option>Israel</option>
+                  <option>Italy</option>
+                  <option>Jamaica</option>
+                  <option>Japan</option>
+                  <option>Jordan</option>
+                  <option>Kazakhstan</option>
+                  <option>Kenya</option>
+                  <option>Kiribati</option>
+                  <option>Korea North</option>
+                  <option>Korea South</option>
+                  <option>Kuwait</option>
+                  <option>Kyrgyzstan</option>
+                  <option>Laos</option>
+                  <option>Latin America</option>
+                  <option>Latvia</option>
+                  <option>Lebanon</option>
+                  <option>Lesotho</option>
+                  <option>Liberia</option>
+                  <option>Libya</option>
+                  <option>Liechtenstein</option>
+                  <option>Lithuania</option>
+                  <option>Luxembourg</option>
+                  <option>Macedonia</option>
+                  <option>Madagascar</option>
+                  <option>Malawi</option>
+                  <option>Malaysia</option>
+                  <option>Maldives</option>
+                  <option>Mali</option>
+                  <option>Malta</option>
+                  <option>Maroc</option>
+                  <option>Marshall Islands</option>
+                  <option>Mauritania</option>
+                  <option>Mauritius</option>
+                  <option>Mexico</option>
+                  <option>Micronesia</option>
+                  <option>Middle East</option>
+                  <option>Moldova</option>
+                  <option>Monaco</option>
+                  <option>Mongolia</option>
+                  <option>Montenegro</option>
+                  <option>Morocco</option>
+                  <option>Mozambique</option>
+                  <option>Myanmar</option>
+                  <option>Namibia</option>
+                  <option>Nauru</option>
+                  <option>Nepal</option>
+                  <option>Netherlands</option>
+                  <option>New Zealand</option>
+                  <option>Nicaragua</option>
+                  <option>Niger</option>
+                  <option>Nigeria</option>
+                  <option>Norway</option>
+                  <option>Oman</option>
+                  <option>Pakistan</option>
+                  <option>Palau</option>
+                  <option>Panama</option>
+                  <option>Papua New Guinea</option>
+                  <option>Paraguay</option>
+                  <option>Peru</option>
+                  <option>Philippines</option>
+                  <option>Poland</option>
+                  <option>Portugal</option>
+                  <option>Puerto Rico</option>
+                  <option>Qatar</option>
+                  <option>Romania</option>
+                  <option>Russia</option>
+                  <option>Rwanda</option>
+                  <option>Saint Kitts and Nevis</option>
+                  <option>Saint Lucia</option>
+                  <option>Saint Vincent and The Grenadines</option>
+                  <option>Samoa</option>
+                  <option>San Marino</option>
+                  <option>Sao Tome and Principe</option>
+                  <option>Saudi Arabia</option>
+                  <option>Senegal</option>
+                  <option>Serbia</option>
+                  <option>Seychelles</option>
+                  <option>Sierra Leone</option>
+                  <option>Singapore</option>
+                  <option>Slovakia</option>
+                  <option>Slovenia</option>
+                  <option>Solomon Islands</option>
+                  <option>Somalia</option>
+                  <option>South Africa</option>
+                  <option>Spain</option>
+                  <option>Sri Lanka</option>
+                  <option>Suriname</option>
+                  <option>Swaziland</option>
+                  <option>Sweden</option>
+                  <option>Switzerland</option>
+                  <option>Taiwan, China</option>
+                  <option>Tajikistan</option>
+                  <option>Tchad</option>
+                  <option>Thailand</option>
+                  <option>Togo</option>
+                  <option>Tonga</option>
+                  <option>Trinidad and Tobago</option>
+                  <option>Tunisia</option>
+                  <option>Turkey</option>
+                  <option>Turkmenistan</option>
+                  <option>Tuvalu</option>
+                  <option>Uganda</option>
+                  <option>Ukraine</option>
+                  <option>United Arab Emirates</option>
+                  <option>United Kingdom</option>
+                  <option>United Republic of Tanzania</option>
+                  <option>United States</option>
+                  <option>Uruguay</option>
+                  <option>Uzbekistan</option>
+                  <option>Vanuatu</option>
+                  <option>Vatican City</option>
+                  <option>Venezuela</option>
+                  <option>Vietnam</option>
+                  <option>Western Sahara</option>
+                  <option>Yemen</option>
+                  <option>Zambia</option>
+                  <option>Zimbabwe</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="required-label">I have questions/feedback about</label>
+                <select class="form-select" name="feedbackAbout" required>
+                  <option value="" selected disabled>Choose an option...</option>
+                  <option>Broken hyperlink or page not found</option>
+                  <option>Incorrect or Missing Content</option>
+                  <option>Other/General Feedback</option>
+                  <option>Slow Web Performance</option>
+                  <option>Where to find something</option>
+                </select>
+              </div>
+
+              <div class="col-12">
+                <label>For comments about a specific page, enter URL</label>
+                <input type="text" class="form-control" name="url" maxlength="512" pattern="^(?!.*<[^>]*>)(?!\s*$).+"/>
+              </div>
+              <div class="col-12 my-2">
+                <label class="required-label d-block">Would you like us to respond to your
+                  comments?</label>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="respond" id="respYes" value="yes" required/>
+                  <label class="form-check-label" for="respYes">Yes</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="respond" id="respNo" value="no"/>
+                  <label class="form-check-label" for="respNo">No</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label>Comments</label>
+                <textarea class="form-control" name="comments" maxlength="6000" rows="4"></textarea>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="terms" id="termsCheck" required/>
+                  <label class="form-check-label small required-label" for="termsCheck">
+                    I understand and agree to the <a href="https://www.broadcom.com/company/legal/terms-of-use">Broadcom
+                      Terms of Use</a> and <a href="https://www.broadcom.com/company/legal/privacy-policy">Privacy
+                      Statement</a>.
+                  </label>
+                </div>
+              </div>
+
+              <!-- INLINE CAPTCHA -->
+              <div class="col-12 mt-4">
+                <div class="captcha-box">
+                  <label class="required-label mb-3">Security Check</label>
+                  <div class="captcha-row">
+                    <span id="captcha-question" class="captcha-question-text"></span>
+                    <input type="text" id="captcha-answer" class="form-control captcha-input" name="answer" placeholder="" required/>
+                    <button type="button" class="btn-refresh-icon" id="refreshCaptcha" title="Refresh">↻</button>
+                  </div>
+                  <div id="captcha-fail" class="text-danger small mt-2" style="display:none;">Incorrect
+                    security answer.</div>
+                </div>
+              </div>
+
+              <div class="col-12 d-none">
+                <button type="submit" id="submit-btn" class="btn btn-danger">
+                  <span>Submit Feedback</span>
+                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Thank You Message (Hidden by default) -->
+          <div id="thank-you-message" class="text-center py-5">
+            <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+            <h2 class="mt-3">Thank You!</h2>
+            <p class="lead">Thank you for your interest in Broadcom. Your submission has been received.</p>
+          </div>
+        </div>
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary modal-submit-button">
+            <span class="btn-text">Submit Feedback</span>
+            <span class="spinner-border spinner-border-sm btn-spinner" role="status" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-gradient"></div>
+
+<footer class="cmp-footer">
+    <div class="container">
+        <div class="footer-container">
+            <div class="footer-left">
+                <div class="logo"></div>
+                <div class="footer-left-body">
+                    <div class="navigation">
+                        <a class="navigation-link" target="_self" href="https://www.broadcom.com/products">Products</a>
+                        <a class="navigation-link" target="_self" href="https://www.broadcom.com/solutions">Solutions</a>
+                        <a class="navigation-link" target="_self" href="https://www.broadcom.com/support">Support and Services</a>
+                        <a class="navigation-link" target="_self" href="https://www.broadcom.com/company">Company</a>
+                        <a class="navigation-link" target="_self" href="https://www.broadcom.com/how-to-buy">How To Buy</a>
+                    </div>
+                    <div class="copyright-text">Copyright © 2005-2026 Broadcom. All Rights Reserved. The term
+                        “Broadcom”
+                        refers to Broadcom Inc. and/or its subsidiaries.</div>
+                    <div class="secondary-navigation">
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/company/legal/accessibility">Accessibility</a>
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/company/legal/privacy">Privacy</a>
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/sitemap">Site Map</a>
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/company/corporate-responsibility/supplier-responsibility">Supplier Responsibility</a>
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/company/legal/terms-of-use">Terms of Use</a>
+                        <a class="secondary-navigation-link" target="_self" href="https://www.broadcom.com/topics">Topics</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-right">
+                <div class="social-nav">
+                    <div class="social-item">
+                        <a target="_self" rel="noreferrer" href="https://www.linkedin.com/company/broadcom">
+                            <i class="bi bi-linkedin"></i>
+                        </a>
+                    </div>
+                    <div class="social-item">
+                        <a target="_self" rel="noreferrer" href="https://x.com/Broadcom">
+                            <i class="bi bi-twitter-x"></i>
+                        </a>
+                    </div>
+                    <div class="social-item">
+                        <a target="_self" rel="noreferrer" href="https://www.youtube.com/user/BroadcomCorporation">
+                            <i class="bi bi-youtube"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+    
+    
+<script src="/etc.clientlibs/clientlibs/granite/jquery.min.cf5bdf053ce8fb11dd5d95ebdc71b234.js"></script>
+<script src="/etc.clientlibs/clientlibs/granite/utils.min.899004cc02c33efc1f6694b1aee587fd.js"></script>
+<script src="/etc.clientlibs/aem-site-template-dxml/broadcom/techdocs2/granite/utils.min.3b86602c4e1e0b41d9673f674a75cd4b.js"></script>
+<script src="/etc.clientlibs/clientlibs/granite/jquery/granite.min.011c0fc0d0cf131bdff879743a353002.js"></script>
+<script src="/etc.clientlibs/aem-site-template-dxml/broadcom/techdocs2/granite/jquery/granite.min.011c0fc0d0cf131bdff879743a353002.js"></script>
+<script src="/etc.clientlibs/foundation/clientlibs/jquery.min.dd9b395c741ce2784096e26619e14910.js"></script>
+<script src="/etc.clientlibs/techdocs-next/clientlibs/clientlib-base.min.ed748cdc710e318ace8c4d575b7d9a99.js"></script>
+<script src="/etc.clientlibs/techdocs-next/clientlibs/clientlib-components.min.08ba6a5fd3e911bf6988d3991f06d486.js"></script>
+<script src="/etc.clientlibs/techdocs-next/components/dita/topicpage/clientlibs.min.0e818c67718772403245de3538f9d522.js"></script>
+
+
+
+  <script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a24108d9483911d5',t:'MTc4NTU0NzM3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+
+</html>
+
+

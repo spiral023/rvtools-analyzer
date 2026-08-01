@@ -5,6 +5,7 @@ import { useDiagnostics } from "@/hooks/useDiagnostics";
 import { formatBytes } from "@/lib/utils";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { AnalysisExportCard } from "@/components/uploads/AnalysisExportCard";
 
 export function DiagnosticsPanel() {
   const { data, isFetching, refresh } = useDiagnostics(true);
@@ -17,6 +18,11 @@ export function DiagnosticsPanel() {
           Aktualisieren
         </Button>
       </div>
+
+      {/* Steht bewusst vor den Kennzahlen und außerhalb der `data`-Bedingung:
+          der Export hängt an den importierten Daten, nicht an den Messwerten
+          der Diagnose. */}
+      <AnalysisExportCard />
 
       {!data && isFetching && (
         <p className="text-sm text-muted-foreground">Lade Diagnosedaten…</p>

@@ -48,4 +48,13 @@ describe("DiagnosticsPanel", () => {
       "Messungen",
     ]);
   });
+
+  it("bietet den Analyse-Export an", () => {
+    // Dieses Panel ist der einzige erreichbare Einstieg in die Diagnose
+    // (`/upload?tab=diagnostics`); die gleichnamige Seite unter `pages/` ist
+    // nicht geroutet. Der Test hält fest, dass der Export hier hängt.
+    render(<DiagnosticsPanel />);
+
+    expect(screen.getByRole("button", { name: /Analyse-Export herunterladen/ })).toBeInTheDocument();
+  });
 });
