@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VmWorkloadHourlyPoint, VmWorkloadProfile, VropsTimeSeriesImport } from "@/domain/models/types";
+import { metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 import { buildAverageVmWorkload, resolveWeekSlot } from "./averageVmWorkloadService";
 import { buildHourGrid } from "./vmWorkloadProfileService";
 
@@ -166,7 +167,8 @@ function makeProfile(
   options: { readyP95?: number | null; configuredCpuCapacityMHz?: number | null } = {},
 ): VmWorkloadProfile {
   const finite = demand.filter((value): value is number => value !== null);
-  return {
+  const hasReady = options.readyP95 !== undefined && options.readyP95 !== null;
+  return vmWorkloadProfileFixture({
     objectKey: vmName,
     rvtoolsObjectKey: vmName,
     vmName,
@@ -177,46 +179,25 @@ function makeProfile(
     vcpu: 4,
     configuredCpuCapacityMHz: options.configuredCpuCapacityMHz === undefined ? 4_000 : options.configuredCpuCapacityMHz,
     configuredMemoryMiB: 8_192,
-    powerState: "poweredOn",
-    workloadClass: "std",
     hourly: timestamps.map((timestampUtc, index): VmWorkloadHourlyPoint => ({
       timestampUtc,
       cpuDemandMHz: demand[index] ?? null,
       cpuDemandMaxMHz: null,
       cpuReadyPct: null,
     })),
-    demand: {
+    demand: metricStatsFixture({
       expectedSlots: timestamps.length,
       sampleCount: finite.length,
       coverageRatio: timestamps.length > 0 ? finite.length / timestamps.length : 0,
       average: finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : null,
-      p50: null,
-      p95: null,
       maximum: finite.length ? Math.max(...finite) : null,
-    },
-    ready: {
+    }),
+    ready: metricStatsFixture({
       expectedSlots: timestamps.length,
-      sampleCount: options.readyP95 === undefined || options.readyP95 === null ? 0 : timestamps.length,
-      coverageRatio: options.readyP95 === undefined || options.readyP95 === null ? 0 : 1,
-      average: null,
-      p50: null,
+      sampleCount: hasReady ? timestamps.length : 0,
+      coverageRatio: hasReady ? 1 : 0,
       p95: options.readyP95 ?? null,
-      maximum: null,
-    },
-    shape: "constant",
+    }),
     intensity: "low",
-    behaviorClass: "constant-load",
-    confidence: "high",
-    signals: {
-      coefficientOfVariation: null,
-      activeHourSharePct: null,
-      dutyCyclePct: null,
-      baselineRatio: null,
-      utilizationP95Pct: null,
-      dailyRepeatability: null,
-      businessHoursConcentration: null,
-      nightConcentration: null,
-      weekendConcentration: null,
-    },
-  };
+  });
 }

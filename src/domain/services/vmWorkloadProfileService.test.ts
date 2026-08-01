@@ -121,23 +121,31 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
   });
 
   /**
-   * Eigene Population laut Messung an 3.950 VMs: geringe Streuung, aber dominantes
-   * Kalenderfenster. Weder „constant“ (verschweigt den Rhythmus) noch „business-hours“
-   * (suggeriert Abschaltbarkeit) trifft es.
+   * `constant-with-peak` verlangt geringe Streuung *und* ein dominantes Kalenderfenster.
+   * Beides zugleich ist rechnerisch eng: Eine Business-Hours-Konzentration von 1,35 setzt
+   * voraus, dass rund 30 % der Stunden deutlich über dem Rest liegen, was den
+   * Variationskoeffizienten über 0,2 hebt. Mit dem produktiven `constantLoadCvMax = 0,2`
+   * greift deshalb der Kalenderpfad – im gemessenen Bestand von 4.018 VMs trifft die
+   * Kombination auf keine einzige VM, während sie bei 0,5 noch 151 traf. Der Zweig bleibt
+   * erhalten, weil die Schwellen überschreibbar sind und Auswertungsskripte sie variieren.
    */
-  it("unterscheidet Grundlast mit Lastfenster von reiner Dauerlast", () => {
+  it("ordnet Grundlast mit Lastfenster dem Kalenderfenster zu und trennt sie von reiner Dauerlast", () => {
     const grid = buildSyntheticWeek();
-    // Grundlast 1.000 MHz, während der Geschäftszeiten 1.800 MHz. Das ergibt eine
-    // Business-Hours-Konzentration von 1,45 – wie der Median der gemessenen Population –
-    // bei einem Variationskoeffizienten von 0,30 und damit unterhalb der Dauerlast-Schwelle.
+    // Grundlast 1.000 MHz, während der Geschäftszeiten 1.800 MHz: Konzentration 1,45 bei
+    // einem Variationskoeffizienten von 0,30.
     const withPeak = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 8 && entry.hour < 18 ? 1_800 : 1_000]));
     const result = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000 });
 
-    expect(result.signals.coefficientOfVariation).toBeLessThanOrEqual(0.5);
+    expect(result.signals.coefficientOfVariation ?? 0).toBeGreaterThan(0.2);
     expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThanOrEqual(1.35);
-    expect(result.shape).toBe("constant-with-peak");
+    expect(result.shape).toBe("business-hours");
+
+    // Mit der früheren, großzügigeren Schwelle schlägt derselbe Verlauf in das
+    // Mischmuster um – der Zweig ist erreichbar, nur eben nicht mehr produktiv.
+    const lenient = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000, thresholds: { constantLoadCvMax: 0.5 } });
+    expect(lenient.shape).toBe("constant-with-peak");
     // Die Altklasse bleibt unverändert „Dauerlast“, damit bestehende Auswertungen tragen.
-    expect(result.behaviorClass).toBe("constant-load");
+    expect(lenient.behaviorClass).toBe("constant-load");
 
     // Ohne Lastfenster bleibt es reine Dauerlast.
     const flat = new Map(grid.map((entry) => [entry.timestampUtc, 2_000]));
@@ -253,6 +261,98 @@ describe("buildVmWorkloadProfiles", () => {
     expect(beta).toMatchObject({ clusterKey: "cluster-1", clusterName: "Cluster A", hostKey: "host-1", host: "esx01", vcpu: 4 });
     expect(beta.demand).toMatchObject({ expectedSlots: 4, sampleCount: 4, coverageRatio: 1, average: 250, p50: 200, p95: 400, maximum: 400 });
     expect(beta.ready.average).toBe(2.5);
+  });
+
+  it("verdichtet Kapazität, Co-Stop unter Last und Lastkonzentration je VM", () => {
+    // Zwölf Stunden bei 95 % der Kapazität mit geringer Streuung zwischen den Kernen,
+    // zwölf Stunden bei 50 % mit voller Streuung – so sieht eine VM aus, die unter
+    // Volllast sauber skaliert, im Teillastbetrieb aber auf wenigen Kernen läuft.
+    const rangeStartUtc = Date.UTC(2024, 0, 8, 0, 0, 0);
+    const importMeta = makeImport({ rangeStartUtc, expectedSlots: 24 });
+    const highLoad = (value: number, low: number) => Array.from({ length: 24 }, (_, slot) => (slot < 12 ? value : low));
+    const chunks: VropsTimeSeriesChunk[] = [
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuDemandAvgMHz", values: [highLoad(3_800, 2_000)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuTotalCapacityLastMHz", values: [Array.from({ length: 24 }, () => 4_000)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmConfiguredVcpuLast", values: [Array.from({ length: 24 }, () => 4)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuPeakCostopMaxPct", values: [highLoad(2, 10)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuUsageDisparityAvgPct", values: [highLoad(19, 100)] }),
+    ];
+
+    const [profile] = buildVmWorkloadProfiles({
+      import: importMeta,
+      objects: [makeVmObject({ objectKey: "vm:a", rvtoolsObjectKey: "a-key" })],
+      chunks,
+      vms: [makeVm({ vmKey: "a-key", vmName: "app-01", cpuCount: 4 })],
+    });
+
+    expect(profile.capacitySignals).toMatchObject({
+      totalCapacityMHz: 4_000,
+      configuredVcpu: 4,
+      mhzPerVcpu: 1_000,
+      hoursAboveCapacity75: 12,
+      hoursAboveCapacity90: 12,
+      loadHourCount: 24,
+    });
+    // 95 % Auslastung bei 19 Punkten Abstand ergeben (19/95)/4 = 0,05;
+    // 50 % bei 100 Punkten Abstand ergeben (100/50)/4 = 0,50.
+    expect(profile.capacitySignals.concentrationIndexP90).toBeCloseTo(0.5, 6);
+    expect(profile.capacitySignals.costopUnderLoadP95Pct).toBe(10);
+    // In der Spitzenstunde tragen 3,8 von 4 Kernen die Last.
+    expect(profile.capacitySignals.effectiveCoresMax).toBeCloseTo(3.8, 6);
+    // Die gemessene Kapazität ersetzt die Schätzung aus der Hostfrequenz.
+    expect(profile.configuredCpuCapacityMHz).toBe(4_000);
+  });
+
+  it("lässt die Kapazitätssignale leer, wenn vROps die optionalen Metriken nicht liefert", () => {
+    const rangeStartUtc = Date.UTC(2024, 0, 8, 0, 0, 0);
+    const [profile] = buildVmWorkloadProfiles({
+      import: makeImport({ rangeStartUtc, expectedSlots: 4 }),
+      objects: [makeVmObject({ objectKey: "vm:a", rvtoolsObjectKey: "a-key" })],
+      chunks: [makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuDemandAvgMHz", values: [[100, 200, 300, 400]] })],
+      vms: [makeVm({ vmKey: "a-key", vmName: "app-01", cpuCount: 4 })],
+    });
+
+    expect(profile.capacitySignals.totalCapacityMHz).toBeNull();
+    expect(profile.capacitySignals.costopUnderLoadP95Pct).toBeNull();
+    // Die vCPU-Anzahl fällt auf RVTools zurück, damit die Umrechnung nicht ganz ausfällt.
+    expect(profile.capacitySignals.configuredVcpu).toBe(4);
+  });
+});
+
+describe("Wochen-Wiederholbarkeit", () => {
+  /** Vier volle Wochen ab Montag – dieselbe Länge wie ein Monatsimport. */
+  function buildFourWeekGrid() {
+    return buildHourGrid(makeImport({ rangeStartUtc: Date.UTC(2024, 0, 8, 0, 0, 0), expectedSlots: 4 * 168 }));
+  }
+
+  it("erkennt einen wochenweise wiederkehrenden Verlauf", () => {
+    const grid = buildFourWeekGrid();
+    // Verlauf hängt allein von der Position innerhalb der Woche ab und wiederholt sich
+    // damit exakt: volle Korrelation, keine Streuung der Wochenmaxima.
+    const demand = new Map(grid.map((entry, slot) => [entry.timestampUtc, 1_000 + (slot % 168) * 5]));
+    const { signals } = classifyVmBehavior(grid, demand);
+
+    expect(signals.weeklyRepeatability).toBeCloseTo(1, 6);
+    expect(signals.weeklyPeakVariation).toBeCloseTo(0, 6);
+  });
+
+  it("erkennt einen Verlauf ohne Wochenbezug", () => {
+    const grid = buildFourWeekGrid();
+    // Deterministische, aber wochenübergreifend unähnliche Folge: die Periode 167 ist zur
+    // Wochenlänge teilerfremd, sodass sich kein Wochenmuster ergibt.
+    const demand = new Map(grid.map((entry, slot) => [entry.timestampUtc, 100 + ((slot * 37) % 167) * 20]));
+    const { signals } = classifyVmBehavior(grid, demand);
+
+    expect(signals.weeklyRepeatability ?? 1).toBeLessThan(0.3);
+  });
+
+  it("trifft ohne zwei volle Wochen keine Aussage", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry, slot) => [entry.timestampUtc, 1_000 + slot]));
+    const { signals } = classifyVmBehavior(grid, demand);
+
+    expect(signals.weeklyRepeatability).toBeNull();
+    expect(signals.weeklyPeakVariation).toBeNull();
   });
 });
 

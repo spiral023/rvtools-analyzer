@@ -119,7 +119,7 @@ export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
 export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
   candidateCount: {
     term: "Rightsizing-Kandidaten",
-    description: "VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready oder rückgewinnbarer vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
+    description: "VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready, Co-Stop unter Last, stark konzentrierter Last oder mit rückgewinnbarer bzw. fehlender vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
     source: "berechnet",
   },
   configuredVcpu: {
@@ -144,7 +144,12 @@ export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
   },
   withheldRecommendation: {
     term: "Ohne Empfehlung",
-    description: "VMs, für die aus Vorsicht keine Verkleinerung vorgeschlagen wird – zu dünne Datenbasis oder ein Lastmuster, dessen Spitzen in sieben Tagen nicht verlässlich erfasst sind.",
+    description: "VMs, für die aus Vorsicht keine Größenänderung vorgeschlagen wird – zu dünne Datenbasis, ein Lastmuster ohne reproduzierbaren Verlauf, eine nicht wiederkehrende Spitze oder eine Vergrößerung, die nur an einer einzelnen Spitze hinge.",
+    source: "berechnet",
+  },
+  additionalVcpu: {
+    term: "Zusätzlich nötige vCPU",
+    description: "Summe der fehlenden vCPU über alle zu klein konfigurierten VMs. Gegenrichtung zur rückgewinnbaren Kapazität und im Bestand deutlich kleiner: Nur wenige VMs laufen dauerhaft nahe an ihrer Kapazitätsgrenze.",
     source: "berechnet",
   },
 };
@@ -179,14 +184,29 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
     source: `berechnet · ${RV} · vInfo/vHost · „CPU MHz“ / „# Cores“`,
   },
   usedVcpuEquivalentPeak: {
-    term: "Genutzt Maximum",
-    description: "Dasselbe für den höchsten beobachteten Stundenwert. Begrenzt die Empfehlung nach unten, denn der P95 stündlicher Mittelwerte verbirgt kurze Lastspitzen – vROps liefert Stundenmittel, keine Momentanwerte.",
-    source: "berechnet",
+    term: "Genutzt Spitze",
+    description: "Dasselbe für die Lastspitze innerhalb der Stunde. Der P95 stündlicher Mittelwerte verbirgt kurze Spitzen – über den Bestand gemessen liegt die tatsächliche Spitze im Median beim Doppelten des Stundenmittels. Verwendet wird das 99.-Perzentil dieser Spitzenwerte, nicht ihr Monatsmaximum: Jenes ist ein einzelner 20-Sekunden-Wert und würde ein Viertel aller VMs als zu klein ausweisen.",
+    source: VROPS,
   },
   demandBasedVcpu: {
     term: "Bedarfsgerecht",
-    description: "Zielgröße, die der gemessene Bedarf allein hergibt: kleinste gerade vCPU-Zahl mit höchstens 65 % Auslastung beim P95 und höchstens 90 % beim beobachteten Maximum. Das Endziel der Planung, nicht der nächste Schritt – und bewusst auch dort ausgewiesen, wo keine Empfehlung ausgesprochen wird.",
+    description: "Zielgröße, die der gemessene Bedarf allein hergibt: kleinste gerade vCPU-Zahl mit höchstens 65 % Auslastung beim P95 und höchstens 90 % bei der Lastspitze. Bewusst nicht auf die heutige Größe gedeckelt – liegt der Wert darüber, ist die VM zu klein konfiguriert. Das Endziel der Planung, nicht der nächste Schritt, und auch dort ausgewiesen, wo keine Empfehlung ausgesprochen wird.",
     source: "berechnet",
+  },
+  additionalVcpu: {
+    term: "Zusätzlich nötig",
+    description: "Fehlende vCPU bei zu klein konfigurierten VMs, immer eine gerade Zahl. Anders als bei der Verkleinerung gibt es hier keine Schrittbegrenzung: Wer dauerhaft an der Kapazitätsgrenze läuft, ist mit einem halben Schritt nicht geholfen. Vorgeschlagen nur bei mindestens 24 Stunden über 75 % der Kapazität – eine einzelne Spitze genügt nicht.",
+    source: "berechnet",
+  },
+  costopUnderLoad: {
+    term: "Co-Stop unter Last",
+    description: "95.-Perzentil des Peak-vCPU-Co-Stop, ausgewertet nur in Stunden über 25 % Kapazität. Co-Stop entsteht, wenn der Hypervisor die vCPU einer breiten VM nicht gleichzeitig einplanen kann – es ist der einzige direkte Nachweis, dass die vCPU-Anzahl selbst Leistung kostet und eine Verkleinerung die VM schneller macht. Über alle Stunden gerechnet wäre der Wert wertlos, weil fast jede VM irgendwann einen Ausschlag zeigt.",
+    source: VROPS,
+  },
+  concentrationIndex: {
+    term: "Lastkonzentration",
+    description: "Wie ungleich sich die Last über die vCPU verteilt, von 0 (gleichmäßig) bis 1 (ein Kern trägt alles), gemessen im oberen Bereich der lasthaltigen Stunden. Im Bestand liegt der Wert typischerweise unter 0,1 – die Anwendungen skalieren also über ihre vCPU. Ab 0,4 bleiben zusätzliche Kerne wirkungslos.",
+    source: VROPS,
   },
   recommendedVcpu: {
     term: "Empfohlen",
@@ -200,7 +220,12 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
   recommendationWithheld: {
     term: "Keine Empfehlung, weil",
-    description: "Eine Verkleinerung greift in ein laufendes System ein und wird nur bei belastbarer Grundlage vorgeschlagen. Zurückgehalten wird sie bei zu dünner Datenbasis (Vertrauen unter „hoch“) und bei den Mustern bursty, unregelmäßig und nicht berechenbar – dort kann eine Woche den Spitzenbedarf deutlich unterschätzen. Die Kennzahlen bleiben zur eigenen Beurteilung sichtbar.",
+    description: "Verkleinerung und Vergrößerung tragen unterschiedliche Risiken und werden deshalb unterschiedlich abgesichert. Eine Verkleinerung unterbleibt bei zu dünner Datenbasis (Vertrauen unter „hoch“), bei den Mustern unregelmäßig und nicht berechenbar sowie bei bursty-VMs, deren Spitze sich nicht wochenweise wiederholt. Eine Vergrößerung unterbleibt, solange nur eine einzelne Spitze dafür spricht und keine Dauerlast nahe der Kapazitätsgrenze. Die Kennzahlen bleiben in jedem Fall zur eigenen Beurteilung sichtbar.",
+    source: "berechnet",
+  },
+  weeklyRepeatability: {
+    term: "Wochen-Wiederholbarkeit",
+    description: "Wie ähnlich sich die vollen Wochen einer VM sind (Korrelation der 168-Stunden-Verläufe) und wie gleichmäßig hoch ihre Wochenmaxima ausfallen. Entscheidet bei bursty-VMs darüber, ob die Spitze planbar ist: Im Bestand wiederholt rund die Hälfte von ihnen den Wochenverlauf zuverlässig, während das bei unregelmäßigen VMs praktisch nie zutrifft. Braucht mindestens zwei volle Wochen Messdaten.",
     source: "berechnet",
   },
   shape: { term: "Lastmuster", description: "Zeitliches Lastmuster aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik. Unabhängig von der Auslastungshöhe, daher auch bei schwach ausgelasteten Kandidaten aussagekräftig.", source: "berechnet" },

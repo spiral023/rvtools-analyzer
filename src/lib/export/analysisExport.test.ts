@@ -9,6 +9,7 @@ import type {
 } from "@/domain/models/types";
 import { buildAnalysisExportFiles, stablePseudonym } from "@/lib/export/analysisExport";
 import { MHZ_ENCODING, decodeAnalysisSeries } from "@/lib/export/analysisSeriesCodec";
+import { capacitySignalsFixture, classificationSignalsFixture, metricStatsFixture, rightsizingCandidateFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 
 const HOUR_MS = 60 * 60 * 1000;
 const RANGE_START = Date.UTC(2026, 6, 20, 0, 0, 0);
@@ -221,6 +222,53 @@ describe("buildAnalysisExportFiles", () => {
     const vmId = fileByPath(files, "vms.csv").split("\n")[1].split(";")[0];
     const seriesId = fileByPath(files, "series/cpu_demand_avg.csv").split("\n")[1].split(";")[0];
     expect(seriesId).toBe(vmId);
+  });
+
+  it("schreibt die Kapazitäts- und Beidrichtungs-Kennzahlen in das Inventar", () => {
+    // Der Export ist die Grundlage der externen Auswertung: Fehlt eine dieser Spalten,
+    // lässt sich die Rightsizing-Entscheidung von außen nicht nachvollziehen.
+    const files = buildFiles({
+      profiles: [vmWorkloadProfileFixture({
+        objectKey: "vrops-vm-1",
+        rvtoolsObjectKey: "vm-key-1",
+        vmName: "PROD-SQL-01",
+        demandMax: metricStatsFixture({ p95: 3_000, p99: 5_400, maximum: 20_000 }),
+        capacitySignals: capacitySignalsFixture({
+          totalCapacityMHz: 16_000, configuredVcpu: 8, mhzPerVcpu: 2_000,
+          hoursAboveCapacity75: 30, hoursAboveCapacity90: 12,
+          costopUnderLoadP95Pct: 9.6, loadHourCount: 120,
+          concentrationIndexP90: 0.52, effectiveCoresMax: 5.125,
+        }),
+        signals: classificationSignalsFixture({ weeklyRepeatability: 0.81, weeklyPeakVariation: 0.12 }),
+      })],
+      candidates: [rightsizingCandidateFixture({
+        objectKey: "vrops-vm-1",
+        vmName: "PROD-SQL-01",
+        mhzPerVcpu: 2_000,
+        demandBasedVcpu: 12,
+        additionalVcpu: 4,
+        recommendedVcpu: 12,
+        flags: { manyVcpuLowDemand: false, highCpuReady: false, costopUnderLoad: true, concentratedOnFewCores: true, sustainedNearCapacity: true },
+      })],
+    });
+    const [headerLine, row] = fileByPath(files, "vms.csv").split("\n");
+    const headers = headerLine.split(";");
+    const cells = row.split(";");
+    const cellOf = (name: string) => cells[headers.indexOf(name)];
+
+    expect(cellOf("demandMaxP99MHz")).toBe("5400");
+    expect(cellOf("measuredCapacityMHz")).toBe("16000");
+    expect(cellOf("measuredMhzPerVcpu")).toBe("2000");
+    expect(cellOf("hoursAboveCapacity75")).toBe("30");
+    expect(cellOf("costopUnderLoadP95Pct")).toBe("9.6");
+    expect(cellOf("concentrationIndexP90")).toBe("0.52");
+    expect(cellOf("effectiveCoresMax")).toBe("5.125");
+    expect(cellOf("weeklyRepeatability")).toBe("0.81");
+    expect(cellOf("weeklyPeakVariation")).toBe("0.12");
+    expect(cellOf("additionalVcpu")).toBe("4");
+    expect(cellOf("flagCostopUnderLoad")).toBe("1");
+    expect(cellOf("flagSustainedNearCapacity")).toBe("1");
+    expect(cellOf("flagManyVcpuLowDemand")).toBe("0");
   });
 
   it("schreibt die Umrechnungsbasis von MHz auf vCPU in die Hostdatei", () => {

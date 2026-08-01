@@ -39,7 +39,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * Version des Exportformats. Erhöhen, sobald sich Spalten oder Kodierung ändern —
  * Auswertungsskripte prüfen sie, statt Spaltenpositionen zu raten.
  */
-export const ANALYSIS_EXPORT_FORMAT_VERSION = 1;
+export const ANALYSIS_EXPORT_FORMAT_VERSION = 2;
 
 /** Metriken, die als Rohreihe ausgegeben werden, samt Kodierung und Einheit. */
 const SERIES_METRICS: ReadonlyArray<{
@@ -282,14 +282,19 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       "hostCpuTotalMHz", "hostCpuCores", "mhzPerCore", "configuredCpuCapacityMHz",
       "shape", "intensity", "behaviorClass", "confidence",
       "demandCoverageRatio", "demandSampleCount",
-      "demandAvgMHz", "demandP50MHz", "demandP95MHz", "demandMaxMHz",
+      "demandAvgMHz", "demandP50MHz", "demandP95MHz", "demandP99MHz", "demandMaxMHz",
+      "demandMaxP95MHz", "demandMaxP99MHz", "demandMaxMaximumMHz",
       "readyAvgPct", "readyP95Pct", "readyMaxPct",
+      "measuredCapacityMHz", "measuredVcpu", "measuredMhzPerVcpu",
+      "hoursAboveCapacity75", "hoursAboveCapacity90",
+      "costopUnderLoadP95Pct", "loadHourCount", "concentrationIndexP90", "effectiveCoresMax",
       "coefficientOfVariation", "activeHourSharePct", "dutyCyclePct", "baselineRatio",
-      "utilizationP95Pct", "dailyRepeatability",
+      "utilizationP95Pct", "dailyRepeatability", "weeklyRepeatability", "weeklyPeakVariation",
       "businessHoursConcentration", "nightConcentration", "weekendConcentration",
-      "usedVcpuEquivalentP95", "usedVcpuEquivalentPeak", "demandBasedVcpu",
-      "recommendedVcpu", "reclaimableVcpu", "recommendationWithheldReason",
+      "mhzPerVcpu", "usedVcpuEquivalentP95", "usedVcpuEquivalentPeak", "demandBasedVcpu",
+      "recommendedVcpu", "reclaimableVcpu", "additionalVcpu", "recommendationWithheldReason",
       "flagManyVcpuLowDemand", "flagHighCpuReady",
+      "flagCostopUnderLoad", "flagConcentratedOnFewCores", "flagSustainedNearCapacity",
       "techInfoServerType", "techInfoMaintenanceWindow", "techInfoOperatingSystem",
       "techInfoDepartment", "techInfoBz", "techInfoAz",
     ];
@@ -302,6 +307,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
       const techInfo = techInfoByVmName.get(vm.vmName.trim().toLowerCase());
       const signals = profile?.signals;
+      const capacity = profile?.capacitySignals;
 
       return [
         pseudonyms.apply("vm", vm.vmName),
@@ -337,27 +343,47 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         round(profile?.demand.average ?? null, 1),
         round(profile?.demand.p50 ?? null, 1),
         round(profile?.demand.p95 ?? null, 1),
+        round(profile?.demand.p99 ?? null, 1),
         round(profile?.demand.maximum ?? null, 1),
+        round(profile?.demandMax.p95 ?? null, 1),
+        round(profile?.demandMax.p99 ?? null, 1),
+        round(profile?.demandMax.maximum ?? null, 1),
         round(profile?.ready.average ?? null, 4),
         round(profile?.ready.p95 ?? null, 4),
         round(profile?.ready.maximum ?? null, 4),
+        round(capacity?.totalCapacityMHz ?? null, 1),
+        capacity?.configuredVcpu ?? null,
+        round(capacity?.mhzPerVcpu ?? null, 2),
+        capacity?.hoursAboveCapacity75 ?? null,
+        capacity?.hoursAboveCapacity90 ?? null,
+        round(capacity?.costopUnderLoadP95Pct ?? null, 4),
+        capacity?.loadHourCount ?? null,
+        round(capacity?.concentrationIndexP90 ?? null, 4),
+        round(capacity?.effectiveCoresMax ?? null, 3),
         round(signals?.coefficientOfVariation ?? null, 4),
         round(signals?.activeHourSharePct ?? null, 2),
         round(signals?.dutyCyclePct ?? null, 2),
         round(signals?.baselineRatio ?? null, 4),
         round(signals?.utilizationP95Pct ?? null, 3),
         round(signals?.dailyRepeatability ?? null, 4),
+        round(signals?.weeklyRepeatability ?? null, 4),
+        round(signals?.weeklyPeakVariation ?? null, 4),
         round(signals?.businessHoursConcentration ?? null, 4),
         round(signals?.nightConcentration ?? null, 4),
         round(signals?.weekendConcentration ?? null, 4),
+        round(candidate?.mhzPerVcpu ?? null, 2),
         round(candidate?.usedVcpuEquivalentP95 ?? null, 3),
         round(candidate?.usedVcpuEquivalentPeak ?? null, 3),
         candidate?.demandBasedVcpu ?? null,
         candidate?.recommendedVcpu ?? null,
         candidate?.reclaimableVcpu ?? null,
+        candidate?.additionalVcpu ?? null,
         candidate?.recommendationWithheldReason ?? null,
         candidate?.flags.manyVcpuLowDemand ?? null,
         candidate?.flags.highCpuReady ?? null,
+        candidate?.flags.costopUnderLoad ?? null,
+        candidate?.flags.concentratedOnFewCores ?? null,
+        candidate?.flags.sustainedNearCapacity ?? null,
         techInfo?.serverType ?? null,
         techInfo?.maintenanceWindow ?? null,
         techInfo?.operatingSystem ?? null,

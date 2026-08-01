@@ -919,6 +919,13 @@ export interface VmWorkloadProfileMetricStats {
   average: number | null;
   p50: number | null;
   p95: number | null;
+  /**
+   * Gebraucht für den Peak-Pfad des Rightsizings. Das Maximum von `vmCpuDemandMaxMHz`
+   * ist ein 20-Sekunden-Wert eines einzelnen Zeitpunkts im Monat; an 4.018 VMs gemessen
+   * würde es 27,6 % von ihnen zu Vergrößerungskandidaten machen. Der P99 desselben
+   * Signals trifft 2,9 % und bildet die wiederkehrende Spitze ab statt des Ausreißers.
+   */
+  p99: number | null;
   maximum: number | null;
 }
 
@@ -947,12 +954,70 @@ export interface VmWorkloadClassificationSignals {
   utilizationP95Pct: number | null;
   /** Median der Korrelation zwischen Tagesprofilen; 1 = sehr ähnlich, 0 = ohne erkennbaren Zusammenhang. */
   dailyRepeatability: number | null;
+  /**
+   * Median der Korrelation zwischen vollständigen Wochenprofilen (168 Stunden,
+   * wochentagsgleich ausgerichtet). Trennt an 31 Tagen das, was die Tagesähnlichkeit
+   * nicht kann: `bursty` erreicht 0,66 im Median, `irregular` nur 0,06. `null`, solange
+   * weniger als zwei volle Wochen vorliegen.
+   */
+  weeklyRepeatability: number | null;
+  /**
+   * Variationskoeffizient der Wochenmaxima. Beantwortet, ob die Spitze jede Woche
+   * gleich hoch ausfällt — bei `bursty` 0,09 im Median, bei `irregular` 0,70. Zusammen
+   * mit `weeklyRepeatability` das Kriterium dafür, ob eine Spitzenlast planbar ist.
+   */
+  weeklyPeakVariation: number | null;
   /** Anteil der Demand-Summe während Mo–Fr 08–18 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
   businessHoursConcentration: number | null;
   /** Wie `businessHoursConcentration`, für Mo–Fr 00–06 Uhr. */
   nightConcentration: number | null;
   /** Wie `businessHoursConcentration`, für Samstag/Sonntag. */
   weekendConcentration: number | null;
+}
+
+/**
+ * Kennzahlen aus den vROps-Metriken, die die VM selbst vermessen — im Gegensatz zu
+ * `VmWorkloadClassificationSignals`, die den zeitlichen Verlauf beschreiben. Alle
+ * Felder sind `null`, solange die zugehörige optionale Metrik nicht importiert wurde;
+ * die Auswertung fällt dann auf die bisherigen Näherungen aus Hostdaten zurück.
+ */
+export interface VmCpuCapacitySignals {
+  /**
+   * Zuletzt gemeldete CPU-Gesamtkapazität der VM. An 3.998 VMs gemessen exakt
+   * `vCPU × Nominaltakt` – Turbo-Boost steckt entgegen der ursprünglichen Annahme
+   * *nicht* darin. Der Nutzen liegt darin, dass der Wert die VM begleitet: 116 VMs
+   * (2,9 %) wechselten im Messmonat die Taktklasse, für die rechnet `mhzPerCore` des
+   * aktuellen Hosts rückwirkend falsch.
+   */
+  totalCapacityMHz: number | null;
+  /** Zuletzt gemeldete vCPU-Anzahl; deckt Umkonfigurationen innerhalb des Messfensters auf. */
+  configuredVcpu: number | null;
+  /** MHz je vCPU aus `totalCapacityMHz / configuredVcpu`; ersetzt `mhzPerCore`, wo vorhanden. */
+  mhzPerVcpu: number | null;
+  /** Stunden, in denen der Demand 75 % bzw. 90 % der Kapazität überschritt. */
+  hoursAboveCapacity75: number | null;
+  hoursAboveCapacity90: number | null;
+  /**
+   * P95 des Peak-vCPU-Co-Stop, ausgewertet **nur in Stunden über 25 % Kapazität**.
+   * Über alle Stunden gerechnet ist das Signal wertlos (96,6 % der VMs haben irgendwann
+   * einen Wert > 0). Unter Last dagegen trennt es sauber: ab 17 vCPU liegen 45,9 % der
+   * VMs über 5 %, bei ≤ 16 vCPU nur 12–26 %. `null` ohne ausreichend Laststunden.
+   */
+  costopUnderLoadP95Pct: number | null;
+  /** Zahl der ausgewerteten Laststunden hinter `costopUnderLoadP95Pct`. */
+  loadHourCount: number | null;
+  /**
+   * Konzentrationsindex `(Disparity / mittlere Kernauslastung) / vCPU`, P90 über die
+   * lasthaltigen Stunden. 0 = Last verteilt sich über alle vCPU, 1 = ein Kern trägt
+   * alles. Die erwartete Zweigipfligkeit besteht nicht — der Median liegt bei 0,061,
+   * nur rund 180 VMs erreichen 0,4. Deshalb ein Hinweis, kein Rechenweg.
+   */
+  concentrationIndexP90: number | null;
+  /**
+   * Höchste Zahl gleichzeitig belasteter Kerne (`vCPU × mittlere / höchste Kernlast`).
+   * Obergrenze dessen, was mehr vCPU überhaupt nützen könnten.
+   */
+  effectiveCoresMax: number | null;
 }
 
 export interface VmWorkloadHourlyPoint {
@@ -988,7 +1053,15 @@ export interface VmWorkloadProfile {
   workloadClass: "high" | "std" | "unknown";
   hourly: VmWorkloadHourlyPoint[];
   demand: VmWorkloadProfileMetricStats;
+  /**
+   * Statistik über `vmCpuDemandMaxMHz` – den höchsten Demand *innerhalb* jeder Stunde.
+   * Das Stundenmittel unterschätzt die Spitze im Median um Faktor 1,99, bei
+   * `night-batch` und `variable` im P90 um das Sieben­fache.
+   */
+  demandMax: VmWorkloadProfileMetricStats;
   ready: VmWorkloadProfileMetricStats;
+  /** Direkt aus vROps vermessene Kapazität und Druck-Signale der VM. */
+  capacitySignals: VmCpuCapacitySignals;
   /** Zeitliches Muster, niveauunabhängig. Zusammen mit `intensity` die primäre Einordnung. */
   shape: VmWorkloadShape;
   /** Auslastungsniveau, musterunabhängig. Zusammen mit `shape` die primäre Einordnung. */
@@ -1021,39 +1094,62 @@ export interface VmRightsizingCandidate {
   ready: VmWorkloadProfileMetricStats;
   /** MHz pro Core des zum Importzeitpunkt zugeordneten Hosts; Näherung, da VMs migrieren können. */
   mhzPerCore: number | null;
-  /** Aus P95-Demand und `mhzPerCore` abgeleiteter, tatsächlich genutzter vCPU-Bedarf. */
+  /**
+   * Tatsächlich verwendete Umrechnungsbasis MHz → vCPU. Bevorzugt die von vROps je VM
+   * gemeldete Kapazität, sonst `mhzPerCore` des Hosts.
+   */
+  mhzPerVcpu: number | null;
+  /** Aus P95-Demand und `mhzPerVcpu` abgeleiteter, tatsächlich genutzter vCPU-Bedarf. */
   usedVcpuEquivalentP95: number | null;
   /**
-   * Dasselbe für das beobachtete Maximum. Begrenzt die Empfehlung nach unten, damit
-   * kurze Lastspitzen nicht abgeschnitten werden – der P95 stündlicher Mittelwerte
-   * allein verbirgt sie.
+   * Dasselbe für den P99 des höchsten Demand innerhalb der Stunde. Hält die Empfehlung
+   * nach unten offen genug, dass kurze Lastspitzen nicht abgeschnitten werden – der P95
+   * stündlicher Mittelwerte allein verbirgt sie um rund Faktor 2.
    */
   usedVcpuEquivalentPeak: number | null;
   /**
    * Zielgröße, die der gemessene Bedarf allein hergibt – ohne Zurückhaltung wegen
-   * Schrittweite, Datengüte oder Muster. Sichtbar auch dort, wo keine Empfehlung
-   * ausgesprochen wird, damit das Endziel der Planung nicht verloren geht.
+   * Schrittweite, Datengüte oder Muster, und **ohne Deckelung auf die konfigurierte
+   * Anzahl**. Liegt sie über `vcpu`, ist die VM zu klein konfiguriert.
    */
   demandBasedVcpu: number | null;
   /**
-   * Warum keine Verkleinerung vorgeschlagen wird: `low-confidence` bei zu dünner
-   * Datenbasis, `unreliable-shape` bei Mustern, deren Spitzen in sieben Tagen nicht
-   * verlässlich erfasst sind. `null`, wenn eine Empfehlung ausgesprochen wurde.
+   * Warum die bedarfsgerechte Größe nicht als Empfehlung ausgesprochen wird:
+   * `low-confidence` bei zu dünner Datenbasis, `unreliable-shape` bei Mustern ohne
+   * reproduzierbaren Verlauf (`irregular`, `unclassified`), `burst-not-repeatable`
+   * für `bursty`-VMs, deren Spitze sich nicht wochenweise wiederholt, `peak-only` für
+   * Vergrößerungen, die nur an einer einzelnen Spitze hängen statt an Dauerlast.
+   * `null`, wenn eine Empfehlung ausgesprochen wurde.
    */
-  recommendationWithheldReason: "low-confidence" | "unreliable-shape" | null;
+  recommendationWithheldReason: "low-confidence" | "unreliable-shape" | "burst-not-repeatable" | "peak-only" | null;
   /**
    * Empfohlene vCPU-Zielgröße als nächster überprüfbarer Schritt; nur eine prüfpflichtige
-   * Kandidatengröße. Höchstens ein Viertel der konfigurierten vCPU pro Runde, mindestens
-   * jedoch ein vCPU-Paar, sofern der gemessene Bedarf es zulässt.
+   * Kandidatengröße. Bei Verkleinerung höchstens ein Viertel der konfigurierten vCPU pro
+   * Runde, mindestens jedoch ein vCPU-Paar, sofern der gemessene Bedarf es zulässt.
    */
   recommendedVcpu: number | null;
   /** `vcpu - recommendedVcpu`, nie negativ und immer gerade. */
   reclaimableVcpu: number | null;
+  /**
+   * `recommendedVcpu - vcpu` bei Unterdimensionierung, nie negativ und immer gerade.
+   * Verkleinerung und Vergrößerung schließen einander aus, sodass stets höchstens eines
+   * der beiden Felder größer als 0 ist.
+   */
+  additionalVcpu: number | null;
   flags: {
     /** Viele vCPU bei gleichzeitig geringem genutztem vCPU-Äquivalent. */
     manyVcpuLowDemand: boolean;
     /** CPU Ready P95 über dem Hotspot-Grenzwert – Rightsizing könnte Ready sogar verschlechtern. */
     highCpuReady: boolean;
+    /**
+     * Co-Stop unter Last über dem Grenzwert: die vCPU-Anzahl selbst kostet Leistung.
+     * Der einzige direkte Nachweis dafür, dass eine Verkleinerung die VM schneller macht.
+     */
+    costopUnderLoad: boolean;
+    /** Die Last konzentriert sich auf einen Bruchteil der vCPU; zusätzliche Kerne bleiben wirkungslos. */
+    concentratedOnFewCores: boolean;
+    /** Dauerhaft nahe der Kapazitätsgrenze – Grundlage jeder Vergrößerungsempfehlung. */
+    sustainedNearCapacity: boolean;
   };
 }
 

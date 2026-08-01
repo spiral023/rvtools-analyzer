@@ -1,20 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { VmRightsizingCandidate, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
+import type { VmRightsizingCandidate, VmWorkloadProfile } from "@/domain/models/types";
 import { buildTechInfoOrgMetricsByVmName } from "@/lib/techInfoOrgMetrics";
+import { metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 
 function profile(objectKey: string, vmName: string): VmWorkloadProfile {
-  const emptyStats: VmWorkloadProfileMetricStats = {
-    expectedSlots: 168,
-    sampleCount: 168,
-    coverageRatio: 1,
-    average: null,
-    p50: null,
-    p95: null,
-    maximum: null,
-  };
-  return {
+  return vmWorkloadProfileFixture({
     objectKey,
-    rvtoolsObjectKey: objectKey,
     vmName,
     clusterKey: null,
     clusterName: null,
@@ -23,27 +14,8 @@ function profile(objectKey: string, vmName: string): VmWorkloadProfile {
     vcpu: 8,
     configuredCpuCapacityMHz: 8_000,
     configuredMemoryMiB: 16_384,
-    powerState: "poweredOn",
-    workloadClass: "std",
-    hourly: [],
-    demand: { ...emptyStats, average: 800 },
-    ready: emptyStats,
-    shape: "constant",
-    intensity: "moderate",
-    behaviorClass: "constant-load",
-    confidence: "high",
-    signals: {
-      coefficientOfVariation: null,
-      activeHourSharePct: null,
-      dutyCyclePct: null,
-      baselineRatio: null,
-      utilizationP95Pct: null,
-      dailyRepeatability: null,
-      businessHoursConcentration: null,
-      nightConcentration: null,
-      weekendConcentration: null,
-    },
-  };
+    demand: metricStatsFixture({ average: 800 }),
+  });
 }
 
 describe("buildTechInfoOrgMetricsByVmName", () => {

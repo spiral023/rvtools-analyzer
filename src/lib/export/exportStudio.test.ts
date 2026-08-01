@@ -10,6 +10,7 @@ import {
   pseudonymizeExportDataset,
   type ExportStudioDataset,
 } from "./exportStudio";
+import { classificationSignalsFixture, metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 import { buildCsvTable } from "./tableExport";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
 import type { NormalizedCluster, NormalizedDatastore, NormalizedHost, NormalizedVm, SnapshotMeta, VmWorkloadProfile } from "@/domain/models/types";
@@ -144,17 +145,17 @@ describe("buildVmExportDataset", () => {
     };
   }
 
-  const emptyStats: VmWorkloadProfile["demand"] = { expectedSlots: 168, sampleCount: 0, coverageRatio: 0, average: null, p50: null, p95: null, maximum: null };
+  const emptyStats = metricStatsFixture({ sampleCount: 0, coverageRatio: 0 });
 
   function profile(overrides: Partial<VmWorkloadProfile> = {}): VmWorkloadProfile {
-    return {
+    return vmWorkloadProfileFixture({
       objectKey: "obj-1", rvtoolsObjectKey: "vm-1", vmName: "sql-01", clusterKey: null, clusterName: "Production",
       hostKey: "host-1", host: "esx-01", vcpu: 4, configuredCpuCapacityMHz: 4_000, configuredMemoryMiB: 8192, powerState: "poweredOn", workloadClass: "unknown",
       hourly: [{ timestampUtc: Date.UTC(2026, 6, 1, 0, 0), cpuDemandMHz: 412.3, cpuDemandMaxMHz: null, cpuReadyPct: 0.5 }],
       demand: { ...emptyStats, coverageRatio: 0.98, p95: 2_400 }, ready: { ...emptyStats, p95: 6.2 }, shape: "bursty", intensity: "elevated", behaviorClass: "bursty", confidence: "high",
-      signals: { coefficientOfVariation: 1.2, activeHourSharePct: 18.5, dutyCyclePct: 31.5, baselineRatio: 0.12, utilizationP95Pct: 42.1, dailyRepeatability: 0.15, businessHoursConcentration: 0.9, nightConcentration: 1.1, weekendConcentration: 0.8 },
+      signals: classificationSignalsFixture({ coefficientOfVariation: 1.2, activeHourSharePct: 18.5, dutyCyclePct: 31.5, baselineRatio: 0.12, utilizationP95Pct: 42.1, dailyRepeatability: 0.15, businessHoursConcentration: 0.9, nightConcentration: 1.1, weekendConcentration: 0.8 }),
       ...overrides,
-    };
+    });
   }
 
   function host(overrides: Partial<NormalizedHost> = {}): NormalizedHost {
@@ -187,7 +188,7 @@ describe("buildVmExportDataset", () => {
       // Das Profil ist "bursty": die bedarfsgerechte Größe wird ausgewiesen, eine
       // Verkleinerung aber zurückgehalten, weil sieben Tage seltene Spitzen verfehlen können.
       usedVcpuEquivalentP95: "1,00", demandBasedVcpu: "2",
-      recommendationWithheld: "Muster in 7 Tagen nicht verlässlich",
+      recommendationWithheld: "Spitze wiederholt sich nicht wochenweise",
       recommendedVcpu: "4", reclaimableVcpu: "0",
       rightsizingCandidate: "Ja", manyVcpuLowDemand: "Ja", highCpuReady: "Ja",
     });

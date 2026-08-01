@@ -1,34 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
+import { capacitySignalsFixture, classificationSignalsFixture, metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
 
 function metricStats(overrides: Partial<VmWorkloadProfileMetricStats>): VmWorkloadProfileMetricStats {
-  return { expectedSlots: 168, sampleCount: 168, coverageRatio: 1, average: null, p50: null, p95: null, maximum: null, ...overrides };
+  return metricStatsFixture(overrides);
 }
 
 function profile(overrides: Partial<VmWorkloadProfile> & { objectKey: string }): VmWorkloadProfile {
-  return {
-    rvtoolsObjectKey: overrides.objectKey,
-    vmName: overrides.objectKey,
-    clusterKey: "cluster-1",
-    clusterName: "Cluster A",
-    hostKey: "host-1",
-    host: "esx01",
-    vcpu: 4,
-    configuredCpuCapacityMHz: 4_000,
-    configuredMemoryMiB: 8_192,
-    powerState: "poweredOn",
-    workloadClass: "std",
-    hourly: [],
-    demand: metricStats({}),
-    ready: metricStats({}),
-    shape: "constant",
-    intensity: "moderate",
-    behaviorClass: "constant-load",
-    confidence: "high",
-    signals: { coefficientOfVariation: null, activeHourSharePct: null, dutyCyclePct: null, baselineRatio: null, utilizationP95Pct: null, dailyRepeatability: null, businessHoursConcentration: null, nightConcentration: null, weekendConcentration: null },
-    ...overrides,
-  };
+  return vmWorkloadProfileFixture(overrides);
 }
 
 const hosts: NormalizedHost[] = [{
@@ -161,10 +141,9 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.demandBasedVcpu).toBe(2);
   });
 
-  it("hält die Empfehlung bei Mustern zurück, deren Spitzen eine Woche nicht abbildet", () => {
+  it("hält die Empfehlung bei Mustern ohne reproduzierbaren Verlauf zurück", () => {
     const withheld = buildVmRightsizingCandidates({
       profiles: [
-        profile({ objectKey: "vm-bursty", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "bursty" }),
         profile({ objectKey: "vm-irregular", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "irregular" }),
         profile({ objectKey: "vm-unclassified", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "unclassified" }),
       ],
@@ -182,6 +161,136 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     });
     expect(weekend.recommendationWithheldReason).toBeNull();
     expect(weekend.reclaimableVcpu).toBe(4);
+  });
+
+  it("gibt bursty erst frei, wenn sich die Spitze wochenweise wiederholt", () => {
+    // 48 % der bursty-VMs wiederholen ihren Wochenverlauf; für sie ist die Spitze planbar
+    // und eine Verkleinerung vertretbar. Für den Rest bleibt sie es nicht.
+    const [notRepeatable] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-bursty-random",
+        vcpu: 16,
+        demand: metricStats({ p95: 10 }),
+        shape: "bursty",
+        signals: classificationSignalsFixture({ weeklyRepeatability: 0.2, weeklyPeakVariation: 0.9 }),
+      })],
+      hosts,
+    });
+    expect(notRepeatable.recommendationWithheldReason).toBe("burst-not-repeatable");
+    expect(notRepeatable.reclaimableVcpu).toBe(0);
+
+    const [repeatable] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-bursty-planbar",
+        vcpu: 16,
+        demand: metricStats({ p95: 10 }),
+        shape: "bursty",
+        signals: classificationSignalsFixture({ weeklyRepeatability: 0.8, weeklyPeakVariation: 0.1 }),
+      })],
+      hosts,
+    });
+    expect(repeatable.recommendationWithheldReason).toBeNull();
+    expect(repeatable.reclaimableVcpu).toBe(4);
+
+    // Ohne gemessene Wochensignale – etwa bei einem Sieben-Tage-Import – bleibt es bei
+    // der Zurückhaltung, statt eine Wiederholbarkeit zu unterstellen.
+    const [withoutSignals] = buildVmRightsizingCandidates({
+      profiles: [profile({ objectKey: "vm-bursty-7d", vcpu: 16, demand: metricStats({ p95: 10 }), shape: "bursty" })],
+      hosts,
+    });
+    expect(withoutSignals.recommendationWithheldReason).toBe("burst-not-repeatable");
+  });
+
+  it("erkennt zu klein konfigurierte VMs, statt die Zielgröße auf die Ist-Größe zu deckeln", () => {
+    // 3.400 MHz P95 bei 1.000 MHz je vCPU sind 3,4 vCPU; bei 65 % Zielauslastung
+    // braucht die VM 6 vCPU, konfiguriert sind 4. Der frühere Math.min-Deckel hätte
+    // daraus stumm „4“ gemacht und die Unterdimensionierung unsichtbar gelassen.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-klein",
+        vcpu: 4,
+        demand: metricStats({ p95: 3_400 }),
+        capacitySignals: capacitySignalsFixture({ totalCapacityMHz: 4_000, configuredVcpu: 4, mhzPerVcpu: 1_000, hoursAboveCapacity75: 40 }),
+      })],
+      hosts,
+    });
+    expect(candidate.demandBasedVcpu).toBe(6);
+    expect(candidate.additionalVcpu).toBe(2);
+    expect(candidate.recommendedVcpu).toBe(6);
+    expect(candidate.reclaimableVcpu).toBe(0);
+    expect(candidate.recommendationWithheldReason).toBeNull();
+    expect(candidate.flags.sustainedNearCapacity).toBe(true);
+  });
+
+  it("schlägt keine Vergrößerung vor, die nur an einer einzelnen Spitze hängt", () => {
+    // Gleiche Bedarfsrechnung, aber ohne anhaltende Kapazitätsnähe: Das Monatsmaximum
+    // von demandMax ist ein 20-Sekunden-Wert und träfe sonst 27,6 % des Bestands.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-spitze",
+        vcpu: 4,
+        demand: metricStats({ p95: 3_400 }),
+        capacitySignals: capacitySignalsFixture({ totalCapacityMHz: 4_000, configuredVcpu: 4, mhzPerVcpu: 1_000, hoursAboveCapacity75: 3 }),
+      })],
+      hosts,
+    });
+    expect(candidate.demandBasedVcpu).toBe(6);
+    expect(candidate.additionalVcpu).toBe(0);
+    expect(candidate.recommendedVcpu).toBe(4);
+    expect(candidate.recommendationWithheldReason).toBe("peak-only");
+  });
+
+  it("rechnet mit der je VM gemessenen Kapazität statt mit der Hostfrequenz", () => {
+    // Der Host liefert 1.000 MHz je Kern, vROps meldet für diese VM 2.000 MHz je vCPU –
+    // so sieht eine VM aus, die im Messzeitraum in eine andere Taktklasse migriert ist.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-migriert",
+        vcpu: 8,
+        demand: metricStats({ p95: 2_600 }),
+        capacitySignals: capacitySignalsFixture({ totalCapacityMHz: 16_000, configuredVcpu: 8, mhzPerVcpu: 2_000 }),
+      })],
+      hosts,
+    });
+    expect(candidate.mhzPerCore).toBe(1_000);
+    expect(candidate.mhzPerVcpu).toBe(2_000);
+    expect(candidate.usedVcpuEquivalentP95).toBe(1.3);
+    expect(candidate.demandBasedVcpu).toBe(2);
+  });
+
+  it("nutzt den P99 des Demand-Maximums als Peak-Pfad, nicht dessen Monatsmaximum", () => {
+    // P95 von 1.000 MHz verlangt für sich 2 vCPU. Der P99 innerhalb der Stunde liegt bei
+    // 5.400 MHz und hebt die Zielgröße über 5,4 / 0,9 = 6 vCPU; das einmalige
+    // Monatsmaximum von 20.000 MHz bliebe mit 22 vCPU weit darüber und bleibt außen vor.
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-spitzenlast",
+        vcpu: 16,
+        demand: metricStats({ p95: 1_000, maximum: 1_200 }),
+        demandMax: metricStats({ p95: 3_000, p99: 5_400, maximum: 20_000 }),
+      })],
+      hosts,
+    });
+    expect(candidate.usedVcpuEquivalentPeak).toBe(5.4);
+    expect(candidate.demandBasedVcpu).toBe(6);
+  });
+
+  it("markiert Co-Stop unter Last und Lastkonzentration auf wenige Kerne", () => {
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-breit",
+        vcpu: 24,
+        demand: metricStats({ p95: 1_000 }),
+        capacitySignals: capacitySignalsFixture({
+          totalCapacityMHz: 24_000, configuredVcpu: 24, mhzPerVcpu: 1_000,
+          costopUnderLoadP95Pct: 9.6, loadHourCount: 120, concentrationIndexP90: 0.52, effectiveCoresMax: 5.1,
+        }),
+      })],
+      hosts,
+    });
+    expect(candidate.flags.costopUnderLoad).toBe(true);
+    expect(candidate.flags.concentratedOnFewCores).toBe(true);
+    expect(isNotableRightsizingCandidate(candidate)).toBe(true);
   });
 
   it("empfiehlt nie unter zwei vCPU", () => {

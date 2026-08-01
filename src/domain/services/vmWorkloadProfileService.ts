@@ -2,6 +2,7 @@ import type {
   NormalizedHost,
   NormalizedVm,
   VmBehaviorClass,
+  VmCpuCapacitySignals,
   VmWorkloadClassificationSignals,
   VmWorkloadHourlyPoint,
   VmWorkloadIntensity,
@@ -92,6 +93,13 @@ export interface VmBehaviorThresholds {
   calendarDominanceMarginMin: number;
   irregularCvMin: number;
   irregularDailyRepeatabilityMax: number;
+  /**
+   * Ab dieser Wochenkorrelation und unterhalb dieser Streuung der Wochenmaxima gilt eine
+   * Spitzenlast als planbar. Beide Werte zusammen, weil ein wiederkehrender *Verlauf*
+   * ohne vergleichbare *Höhe* die Spitze nicht vorhersagbar macht.
+   */
+  repeatableWeeklyCorrelationMin: number;
+  repeatableWeeklyPeakVariationMax: number;
   /** Ab diesem Anteil der konfigurierten Kapazität gilt eine Stunde als produktive Arbeitsstunde. */
   dutyCycleCapacityMinPct: number;
   businessHourStart: number;
@@ -106,11 +114,33 @@ export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
   lowUtilizationP95CapacityMaxPct: 10,
   burstyMedianToP95Max: 0.4,
   burstyCvMin: 0.8,
-  constantLoadCvMax: 0.5,
+  /**
+   * An 3.980 vermessenen VMs hergeleitet. Als unabhängiges Maß für „wirklich flach“
+   * dient p95/p50 ≤ 1,5 **und** Monatsmaximum/p50 ≤ 2,5 **und** ein Stunden-P95 des
+   * Verhältnisses Demand-Max zu Demand-Avg ≤ 2; darauf kommen 376 VMs (9,4 %).
+   *
+   * | Schwelle | als `constant` | davon wirklich flach |
+   * |----------|----------------|----------------------|
+   * | 0,5      | 2.218          | 16,8 %               |
+   * | 0,3      | 1.218          | 29,6 %               |
+   * | 0,2      |   571          | 58,7 %               |
+   * | 0,15     |   386          | 75,4 %               |
+   *
+   * Der Anteil flacher VMs kippt im Band 0,15–0,20 von 51,7 % auf 23,8 %; 0,2 hält die
+   * Trefferquote bei 89,1 % und verdreifacht zugleich die Präzision. Die Umstellung
+   * verschiebt rund 1.500 VMs nach `variable` und lässt `constant-with-peak` leer
+   * laufen – deren VMs erreicht der Kalenderpfad (`business-hours` +145).
+   */
+  constantLoadCvMax: 0.2,
   calendarConcentrationMin: 1.35,
   calendarDominanceMarginMin: 0.15,
   irregularCvMin: 0.5,
   irregularDailyRepeatabilityMax: 0.3,
+  // An vier vollen Wochen gemessen: `bursty` erreicht im Median 0,66 Korrelation bei
+  // 0,09 Streuung der Wochenmaxima, `irregular` 0,06 bei 0,70. Bei diesen Grenzen
+  // gelten 54 % der `bursty`-VMs als planbar und 3 % der `irregular`.
+  repeatableWeeklyCorrelationMin: 0.5,
+  repeatableWeeklyPeakVariationMax: 0.4,
   dutyCycleCapacityMinPct: 5,
   businessHourStart: 8,
   businessHourEnd: 18,
@@ -193,10 +223,23 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         cpuReadyPct: finiteOrNull(readySeries.get(entry.timestampUtc)),
       }));
       const demand = buildMetricStats(hourly.map((point) => point.cpuDemandMHz), input.import.expectedSlots);
+      const demandMax = buildMetricStats(hourly.map((point) => point.cpuDemandMaxMHz), input.import.expectedSlots);
       const ready = buildMetricStats(hourly.map((point) => point.cpuReadyPct), input.import.expectedSlots);
       const host = object.hostKey ? hostByKey.get(object.hostKey) : undefined;
       const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
-      const configuredCpuCapacityMHz = mhzPerCore !== null && vm.cpuCount ? mhzPerCore * vm.cpuCount : null;
+      const capacitySignals = buildCapacitySignals({
+        hourGrid,
+        demandSeries,
+        capacitySeries: readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuTotalCapacityLastMHz"),
+        vcpuSeries: readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmConfiguredVcpuLast"),
+        costopSeries: readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuPeakCostopMaxPct"),
+        disparitySeries: readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuUsageDisparityAvgPct"),
+        fallbackVcpu: vm.cpuCount,
+      });
+      // Die von vROps je VM gemeldete Kapazität geht vor: sie begleitet die VM über
+      // Migrationen hinweg, während `mhzPerCore` immer den aktuellen Host beschreibt.
+      const configuredCpuCapacityMHz = capacitySignals.totalCapacityMHz
+        ?? (mhzPerCore !== null && vm.cpuCount ? mhzPerCore * vm.cpuCount : null);
       const { shape, intensity, behaviorClass, signals } = classifyVmBehavior(hourGrid, demandSeries, { configuredCpuCapacityMHz });
       return [{
         objectKey: object.objectKey,
@@ -213,7 +256,9 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         workloadClass: object.workloadClass ?? "unknown",
         hourly,
         demand,
+        demandMax,
         ready,
+        capacitySignals,
         shape,
         intensity,
         behaviorClass,
@@ -234,8 +279,111 @@ function buildMetricStats(values: readonly (number | null)[], expectedSlots: num
     average: average(finite),
     p50: percentile(finite, 0.5),
     p95: percentile(finite, 0.95),
-    maximum: finite.length ? Math.max(...finite) : null,
+    p99: percentile(finite, 0.99),
+    // `Math.max(...finite)` würde bei einem Monat Stundenwerten über alle VMs hinweg
+    // den Aufrufstack sprengen; die Schleife bleibt unabhängig von der Reihenlänge.
+    maximum: finite.length ? finite.reduce((left, right) => (right > left ? right : left), finite[0]) : null,
   };
+}
+
+/** Ab diesem Anteil der Kapazität gilt eine Stunde als Laststunde für die Druck-Signale. */
+const COSTOP_LOAD_MIN_CAPACITY_PCT = 25;
+/** Unterhalb dieser mittleren Kernauslastung ist die gemessene Disparity Rauschen. */
+const CONCENTRATION_MIN_CORE_PCT = 5;
+/** Ohne diese Zahl an Laststunden ist ein P95 des Co-Stop nicht belastbar. */
+const COSTOP_MIN_LOAD_HOURS = 12;
+
+interface BuildCapacitySignalsInput {
+  hourGrid: readonly HourGridEntry[];
+  demandSeries: ReadonlyMap<number, number>;
+  capacitySeries: ReadonlyMap<number, number>;
+  vcpuSeries: ReadonlyMap<number, number>;
+  costopSeries: ReadonlyMap<number, number>;
+  disparitySeries: ReadonlyMap<number, number>;
+  /** Aus RVTools, falls vROps keine vCPU-Anzahl liefert. */
+  fallbackVcpu: number | null;
+}
+
+/**
+ * Verdichtet die vier optionalen vROps-Metriken zu den Kennzahlen, die das Rightsizing
+ * braucht. Alles wird in einem Durchlauf über das Stundenraster berechnet, weil je VM
+ * sonst mehrfach über 744 Slots iteriert würde.
+ */
+function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySignals {
+  const empty: VmCpuCapacitySignals = {
+    totalCapacityMHz: null,
+    configuredVcpu: null,
+    mhzPerVcpu: null,
+    hoursAboveCapacity75: null,
+    hoursAboveCapacity90: null,
+    costopUnderLoadP95Pct: null,
+    loadHourCount: null,
+    concentrationIndexP90: null,
+    effectiveCoresMax: null,
+  };
+  const totalCapacityMHz = lastFiniteValue(input.hourGrid, input.capacitySeries);
+  const configuredVcpu = lastFiniteValue(input.hourGrid, input.vcpuSeries) ?? input.fallbackVcpu;
+  if (totalCapacityMHz === null || totalCapacityMHz <= 0) return { ...empty, configuredVcpu };
+  const mhzPerVcpu = configuredVcpu && configuredVcpu > 0 ? totalCapacityMHz / configuredVcpu : null;
+
+  let hoursAboveCapacity75 = 0;
+  let hoursAboveCapacity90 = 0;
+  const costopUnderLoad: number[] = [];
+  const concentrationIndices: number[] = [];
+  let effectiveCoresMax: number | null = null;
+
+  for (const entry of input.hourGrid) {
+    const demand = input.demandSeries.get(entry.timestampUtc);
+    if (demand === undefined || !Number.isFinite(demand)) continue;
+    // Kapazität je Stunde, damit eine Migration in eine andere Taktklasse nicht den
+    // ganzen Monat mit dem zuletzt gesehenen Wert verrechnet wird.
+    const capacity = finiteOrNull(input.capacitySeries.get(entry.timestampUtc)) ?? totalCapacityMHz;
+    if (capacity <= 0) continue;
+    const utilizationPct = (demand / capacity) * 100;
+    if (utilizationPct > 75) hoursAboveCapacity75 += 1;
+    if (utilizationPct > 90) hoursAboveCapacity90 += 1;
+
+    if (utilizationPct >= COSTOP_LOAD_MIN_CAPACITY_PCT) {
+      const costop = finiteOrNull(input.costopSeries.get(entry.timestampUtc));
+      if (costop !== null) costopUnderLoad.push(costop);
+    }
+
+    const vcpu = finiteOrNull(input.vcpuSeries.get(entry.timestampUtc)) ?? configuredVcpu;
+    const disparity = finiteOrNull(input.disparitySeries.get(entry.timestampUtc));
+    if (disparity === null || vcpu === null || vcpu <= 1 || utilizationPct < CONCENTRATION_MIN_CORE_PCT) continue;
+    // `utilizationPct` ist zugleich die mittlere Auslastung eines einzelnen Kerns, weil
+    // die Kapazität alle vCPU umfasst. Der Index wird damit 1, wenn ein Kern voll läuft
+    // und alle anderen ruhen, und 0 bei gleichmäßiger Verteilung.
+    concentrationIndices.push((disparity / utilizationPct) / vcpu);
+    // Höchste Kernlast aus mittlerer Last und Abstand; daraus, wie viele Kerne die
+    // Gesamtlast tatsächlich tragen. Mehr vCPU als dieser Wert können nichts bewirken.
+    const highestCorePct = Math.min(100, utilizationPct + (disparity * (vcpu - 1)) / vcpu);
+    if (highestCorePct > 0) {
+      const effectiveCores = (vcpu * utilizationPct) / highestCorePct;
+      if (effectiveCoresMax === null || effectiveCores > effectiveCoresMax) effectiveCoresMax = effectiveCores;
+    }
+  }
+
+  return {
+    totalCapacityMHz,
+    configuredVcpu,
+    mhzPerVcpu,
+    hoursAboveCapacity75,
+    hoursAboveCapacity90,
+    costopUnderLoadP95Pct: costopUnderLoad.length >= COSTOP_MIN_LOAD_HOURS ? percentile(costopUnderLoad, 0.95) : null,
+    loadHourCount: costopUnderLoad.length,
+    concentrationIndexP90: percentile(concentrationIndices, 0.9),
+    effectiveCoresMax,
+  };
+}
+
+/** Letzter im Raster vorhandener Messwert einer Reihe; `null`, wenn die Metrik fehlt. */
+function lastFiniteValue(hourGrid: readonly HourGridEntry[], series: ReadonlyMap<number, number>): number | null {
+  for (let index = hourGrid.length - 1; index >= 0; index -= 1) {
+    const value = finiteOrNull(series.get(hourGrid[index].timestampUtc));
+    if (value !== null) return value;
+  }
+  return null;
 }
 
 /** Vertrauensniveau folgt ausschließlich der Datenabdeckung; die Musterschwellen selbst enthalten keine Unsicherheit. */
@@ -309,6 +457,8 @@ export function classifyVmBehavior(
     baselineRatio: null,
     utilizationP95Pct: null,
     dailyRepeatability: null,
+    weeklyRepeatability: null,
+    weeklyPeakVariation: null,
     businessHoursConcentration: null,
     nightConcentration: null,
     weekendConcentration: null,
@@ -316,9 +466,9 @@ export function classifyVmBehavior(
   const thresholds: VmBehaviorThresholds = options.thresholds
     ? { ...VM_BEHAVIOR_THRESHOLDS, ...options.thresholds }
     : VM_BEHAVIOR_THRESHOLDS;
-  const samples = hourGrid.flatMap((entry) => {
+  const samples = hourGrid.flatMap((entry, slotIndex) => {
     const value = demandByTimestamp.get(entry.timestampUtc);
-    return value !== undefined && Number.isFinite(value) ? [{ ...entry, value }] : [];
+    return value !== undefined && Number.isFinite(value) ? [{ ...entry, slotIndex, value }] : [];
   });
   if (samples.length === 0) return { shape: "unclassified", intensity: "unknown", behaviorClass: "unclassified", signals: emptySignals };
 
@@ -359,6 +509,7 @@ export function classifyVmBehavior(
   const nightConcentration = concentration((sample) => !sample.isWeekend && sample.hour < thresholds.nightHourEnd);
   const weekendConcentration = concentration((sample) => sample.isWeekend);
   const dailyRepeatability = calculateDailyRepeatability(samples);
+  const { weeklyRepeatability, weeklyPeakVariation } = calculateWeeklySignals(samples);
 
   const signals: VmWorkloadClassificationSignals = {
     coefficientOfVariation,
@@ -367,6 +518,8 @@ export function classifyVmBehavior(
     baselineRatio,
     utilizationP95Pct,
     dailyRepeatability,
+    weeklyRepeatability,
+    weeklyPeakVariation,
     businessHoursConcentration,
     nightConcentration,
     weekendConcentration,
@@ -477,6 +630,71 @@ function deriveBehaviorClass(shape: VmWorkloadShape, isLowUtilization: boolean):
   if (shape === "unclassified") return "unclassified";
   if (isLowUtilization) return "low-utilization";
   return SHAPE_TO_BEHAVIOR_CLASS[shape];
+}
+
+const WEEK_HOURS = 168;
+/** Eine Woche zählt erst ab dieser Belegung; sonst vergleicht die Korrelation Bruchstücke. */
+const WEEK_MIN_SAMPLES = 84;
+/** Für eine Streuung der Wochenmaxima braucht es mindestens drei Wochen. */
+const WEEKLY_PEAK_MIN_WEEKS = 3;
+
+/**
+ * Vergleicht die vollständigen Wochen einer VM miteinander.
+ *
+ * Blöcke zu 168 Stunden ab dem Rasteranfang sind untereinander automatisch
+ * wochentagsgleich, unabhängig davon, auf welchen Wochentag der Zeitraum fällt.
+ * Erst mit vier vollen Wochen wird daraus ein belastbares Signal – deshalb liefert
+ * ein Sieben-Tage-Import hier `null` und die Rightsizing-Logik bleibt zurückhaltend.
+ */
+function calculateWeeklySignals(
+  samples: readonly (HourGridEntry & { slotIndex: number; value: number })[],
+): { weeklyRepeatability: number | null; weeklyPeakVariation: number | null } {
+  const weeks = new Map<number, Map<number, number>>();
+  for (const sample of samples) {
+    const weekIndex = Math.floor(sample.slotIndex / WEEK_HOURS);
+    const week = weeks.get(weekIndex) ?? new Map<number, number>();
+    week.set(sample.slotIndex % WEEK_HOURS, sample.value);
+    weeks.set(weekIndex, week);
+  }
+  const profiles = [...weeks.values()].filter((week) => week.size >= WEEK_MIN_SAMPLES);
+  if (profiles.length < 2) return { weeklyRepeatability: null, weeklyPeakVariation: null };
+
+  const correlations: number[] = [];
+  for (let leftIndex = 0; leftIndex < profiles.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < profiles.length; rightIndex += 1) {
+      const sharedHours = [...profiles[leftIndex].keys()].filter((hour) => profiles[rightIndex].has(hour));
+      if (sharedHours.length < WEEK_MIN_SAMPLES) continue;
+      const correlation = pearsonCorrelation(
+        sharedHours.map((hour) => profiles[leftIndex].get(hour)!),
+        sharedHours.map((hour) => profiles[rightIndex].get(hour)!),
+      );
+      if (correlation !== null) correlations.push(correlation);
+    }
+  }
+
+  const peaks = profiles.map((week) => Math.max(...week.values()));
+  const peakMean = average(peaks) ?? 0;
+  return {
+    weeklyRepeatability: percentile(correlations, 0.5),
+    weeklyPeakVariation: profiles.length >= WEEKLY_PEAK_MIN_WEEKS && peakMean > 0
+      ? standardDeviation(peaks, peakMean) / peakMean
+      : null,
+  };
+}
+
+/**
+ * Ob die Spitzenlast einer VM planbar ist: gleicher Wochenverlauf *und* vergleichbar
+ * hohe Wochenmaxima. Ohne ausreichende Datenbasis bewusst `false` – die Aussage wird
+ * nur dort getroffen, wo sie belegt ist.
+ */
+export function hasRepeatableWeeklyPeak(
+  signals: VmWorkloadClassificationSignals,
+  thresholds: VmBehaviorThresholds = VM_BEHAVIOR_THRESHOLDS,
+): boolean {
+  return signals.weeklyRepeatability !== null
+    && signals.weeklyPeakVariation !== null
+    && signals.weeklyRepeatability >= thresholds.repeatableWeeklyCorrelationMin
+    && signals.weeklyPeakVariation <= thresholds.repeatableWeeklyPeakVariationMax;
 }
 
 function calculateDailyRepeatability(samples: readonly (HourGridEntry & { value: number })[]): number | null {

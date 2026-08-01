@@ -1,34 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { VmRightsizingCandidate, VmWorkloadProfileMetricStats } from "@/domain/models/types";
+import type { VmRightsizingCandidate } from "@/domain/models/types";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
-
-function metricStats(): VmWorkloadProfileMetricStats {
-  return { expectedSlots: 168, sampleCount: 168, coverageRatio: 1, average: null, p50: null, p95: null, maximum: null };
-}
+import { rightsizingCandidateFixture } from "@/test/fixtures/vmWorkload";
 
 function candidate(overrides: Partial<VmRightsizingCandidate> & { objectKey: string }): VmRightsizingCandidate {
-  return {
-    vmName: overrides.objectKey,
-    clusterKey: "cluster-1",
-    clusterName: "Cluster A",
-    hostName: "esx01",
-    vcpu: 4,
-    shape: "constant",
-    intensity: "moderate",
-    behaviorClass: "constant-load",
-    confidence: "high",
-    demand: metricStats(),
-    ready: metricStats(),
-    mhzPerCore: 1_000,
-    usedVcpuEquivalentP95: 1,
-    usedVcpuEquivalentPeak: null,
-    demandBasedVcpu: null,
-    recommendationWithheldReason: null,
-    recommendedVcpu: null,
-    reclaimableVcpu: 0,
-    flags: { manyVcpuLowDemand: false, highCpuReady: false },
-    ...overrides,
-  };
+  return rightsizingCandidateFixture(overrides);
 }
 
 /** Zelle über Bandschlüssel suchen, damit die Tests unabhängig von der Rasterreihenfolge bleiben. */
@@ -44,7 +20,7 @@ describe("buildRightsizingDensityGrid", () => {
     // 2 von 8 vCPU = 25 % => Band 25–50 %, vCPU-Band 5–8.
     const grid = buildRightsizingDensityGrid([
       candidate({ objectKey: "vm-1", vcpu: 8, usedVcpuEquivalentP95: 2, reclaimableVcpu: 2 }),
-      candidate({ objectKey: "vm-2", vcpu: 8, usedVcpuEquivalentP95: 2.4, reclaimableVcpu: 4, flags: { manyVcpuLowDemand: true, highCpuReady: false } }),
+      candidate({ objectKey: "vm-2", vcpu: 8, usedVcpuEquivalentP95: 2.4, reclaimableVcpu: 4, flags: { ...rightsizingCandidateFixture({ objectKey: "vm-2" }).flags, manyVcpuLowDemand: true } }),
       candidate({ objectKey: "vm-3", vcpu: 1, usedVcpuEquivalentP95: 0.01 }),
     ]);
 

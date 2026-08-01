@@ -114,6 +114,7 @@ export function VmDetailDialog({
   const tools = toolsRows[0]?.data ?? {};
   const p95Pct = workloadProfile?.signals.utilizationP95Pct ?? null;
   const reclaimable = rightsizing?.reclaimableVcpu ?? 0;
+  const additional = rightsizing?.additionalVcpu ?? 0;
 
   const kpis: DetailKpi[] = [
     { label: "Betriebszustand", value: compactValue(vm.powerState), hint: compactValue(vm.connectionState), tone: vmTone(vm.powerState) },
@@ -121,7 +122,18 @@ export function VmDetailDialog({
     { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `aktiv ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
     { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && p95Pct >= 80 ? "critical" : p95Pct !== null && p95Pct >= 60 ? "warning" : "neutral" },
     { label: "CPU Ready P95", value: percent(workloadProfile?.ready.p95), hint: workloadProfile ? `${workloadProfile.demand.sampleCount} Messpunkte` : "Keine Zeitreihe", tone: (workloadProfile?.ready.p95 ?? 0) > 5 ? "warning" : workloadProfile ? "good" : "neutral" },
-    { label: "Rightsizing", value: rightsizing?.recommendedVcpu ? `${rightsizing.recommendedVcpu} vCPU` : "Keine Änderung", hint: reclaimable > 0 ? `${reclaimable} vCPU rückgewinnbar` : rightsizing?.recommendationWithheldReason ? "Empfehlung zurückgehalten" : "Kein Kandidat", tone: reclaimable > 0 ? "warning" : "neutral" },
+    {
+      label: "Rightsizing",
+      value: rightsizing?.recommendedVcpu ? `${rightsizing.recommendedVcpu} vCPU` : "Keine Änderung",
+      hint: additional > 0
+        ? `${additional} vCPU fehlen`
+        : reclaimable > 0
+          ? `${reclaimable} vCPU rückgewinnbar`
+          : rightsizing?.recommendationWithheldReason ? "Empfehlung zurückgehalten" : "Kein Kandidat",
+      // Unterdimensionierung wiegt schwerer als ungenutzte Kapazität: Die eine kostet
+      // Leistung im laufenden Betrieb, die andere nur Reserve.
+      tone: additional > 0 ? "critical" : reclaimable > 0 ? "warning" : "neutral",
+    },
   ];
 
   const identityFields: DetailField[] = [
@@ -155,21 +167,33 @@ export function VmDetailDialog({
     { label: "Aktive Stunden", value: percent(workloadProfile.signals.dutyCyclePct) },
     { label: "Grundlastanteil", value: percent(workloadProfile.signals.baselineRatio === null ? null : workloadProfile.signals.baselineRatio * 100) },
     { label: "Tages-Wiederholbarkeit", value: decimal(workloadProfile.signals.dailyRepeatability) },
+    { label: "Wochen-Wiederholbarkeit", value: decimal(workloadProfile.signals.weeklyRepeatability) },
+    { label: "Streuung der Wochenmaxima", value: decimal(workloadProfile.signals.weeklyPeakVariation) },
     { label: "Business-Hours-Konzentration", value: decimal(workloadProfile.signals.businessHoursConcentration) },
     { label: "Nacht-Konzentration", value: decimal(workloadProfile.signals.nightConcentration) },
     { label: "Wochenend-Konzentration", value: decimal(workloadProfile.signals.weekendConcentration) },
     { label: "Konfigurierte CPU-Kapazität", value: workloadProfile.configuredCpuCapacityMHz ? `${decimal(workloadProfile.configuredCpuCapacityMHz, 0)} MHz` : "—" },
+    { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity75) },
+    { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity90) },
+    { label: "Co-Stop unter Last P95", value: percent(workloadProfile.capacitySignals.costopUnderLoadP95Pct) },
+    { label: "Lastkonzentration", value: decimal(workloadProfile.capacitySignals.concentrationIndexP90) },
+    { label: "Belastete Kerne (max.)", value: decimal(workloadProfile.capacitySignals.effectiveCoresMax) },
   ] : [];
 
   const rightsizingFields: DetailField[] = rightsizing ? [
     { label: "Konfiguriert", value: rightsizing.vcpu === null ? "—" : `${rightsizing.vcpu} vCPU` },
     { label: "Genutzt P95", value: rightsizing.usedVcpuEquivalentP95 === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentP95)} vCPU` },
-    { label: "Genutzt Maximum", value: rightsizing.usedVcpuEquivalentPeak === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentPeak)} vCPU` },
+    { label: "Genutzt Spitze", value: rightsizing.usedVcpuEquivalentPeak === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentPeak)} vCPU` },
+    { label: "MHz je vCPU", value: rightsizing.mhzPerVcpu === null ? "—" : `${decimal(rightsizing.mhzPerVcpu, 0)} MHz` },
     { label: "Bedarfsgerecht", value: rightsizing.demandBasedVcpu === null ? "—" : `${rightsizing.demandBasedVcpu} vCPU` },
     { label: "Empfohlen", value: rightsizing.recommendedVcpu === null ? "Keine Empfehlung" : `${rightsizing.recommendedVcpu} vCPU` },
     { label: "Rückgewinnbar", value: rightsizing.reclaimableVcpu === null ? "—" : `${rightsizing.reclaimableVcpu} vCPU` },
+    { label: "Zusätzlich nötig", value: rightsizing.additionalVcpu === null ? "—" : `${rightsizing.additionalVcpu} vCPU` },
     { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand) },
     { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady) },
+    { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad) },
+    { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores) },
+    { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity) },
   ] : [];
   const clientFields: DetailField[] = client ? [
     { label: "Standort", value: compactValue(client.standort), sensitivity: "identifier" },

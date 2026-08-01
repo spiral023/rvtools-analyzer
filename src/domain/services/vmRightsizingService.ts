@@ -1,14 +1,16 @@
 import type { NormalizedHost, VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
-import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL, hasRepeatableWeeklyPeak } from "@/domain/services/vmWorkloadProfileService";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
 /** Zielauslastung der empfohlenen vCPU-Größe beim P95-Bedarf. */
 const TARGET_UTILIZATION_P95 = 0.65;
 /**
- * Zweite Bedingung gegen das beobachtete Maximum. Ohne sie richtet sich die Empfehlung
- * allein nach dem P95 *stündlicher Mittelwerte* – vROps liefert `cpuCpuDemandAvg`, womit
+ * Zweite Bedingung gegen die Lastspitze. Ohne sie richtet sich die Empfehlung allein
+ * nach dem P95 *stündlicher Mittelwerte* – vROps liefert `cpuCpuDemandAvg`, womit
  * Spitzen innerhalb einer Stunde vollständig herausgemittelt sind. Eine VM mit kurzen,
- * heftigen Lastspitzen sähe dadurch harmlos aus und würde zu klein empfohlen.
+ * heftigen Lastspitzen sähe dadurch harmlos aus und würde zu klein empfohlen. An 4.018
+ * VMs gemessen liegt die Spitze im Median beim Doppelten des Stundenmittels, bei
+ * `night-batch` und `variable` im P90 beim Siebenfachen.
  */
 const TARGET_UTILIZATION_PEAK = 0.9;
 /** Untergrenze der Empfehlung: gerade Zahl und gängige Mindestgröße gängiger Gast-Betriebssysteme. */
@@ -29,18 +31,59 @@ const MAX_RECLAIM_RATIO = 0.25;
  */
 const MIN_RECLAIM_STEP = 2;
 /**
- * Muster, deren Spitzenlast in einem Sieben-Tage-Fenster nicht verlässlich erfasst ist:
- * `bursty` lebt von seltenen Ausschlägen, `irregular` hat per Definition keinen
- * reproduzierbaren Tagesverlauf, `unclassified` hat zu wenig Datenbasis. Für diese VMs
- * kann eine Woche den Jahresspitzenbedarf deutlich unterschätzen, deshalb wird keine
- * Verkleinerung vorgeschlagen – die Kennzahlen bleiben zur Beurteilung sichtbar.
+ * Muster ohne reproduzierbaren Verlauf: `irregular` hat per Definition keinen,
+ * `unclassified` hat zu wenig Datenbasis. Für sie kann der Messzeitraum den
+ * Spitzenbedarf beliebig unterschätzen, deshalb wird keine Verkleinerung
+ * vorgeschlagen – die Kennzahlen bleiben zur Beurteilung sichtbar.
+ *
+ * `bursty` stand hier ebenfalls, solange nur sieben Tage vorlagen. Mit vier vollen
+ * Wochen lässt sich die Frage direkt beantworten: 48 % der `bursty`-VMs wiederholen
+ * ihren Wochenverlauf mit einer Korrelation von mindestens 0,7 bei nahezu gleich hohen
+ * Wochenmaxima, während das auf `irregular` nur für eine einzige VM von 213 zutrifft.
+ * Für `bursty` entscheidet deshalb {@link hasRepeatableWeeklyPeak} statt einer
+ * pauschalen Sperre.
  */
-const SHAPES_WITHOUT_RECOMMENDATION: readonly VmWorkloadShape[] = ["bursty", "irregular", "unclassified"];
+const SHAPES_WITHOUT_RECOMMENDATION: readonly VmWorkloadShape[] = ["irregular", "unclassified"];
+/** Muster, deren Spitze erst mit nachgewiesener Wochen-Wiederholbarkeit planbar ist. */
+const SHAPES_REQUIRING_REPEATABLE_PEAK: readonly VmWorkloadShape[] = ["bursty"];
 const MANY_VCPU_MIN = 4;
 /** Ab dieser Anzahl vCPU gilt eine VM als „viele vCPU“, falls sie zugleich nur einen Bruchteil davon nutzt. */
 const MANY_VCPU_LOW_DEMAND_RATIO_MAX = 0.3;
 /** Konsistent mit dem CPU-Ready-Hotspot-Grenzwert im Performance-Tab. */
 const HIGH_CPU_READY_PCT = 5;
+/**
+ * Ab diesem Co-Stop unter Last kostet die vCPU-Anzahl selbst Leistung. In lasthaltigen
+ * Stunden erreichen 45,9 % der VMs ab 17 vCPU diesen Wert, bei höchstens 16 vCPU nur
+ * 12–26 %; im Stundenverlauf steigt Co-Stop bei den breiten VMs mit der Auslastung von
+ * 0,4 % auf 10,6 %, bei schmalen bleibt er flach. Der einzige direkte Nachweis dafür,
+ * dass eine Verkleinerung die VM schneller macht statt langsamer.
+ */
+const COSTOP_UNDER_LOAD_PCT = 5;
+/**
+ * Ab diesem Konzentrationsindex trägt ein Bruchteil der vCPU die Last. Die erwartete
+ * zweigipflige Verteilung besteht nicht – der Median liegt bei 0,061 –, weshalb der Wert
+ * am oberen Rand der Verteilung angesetzt ist: rund 180 der 4.018 VMs erreichen ihn, und
+ * bei ihnen bleiben im Median 2,6 vCPU ohne Wirkung.
+ */
+const CONCENTRATION_INDEX_MIN = 0.4;
+/**
+ * So viele Stunden über 75 % der Kapazität müssen zusammenkommen, damit eine
+ * Vergrößerung vorgeschlagen wird. Ohne diese Bedingung genügte eine einzelne
+ * Spitze: Das Monatsmaximum von `vmCpuDemandMaxMHz` ist ein 20-Sekunden-Wert und
+ * würde 27,6 % des Bestands als unterdimensioniert ausweisen. Mit ihr bleiben
+ * 66 VMs (1,6 %) übrig – jene, die dauerhaft an der Grenze laufen.
+ */
+const UNDERSIZED_MIN_HOURS_NEAR_CAPACITY = 24;
+/**
+ * CPU Ready und Peak-Ready taugen in dieser Umgebung *nicht* als Nachweis für eine zu
+ * kleine VM. Der reguläre Wert ist praktisch tot (P95 im Median 0,21 %, genau eine VM
+ * über 5 %). Der Peak-Wert sieht mit einem P95-Median von 2,91 % zunächst lebendig aus,
+ * verhält sich aber gegenläufig zur Erwartung: Er steigt nicht mit der Auslastung
+ * (0–10 % Last: 9,8 %, über 90 % Last: 7,9 %) und *fällt* mit der vCPU-Breite (9,8 % bei
+ * 1–2 vCPU gegenüber 1,8 % ab 17 vCPU). Er misst damit die Auflösung des
+ * 20-Sekunden-Fensters, nicht Contention. Deshalb bleibt er eine angezeigte Kennzahl
+ * ohne Einfluss auf die Empfehlung.
+ */
 
 /** Rundet auf die nächstkleinere gerade Zahl ab – vCPU werden paarweise zurückgegeben. */
 function floorToEven(value: number): number {
@@ -69,40 +112,55 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     if (profile.vcpu === null || profile.vcpu <= 0) return [];
     const host = profile.hostKey ? hostByKey.get(profile.hostKey) : undefined;
     const mhzPerCore = host?.cpuTotalMHz && host.cpuCores ? host.cpuTotalMHz / host.cpuCores : null;
-    const usedVcpuEquivalentP95 = mhzPerCore !== null && profile.demand.p95 !== null ? profile.demand.p95 / mhzPerCore : null;
-    const usedVcpuEquivalentPeak = mhzPerCore !== null && profile.demand.maximum !== null ? profile.demand.maximum / mhzPerCore : null;
+    // Die von vROps je VM gemeldete Kapazität geht vor. Sie stimmt zwar mit `mhzPerCore`
+    // überein, wo beide vorliegen (Faktor 1,0000 im Median über acht Taktklassen), sie
+    // begleitet aber die VM: 2,9 % der VMs wechselten im Messmonat die Taktklasse, für
+    // die beschreibt der Host von heute den Zeitraum von gestern falsch.
+    const mhzPerVcpu = profile.capacitySignals.mhzPerVcpu ?? mhzPerCore;
+    const usedVcpuEquivalentP95 = mhzPerVcpu !== null && profile.demand.p95 !== null ? profile.demand.p95 / mhzPerVcpu : null;
+    // P99 des höchsten Demand *innerhalb* der Stunde, nicht dessen Monatsmaximum: jenes
+    // ist ein einzelner 20-Sekunden-Wert und würde 27,6 % statt 2,9 % der VMs als zu
+    // klein ausweisen. Fällt die Metrik aus, bleibt das Maximum der Stundenmittel.
+    const peakDemandMHz = profile.demandMax.p99 ?? profile.demand.maximum;
+    const usedVcpuEquivalentPeak = mhzPerVcpu !== null && peakDemandMHz !== null ? peakDemandMHz / mhzPerVcpu : null;
 
-    // Bedarfsgerechte Zielgröße: was die Messung allein hergibt, ohne Zurückhaltung.
-    // Bleibt auch dann sichtbar, wenn keine Empfehlung ausgesprochen wird.
-    const demandBasedVcpu = usedVcpuEquivalentP95 === null ? null : Math.min(
-      profile.vcpu,
-      ceilToEven(Math.max(
-        usedVcpuEquivalentP95 / TARGET_UTILIZATION_P95,
-        (usedVcpuEquivalentPeak ?? 0) / TARGET_UTILIZATION_PEAK,
-        MIN_RECOMMENDED_VCPU,
-      )),
-    );
+    // Bedarfsgerechte Zielgröße: was die Messung allein hergibt, ohne Zurückhaltung und
+    // ohne Deckelung auf die konfigurierte Anzahl. Erst dadurch wird eine zu klein
+    // konfigurierte VM überhaupt sichtbar. Bleibt auch dann stehen, wenn keine
+    // Empfehlung ausgesprochen wird.
+    const demandBasedVcpu = usedVcpuEquivalentP95 === null ? null : ceilToEven(Math.max(
+      usedVcpuEquivalentP95 / TARGET_UTILIZATION_P95,
+      (usedVcpuEquivalentPeak ?? 0) / TARGET_UTILIZATION_PEAK,
+      MIN_RECOMMENDED_VCPU,
+    ));
 
-    // Eine Verkleinerung ist ein Eingriff in ein laufendes System. Sie wird nur
-    // vorgeschlagen, wenn die Datenbasis belastbar ist und das Muster in sieben Tagen
-    // verlässlich beobachtbar war.
-    const recommendationWithheldReason = profile.confidence !== "high"
-      ? "low-confidence" as const
-      : SHAPES_WITHOUT_RECOMMENDATION.includes(profile.shape)
-        ? "unreliable-shape" as const
-        : null;
+    const sustainedNearCapacity = (profile.capacitySignals.hoursAboveCapacity75 ?? 0) >= UNDERSIZED_MIN_HOURS_NEAR_CAPACITY;
+    const recommendationWithheldReason = determineWithheldReason(profile, demandBasedVcpu, sustainedNearCapacity);
 
     // Die Rückgabe ist die primäre Größe und immer gerade; die Empfehlung folgt daraus,
     // damit Empfehlung + Rückgabe stets die konfigurierte Anzahl ergeben.
     const maxReclaimPerRound = Math.max(profile.vcpu * MAX_RECLAIM_RATIO, MIN_RECLAIM_STEP);
+    const applies = demandBasedVcpu !== null && recommendationWithheldReason === null;
     const reclaimableVcpu = demandBasedVcpu === null
       ? null
-      : recommendationWithheldReason !== null
-        ? 0
-        : floorToEven(Math.min(profile.vcpu - demandBasedVcpu, maxReclaimPerRound));
-    const recommendedVcpu = reclaimableVcpu === null ? null : profile.vcpu - reclaimableVcpu;
+      : applies && demandBasedVcpu < profile.vcpu
+        ? floorToEven(Math.min(profile.vcpu - demandBasedVcpu, maxReclaimPerRound))
+        : 0;
+    // Vergrößerung folgt nicht der Schrittweiten-Begrenzung: Wer dauerhaft an der
+    // Kapazitätsgrenze läuft, ist mit einem halben Schritt nicht geholfen.
+    const additionalVcpu = demandBasedVcpu === null
+      ? null
+      : applies && demandBasedVcpu > profile.vcpu
+        ? ceilToEven(demandBasedVcpu - profile.vcpu)
+        : 0;
+    const recommendedVcpu = reclaimableVcpu === null || additionalVcpu === null
+      ? null
+      : profile.vcpu - reclaimableVcpu + additionalVcpu;
+
     const manyVcpuLowDemand = profile.vcpu >= MANY_VCPU_MIN && usedVcpuEquivalentP95 !== null && usedVcpuEquivalentP95 <= profile.vcpu * MANY_VCPU_LOW_DEMAND_RATIO_MAX;
     const highCpuReady = profile.ready.p95 !== null && profile.ready.p95 > HIGH_CPU_READY_PCT;
+    const costopUnderLoad = (profile.capacitySignals.costopUnderLoadP95Pct ?? 0) > COSTOP_UNDER_LOAD_PCT;
+    const concentratedOnFewCores = (profile.capacitySignals.concentrationIndexP90 ?? 0) >= CONCENTRATION_INDEX_MIN;
     return [{
       objectKey: profile.objectKey,
       vmName: profile.vmName,
@@ -117,20 +175,52 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       demand: profile.demand,
       ready: profile.ready,
       mhzPerCore,
+      mhzPerVcpu,
       usedVcpuEquivalentP95,
       usedVcpuEquivalentPeak,
       demandBasedVcpu,
       recommendationWithheldReason,
       recommendedVcpu,
       reclaimableVcpu,
-      flags: { manyVcpuLowDemand, highCpuReady },
+      additionalVcpu,
+      flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, concentratedOnFewCores, sustainedNearCapacity },
     }];
   }).sort((left, right) => (right.reclaimableVcpu ?? -1) - (left.reclaimableVcpu ?? -1));
 }
 
+/**
+ * Prüft, ob die bedarfsgerechte Größe als Empfehlung taugt.
+ *
+ * Verkleinerung und Vergrößerung haben unterschiedliche Risiken und deshalb eigene
+ * Bedingungen: Eine zu große VM verschwendet Kapazität, eine zu kleine fällt aus. Eine
+ * Verkleinerung muss deshalb gegen ein verlässlich beobachtetes Muster abgesichert sein,
+ * eine Vergrößerung gegen den Verdacht, nur einer einzelnen Spitze zu folgen.
+ */
+function determineWithheldReason(
+  profile: VmWorkloadProfile,
+  demandBasedVcpu: number | null,
+  sustainedNearCapacity: boolean,
+): VmRightsizingCandidate["recommendationWithheldReason"] {
+  if (demandBasedVcpu === null || profile.vcpu === null || demandBasedVcpu === profile.vcpu) return null;
+  if (profile.confidence !== "high") return "low-confidence";
+  if (demandBasedVcpu > profile.vcpu) {
+    return sustainedNearCapacity ? null : "peak-only";
+  }
+  if (SHAPES_WITHOUT_RECOMMENDATION.includes(profile.shape)) return "unreliable-shape";
+  if (SHAPES_REQUIRING_REPEATABLE_PEAK.includes(profile.shape) && !hasRepeatableWeeklyPeak(profile.signals)) {
+    return "burst-not-repeatable";
+  }
+  return null;
+}
+
 /** Ein Kandidat gilt als „auffällig“, wenn er tatsächlich hervorgehoben werden sollte – nicht jede Zeile der Vergleichstabelle. */
 export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate): boolean {
-  return candidate.flags.manyVcpuLowDemand || candidate.flags.highCpuReady || (candidate.reclaimableVcpu ?? 0) > 0;
+  return candidate.flags.manyVcpuLowDemand
+    || candidate.flags.highCpuReady
+    || candidate.flags.costopUnderLoad
+    || candidate.flags.concentratedOnFewCores
+    || (candidate.reclaimableVcpu ?? 0) > 0
+    || (candidate.additionalVcpu ?? 0) > 0;
 }
 
 /**

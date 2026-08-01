@@ -25,6 +25,8 @@ const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = {
 const WITHHELD_LABEL: Record<NonNullable<VmRightsizingCandidate["recommendationWithheldReason"]>, string> = {
   "low-confidence": "Datenbasis zu dünn",
   "unreliable-shape": "Lastmuster nicht belastbar",
+  "burst-not-repeatable": "Spitze nicht wiederkehrend",
+  "peak-only": "Nur einzelne Spitze",
 };
 
 function formatPercent(value: number | null): string {
@@ -70,6 +72,13 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
       meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
       accessorFn: (row) => row.reclaimableVcpu ?? -1,
       cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
+    },
+    {
+      id: "additional-vcpu",
+      header: "Zusätzlich",
+      meta: { info: RIGHTSIZING_COLUMNS.additionalVcpu },
+      accessorFn: (row) => row.additionalVcpu ?? -1,
+      cell: ({ row }) => <span className={(row.original.additionalVcpu ?? 0) > 0 ? "font-semibold text-destructive" : ""}>{formatVcpu(row.original.additionalVcpu)}</span>,
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {

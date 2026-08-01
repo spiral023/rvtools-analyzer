@@ -7,6 +7,7 @@ import type {
   NormalizedVm,
   SnapshotMeta,
   TechInfoLatest,
+  VmRightsizingCandidate,
   VmWorkloadProfile,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
@@ -85,9 +86,11 @@ const pct = (value: number | null) => value === null ? "—" : `${value.toLocale
 const ratio = (value: number | null) => value === null ? "—" : value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const SITE_FAILOVER_RISK_LABEL: Record<string, string> = { ok: "OK", warn: "Warnung", crit: "Kritisch" };
 const CONFIDENCE_LABEL: Record<VropsTimeSeriesConfidenceLevel, string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
-const RECOMMENDATION_WITHHELD_LABEL: Record<"low-confidence" | "unreliable-shape", string> = {
+const RECOMMENDATION_WITHHELD_LABEL: Record<NonNullable<VmRightsizingCandidate["recommendationWithheldReason"]>, string> = {
   "low-confidence": "Datenbasis zu dünn",
-  "unreliable-shape": "Muster in 7 Tagen nicht verlässlich",
+  "unreliable-shape": "Muster ohne reproduzierbaren Verlauf",
+  "burst-not-repeatable": "Spitze wiederholt sich nicht wochenweise",
+  "peak-only": "Nur einzelne Spitze, keine Dauerlast",
 };
 
 function vcenterNames(snapshots: SnapshotMeta[]) {
