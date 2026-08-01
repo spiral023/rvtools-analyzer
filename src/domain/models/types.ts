@@ -994,7 +994,13 @@ export interface VmCpuCapacitySignals {
   configuredVcpu: number | null;
   /** MHz je vCPU aus `totalCapacityMHz / configuredVcpu`; ersetzt `mhzPerCore`, wo vorhanden. */
   mhzPerVcpu: number | null;
-  /** Stunden, in denen der Demand 75 % bzw. 90 % der Kapazität überschritt. */
+  /**
+   * Stunden, in denen der Demand 75 % bzw. 90 % der Kapazität überschritt – gemessen
+   * gegen die **zuletzt gemeldete** Kapazität, nicht gegen die der jeweiligen Stunde.
+   * Die Kennzahl trägt die Vergrößerungsentscheidung und muss deshalb beantworten, ob
+   * die *heutige* Größe reicht; ein Engpass, der durch eine zwischenzeitliche
+   * Vergrößerung bereits behoben wurde, darf keine weitere auslösen.
+   */
   hoursAboveCapacity75: number | null;
   hoursAboveCapacity90: number | null;
   /**

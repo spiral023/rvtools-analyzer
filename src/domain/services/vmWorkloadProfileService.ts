@@ -336,12 +336,21 @@ function buildCapacitySignals(input: BuildCapacitySignalsInput): VmCpuCapacitySi
     const demand = input.demandSeries.get(entry.timestampUtc);
     if (demand === undefined || !Number.isFinite(demand)) continue;
     // Kapazität je Stunde, damit eine Migration in eine andere Taktklasse nicht den
-    // ganzen Monat mit dem zuletzt gesehenen Wert verrechnet wird.
+    // ganzen Monat mit dem zuletzt gesehenen Wert verrechnet wird. Beschreibt, was
+    // physisch geschah, und ist deshalb die richtige Bezugsgröße für Contention.
     const capacity = finiteOrNull(input.capacitySeries.get(entry.timestampUtc)) ?? totalCapacityMHz;
     if (capacity <= 0) continue;
     const utilizationPct = (demand / capacity) * 100;
-    if (utilizationPct > 75) hoursAboveCapacity75 += 1;
-    if (utilizationPct > 90) hoursAboveCapacity90 += 1;
+
+    // Die Kapazitätsnähe dagegen misst gegen die *heutige* Größe. Sie beantwortet die
+    // Frage „reicht die aktuelle Konfiguration?“ und darf sich nicht auf einen Engpass
+    // stützen, der durch eine zwischenzeitliche Vergrößerung längst behoben ist. An
+    // 4.018 VMs gemessen wurden 20 im Zeitraum umkonfiguriert; für eine von ihnen
+    // erzeugte die stundenweise Bezugsgröße einen Vergrößerungsvorschlag, obwohl ihr
+    // höchstes Stundenmittel nur 54 % der jetzigen Kapazität erreicht.
+    const currentUtilizationPct = (demand / totalCapacityMHz) * 100;
+    if (currentUtilizationPct > 75) hoursAboveCapacity75 += 1;
+    if (currentUtilizationPct > 90) hoursAboveCapacity90 += 1;
 
     if (utilizationPct >= COSTOP_LOAD_MIN_CAPACITY_PCT) {
       const costop = finiteOrNull(input.costopSeries.get(entry.timestampUtc));

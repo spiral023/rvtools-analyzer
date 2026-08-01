@@ -303,6 +303,33 @@ describe("buildVmWorkloadProfiles", () => {
     expect(profile.configuredCpuCapacityMHz).toBe(4_000);
   });
 
+  it("zählt Kapazitätsnähe gegen die heutige Größe, nicht gegen die der Messstunde", () => {
+    // Regression aus dem Vorher/Nachher-Vergleich zweier Analyse-Exporte: Eine VM lief
+    // die erste Hälfte des Zeitraums mit 2 vCPU am Anschlag und wurde dann auf 4 vCPU
+    // vergrößert. Gegen die Kapazität der jeweiligen Stunde gerechnet galt sie weiterhin
+    // als dauerhaft überlastet und bekam einen weiteren Vergrößerungsvorschlag – obwohl
+    // ihr höchster Demand nur die Hälfte der neuen Kapazität erreicht.
+    const rangeStartUtc = Date.UTC(2024, 0, 8, 0, 0, 0);
+    const half = <T,>(before: T, after: T) => Array.from({ length: 24 }, (_, slot) => (slot < 12 ? before : after));
+    const chunks: VropsTimeSeriesChunk[] = [
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuDemandAvgMHz", values: [Array.from({ length: 24 }, () => 5_000)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmCpuTotalCapacityLastMHz", values: [half(6_000, 12_000)] }),
+      makeChunk({ objectKeys: ["vm:a"], startUtc: rangeStartUtc, metric: "vmConfiguredVcpuLast", values: [half(2, 4)] }),
+    ];
+
+    const [profile] = buildVmWorkloadProfiles({
+      import: makeImport({ rangeStartUtc, expectedSlots: 24 }),
+      objects: [makeVmObject({ objectKey: "vm:a", rvtoolsObjectKey: "a-key" })],
+      chunks,
+      vms: [makeVm({ vmKey: "a-key", vmName: "app-01", cpuCount: 4 })],
+    });
+
+    // 5.000 von 12.000 MHz sind 41,7 % – keine einzige Stunde erreicht die heutige Grenze.
+    expect(profile.capacitySignals.totalCapacityMHz).toBe(12_000);
+    expect(profile.capacitySignals.hoursAboveCapacity75).toBe(0);
+    expect(profile.capacitySignals.hoursAboveCapacity90).toBe(0);
+  });
+
   it("lässt die Kapazitätssignale leer, wenn vROps die optionalen Metriken nicht liefert", () => {
     const rangeStartUtc = Date.UTC(2024, 0, 8, 0, 0, 0);
     const [profile] = buildVmWorkloadProfiles({
