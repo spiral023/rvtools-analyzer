@@ -49,6 +49,10 @@ function toGigahertz(value: number | null): number | null {
   return value === null ? null : value / 1_000;
 }
 
+function formatNumber(value: number, unit: string): string {
+  return `${value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}`;
+}
+
 interface VropsTrendChartProps {
   hourly: VropsObjectTrendPoint[];
   cpuCapacityMHz: number | null;
@@ -81,7 +85,7 @@ export function VropsTrendChart({
   const [cpuVisible, setCpuVisible] = useState(true);
   // CPU Ready startet bewusst zurückhaltend; RAM und andere Sekundärmetriken
   // bleiben in den übrigen Detailansichten wie bisher direkt sichtbar.
-  const [secondaryVisible, setSecondaryVisible] = useState(secondaryLabel !== "CPU Ready");
+  const [secondaryVisible, setSecondaryVisible] = useState(Boolean(secondaryLabel) && secondaryLabel !== "CPU Ready");
   const rangeLabel = describeTrendRange(hourly.length);
 
   if (!hasImport) return null;
@@ -156,7 +160,7 @@ export function VropsTrendChart({
     ? averageWeekNow
     : findWeekTimeMarkerTimestamp(chartData.map((point) => point.timestampMs));
   const cpuPeak = valuePeak(chartData, "cpuHigh");
-  const secondaryPeak = valuePeak(chartData, secondaryDataKey);
+  const secondaryPeak = hasSecondary ? valuePeak(chartData, secondaryDataKey) : null;
   const avoidanceThreshold = cpuDemandAvoidanceThreshold(cpuCapacityMHz, chartUnit);
   const avoidanceZoneMax = typeof cpuPeak?.cpuHigh === "number"
     && avoidanceThreshold !== null
@@ -182,7 +186,6 @@ export function VropsTrendChart({
   const holidayRanges = chartView === "timeline" ? findAustrianPublicHolidayRanges(hourly.map((point) => point.timestampUtc)) : [];
   const holidayNames = [...new Set(holidayRanges.map((range) => range.name))];
 
-  const formatNumber = (value: number, unit: string) => `${value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}`;
   const formatTooltipValue = (value: number | [number, number], name: string) => {
     if (Array.isArray(value)) return [`${formatNumber(value[0], cpuUnit)} – ${formatNumber(value[1], cpuUnit)}`, "CPU-Bereich (Minimum–Peak)"];
     const unit = name.startsWith("CPU") ? cpuUnit : secondaryDisplayUnit;
@@ -389,7 +392,7 @@ export function VropsTrendChart({
                 label={{ value: "Peak", position: "top", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
               />
             )}
-            {secondaryVisible && secondaryPeak && typeof secondaryPeakValue === "number" && (
+            {hasSecondary && secondaryVisible && secondaryPeak && typeof secondaryPeakValue === "number" && (
               <ReferenceDot yAxisId="secondary" x={secondaryPeak.timestampMs} y={secondaryPeakValue} r={3.5} fill="hsl(var(--destructive))" stroke="hsl(var(--background))" strokeWidth={2} />
             )}
             {nowMarkerTimestamp !== null && (
