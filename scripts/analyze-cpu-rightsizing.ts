@@ -1247,3 +1247,113 @@ section("19  Wirkung der Schrittweiten-Begrenzung MAX_RECLAIM_RATIO = 0,25");
   console.log(`\nVMs, die mehr als ein Wartungsfenster bräuchten: ${multiRound} (${pct(multiRound, roundCounts.length)})`);
   console.log(`Summe aller nötigen Wartungsfenster: ${roundCounts.reduce((sum, value) => sum + value, 0)} statt ${roundCounts.length} ohne Schrittgrenze`);
 }
+
+/* ------------------------------------------------------------------ */
+/* 20  Wie stark wirken die Zielauslastungen? Kalibrierung eines Reglers */
+/* ------------------------------------------------------------------ */
+
+section("20  Empfindlichkeit gegenüber den Zielauslastungen");
+{
+  const ceilEven = (value: number) => Math.max(2, Math.ceil(value / 2) * 2);
+  const peakP99 = new Map<string, number>();
+  for (const entry of metrics) {
+    if (!entry.max) continue;
+    const finite = sortedCopy([...entry.max].filter((value) => Number.isFinite(value)));
+    if (finite.length) peakP99.set(entry.vm.vmId, quantile(finite, 0.99)!);
+  }
+  const evaluate = (targetP95: number, targetPeak: number) => {
+    let down = 0; let reclaim = 0; let up = 0; let add = 0;
+    for (const entry of metrics) {
+      const peak = peakP99.get(entry.vm.vmId);
+      const perCore = entry.capacity ? entry.capacity / entry.vcpu : entry.vm.mhzPerCore;
+      if (!perCore || peak === undefined) continue;
+      const size = ceilEven(Math.max(entry.p95 / perCore / targetP95, peak / perCore / targetPeak, 2));
+      if (size < entry.vcpu) { down += 1; reclaim += entry.vcpu - size; }
+      if (size > entry.vcpu) { up += 1; add += size - entry.vcpu; }
+    }
+    return { down, reclaim, up, add };
+  };
+
+  console.log("Rückgewinnbare vCPU (VMs kleiner) je Kombination — Zeilen P95-Ziel, Spalten Spitzen-Ziel:");
+  const peakTargets = [0.8, 0.85, 0.9, 0.95, 1.0];
+  table(["P95-Ziel", ...peakTargets.map((value) => `Spitze ${(value * 100).toFixed(0)} %`)],
+    [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8].map((targetP95) => [
+      `${(targetP95 * 100).toFixed(0)} %`,
+      ...peakTargets.map((targetPeak) => {
+        const result = evaluate(targetP95, targetPeak);
+        return `${result.reclaim} (${result.down})`;
+      }),
+    ]));
+
+  console.log("\nGegenrichtung — zusätzlich nötige vCPU (VMs größer), vor dem Dauerlast-Gate:");
+  table(["P95-Ziel", ...peakTargets.map((value) => `Spitze ${(value * 100).toFixed(0)} %`)],
+    [0.5, 0.65, 0.8].map((targetP95) => [
+      `${(targetP95 * 100).toFixed(0)} %`,
+      ...peakTargets.map((targetPeak) => {
+        const result = evaluate(targetP95, targetPeak);
+        return `${result.add} (${result.up})`;
+      }),
+    ]));
+
+  // Der Peak-Pfad bewegt weit mehr als die Zielauslastungen, weil die Mehrzahl der VMs
+  // ohnehin an der Untergrenze von zwei vCPU landet. Deshalb hier als eigene Achse.
+  console.log("\nPeak-Perzentil als eigentliche Stellschraube (Zielauslastungen 65 % / 90 %):");
+  const peakQuantiles = new Map<number, Map<string, number>>();
+  for (const fraction of [0.9, 0.95, 0.99, 0.995, 1]) {
+    const byVm = new Map<string, number>();
+    for (const entry of metrics) {
+      if (!entry.max) continue;
+      const finite = sortedCopy([...entry.max].filter((value) => Number.isFinite(value)));
+      if (finite.length) byVm.set(entry.vm.vmId, quantile(finite, fraction)!);
+    }
+    peakQuantiles.set(fraction, byVm);
+  }
+  const withPeak = (fraction: number, targetP95: number, targetPeak: number) => {
+    let down = 0; let reclaim = 0; let up = 0; let add = 0;
+    for (const entry of metrics) {
+      const peak = peakQuantiles.get(fraction)!.get(entry.vm.vmId);
+      const perCore = entry.capacity ? entry.capacity / entry.vcpu : entry.vm.mhzPerCore;
+      if (!perCore || peak === undefined) continue;
+      const size = ceilEven(Math.max(entry.p95 / perCore / targetP95, peak / perCore / targetPeak, 2));
+      if (size < entry.vcpu) { down += 1; reclaim += entry.vcpu - size; }
+      // Vergrößerung erst nach dem Dauerlast-Gate: eine einzelne Spitze genügt nicht.
+      if (size > entry.vcpu && entry.hoursAbove75 >= 24) { up += 1; add += size - entry.vcpu; }
+    }
+    return { down, reclaim, up, add };
+  };
+  table(["Peak-Perzentil", "VMs kleiner", "vCPU frei", "VMs größer", "vCPU nötig"],
+    [0.9, 0.95, 0.99, 0.995, 1].map((fraction) => {
+      const result = withPeak(fraction, 0.65, 0.9);
+      return [fraction === 1 ? "Maximum" : `p${fraction * 100}`, String(result.down), String(result.reclaim), String(result.up), String(result.add)];
+    }));
+
+  console.log("\nVorschlag für vier Stufen, jeweils als geschlossene Kombination:");
+  table(["Stufe", "Peak", "P95-Ziel", "Spitzen-Ziel", "VMs kleiner", "vCPU frei", "VMs größer", "vCPU nötig"],
+    ([
+      ["Sehr vorsichtig", 1, 0.55, 0.8],
+      ["Vorsichtig", 0.995, 0.6, 0.85],
+      ["Ausgewogen", 0.99, 0.65, 0.9],
+      ["Offensiv", 0.95, 0.7, 0.95],
+    ] as const).map(([label, fraction, targetP95, targetPeak]) => {
+      const result = withPeak(fraction, targetP95, targetPeak);
+      return [label, fraction === 1 ? "Max" : `p${fraction * 100}`, `${targetP95 * 100} %`, `${targetPeak * 100} %`,
+        String(result.down), String(result.reclaim), String(result.up), String(result.add)];
+    }));
+
+  console.log("\nWirkung der Rückhalte-Gründe – wie viele VMs und vCPU hängen an jedem Gate?");
+  const blocked = (predicate: (entry: VmMetrics) => boolean) => {
+    const group = metrics.filter((entry) => {
+      const peak = peakP99.get(entry.vm.vmId);
+      const perCore = entry.capacity ? entry.capacity / entry.vcpu : entry.vm.mhzPerCore;
+      if (!perCore || peak === undefined) return false;
+      const size = ceilEven(Math.max(entry.p95 / perCore / 0.65, peak / perCore / 0.9, 2));
+      return size < entry.vcpu && predicate(entry);
+    });
+    return `${group.length} VMs / ${group.reduce((sum, entry) => sum + entry.vcpu, 0)} vCPU`;
+  };
+  table(["Gate", "betrifft"], [
+    ["Vertrauen unter „hoch“", blocked((entry) => entry.vm.confidence !== "high")],
+    ["Muster irregular/unclassified", blocked((entry) => ["irregular", "unclassified"].includes(entry.vm.shape))],
+    ["bursty ohne Wochenwiederholung", blocked((entry) => entry.vm.shape === "bursty" && !((entry.weekCorrMedian ?? -1) >= 0.5 && (entry.weeklyMaxCv ?? 9) <= 0.4))],
+  ]);
+}
