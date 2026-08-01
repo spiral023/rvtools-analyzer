@@ -193,4 +193,53 @@ describe("parseVropsTimeSeriesMatrix", () => {
     expect(result.matrix).toBeUndefined();
     expect(result.issues.some((issue) => issue.severity === "error")).toBe(true);
   });
+
+  /**
+   * Datenqualitätsbefunde einzelner Zeilen dürfen einen Dateisatz über tausende
+   * VMs nicht verwerfen. Mit einem Monat statt einer Woche Messzeitraum trifft
+   * praktisch jeder dieser Fälle irgendwo im Bestand zu.
+   */
+  describe("Befunde einzelner Zeilen brechen den Import nicht ab", () => {
+    const AVG_MAX_HEADER = '"Name","Interval Breakdown","VM|CPU|Demand (MHz)|Avg",'
+      + '"VM|CPU|Demand (MHz)|Max","VM|CPU|Ready (%)|Max"';
+
+    it("meldet ein Maximum unter dem Mittelwert als Warnung statt als Fehler", async () => {
+      const matrix = await parseMatrix(csvOf([
+        AVG_MAX_HEADER,
+        '"vm-a","12:00 AM 21 July 2026","500","100","0.1"',
+      ]));
+
+      expect(matrix.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+      expect(matrix.issues).toContainEqual(expect.objectContaining({
+        code: "maximum-below-average",
+        severity: "warning",
+      }));
+    });
+
+    it("übergeht Rundungsabweichungen zwischen Mittelwert und Maximum", async () => {
+      // vROps rundet beide Werte unabhängig; bei konstanter Last kann das
+      // Maximum dadurch minimal unter dem Mittelwert liegen.
+      const matrix = await parseMatrix(csvOf([
+        AVG_MAX_HEADER,
+        '"vm-a","12:00 AM 21 July 2026","162.52","162.5","0.1"',
+      ]));
+
+      expect(matrix.issues.filter((issue) => issue.code === "maximum-below-average")).toEqual([]);
+    });
+
+    it("meldet eine Lücke in der Stundenreihe als Warnung statt als Fehler", async () => {
+      const matrix = await parseMatrix(csvOf([
+        VM_HEADER,
+        '"vm-a","12:00 AM 21 July 2026","100","0.1"',
+        '"vm-a","2:00 AM 21 July 2026","100","0.1"',
+        '"vm-b","1:00 AM 21 July 2026","100","0.1"',
+      ]));
+
+      expect(matrix.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+      expect(matrix.issues).toContainEqual(expect.objectContaining({
+        code: "hour-gap",
+        severity: "warning",
+      }));
+    });
+  });
 });

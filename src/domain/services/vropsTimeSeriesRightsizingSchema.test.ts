@@ -100,4 +100,24 @@ describe("Wertübernahme aus dem produktiven VM-Export", () => {
     const matrix = await parseProductionRow();
     expect(new Date(matrix.timestampsUtc[0]).toISOString()).toBe("2026-06-30T22:00:00.000Z");
   });
+
+  it("lässt Prozentwerte über 100 den Import nicht scheitern", async () => {
+    // Aus dem produktiven Import: Die vCPU Usage Disparity ist die Differenz
+    // zweier Auslastungswerte, die unter Turbo-Boost selbst über 100 % liegen
+    // können. Zuvor verwarf die Bereichsprüfung den Wert und stufte ihn als
+    // Fehler ein, woran der gesamte Dateisatz scheiterte.
+    const csv = [
+      PRODUCTION_HEADER,
+      'servername1101,"12:00 AM 1 July 2026","162.52","385.6","0.04","121.64","0.22","0","11.2","4"',
+    ].join("\r\n");
+    const result = await parseVropsTimeSeriesMatrix(new Blob([csv], { type: "text/csv" }));
+
+    expect(result.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: "percentage-out-of-range",
+      severity: "warning",
+    }));
+    // Entscheidend: Der Messwert bleibt erhalten, statt zur Lücke zu werden.
+    expect(result.matrix!.metricValues.vmCpuUsageDisparityAvgPct![0]).toBeCloseTo(121.64, 2);
+  });
 });

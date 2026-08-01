@@ -136,20 +136,36 @@ describe("parseVropsTimeSeriesCsv", () => {
     expect(duplicateHeader.issues).toContainEqual(expect.objectContaining({ code: "duplicate-header", severity: "error" }));
   });
 
-  it("meldet ungültige Zahlen, negative Werte, unbekannte Einheiten und Prozentbereiche strukturiert", () => {
+  it("meldet ungültige Zahlen, negative Werte und unbekannte Einheiten als Fehler", () => {
     const invalidNumber = [
       VM_HEADER,
       '"vm-01","2026-07-21T00:00:00Z","1.234,56","0.1"',
       '"vm-02","2026-07-21T00:00:00Z","-1","0.1"',
-      '"vm-03","2026-07-21T00:00:00Z","12 widgets","101"',
+      '"vm-03","2026-07-21T00:00:00Z","12 widgets","0.1"',
     ].join("\n");
 
     expect(errorCodes(invalidNumber)).toEqual(expect.arrayContaining([
       "invalid-number",
       "negative-value",
       "unknown-unit",
-      "percentage-out-of-range",
     ]));
+  });
+
+  it("übernimmt Prozentwerte über 100 und meldet sie als Warnung", () => {
+    // CPU Usage bezieht sich auf den Nominaltakt und überschreitet unter
+    // Turbo-Boost 100 %; Ready und Co-Stop werden teils über die vCPU summiert.
+    // Ein solcher Messwert darf den Import nicht scheitern lassen.
+    const result = parseVropsTimeSeriesCsv([
+      VM_HEADER,
+      '"vm-01","2026-07-21T00:00:00Z","12.5","121.64"',
+    ].join("\n"));
+
+    expect(result.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: "percentage-out-of-range",
+      severity: "warning",
+    }));
+    expect(result.rows[0].values.vmCpuReadyMaxPct).toBeCloseTo(121.64, 2);
   });
 
   it("erkennt doppelte Objekt-/Zeitpunkt-Kombinationen und Stundenlücken", () => {

@@ -31,7 +31,14 @@ interface CivilDateTime {
 
 export interface NumericParseResult {
   value: number | null;
-  issue?: Pick<VropsTimeSeriesValidationIssue, "code" | "message" | "details">;
+  /**
+   * `severity` entscheidet, ob der Import abbricht. Ohne Angabe gilt der Befund
+   * als Fehler; Meldungen, die einen brauchbaren Wert begleiten, setzen ihn
+   * ausdrücklich auf `warning`.
+   */
+  issue?: Pick<VropsTimeSeriesValidationIssue, "code" | "message" | "details"> & {
+    severity?: VropsTimeSeriesValidationIssue["severity"];
+  };
 }
 
 export interface TimestampParseResult {
@@ -61,7 +68,26 @@ export function parseMetricNumber(raw: string, valueKind: VropsTimeSeriesValueKi
   const normalized = normalizeUnit(value, unit, valueKind);
   if (normalized === null) return { value: null, issue: { code: "unknown-unit", message: `Unbekannte oder unpassende Einheit "${unit}".`, details: { unit } } };
   if (valueKind === "percent" && normalized > 100) {
-    return { value: null, issue: { code: "percentage-out-of-range", message: `Prozentwert außerhalb des Bereichs 0–100: ${raw}.`, details: { value: normalized } } };
+    // Mehrere VMware-Prozentmetriken überschreiten 100 % planmäßig: CPU Usage
+    // bezieht sich auf den Nominaltakt und steigt unter Turbo-Boost darüber,
+    // Ready und Co-Stop werden je nach Metrik über die vCPU summiert, und die
+    // vCPU Usage Disparity ist die Differenz solcher Werte.
+    //
+    // Der Wert wird deshalb übernommen und nur gemeldet. Zuvor verwarf die
+    // Prüfung ihn und stufte den Befund als Fehler ein, was den gesamten
+    // Import eines Dateisatzes an einem einzelnen gültigen Messwert scheitern
+    // ließ. Gegen falsch zugeordnete Spalten schützt weiterhin die
+    // Einheitenprüfung: Eine MHz-Spalte trägt „MHz“ im Namen und wird hier
+    // bereits als unpassende Einheit abgewiesen.
+    return {
+      value: normalized,
+      issue: {
+        code: "percentage-out-of-range",
+        severity: "warning",
+        message: `Prozentwert über 100 % in Spalte "${header}": ${raw}. Der Wert wird übernommen.`,
+        details: { value: normalized, header },
+      },
+    };
   }
   return { value: normalized };
 }

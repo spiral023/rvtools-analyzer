@@ -95,7 +95,10 @@ export function parseVropsTimeSeriesCsv(csv: string, options?: VropsTimeSeriesPa
       if (parsedValue.issue) {
         issues.push({
           ...parsedValue.issue,
-          severity: parsedValue.issue.code === "missing-value" ? "warning" : "error",
+          // Die Wertprüfung entscheidet selbst, ob ein Befund den Import
+          // abbricht; ohne Angabe bleibt es beim Fehler.
+          severity: parsedValue.issue.severity
+            ?? (parsedValue.issue.code === "missing-value" ? "warning" : "error"),
           row: record.line,
           header,
           objectName,

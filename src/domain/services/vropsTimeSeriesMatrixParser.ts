@@ -349,7 +349,10 @@ export async function parseVropsTimeSeriesMatrix(
         if (parsedValue.issue) {
           issues.add({
             ...parsedValue.issue,
-            severity: parsedValue.issue.code === "missing-value" ? "warning" : "error",
+            // Die Wertprüfung entscheidet selbst, ob ein Befund den Import
+            // abbricht; ohne Angabe bleibt es beim Fehler.
+            severity: parsedValue.issue.severity
+              ?? (parsedValue.issue.code === "missing-value" ? "warning" : "error"),
             row: line,
             header: column.header,
             objectName,
@@ -362,10 +365,18 @@ export async function parseVropsTimeSeriesMatrix(
       for (const [averageKey, maximumKey] of relevantPairs) {
         const average = metricValues[averageKey]![position];
         const maximum = metricValues[maximumKey]![position];
-        if (!Number.isNaN(average) && !Number.isNaN(maximum) && maximum < average) {
+        // vROps rundet Avg und Max unabhängig voneinander auf wenige Stellen.
+        // Bei konstanter Last liegen beide praktisch gleichauf, sodass das
+        // Maximum durch die Rundung minimal darunter geraten kann. Ohne diese
+        // Toleranz meldete jede solche Zeile einen Befund.
+        const roundingTolerance = Math.max(Math.abs(average) * 0.005, 0.01);
+        if (!Number.isNaN(average) && !Number.isNaN(maximum) && maximum < average - roundingTolerance) {
           issues.add({
             code: "maximum-below-average",
-            severity: "error",
+            // Eine Plausibilitätsverletzung in den Quelldaten, kein
+            // Verarbeitungsfehler: Beide Werte bleiben nutzbar, und ein
+            // Dateisatz über tausende VMs darf daran nicht scheitern.
+            severity: "warning",
             message: `${maximumKey} ist kleiner als ${averageKey}.`,
             row: line,
             objectName,
@@ -462,7 +473,19 @@ function reportHourGaps(
       if (lastFilledSlot >= 0 && slot - lastFilledSlot > 1) {
         issues.add({
           code: "hour-gap",
-          severity: "error",
+          /**
+           * Eine Lücke bei einem einzelnen Objekt macht die übrigen tausende
+           * nicht unbrauchbar: Fehlende Stunden werden als Missing Values
+           * gespeichert, senken die Datenabdeckung des Objekts und damit sein
+           * Vertrauensniveau — die Auswertung behandelt das bereits sauber.
+           *
+           * Mit einem Monat statt einer Woche Messzeitraum steigt die
+           * Wahrscheinlichkeit, dass irgendeine VM eine Lücke hat, erheblich;
+           * ein harter Abbruch des gesamten Dateisatzes wäre dafür
+           * unverhältnismäßig. Die Rasterprüfung zwischen VM-, Cluster- und
+           * Host-Datei im Importdienst bleibt unverändert ein Fehler.
+           */
+          severity: "warning",
           message: "Die Stundenreihe enthält eine Lücke oder ein nichtstündliches Intervall.",
           objectName: objectNames[objectIndex],
           intervalStartUtc: timestampsUtc[slot],
