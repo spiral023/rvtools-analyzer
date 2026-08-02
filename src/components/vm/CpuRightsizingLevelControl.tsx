@@ -1,6 +1,7 @@
 import type { CpuRightsizingLevel } from "@/domain/models/types";
 import { CPU_RIGHTSIZING_POLICIES } from "@/domain/services/vmRightsizingService";
 import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
+import { formatPct } from "@/lib/xlsx/parseHelpers";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const LEVEL_ORDER: readonly CpuRightsizingLevel[] = [
@@ -15,6 +16,10 @@ function peakLabel(level: CpuRightsizingLevel): string {
   if (statistic === "maximum") return "Max";
   if (statistic === "p995") return "p99,5";
   return statistic;
+}
+
+function formatPolicyPercent(value: number): string {
+  return formatPct(value * 100, 0);
 }
 
 export function CpuRightsizingLevelControl() {
@@ -43,7 +48,7 @@ export function CpuRightsizingLevelControl() {
             <ToggleGroupItem key={entry} value={entry} className="h-auto min-h-14 flex-col px-3 py-2">
               <span className="text-xs font-semibold">{policy.label}</span>
               <span className="text-[10px] font-normal text-muted-foreground">
-                {peakLabel(entry)} · P95 {policy.targetUtilizationP95 * 100} % · Spitze {policy.targetUtilizationPeak * 100} %
+                {peakLabel(entry)} · P95 {formatPolicyPercent(policy.targetUtilizationP95)} · Spitze {formatPolicyPercent(policy.targetUtilizationPeak)}
               </span>
             </ToggleGroupItem>
           );

@@ -8,6 +8,7 @@ import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { VariantDetailDialog, type VariantDetail } from "@/components/network/VariantDetailDialog";
 import { Network, Router, Cable, Server, GitCompare, AlertTriangle, Layers } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
+import { buildDvsRows, type DvsRow } from "@/lib/hostNetwork";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   NET_HOST_KPI,
@@ -26,8 +27,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 interface NicDetailRow { host: string; cluster: string; device: string; speed: number; switchName: string; switchType: string; uplink: string }
 interface VariantRow { label: string; hostCount: number; clusters: string; nicCount: number; summary: string; hosts: string }
 interface DriftRow { host: string; cluster: string; isVariant: string; expected: string }
-interface DvsRow { name: string; version: string; maxMtu: number; ports: number; members: number; uplinksPerHost: string; consistent: boolean }
-
 interface HostConfig { host: string; cluster: string; nics: { device: string; switchName: string; switchType: string; uplink: string }[]; fp: string; summary: string }
 
 /* ------------------------------------------------------------------ */
@@ -198,32 +197,8 @@ export function HostNetworkPanel() {
     return { variants, driftRows, variantDetails };
   }, [hostConfigs, rawNIC]);
 
-  // vDS-Membership inkl. abgeleiteter Uplinks/Host aus vNIC.
-  const dvsRows = useMemo<DvsRow[]>(() => {
-    return rawDvSwitch.map((r) => {
-      // "Switch" = eindeutiger Identifier (Match-Key zu vNIC), "Name" = Anzeigename.
-      const name = s(r.data["Switch"]);
-      const perHost = new Map<string, number>();
-      for (const n of rawNIC) {
-        if (s(n.data["Switch"]) === name && name !== "") {
-          const h = s(n.data["Host"]);
-          perHost.set(h, (perHost.get(h) || 0) + 1);
-        }
-      }
-      const counts = [...perHost.values()];
-      const consistent = counts.length > 0 && counts.every((c) => c === counts[0]);
-      const uplinksPerHost = counts.length === 0 ? "—" : consistent ? String(counts[0]) : `${Math.min(...counts)}–${Math.max(...counts)}`;
-      return {
-        name,
-        version: s(r.data["Version"]),
-        maxMtu: Number(r.data["Max MTU"] || 0),
-        ports: Number(r.data["# Ports"] || 0),
-        members: Number(r.data["Host members"] || 0),
-        uplinksPerHost,
-        consistent,
-      };
-    }).sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
-  }, [rawDvSwitch, rawNIC]);
+  // vDS-Membership inkl. abgeleiteter Uplinks/Hosts aus vNIC.
+  const dvsRows = useMemo(() => buildDvsRows(rawDvSwitch, rawNIC), [rawDvSwitch, rawNIC]);
 
   // Detail-Tabelle auf vmnic-Ebene.
   const nicDetail = useMemo<NicDetailRow[]>(() => {

@@ -11,6 +11,7 @@ vi.mock("@/data/db", () => dbMocks);
 
 import {
   TableDisplayPreferencesProvider,
+  useTableDisplayPreferencesActions,
   useTableDisplayPreferences,
 } from "@/hooks/useTableDisplayPreferences";
 import {
@@ -41,6 +42,15 @@ function Probe({ tableId }: { tableId: string }) {
         ändern
       </button>
     </>
+  );
+}
+
+function ResetProbe() {
+  const { resetAllTablePreferences } = useTableDisplayPreferencesActions();
+  return (
+    <button type="button" onClick={() => void resetAllTablePreferences()}>
+      zurücksetzen
+    </button>
   );
 }
 
@@ -106,5 +116,48 @@ describe("useTableDisplayPreferences", () => {
       }),
     })));
     expect(screen.getByTestId("preferences-vms/inventory")).toHaveTextContent(JSON.stringify(defaults));
+  });
+
+  it("setzt alle Tabellen auf ihre Standardansicht zurück und entfernt die Legacy-Präferenz", async () => {
+    const stored: TableDisplayPreferences = {
+      columnVisibility: { vm: false, host: true },
+      columnOrder: ["host", "vm"],
+      sorting: [{ id: "host", desc: true }],
+    };
+    const legacy: TableDisplayPreferences = {
+      columnVisibility: { vm: true, host: false },
+      columnOrder: ["vm", "host"],
+      sorting: [{ id: "vm", desc: false }],
+    };
+    dbMocks.getUiState.mockImplementation(async (id: string) => {
+      if (id === TABLE_DISPLAY_PREFERENCES_UI_STATE_ID) {
+        return { id, theme: "dark", tableDisplayPreferences: { "hosts/inventory": stored } };
+      }
+      if (id === LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID) {
+        return { id, theme: "dark", techInfoOrganisationTablePreferences: legacy };
+      }
+      return undefined;
+    });
+
+    render(
+      <TableDisplayPreferencesProvider>
+        <Probe tableId="hosts/inventory" />
+        <ResetProbe />
+      </TableDisplayPreferencesProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("preferences-hosts/inventory")).toHaveTextContent(JSON.stringify(stored)));
+
+    fireEvent.click(screen.getByRole("button", { name: "zurücksetzen" }));
+
+    await waitFor(() => expect(screen.getByTestId("preferences-hosts/inventory")).toHaveTextContent(JSON.stringify(defaults)));
+    expect(dbMocks.putUiState).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      id: TABLE_DISPLAY_PREFERENCES_UI_STATE_ID,
+      tableDisplayPreferences: {},
+    }));
+    expect(dbMocks.putUiState).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      id: LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
+      techInfoOrganisationTablePreferences: undefined,
+    }));
   });
 });

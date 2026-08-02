@@ -355,7 +355,7 @@ export function VropsTrendChart({
               tick={{ fontSize: 10 }}
               width={46}
               domain={["dataMin", avoidanceZoneMax ?? "dataMax"]}
-              tickFormatter={cpuDataKey === "cpuPct" ? (value: number) => `${value} %` : undefined}
+              tickFormatter={cpuDataKey === "cpuPct" ? (value: number) => formatNumber(value, "%") : undefined}
             />
             {hasSecondary && (
               <YAxis
@@ -364,7 +364,7 @@ export function VropsTrendChart({
                 orientation="right"
                 tick={{ fontSize: 10 }}
                 width={46}
-                tickFormatter={secondaryDataKey === "secondaryPct" ? (value: number) => `${value} %` : undefined}
+                tickFormatter={secondaryDataKey === "secondaryPct" ? (value: number) => formatNumber(value, "%") : undefined}
               />
             )}
             <Tooltip

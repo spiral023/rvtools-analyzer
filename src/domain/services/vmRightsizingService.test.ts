@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
 import { capacitySignalsFixture, classificationSignalsFixture, metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
-import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
+import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, filterRightsizingCandidatesByVmScope, isComputableRightsizingCandidate, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
 
 function metricStats(overrides: Partial<VmWorkloadProfileMetricStats>): VmWorkloadProfileMetricStats {
   return metricStatsFixture(overrides);
@@ -357,6 +357,38 @@ describe("isNotableRightsizingCandidate", () => {
     const [candidate] = buildVmRightsizingCandidates({ profiles: [profile({ objectKey: "vm-1", vcpu: 2, demand: metricStats({ p95: 1_300 }) })], hosts });
     expect(candidate.reclaimableVcpu).toBe(0);
     expect(isNotableRightsizingCandidate(candidate)).toBe(false);
+  });
+});
+
+describe("Rightsizing-Scope und Berechenbarkeit", () => {
+  it("übernimmt den globalen VM-Scope über den eindeutigen RVTools-Schlüssel", () => {
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vrops-app", rvtoolsObjectKey: "rv-app", vmName: "APP-01" }),
+        profile({ objectKey: "vrops-db", rvtoolsObjectKey: "rv-db", vmName: "DB-01" }),
+      ],
+      hosts,
+    });
+
+    const scoped = filterRightsizingCandidatesByVmScope(candidates, [
+      { vmKey: "rv-db", vmName: "DB-01" },
+    ]);
+
+    expect(scoped.map((candidate) => candidate.vmName)).toEqual(["DB-01"]);
+  });
+
+  it("trennt nicht berechenbare Lastmuster und unbekannte Niveaus vom Vergleich", () => {
+    const candidates = buildVmRightsizingCandidates({
+      profiles: [
+        profile({ objectKey: "vm-computable" }),
+        profile({ objectKey: "vm-unclassified", shape: "unclassified" }),
+        profile({ objectKey: "vm-unknown-intensity", intensity: "unknown" }),
+      ],
+      hosts,
+    });
+
+    expect(candidates.filter(isComputableRightsizingCandidate).map((candidate) => candidate.objectKey)).toEqual(["vm-computable"]);
+    expect(candidates.filter((candidate) => !isComputableRightsizingCandidate(candidate)).map((candidate) => candidate.objectKey)).toEqual(["vm-unclassified", "vm-unknown-intensity"]);
   });
 });
 

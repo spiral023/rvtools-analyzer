@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
-import { Download, Save, Settings as SettingsIcon, Upload } from "lucide-react";
+import { Download, RotateCcw, Save, Settings as SettingsIcon, Upload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMaintenanceSettings } from "@/hooks/useMaintenance";
+import { useTableDisplayPreferencesActions } from "@/hooks/useTableDisplayPreferences";
 import { deriveSettingsEmail } from "@/lib/maintenance";
 import { applyUserDataBackup, collectUserDataBackup } from "@/domain/services/backupService";
 import {
@@ -19,11 +20,13 @@ import type { MaintenanceSettings } from "@/domain/models/types";
 
 export default function Settings() {
   const { settings, saveSettings, isSaving } = useMaintenanceSettings();
+  const { resetAllTablePreferences } = useTableDisplayPreferencesActions();
   const [previousSettings, setPreviousSettings] = useState(settings);
   const [form, setForm] = useState<MaintenanceSettings>(settings);
   const queryClient = useQueryClient();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isResettingTablePreferences, setIsResettingTablePreferences] = useState(false);
 
   if (settings !== previousSettings) {
     setPreviousSettings(settings);
@@ -93,6 +96,22 @@ export default function Settings() {
     }
   };
 
+  const handleResetTablePreferences = async () => {
+    if (!window.confirm(
+      "Eigene Spaltenkonfigurationen und Sortierungen wirklich für alle Tabellen verwerfen?",
+    )) return;
+
+    setIsResettingTablePreferences(true);
+    try {
+      await resetAllTablePreferences();
+      toast.success("Standard-Spalten für alle Tabellen wiederhergestellt.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Standard-Spalten konnten nicht wiederhergestellt werden.");
+    } finally {
+      setIsResettingTablePreferences(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
@@ -159,6 +178,27 @@ export default function Settings() {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tabellenansichten</CardTitle>
+          <CardDescription>
+            Eigene Spaltenauswahlen, Reihenfolgen und Sortierungen werden lokal gespeichert. Mit dem Button
+            stellst du die Standardansicht für alle Tabellen wieder her; eigene Konfigurationen werden dabei verworfen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleResetTablePreferences()}
+            disabled={isResettingTablePreferences}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            {isResettingTablePreferences ? "Standard-Spalten werden gesetzt …" : "Standard-Spalten für alle Tabellen"}
+          </Button>
         </CardContent>
       </Card>
 

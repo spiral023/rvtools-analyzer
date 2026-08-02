@@ -14,6 +14,15 @@ function hostLookupKey(snapshotId: string, host: string): string {
   return `${snapshotId}::${normalized(host)}`;
 }
 
+function firstNonEmptyCell(...values: unknown[]): string {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 export function buildDatastoreDetailRows(
   datastores: readonly NormalizedDatastore[],
   hosts: readonly NormalizedHost[],
@@ -25,7 +34,7 @@ export function buildDatastoreDetailRows(
   }
   const rawByDatastore = new Map<string, SheetRow>();
   for (const row of rawDatastoreRows) {
-    const name = String(row.data["Name"] ?? row.data["Datastore"] ?? "").trim();
+    const name = firstNonEmptyCell(row.data["Name"], row.data["Datastore"], row.data["Datastore name"]);
     if (name) rawByDatastore.set(`${row.snapshotId}::${normalized(name)}`, row);
   }
 
@@ -37,7 +46,8 @@ export function buildDatastoreDetailRows(
       .filter(Boolean);
     const hostNames = datastore.hostNames.length > 0 ? datastore.hostNames : rawHostNames;
     const clusters = new Set<string>();
-    const directCluster = datastore.clusterName || String(raw?.data["Cluster"] ?? raw?.data["Datacenter/Cluster"] ?? "").trim();
+    const directCluster = datastore.clusterName
+      || firstNonEmptyCell(raw?.data["Cluster"], raw?.data["Datacenter/Cluster"]);
     if (directCluster) clusters.add(directCluster);
     for (const host of hostNames) {
       const cluster = clusterByHost.get(hostLookupKey(datastore.snapshotId, host));

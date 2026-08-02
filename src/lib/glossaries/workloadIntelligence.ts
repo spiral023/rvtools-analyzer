@@ -144,7 +144,7 @@ export const VM_PROFILE_SECTIONS: Record<string, GlossaryEntry> = {
 export const RIGHTSIZING_KPI: Record<string, GlossaryEntry> = {
   candidateCount: {
     term: "Rightsizing-Kandidaten",
-    description: "VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready, Co-Stop unter Last, stark konzentrierter Last oder mit rückgewinnbarer bzw. fehlender vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
+    description: "Berechenbare VMs mit vielen vCPU bei geringem genutztem Bedarf, auffälligem CPU Ready, Co-Stop unter Last, stark konzentrierter Last oder mit rückgewinnbarer bzw. fehlender vCPU-Kapazität. Ausschließlich prüfpflichtige Hinweise – keine automatische Änderung.",
     source: "berechnet",
   },
   configuredVcpu: {
@@ -270,6 +270,123 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   confidence: { term: "Vertrauen", description: "Vertrauensniveau der zugrunde liegenden Klassifikation.", source: "berechnet" },
 };
 
+export const RAM_RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
+  vmName: RIGHTSIZING_COLUMNS.vmName,
+  cluster: RIGHTSIZING_COLUMNS.cluster,
+  sysv: RIGHTSIZING_COLUMNS.sysv,
+  sysvDepartment: RIGHTSIZING_COLUMNS.sysvDepartment,
+  direction: {
+    term: "Richtung",
+    description: "Abgeleitete Handlung aus aktuellem RAM und dem empfohlenen Ziel: verkleinern, vergrößern, unverändert oder nicht berechenbar.",
+    source: "berechnet",
+  },
+  vmCount: {
+    term: "VMs",
+    description: "Anzahl der VMs in der jeweiligen Richtung oder Gruppierung.",
+    source: "berechnet",
+  },
+  shrinkCount: {
+    term: "Verkleinern",
+    description: "Anzahl der VMs, bei denen die berechnete RAM-Empfehlung unter der aktuellen Konfiguration liegt.",
+    source: "berechnet",
+  },
+  growCount: {
+    term: "Vergrößern",
+    description: "Anzahl der VMs, bei denen der berechnete RAM-Bedarf über der aktuellen Konfiguration liegt.",
+    source: "berechnet",
+  },
+  notComputableCount: {
+    term: "Nicht berechenbar",
+    description: "Anzahl der VMs ohne belastbare RAM-Empfehlung, zum Beispiel wegen fehlender Zeitreihe, zu geringer Datenabdeckung oder fehlender Konfiguration.",
+    source: "berechnet",
+  },
+  reclaimableMemory: {
+    term: "Freigebbar",
+    description: "Summe des RAM, der bei VMs mit Verkleinerungsempfehlung zwischen aktueller und empfohlener Größe liegt.",
+    source: "berechnet",
+  },
+  additionalMemory: {
+    term: "Zusätzlich",
+    description: "Summe des zusätzlichen RAM, der bei VMs mit Vergrößerungsempfehlung bis zur empfohlenen Größe fehlt.",
+    source: "berechnet",
+  },
+  configuredMemory: {
+    term: "RAM aktuell",
+    description: "Aktuell konfigurierter Arbeitsspeicher der VM. Er ist die Bezugsgröße für die prozentualen Memory-Workload-Werte und die Rightsizing-Empfehlung.",
+    source: "RVTools · vInfo · „Memory“",
+  },
+  workloadAvgP95: {
+    term: "Workload Avg P95",
+    description: "95. Perzentil der vROps-Memory-Workload-Avg-Reihe. Der Wert beschreibt den Anteil des konfigurierten RAM, der im normalen Verlauf beansprucht wurde.",
+    source: "vROps-Zeitreihenimport · „Memory|Workload|Avg“",
+  },
+  workloadAvgP99: {
+    term: "Workload Avg P99",
+    description: "99. Perzentil der vROps-Memory-Workload-Avg-Reihe. Die aktive RAM-Policy kann diesen Wert als konservativere Normal-Last heranziehen.",
+    source: "vROps-Zeitreihenimport · „Memory|Workload|Avg“",
+  },
+  peakWorkload: {
+    term: "Peak-Workload",
+    description: "Peak-Perzentil der vROps-Memory-Workload-Max-Reihe. Es berücksichtigt den höchsten beobachteten Workload innerhalb der Stunde; das konkrete Perzentil folgt der aktiven RAM-Policy.",
+    source: "vROps-Zeitreihenimport · „Memory|Workload|Max“",
+  },
+  normalDemand: {
+    term: "Bedarf normal",
+    description: "RAM-Anforderung aus der gewählten Normal-Statistik der Avg-Reihe, umgerechnet auf MiB anhand der aktuellen RAM-Konfiguration.",
+    source: "berechnet · vROps Memory Workload Avg",
+  },
+  peakDemand: {
+    term: "Bedarf Spitze",
+    description: "RAM-Anforderung aus der gewählten Peak-Statistik der Max-Reihe, umgerechnet auf MiB anhand der aktuellen RAM-Konfiguration.",
+    source: "berechnet · vROps Memory Workload Max",
+  },
+  requiredMemory: {
+    term: "Bedarfsgerecht",
+    description: "Der höhere Wert aus normalem und Spitzenbedarf. Er zeigt den beobachteten RAM-Bedarf vor Sicherheitsreserve und Rundung.",
+    source: "berechnet",
+  },
+  targetMemory: {
+    term: "Ziel vor Rundung",
+    description: "Bedarfsgerechter RAM geteilt durch den Zielauslastungsfaktor der RAM-Policy. Die Rundung auf einen praktikablen Schritt ist hier noch nicht enthalten.",
+    source: "berechnet · RAM-Policy",
+  },
+  recommendedMemory: {
+    term: "RAM empfohlen",
+    description: "Prüfpflichtige Zielgröße nach Anwendung des Zielauslastungsfaktors und der konfigurierten Rundungsstufe. Sie ist keine automatische Änderung.",
+    source: "berechnet · RAM-Policy",
+  },
+  reclaimableMemoryVm: {
+    term: "Rückgewinnbar",
+    description: "RAM-Differenz zwischen aktueller und empfohlener Größe, wenn die Richtung „Verkleinern“ lautet. Bei anderen Richtungen bleibt die Spalte leer.",
+    source: "berechnet",
+  },
+  additionalMemoryVm: {
+    term: "Zusätzlich",
+    description: "RAM-Differenz zwischen aktueller und empfohlener Größe, wenn die Richtung „Vergrößern“ lautet. Bei anderen Richtungen bleibt die Spalte leer.",
+    source: "berechnet",
+  },
+  deltaMemory: {
+    term: "Delta",
+    description: "Signierte Differenz aus empfohlener minus aktueller RAM-Größe: negativ bedeutet freigebbar, positiv bedeutet zusätzlich erforderlich.",
+    source: "berechnet",
+  },
+  coverage: {
+    term: "Coverage",
+    description: "Anteil der erwarteten Stunden mit verwertbaren Memory-Workload-Avg-Werten. Eine geringe Abdeckung senkt das Vertrauen und kann eine Empfehlung verhindern.",
+    source: "berechnet · vROps Memory Workload Avg",
+  },
+  confidence: {
+    term: "Vertrauen",
+    description: "Datenqualitätsstufe der RAM-Bewertung aus Stichprobengröße und Zeitreihenabdeckung; sie sagt, wie belastbar die Empfehlung ist.",
+    source: "berechnet · RAM-Policy",
+  },
+  reason: {
+    term: "Begründung",
+    description: "Warum für diese VM keine RAM-Empfehlung ausgesprochen wird, etwa wegen fehlender Daten, unzureichender Abdeckung oder fehlender RAM-Konfiguration.",
+    source: "berechnet",
+  },
+};
+
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   densityGrid: {
     term: "Konfigurierte vCPU vs. CPU Demand P95 %",
@@ -281,7 +398,11 @@ export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   },
   candidateTable: {
     term: "vCPU-Vergleich je VM",
-    description: "Vergleicht konfigurierte vCPU mit beobachtetem CPU Demand und Ready. Hervorgehobene Zeilen sind auffällige Kandidaten – die Tabelle selbst zeigt alle VMs mit gültiger vCPU-Angabe.",
+    description: "Vergleicht konfigurierte vCPU mit beobachtetem CPU Demand und Ready. Hervorgehobene Zeilen sind auffällige Kandidaten. Die Tabelle enthält nur VMs mit berechenbarem Lastmuster und bekanntem Auslastungsniveau.",
+  },
+  uncomputableTable: {
+    term: "Nicht berechenbare Rightsizing-VMs",
+    description: "Zeigt VMs, für die das Lastmuster oder das Auslastungsniveau nicht belastbar berechnet werden konnte. Diese Zeilen bleiben sichtbar, fließen aber nicht in vCPU-Vergleich, Kennzahlen, Diagramme oder Zusammenfassungen ein.",
   },
   clusterSummary: {
     term: "Rückgewinnbare vCPU je Cluster",

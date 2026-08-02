@@ -26,6 +26,7 @@ import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_ST
 import { normalizeVmName } from "@/lib/globalFilter";
 import { average } from "@/lib/statistics";
 import { buildTechInfoSearchIndex } from "@/lib/vmSearch";
+import { RAM_RIGHTSIZING_COLUMNS } from "@/lib/glossaries/workloadIntelligence";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
 function formatPercent(value: number | null | undefined, fractionDigits = 1): string {
@@ -89,20 +90,20 @@ function memoryPolicyDescription(policy: typeof RAM_RIGHTSIZING_POLICIES[keyof t
 }
 
 const directionColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByDirection>[number], unknown>[] = [
-  { accessorKey: "label", header: "Richtung" },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "reclaimableMemoryMiB", header: "Freigebbar", cell: ({ getValue }) => formatMemory(getValue() as number) },
-  { accessorKey: "additionalMemoryMiB", header: "Zusätzlich", cell: ({ getValue }) => formatMemory(getValue() as number) },
+  { accessorKey: "label", header: "Richtung", meta: { info: RAM_RIGHTSIZING_COLUMNS.direction } },
+  { accessorKey: "vmCount", header: "VMs", meta: { info: RAM_RIGHTSIZING_COLUMNS.vmCount }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "reclaimableMemoryMiB", header: "Freigebbar", meta: { info: RAM_RIGHTSIZING_COLUMNS.reclaimableMemory }, cell: ({ getValue }) => formatMemory(getValue() as number) },
+  { accessorKey: "additionalMemoryMiB", header: "Zusätzlich", meta: { info: RAM_RIGHTSIZING_COLUMNS.additionalMemory }, cell: ({ getValue }) => formatMemory(getValue() as number) },
 ];
 
 const clusterColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByCluster>[number], unknown>[] = [
-  { accessorKey: "label", header: "Cluster" },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "shrinkCount", header: "Shrink", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "growCount", header: "Grow", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "notComputableCount", header: "Nicht berechenbar", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "reclaimableMemoryMiB", header: "Freigebbar", cell: ({ getValue }) => formatMemory(getValue() as number) },
-  { accessorKey: "additionalMemoryMiB", header: "Zusätzlich", cell: ({ getValue }) => formatMemory(getValue() as number) },
+  { accessorKey: "label", header: "Cluster", meta: { info: RAM_RIGHTSIZING_COLUMNS.cluster } },
+  { accessorKey: "vmCount", header: "VMs", meta: { info: RAM_RIGHTSIZING_COLUMNS.vmCount }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "shrinkCount", header: "Shrink", meta: { info: RAM_RIGHTSIZING_COLUMNS.shrinkCount }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "growCount", header: "Grow", meta: { info: RAM_RIGHTSIZING_COLUMNS.growCount }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "notComputableCount", header: "Nicht berechenbar", meta: { info: RAM_RIGHTSIZING_COLUMNS.notComputableCount }, cell: ({ getValue }) => formatNum(getValue() as number) },
+  { accessorKey: "reclaimableMemoryMiB", header: "Freigebbar", meta: { info: RAM_RIGHTSIZING_COLUMNS.reclaimableMemory }, cell: ({ getValue }) => formatMemory(getValue() as number) },
+  { accessorKey: "additionalMemoryMiB", header: "Zusätzlich", meta: { info: RAM_RIGHTSIZING_COLUMNS.additionalMemory }, cell: ({ getValue }) => formatMemory(getValue() as number) },
 ];
 
 export function VmRamRightsizingPanel() {
@@ -165,65 +166,73 @@ export function VmRamRightsizingPanel() {
   );
 
   const candidateColumns = useMemo<ColumnDef<VmRamRightsizingCandidate, unknown>[]>(() => [
-    { accessorKey: "vmName", header: "VM" },
-    { accessorKey: "clusterName", header: "Cluster", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    { accessorKey: "vmName", header: "VM", meta: { info: RAM_RIGHTSIZING_COLUMNS.vmName } },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: RAM_RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
     {
       id: "sysv",
       header: "Systemverantwortlicher",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysv },
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     {
       id: "sysv-department",
       header: "Abteilung",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysvDepartment },
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
-    { id: "configured-memory", header: "RAM aktuell", accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
-    { id: "avg-p95", header: "Workload Avg P95", accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p95") },
-    { id: "avg-p99", header: "Workload Avg P99", accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p99") },
+    { id: "configured-memory", header: "RAM aktuell", meta: { info: RAM_RIGHTSIZING_COLUMNS.configuredMemory }, accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
+    { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95 }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p95") },
+    { id: "avg-p99", header: "Workload Avg P99", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP99 }, accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p99") },
     {
       id: "peak-workload",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.peakWorkload },
       header: `Peak-Workload Max ${statisticLabel(ramPolicy.peakStatistic)}`,
       accessorFn: (row) => row.workloadMax?.[ramPolicy.peakStatistic] ?? -1,
       cell: ({ row }) => row.original.workloadMax
         ? formatStatistic(row.original.workloadMax, ramPolicy.peakStatistic)
         : "—",
     },
-    { id: "normal-demand", header: "Bedarf normal", accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
-    { id: "peak-demand", header: "Bedarf Spitze", accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
-    { id: "required-memory", header: "Bedarfsgerecht", accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
-    { id: "target-memory", header: "Ziel vor Rundung", accessorFn: (row) => row.targetMemoryBeforeRoundingMiB ?? -1, cell: ({ row }) => formatMemory(row.original.targetMemoryBeforeRoundingMiB) },
-    { id: "recommended-memory", header: "RAM empfohlen", accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <span className="font-semibold">{formatMemory(row.original.recommendedMemoryMiB)}</span> },
+    { id: "normal-demand", header: "Bedarf normal", meta: { info: RAM_RIGHTSIZING_COLUMNS.normalDemand }, accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
+    { id: "peak-demand", header: "Bedarf Spitze", meta: { info: RAM_RIGHTSIZING_COLUMNS.peakDemand }, accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
+    { id: "required-memory", header: "Bedarfsgerecht", meta: { info: RAM_RIGHTSIZING_COLUMNS.requiredMemory }, accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
+    { id: "target-memory", header: "Ziel vor Rundung", meta: { info: RAM_RIGHTSIZING_COLUMNS.targetMemory }, accessorFn: (row) => row.targetMemoryBeforeRoundingMiB ?? -1, cell: ({ row }) => formatMemory(row.original.targetMemoryBeforeRoundingMiB) },
+    { id: "recommended-memory", header: "RAM empfohlen", meta: { info: RAM_RIGHTSIZING_COLUMNS.recommendedMemory }, accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <span className="font-semibold">{formatMemory(row.original.recommendedMemoryMiB)}</span> },
     {
       id: "reclaimable-memory",
       header: "Rückgewinnbar",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.reclaimableMemoryVm },
       accessorFn: (row) => row.direction === "shrink" ? Math.abs(row.deltaMiB ?? 0) : 0,
       cell: ({ row }) => <span className={row.original.direction === "shrink" ? "font-semibold text-warning" : ""}>{row.original.direction === "shrink" ? formatMemory(Math.abs(row.original.deltaMiB ?? 0)) : "—"}</span>,
     },
     {
       id: "additional-memory",
       header: "Zusätzlich",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.additionalMemoryVm },
       accessorFn: (row) => row.direction === "grow" ? Math.max(0, row.deltaMiB ?? 0) : 0,
       cell: ({ row }) => <span className={row.original.direction === "grow" ? "font-semibold text-destructive" : ""}>{row.original.direction === "grow" ? formatMemory(Math.max(0, row.original.deltaMiB ?? 0)) : "—"}</span>,
     },
     {
       id: "delta-memory",
       header: "Delta",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.deltaMemory },
       accessorFn: (row) => row.deltaMiB ?? -1,
       cell: ({ row }) => <span className={row.original.direction === "shrink" ? "font-semibold text-warning" : row.original.direction === "grow" ? "font-semibold text-destructive" : ""}>{formatSignedMemory(row.original.deltaMiB)}</span>,
     },
-    { id: "direction", header: "Richtung", accessorFn: (row) => row.direction, cell: ({ row }) => <DirectionBadge direction={row.original.direction} /> },
-    { id: "coverage", header: "Coverage", accessorFn: (row) => row.coverageRatio, cell: ({ row }) => formatPercent(row.original.coverageRatio * 100, 0) },
+    { id: "direction", header: "Richtung", meta: { info: RAM_RIGHTSIZING_COLUMNS.direction }, accessorFn: (row) => row.direction, cell: ({ row }) => <DirectionBadge direction={row.original.direction} /> },
+    { id: "coverage", header: "Coverage", meta: { info: RAM_RIGHTSIZING_COLUMNS.coverage }, accessorFn: (row) => row.coverageRatio, cell: ({ row }) => formatPercent(row.original.coverageRatio * 100, 0) },
     {
       id: "confidence",
       header: "Vertrauen",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.confidence },
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
     {
       id: "reason",
       header: "Begründung",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.reason },
       accessorFn: (row) => row.recommendationReason ?? "",
       cell: ({ row }) => <span className="block max-w-[28rem] whitespace-normal text-xs leading-5 text-muted-foreground">{row.original.recommendationReason ?? "—"}</span>,
     },

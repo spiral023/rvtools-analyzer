@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Cpu, Recycle, Server, ShieldQuestion, SlidersHorizontal, TriangleAlert, TrendingUp } from "lucide-react";
+import { Cpu, HelpCircle, Recycle, Server, ShieldQuestion, SlidersHorizontal, TriangleAlert, TrendingUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -23,6 +23,8 @@ import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadShape
 import {
   buildVmRightsizingCandidates,
   filterRightsizingCandidatesBySearch,
+  filterRightsizingCandidatesByVmScope,
+  isComputableRightsizingCandidate,
   isNotableRightsizingCandidate,
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
@@ -48,6 +50,13 @@ function formatPercent(value: number | null): string {
 
 function formatVcpu(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatFillUpValue(value, "vCPU");
+}
+
+function notComputableReason(candidate: VmRightsizingCandidate): string {
+  const reasons: string[] = [];
+  if (candidate.shape === "unclassified") reasons.push("Lastmuster nicht berechenbar");
+  if (candidate.intensity === "unknown") reasons.push("Niveau unbekannt");
+  return reasons.join(" · ") || "Lastmuster oder Niveau konnten nicht berechnet werden.";
 }
 
 const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
@@ -77,9 +86,10 @@ const summaryColumns: ColumnDef<VmRightsizingGroupSummary, unknown>[] = [
 
 export function VmRightsizingPanel() {
   const { level: rightsizingLevel } = useCpuRightsizingLevel();
-  const { imports, profiles, hosts, isLoading } = useVmWorkloadProfiles(null);
+  const { imports, profiles, hosts, isLoading: workloadLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
-  const { allVms } = useVms();
+  const { vms: scopedVms, allVms, isLoading: vmsLoading } = useVms();
+  const isLoading = workloadLoading || vmsLoading;
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const [densitySelection, setDensitySelection] = useState<RightsizingDensitySelection | null>(null);
 
@@ -87,34 +97,40 @@ export function VmRightsizingPanel() {
     () => buildVmRightsizingCandidates({ profiles, hosts, level: rightsizingLevel }),
     [hosts, profiles, rightsizingLevel],
   );
+  const scopedCandidates = useMemo(
+    () => filterRightsizingCandidatesByVmScope(allCandidates, scopedVms),
+    [allCandidates, scopedVms],
+  );
   // Bewusst über den vollständigen Bestand: die Zuordnung trägt die Suche nach
   // Systemverantwortlichen und Abteilungen und darf deshalb nicht selbst von ihr abhängen.
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allCandidates.map((candidate) => candidate.vmName));
   const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
   const searchQuery = normalizeVmSearchTerm(filters.search.trim());
   const candidates = useMemo(
-    () => filterRightsizingCandidatesBySearch(allCandidates, searchQuery, techInfoIndex),
-    [allCandidates, searchQuery, techInfoIndex],
+    () => filterRightsizingCandidatesBySearch(scopedCandidates, searchQuery, techInfoIndex),
+    [scopedCandidates, searchQuery, techInfoIndex],
   );
-  const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
-  const notableCandidates = useMemo(() => candidates.filter(isNotableRightsizingCandidate), [candidates]);
-  const totalConfiguredVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.vcpu ?? 0), 0), [candidates]);
-  const totalReclaimableVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [candidates]);
-  const totalAdditionalVcpu = useMemo(() => candidates.reduce((sum, candidate) => sum + (candidate.additionalVcpu ?? 0), 0), [candidates]);
-  const manyVcpuLowDemandCount = useMemo(() => candidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [candidates]);
-  const withheldRecommendationCount = useMemo(() => candidates.filter((candidate) => candidate.recommendationWithheldReason !== null).length, [candidates]);
+  const computableCandidates = useMemo(() => candidates.filter(isComputableRightsizingCandidate), [candidates]);
+  const uncomputableCandidates = useMemo(() => candidates.filter((candidate) => !isComputableRightsizingCandidate(candidate)), [candidates]);
+  const [visibleCandidateCount, setVisibleCandidateCount] = useState(computableCandidates.length);
+  const notableCandidates = useMemo(() => computableCandidates.filter(isNotableRightsizingCandidate), [computableCandidates]);
+  const totalConfiguredVcpu = useMemo(() => computableCandidates.reduce((sum, candidate) => sum + (candidate.vcpu ?? 0), 0), [computableCandidates]);
+  const totalReclaimableVcpu = useMemo(() => computableCandidates.reduce((sum, candidate) => sum + (candidate.reclaimableVcpu ?? 0), 0), [computableCandidates]);
+  const totalAdditionalVcpu = useMemo(() => computableCandidates.reduce((sum, candidate) => sum + (candidate.additionalVcpu ?? 0), 0), [computableCandidates]);
+  const manyVcpuLowDemandCount = useMemo(() => computableCandidates.filter((candidate) => candidate.flags.manyVcpuLowDemand).length, [computableCandidates]);
+  const withheldRecommendationCount = useMemo(() => computableCandidates.filter((candidate) => candidate.recommendationWithheldReason !== null).length, [computableCandidates]);
   const recommendationMix = useMemo(() => {
-    const shrinkCount = candidates.filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0).length;
-    const growCount = candidates.filter((candidate) => (candidate.additionalVcpu ?? 0) > 0).length;
+    const shrinkCount = computableCandidates.filter((candidate) => (candidate.reclaimableVcpu ?? 0) > 0).length;
+    const growCount = computableCandidates.filter((candidate) => (candidate.additionalVcpu ?? 0) > 0).length;
     return [
       { key: "shrink", label: "Verkleinern", value: shrinkCount, color: CHART_COLORS.success },
       { key: "grow", label: "Vergrößern", value: growCount, color: CHART_COLORS.danger },
-      { key: "review", label: "Beibehalten / prüfen", value: candidates.length - shrinkCount - growCount, color: CHART_COLORS.secondary },
+      { key: "review", label: "Beibehalten / prüfen", value: computableCandidates.length - shrinkCount - growCount, color: CHART_COLORS.secondary },
     ].filter((entry) => entry.value > 0);
-  }, [candidates]);
-  const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
-  const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
-  const densityGrid = useMemo(() => buildRightsizingDensityGrid(candidates), [candidates]);
+  }, [computableCandidates]);
+  const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(computableCandidates), [computableCandidates]);
+  const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(computableCandidates), [computableCandidates]);
+  const densityGrid = useMemo(() => buildRightsizingDensityGrid(computableCandidates), [computableCandidates]);
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
@@ -204,6 +220,51 @@ export function VmRightsizingPanel() {
     },
   ], [techInfoIndex]);
 
+  const uncomputableColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
+    { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    {
+      id: "sysv",
+      header: "Systemverantwortlicher",
+      meta: { info: RIGHTSIZING_COLUMNS.sysv },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: RIGHTSIZING_COLUMNS.sysvDepartment },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    { id: "host", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, accessorFn: (row) => row.hostName ?? "", cell: ({ getValue }) => (getValue() as string) || "—" },
+    { accessorKey: "powerState", header: "Powerstate", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
+    {
+      id: "shape",
+      header: "Lastmuster",
+      meta: { info: RIGHTSIZING_COLUMNS.shape },
+      accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
+      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+    },
+    {
+      id: "intensity",
+      header: "Niveau",
+      meta: { info: RIGHTSIZING_COLUMNS.intensity },
+      accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
+      cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
+    },
+    { id: "coverage", header: "Abdeckung", accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100) },
+    {
+      id: "confidence",
+      header: "Vertrauen",
+      meta: { info: VM_PROFILE_UI.confidence },
+      accessorFn: (row) => row.confidence,
+      cell: ({ row }) => <Badge variant={row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
+    },
+    { id: "reason", header: "Grund", accessorFn: notComputableReason, cell: ({ row }) => <span className="block max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{notComputableReason(row.original)}</span> },
+  ], [techInfoIndex]);
+
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<Recycle className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="Rightsizing-Kandidaten benötigen einen vollständig gespeicherten vROps-Zeitreihenimport. Importiere einen Dateisatz in der Fill-Up-Planung." actionLabel="Zur Planung" actionTo="/planning" />;
   }
@@ -212,12 +273,13 @@ export function VmRightsizingPanel() {
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
         <KpiGrid>
-          <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
+          <KpiCard title="Rightsizing-Kandidaten" value={formatNum(notableCandidates.length)} subtitle={`von ${formatNum(computableCandidates.length)} berechenbaren VMs`} severity={notableCandidates.length > 0 ? "warn" : "ok"} icon={<Recycle className="h-4 w-4" />} info={RIGHTSIZING_KPI.candidateCount} />
           <KpiCard title="Konfigurierte vCPU" value={formatVcpu(totalConfiguredVcpu)} icon={<SlidersHorizontal className="h-4 w-4" />} info={RIGHTSIZING_KPI.configuredVcpu} />
           <KpiCard title="Rückgewinnbare vCPU" value={formatVcpu(totalReclaimableVcpu)} icon={<Cpu className="h-4 w-4" />} info={RIGHTSIZING_KPI.reclaimableVcpu} />
           <KpiCard title="Zusätzlich nötige vCPU" value={formatVcpu(totalAdditionalVcpu)} severity={totalAdditionalVcpu > 0 ? "warn" : "ok"} icon={<TrendingUp className="h-4 w-4" />} info={RIGHTSIZING_KPI.additionalVcpu} />
           <KpiCard title="Viele vCPU, geringer Bedarf" value={formatNum(manyVcpuLowDemandCount)} severity={manyVcpuLowDemandCount > 0 ? "warn" : "ok"} icon={<Server className="h-4 w-4" />} info={RIGHTSIZING_KPI.manyVcpuLowDemand} />
           <KpiCard title="Ohne Empfehlung" value={formatNum(withheldRecommendationCount)} icon={<ShieldQuestion className="h-4 w-4" />} info={RIGHTSIZING_KPI.withheldRecommendation} />
+          <KpiCard title="Nicht berechenbare VMs" value={formatNum(uncomputableCandidates.length)} severity={uncomputableCandidates.length > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} />
         </KpiGrid>
         <CpuRightsizingLevelControl />
         <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
@@ -255,7 +317,7 @@ export function VmRightsizingPanel() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-mono-data text-2xl font-semibold">{formatNum(candidates.length)}</span>
+                <span className="font-mono-data text-2xl font-semibold">{formatNum(computableCandidates.length)}</span>
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">VMs</span>
               </div>
             </div>
@@ -266,9 +328,9 @@ export function VmRightsizingPanel() {
         </div>}
 
         <div>
-          <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je VM ({visibleCandidateCount})</h3></InfoTooltip>
-          {/* Ohne `globalFilter`: die Suche ist bereits auf `candidates` angewandt, damit Kennzahlen und Tabelle denselben Ausschnitt zeigen. */}
-          <VirtualTable tableId="vms/rightsizing-candidates" columnPicker data={candidates} columns={candidateColumns} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine Kandidaten" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit konfigurierter vCPU-Anzahl." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Systemverantwortliche:r."} onFilteredCountChange={setVisibleCandidateCount} />
+          <InfoTooltip entry={RIGHTSIZING_SECTIONS.candidateTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCPU-Vergleich je berechenbarer VM ({visibleCandidateCount})</h3></InfoTooltip>
+          {/* Ohne `globalFilter`: Scope und Suche sind bereits auf `candidates` angewandt, damit Kennzahlen und Tabelle denselben Ausschnitt zeigen. */}
+          <VirtualTable tableId="vms/rightsizing-candidates" columnPicker data={computableCandidates} columns={candidateColumns} height={480} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing" emptyTitle="Keine berechenbaren Kandidaten" emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit berechenbarem Lastmuster und Niveau." : "Kein Treffer für die aktuelle Suche in VM-Name, Cluster und Systemverantwortliche:r."} onFilteredCountChange={setVisibleCandidateCount} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -281,10 +343,16 @@ export function VmRightsizingPanel() {
             <VirtualTable tableId="vms/rightsizing-shape-summary" columnPicker data={shapeSummary} columns={summaryColumns} height={240} getRowId={(row) => row.key} emptyTitle="Keine Daten" />
           </div>
         </div>
+
+        {uncomputableCandidates.length > 0 && <div>
+          <InfoTooltip entry={RIGHTSIZING_SECTIONS.uncomputableTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Nicht berechenbare VMs · Lastmuster / Niveau ({formatNum(uncomputableCandidates.length)})</h3></InfoTooltip>
+          <p className="mb-3 text-xs text-muted-foreground">Diese VMs bleiben außerhalb des vCPU-Vergleichs. Es fehlt entweder ein belastbares Lastmuster oder ein bekanntes Auslastungsniveau.</p>
+          <VirtualTable tableId="vms/rightsizing-uncomputable" columnPicker data={uncomputableCandidates} columns={uncomputableColumns} height={300} getRowId={(row: VmRightsizingCandidate) => row.objectKey} onRowClick={openVmDetail} exportFileName="vm-rightsizing-nicht-berechenbar" emptyTitle="Keine nicht berechenbaren VMs" />
+        </div>}
       </>}
       <VmRightsizingDensityDialog
         selection={densitySelection}
-        candidates={candidates}
+        candidates={computableCandidates}
         techInfoIndex={techInfoIndex}
         onOpenChange={(open) => {
           if (!open) setDensitySelection(null);

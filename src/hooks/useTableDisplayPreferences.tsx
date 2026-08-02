@@ -18,10 +18,12 @@ import {
 interface TableDisplayPreferencesContextValue {
   preferencesByTableId: TableDisplayPreferencesByTableId;
   updateTablePreferences: (tableId: string, preferences: TableDisplayPreferences) => void;
+  resetAllTablePreferences: () => Promise<void>;
   reload: () => Promise<void>;
 }
 
 const TableDisplayPreferencesContext = createContext<TableDisplayPreferencesContextValue | null>(null);
+const noopResetAllTablePreferences = async (): Promise<void> => {};
 
 function mergeLegacyPreferences(
   preferencesByTableId: TableDisplayPreferencesByTableId,
@@ -37,7 +39,7 @@ function mergeLegacyPreferences(
 export function TableDisplayPreferencesProvider({ children }: { children: ReactNode }) {
   const [preferencesByTableId, setPreferencesByTableId] = useState<TableDisplayPreferencesByTableId>({});
   const preferencesRef = useRef<TableDisplayPreferencesByTableId>({});
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const writeQueueRef = useRef<Promise<void> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,8 +69,11 @@ export function TableDisplayPreferencesProvider({ children }: { children: ReactN
     return () => window.removeEventListener(TABLE_DISPLAY_PREFERENCES_CHANGED_EVENT, handleChange);
   }, [load]);
 
-  const enqueueWrite = useCallback((next: TableDisplayPreferencesByTableId) => {
-    writeQueueRef.current = writeQueueRef.current
+  const enqueueWrite = useCallback((
+    next: TableDisplayPreferencesByTableId,
+    clearLegacy = false,
+  ): Promise<void> => {
+    const queuedWrite = (writeQueueRef.current ?? Promise.resolve())
       .then(async () => {
         const existing = await getUiState(TABLE_DISPLAY_PREFERENCES_UI_STATE_ID);
         await putUiState({
@@ -85,11 +90,22 @@ export function TableDisplayPreferencesProvider({ children }: { children: ReactN
             id: LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
             techInfoOrganisationTablePreferences: techInfoPreferences,
           });
+        } else if (clearLegacy) {
+          const legacyExisting = await getUiState(LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID);
+          if (legacyExisting?.techInfoOrganisationTablePreferences) {
+            await putUiState({
+              ...legacyExisting,
+              id: LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
+              techInfoOrganisationTablePreferences: undefined,
+            });
+          }
         }
       })
       .catch(() => {
         // Ein temporärer IndexedDB-Fehler darf die Tabellenbedienung nicht blockieren.
       });
+    writeQueueRef.current = queuedWrite;
+    return queuedWrite;
   }, []);
 
   const updateTablePreferences = useCallback((tableId: string, preferences: TableDisplayPreferences) => {
@@ -105,11 +121,19 @@ export function TableDisplayPreferencesProvider({ children }: { children: ReactN
     enqueueWrite(next);
   }, [enqueueWrite]);
 
+  const resetAllTablePreferences = useCallback(() => {
+    const next: TableDisplayPreferencesByTableId = {};
+    preferencesRef.current = next;
+    setPreferencesByTableId(next);
+    return enqueueWrite(next, true);
+  }, [enqueueWrite]);
+
   const value = useMemo<TableDisplayPreferencesContextValue>(() => ({
     preferencesByTableId,
     updateTablePreferences,
+    resetAllTablePreferences,
     reload: load,
-  }), [load, preferencesByTableId, updateTablePreferences]);
+  }), [load, preferencesByTableId, resetAllTablePreferences, updateTablePreferences]);
 
   return <TableDisplayPreferencesContext.Provider value={value}>{children}</TableDisplayPreferencesContext.Provider>;
 }
@@ -133,4 +157,13 @@ export function useTableDisplayPreferences(
   );
 
   return { tablePreferences, onTablePreferencesChange: tableId ? onTablePreferencesChange : undefined };
+}
+
+export function useTableDisplayPreferencesActions(): {
+  resetAllTablePreferences: () => Promise<void>;
+} {
+  const context = useContext(TableDisplayPreferencesContext);
+  return {
+    resetAllTablePreferences: context?.resetAllTablePreferences ?? noopResetAllTablePreferences,
+  };
 }

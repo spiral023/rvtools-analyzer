@@ -1,6 +1,7 @@
 import type {
   CpuRightsizingLevel,
   NormalizedHost,
+  NormalizedVm,
   VmRightsizingCandidate,
   VmRightsizingGroupSummary,
   VmWorkloadProfile,
@@ -8,6 +9,7 @@ import type {
   VmWorkloadShape,
 } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL, hasRepeatableWeeklyPeak } from "@/domain/services/vmWorkloadProfileService";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
 export interface CpuRightsizingPolicy {
@@ -161,11 +163,13 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
     const concentratedOnFewCores = (profile.capacitySignals.concentrationIndexP90 ?? 0) >= CONCENTRATION_INDEX_MIN;
     return [{
       objectKey: profile.objectKey,
+      rvtoolsObjectKey: profile.rvtoolsObjectKey,
       vmName: profile.vmName,
       clusterKey: profile.clusterKey,
       clusterName: profile.clusterName,
       resourcePool: profile.resourcePool,
       hostName: host?.host ?? profile.host,
+      powerState: profile.powerState,
       vcpu: profile.vcpu,
       shape: profile.shape,
       intensity: profile.intensity,
@@ -225,6 +229,15 @@ export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate)
 }
 
 /**
+ * Ein CPU-Vergleich ist nur sinnvoll, wenn beide Achsen des VM-Profils belastbar
+ * klassifiziert wurden. Ein niedriges, aber bekanntes Niveau bleibt dabei
+ * berechenbar; nur „Nicht berechenbar“ bzw. „Unbekannt“ werden ausgesondert.
+ */
+export function isComputableRightsizingCandidate(candidate: VmRightsizingCandidate): boolean {
+  return candidate.shape !== "unclassified" && candidate.intensity !== "unknown";
+}
+
+/**
  * Wendet die Textsuche der Filterleiste auf die Kandidatenliste an – VM-Name, Cluster,
  * Systemverantwortliche:r und deren Abteilung. Der Filter greift bewusst an der Wurzel des
  * Tabs: KPI-Kacheln, Dichteraster, Diagramme und Zusammenfassungen leiten sich alle aus
@@ -245,6 +258,23 @@ export function filterRightsizingCandidatesBySearch(
     candidate.clusterName,
     ...techInfoSearchValues(techInfoIndex, candidate.vmName),
   ]));
+}
+
+/**
+ * Übernimmt den globalen VM-Scope in den CPU-Rightsizing-Tab. Der Join verwendet
+ * bevorzugt den eindeutigen RVTools-Schlüssel und fällt nur bei alten/teilweise
+ * verknüpften Daten auf den normalisierten VM-Namen zurück.
+ */
+export function filterRightsizingCandidatesByVmScope(
+  candidates: readonly VmRightsizingCandidate[],
+  scopedVms: readonly Pick<NormalizedVm, "vmKey" | "vmName">[],
+): VmRightsizingCandidate[] {
+  const scopedVmKeys = new Set(scopedVms.map((vm) => vm.vmKey));
+  const scopedVmNames = new Set(scopedVms.map((vm) => normalizeVmName(vm.vmName)));
+
+  return candidates.filter((candidate) => candidate.rvtoolsObjectKey !== null
+    ? scopedVmKeys.has(candidate.rvtoolsObjectKey)
+    : scopedVmNames.has(normalizeVmName(candidate.vmName)));
 }
 
 export function summarizeReclaimableVcpuByCluster(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {

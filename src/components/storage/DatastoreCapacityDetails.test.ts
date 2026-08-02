@@ -69,4 +69,23 @@ describe("buildDatastoreDetailRows", () => {
       datastoreClusterName: "SDRS-Production",
     });
   });
+
+  it("verknüpft Rohdaten auch dann, wenn Name leer und Datastore befüllt ist", () => {
+    const rows = buildDatastoreDetailRows(
+      [datastore],
+      [],
+      [{
+        snapshotId: "snap-1",
+        sheetName: "vDatastore",
+        rowIndex: 0,
+        data: {
+          Name: "",
+          Datastore: "DS-Shared",
+          "Datastore cluster name": "SDRS-Production",
+        },
+      }],
+    );
+
+    expect(rows[0].datastoreClusterName).toBe("SDRS-Production");
+  });
 });

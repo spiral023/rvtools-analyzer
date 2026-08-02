@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEsxVersionBuild, parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
+import { getDatastoreClusterName, parseEsxVersionBuild, parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 
 describe("parseRvtoolsExportFileName", () => {
   it("parses vcenter and timestamp from RVTools export file name", () => {
@@ -41,5 +41,17 @@ describe("parseEsxVersionBuild", () => {
     const parsed = parseEsxVersionBuild("n/a");
     expect(parsed.version).toBeNull();
     expect(parsed.build).toBeNull();
+  });
+});
+
+describe("getDatastoreClusterName", () => {
+  it("liest RVTools-Datastorecluster auch aus Varianten der Spaltenüberschrift", () => {
+    expect(getDatastoreClusterName({ "Datastore cluster name": "SDRS-Prod" })).toBe("SDRS-Prod");
+    expect(getDatastoreClusterName({ "Datastore cluster name (Storage DRS)": "SDRS-Prod" })).toBe("SDRS-Prod");
+    expect(getDatastoreClusterName({ "Storage pod name": "StoragePod-01" })).toBe("StoragePod-01");
+  });
+
+  it("ignoriert leere Clusterwerte", () => {
+    expect(getDatastoreClusterName({ "Datastore cluster name": "", "Datastore cluster capacity": 1024 })).toBeNull();
   });
 });

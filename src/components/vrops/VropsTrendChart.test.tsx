@@ -20,7 +20,9 @@ vi.mock("@/components/charts/recharts", () => {
     ResponsiveContainer: Responsive,
     Tooltip: Empty,
     XAxis: Empty,
-    YAxis: ({ yAxisId, domain }: { yAxisId?: string; domain?: unknown }) => <g data-testid={`axis-${yAxisId}`} data-domain={JSON.stringify(domain)} />,
+    YAxis: ({ yAxisId, domain, tickFormatter }: { yAxisId?: string; domain?: unknown; tickFormatter?: (value: number) => string }) => (
+      <g data-testid={`axis-${yAxisId}`} data-domain={JSON.stringify(domain)} data-tick-label={tickFormatter?.(0.437056)} />
+    ),
   };
 });
 
@@ -47,6 +49,7 @@ describe("VropsTrendChart", () => {
     );
 
     expect(screen.getByTestId("axis-cpu")).toBeInTheDocument();
+    expect(screen.getByTestId("axis-cpu")).toHaveAttribute("data-tick-label", "0,44 %");
     expect(screen.queryByTestId("axis-secondary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("reference-dot-secondary")).not.toBeInTheDocument();
     expect(screen.getByTestId("reference-dot-cpu")).toHaveAttribute("data-label", "Peak · 30,00 %");

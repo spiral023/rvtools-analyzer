@@ -102,11 +102,13 @@ export function rightsizingCandidateFixture(
   overrides: Partial<VmRightsizingCandidate> & { objectKey: string },
 ): VmRightsizingCandidate {
   return {
+    rvtoolsObjectKey: overrides.objectKey,
     vmName: overrides.objectKey,
     clusterKey: "cluster-1",
     clusterName: "Cluster A",
     resourcePool: "Pool A",
     hostName: "esx01",
+    powerState: "poweredOn",
     vcpu: 4,
     shape: "constant",
     intensity: "moderate",

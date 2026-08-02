@@ -1183,11 +1183,14 @@ export interface VmWorkloadProfile {
  */
 export interface VmRightsizingCandidate {
   objectKey: string;
+  /** RVTools-VM-Schlüssel für den Join mit dem global gefilterten VM-Scope. */
+  rvtoolsObjectKey: string | null;
   vmName: string;
   clusterKey: string | null;
   clusterName: string | null;
   resourcePool: string | null;
   hostName: string | null;
+  powerState: string | null;
   vcpu: number | null;
   shape: VmWorkloadShape;
   intensity: VmWorkloadIntensity;

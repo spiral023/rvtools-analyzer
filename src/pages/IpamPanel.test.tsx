@@ -11,8 +11,11 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
 }));
 
 vi.mock("@/components/tables/VirtualTable", () => ({
-  VirtualTable: ({ columns }: { columns: Array<{ meta?: { info?: { term: string } } }> }) => (
-    <div data-testid="ipam-table-columns">{columns.map((column) => column.meta?.info?.term ?? "").join("|")}</div>
+  VirtualTable: ({ columns }: { columns: Array<{ accessorKey?: string; meta?: { info?: { term: string }; initiallyVisible?: boolean } }> }) => (
+    <>
+      <div data-testid="ipam-table-columns">{columns.map((column) => column.meta?.info?.term ?? "").join("|")}</div>
+      <div data-testid="ipam-hidden-columns">{columns.filter((column) => column.meta?.initiallyVisible === false).map((column) => column.accessorKey ?? "").join("|")}</div>
+    </>
   ),
 }));
 vi.mock("@/components/ui/info-tooltip", () => ({
@@ -36,5 +39,11 @@ describe("IpamPanel", () => {
     render(<IpamPanel />);
 
     expect(screen.getByTestId("ipam-table-columns")).toHaveTextContent("IP-Adresse|DNS-Name|IPAM-Status|Adress-Typ|Nutzung|Erstmals erkannt|Zuletzt erkannt|Kommentar|Standort|MAC-Adresse|Betriebssystem|NetBIOS-Name|Gerätetypen|Offene Ports|Fingerprint");
+  });
+
+  it("startet die technischen Discovery-Spalten ausgeblendet", () => {
+    render(<IpamPanel />);
+
+    expect(screen.getByTestId("ipam-hidden-columns")).toHaveTextContent("site|os|netBiosName|deviceTypes|openPorts|fingerprint");
   });
 });

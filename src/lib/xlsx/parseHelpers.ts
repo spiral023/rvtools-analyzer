@@ -479,8 +479,17 @@ export function toStr(v: unknown): string | null {
  */
 export function getDatastoreClusterName(row: Record<string, unknown>): string | null {
   for (const [header, value] of Object.entries(row)) {
-    const normalizedHeader = header.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (normalizedHeader === "datastoreclustername" || normalizedHeader === "datastorecluster") {
+    const normalizedHeader = header
+      .normalize("NFKC")
+      .trim()
+      .toLocaleLowerCase("de-DE")
+      .replace(/[^a-z0-9]/g, "");
+    const isDatastoreClusterName = normalizedHeader === "datastorecluster"
+      || normalizedHeader === "datastoreclustername"
+      || normalizedHeader.startsWith("datastoreclustername")
+      || normalizedHeader === "storagepodname"
+      || normalizedHeader === "sdrsclustername";
+    if (isDatastoreClusterName) {
       const name = toStr(value);
       if (name) return name;
     }

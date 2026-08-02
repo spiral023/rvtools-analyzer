@@ -12,6 +12,8 @@ import { formatNum } from "@/lib/xlsx/parseHelpers";
 import type { IpamLatest } from "@/domain/models/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
+const optionalIpamColumnMeta = { group: "Optionale IPAM-Details", initiallyVisible: false } as const;
+
 function textCell(value: string | null) {
   return value ?? "—";
 }
@@ -33,13 +35,13 @@ const columns: ColumnDef<IpamLatest, unknown>[] = [
   { accessorKey: "firstDiscovered", header: "First Discovered", meta: { info: NET_IPAM_COLUMNS.firstDiscovered }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { accessorKey: "lastDiscovered", header: "Last Discovered", meta: { info: NET_IPAM_COLUMNS.lastDiscovered }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { accessorKey: "comment", header: "Comment", meta: { info: NET_IPAM_COLUMNS.comment }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "site", header: "Site", meta: { info: NET_IPAM_COLUMNS.site }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "site", header: "Site", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.site }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { accessorKey: "macAddress", header: "MAC Address", meta: { info: NET_IPAM_COLUMNS.macAddress }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
-  { accessorKey: "os", header: "OS", meta: { info: NET_IPAM_COLUMNS.os }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "netBiosName", header: "NetBIOS Name", meta: { info: NET_IPAM_COLUMNS.netBiosName }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "deviceTypes", header: "Device Type(s)", meta: { info: NET_IPAM_COLUMNS.deviceTypes }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "openPorts", header: "Open Port(s)", meta: { info: NET_IPAM_COLUMNS.openPorts }, cell: ({ getValue }) => textCell(getValue() as string | null) },
-  { accessorKey: "fingerprint", header: "Fingerprint", meta: { info: NET_IPAM_COLUMNS.fingerprint }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "os", header: "OS", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.os }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "netBiosName", header: "NetBIOS Name", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.netBiosName }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "deviceTypes", header: "Device Type(s)", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.deviceTypes }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "openPorts", header: "Open Port(s)", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.openPorts }, cell: ({ getValue }) => textCell(getValue() as string | null) },
+  { accessorKey: "fingerprint", header: "Fingerprint", meta: { ...optionalIpamColumnMeta, info: NET_IPAM_COLUMNS.fingerprint }, cell: ({ getValue }) => textCell(getValue() as string | null) },
 ];
 
 export function IpamPanel() {
