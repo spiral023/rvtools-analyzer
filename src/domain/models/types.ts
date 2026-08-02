@@ -1072,6 +1072,8 @@ export interface VmMemoryWorkloadStats {
  */
 export interface VmRamRightsizingCandidate {
   objectKey: string;
+  /** RVTools-VM-Schlüssel für den Join mit der global gefilterten VM-Menge. */
+  rvtoolsObjectKey: string | null;
   vmName: string;
   clusterKey: string | null;
   clusterName: string | null;

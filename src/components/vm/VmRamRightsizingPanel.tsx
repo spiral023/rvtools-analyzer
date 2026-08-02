@@ -15,12 +15,12 @@ import type { VmMemoryWorkloadStats, VmRamRightsizingCandidate, VmRamRightsizing
 import {
   DEFAULT_RAM_RIGHTSIZING_POLICY,
   buildVmRamRightsizingCandidates,
-  filterRamRightsizingCandidatesBySearch,
+  filterRamRightsizingCandidatesByVmScope,
   summarizeRamRightsizingByCluster,
   summarizeRamRightsizingByDirection,
 } from "@/domain/services/vmRamRightsizingService";
 import { normalizeVmName } from "@/lib/globalFilter";
-import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { buildTechInfoSearchIndex } from "@/lib/vmSearch";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
 function formatPercent(value: number | null | undefined, fractionDigits = 1): string {
@@ -99,7 +99,7 @@ const clusterColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByClust
 export function VmRamRightsizingPanel() {
   const { imports, profiles, selectedImport, hasMemoryWorkloadAvg, hasMemoryWorkloadMax, isLoading: workloadLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
-  const { allVms, isLoading: vmsLoading } = useVms();
+  const { vms: scopedVms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const isLoading = workloadLoading || vmsLoading;
   const allCandidates = useMemo(
@@ -113,10 +113,9 @@ export function VmRamRightsizingPanel() {
   );
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allCandidates.map((candidate) => candidate.vmName));
   const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
-  const searchQuery = normalizeVmSearchTerm(filters.search.trim());
   const candidates = useMemo(
-    () => filterRamRightsizingCandidatesBySearch(allCandidates, searchQuery, techInfoIndex),
-    [allCandidates, searchQuery, techInfoIndex],
+    () => filterRamRightsizingCandidatesByVmScope(allCandidates, scopedVms),
+    [allCandidates, scopedVms],
   );
   const [visibleCandidateCount, setVisibleCandidateCount] = useState(candidates.length);
 
@@ -200,7 +199,7 @@ export function VmRamRightsizingPanel() {
             </div>
           </div>
         </div>
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host, Betriebssystem, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Verwertbare RAM-Zeitreihe" value={formatNum(usableCount)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={usableCount > 0 ? "ok" : "warn"} icon={<MemoryStick className="h-4 w-4" />} />
           <KpiCard title="VMs zur Verkleinerung" value={formatNum(shrinkCandidates.length)} severity={shrinkCandidates.length > 0 ? "warn" : "ok"} icon={<ArrowDown className="h-4 w-4" />} />
@@ -233,7 +232,7 @@ export function VmRamRightsizingPanel() {
             onRowClick={openVmDetail}
             exportFileName="vm-ram-rightsizing"
             emptyTitle="Keine RAM-Rightsizing-Zeilen"
-            emptyDescription={searchQuery === "" ? "Für den gewählten Import fehlen VMs mit verwertbaren Memory-Workload-Werten." : "Kein Treffer für die aktuelle Suche in VM, Cluster, Systemverantwortliche:r oder Abteilung."}
+            emptyDescription={filters.search.trim() === "" ? "Für den gewählten Import fehlen VMs mit verwertbaren Memory-Workload-Werten." : "Kein Treffer für die aktuellen VM-Filter oder die Suche."}
             onFilteredCountChange={setVisibleCandidateCount}
           />
         </div>

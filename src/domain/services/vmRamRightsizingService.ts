@@ -9,6 +9,7 @@ import type {
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
 import { average } from "@/lib/statistics";
+import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
 /**
@@ -140,11 +141,10 @@ export function buildVmRamRightsizingCandidates(
   input: BuildVmRamRightsizingCandidatesInput,
 ): VmRamRightsizingCandidate[] {
   const policy = { ...DEFAULT_RAM_RIGHTSIZING_POLICY, ...input.policy };
-  const profileByRvtoolsKey = new Map(
-    input.profiles
-      .filter((profile) => profile.rvtoolsObjectKey)
-      .map((profile) => [profile.rvtoolsObjectKey!, profile]),
-  );
+  const profileByRvtoolsKey = new Map<string, VmWorkloadProfile>();
+  for (const profile of input.profiles) {
+    if (profile.rvtoolsObjectKey) profileByRvtoolsKey.set(profile.rvtoolsObjectKey, profile);
+  }
   const sources: CandidateSource[] = input.vms
     ? input.vms.map((vm) => ({ vm, profile: profileByRvtoolsKey.get(vm.vmKey) ?? null }))
     : input.profiles.map((profile): CandidateSource => ({ vm: null, profile }));
@@ -175,6 +175,26 @@ export function filterRamRightsizingCandidatesBySearch(
     candidate.clusterName,
     ...techInfoSearchValues(techInfoIndex, candidate.vmName),
   ]));
+}
+
+/**
+ * Übernimmt den bereits berechneten globalen VM-Scope in den RAM-Tab.
+ *
+ * `useVms().vms` ist die fachliche Quelle für Suche, Cluster/Host, vCenter,
+ * Powerstate, vCLS und globale Filterregeln. Der Kandidat trägt deshalb den
+ * RVTools-Schlüssel separat; ein Join nur über den Anzeigenamen wäre bei
+ * gleichnamigen VMs aus mehreren vCentern nicht zuverlässig.
+ */
+export function filterRamRightsizingCandidatesByVmScope(
+  candidates: readonly VmRamRightsizingCandidate[],
+  scopedVms: readonly Pick<NormalizedVm, "vmKey" | "vmName">[],
+): VmRamRightsizingCandidate[] {
+  const scopedVmKeys = new Set(scopedVms.map((vm) => vm.vmKey));
+  const scopedVmNames = new Set(scopedVms.map((vm) => normalizeVmName(vm.vmName)));
+
+  return candidates.filter((candidate) => candidate.rvtoolsObjectKey !== null
+    ? scopedVmKeys.has(candidate.rvtoolsObjectKey)
+    : scopedVmNames.has(normalizeVmName(candidate.vmName)));
 }
 
 export function summarizeRamRightsizingByCluster(
@@ -262,6 +282,7 @@ function buildCandidate(input: {
 
   return {
     objectKey: profile?.objectKey ?? `rvtools:${vm?.vmKey ?? vm?.vmName ?? "unknown"}`,
+    rvtoolsObjectKey: profile?.rvtoolsObjectKey ?? vm?.vmKey ?? null,
     vmName: profile?.vmName ?? vm?.vmName ?? "Unbekannte VM",
     clusterKey: profile?.clusterKey ?? (vm?.cluster ? `rvtools:${vm.cluster}` : null),
     clusterName: profile?.clusterName ?? vm?.cluster ?? null,

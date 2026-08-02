@@ -21,7 +21,7 @@ vi.mock("@/hooks/useVmWorkloadProfiles", () => ({
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ filters: { search: "" } }),
-  useVms: () => ({ allVms: [] as NormalizedVm[], isLoading: false }),
+  useVms: () => ({ vms: [] as NormalizedVm[], allVms: [] as NormalizedVm[], isLoading: false }),
   useTechInfoLatestByVmNames: () => ({ data: [] as TechInfoLatest[] }),
 }));
 

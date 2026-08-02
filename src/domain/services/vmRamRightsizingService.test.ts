@@ -8,6 +8,7 @@ import {
   deriveRamDemand,
   evaluateRamWorkloadConfidence,
   filterRamRightsizingCandidatesBySearch,
+  filterRamRightsizingCandidatesByVmScope,
   summarizeRamRightsizingByCluster,
   summarizeRamRightsizingByDirection,
 } from "@/domain/services/vmRamRightsizingService";
@@ -218,5 +219,18 @@ describe("VM-RAM-Suche und Summen", () => {
     expect(summarizeRamRightsizingByCluster(candidates)).toEqual(expect.arrayContaining([
       expect.objectContaining({ key: "cluster-1", vmCount: 1 }),
     ]));
+  });
+
+  it("übernimmt den globalen VM-Scope über den stabilen RVTools-Schlüssel", () => {
+    const candidates = buildVmRamRightsizingCandidates({
+      profiles: [
+        profileFixture("vm-01", Array(24).fill(50)),
+        profileFixture("vm-02", Array(24).fill(60)),
+      ],
+      vms: [vmFixture("vm-01"), vmFixture("vm-02")],
+      policy: TEST_POLICY,
+    });
+
+    expect(filterRamRightsizingCandidatesByVmScope(candidates, [vmFixture("vm-02")]).map((candidate) => candidate.vmName)).toEqual(["VM-02"]);
   });
 });
