@@ -205,8 +205,7 @@ describe("buildVmExportDataset", () => {
   });
 
   it("bietet Rightsizing-Metriken als auswählbare Exportspalten und Kennzahlen an", () => {
-    // Dauerlast mit 16 vCPU: empfehlungsfähiges Muster und groß genug, dass ein Viertel
-    // der Größe eine gerade Rückgabe zulässt (16 * 0,25 = 4).
+    // Dauerlast mit 16 vCPU: empfehlungsfähiges Muster mit deutlicher Rückgabe.
     const result = buildVmExportDataset(
       [vm({ cpuCount: 16 })], [snapshot], "1 vCenter-Scope",
       [profile({ shape: "constant", behaviorClass: "constant-load", vcpu: 16 })], [host()],
@@ -218,9 +217,9 @@ describe("buildVmExportDataset", () => {
       expect.objectContaining({ id: "recommendationWithheld", label: "Keine Empfehlung, weil" }),
       expect.objectContaining({ id: "rightsizingCandidate", label: "Rightsizing-Kandidat" }),
     ]));
-    // „Rückgewinnbar“ nennt die volle Differenz zur Zielgröße, „Nächster Schritt“ das
-    // Viertel je Wartungsfenster – die Planungszahl steckt nicht mehr im Umsetzungstempo.
-    expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "2", reclaimableVcpu: "14", nextReclaimStepVcpu: "4", recommendationWithheld: "—" });
+    // „Rückgewinnbar“ nennt die volle Differenz zur Zielgröße – ohne Umweg über eine
+    // gestufte Zwischengröße.
+    expect(result.rows[0]).toMatchObject({ demandBasedVcpu: "2", recommendedVcpu: "2", reclaimableVcpu: "14", recommendationWithheld: "—" });
     expect(result.kpis.find((kpi) => kpi.label === "Rightsizing-Kandidaten")?.value).toBe("1");
     expect(result.kpis.find((kpi) => kpi.label === "Rückgewinnbare vCPU")?.value).toBe("14");
   });

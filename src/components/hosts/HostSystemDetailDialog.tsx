@@ -10,6 +10,7 @@ import { useHosts } from "@/hooks/useActiveSnapshots";
 import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 import type { DetailDossier, DetailField, DetailKpi, DetailTable } from "@/lib/detailExport";
+import { HOST_DETAIL_FIELDS, HOST_DETAIL_KPIS, SYSTEM_DETAIL_SECTIONS } from "@/lib/glossaries/systemDetails";
 import {
   DetailCountBadge,
   DetailFieldGrid,
@@ -113,14 +114,23 @@ export function HostSystemDetailDialog({
   const vcpuPerCore = host.totalCores ? allocatedVcpu / host.totalCores : null;
   const memoryCommit = host.memoryMiB ? allocatedMemory / host.memoryMiB * 100 : null;
   const hbaIssues = hbas.filter((hba) => hba.status && !/online|ok|active/i.test(hba.status)).length;
+  const trendExample = vrops.isMatched
+    ? `Für diesen Host sind ${vrops.hourly.length.toLocaleString("de-DE")} Stunden importiert. CPU Demand und RAM-Auslastung zeigen den Verlauf; die Belegung durch VMs darunter ist eine statische RVTools-Zuordnung.`
+    : "Für diesen Host liegt noch keine passende vROps-Zeitreihe vor; Hardware- und VM-Inventar bleiben trotzdem sichtbar.";
+  const vcpuPerCoreExample = vcpuPerCore === null
+    ? undefined
+    : `Hier: ${formatNum(allocatedVcpu)} konfigurierte vCPU geteilt durch ${formatNum(host.totalCores)} physische Cores = ${vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 })}:1. Das beschreibt Overcommit, nicht CPU Ready.`;
+  const memoryCommitExample = memoryCommit === null
+    ? undefined
+    : `Hier: ${formatBytes(allocatedMemory)} konfigurierter VM-RAM gegenüber ${formatBytes(host.memoryMiB)} Host-RAM = ${memoryCommit.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %. Für echten Druck aktive Nutzung, Ballooning und Swapping prüfen.`;
 
   const kpis: DetailKpi[] = [
-    { label: "Betriebszustand", value: matchedHost?.powerState || "—", hint: matchedHost?.connectionState || "—", tone: matchedHost?.connectionState?.toLowerCase() === "connected" ? "good" : "warning" },
-    { label: "CPU-Kerne", value: formatNum(host.totalCores), hint: `${formatNum(host.threads)} Threads` },
-    { label: "Arbeitsspeicher", value: formatBytes(host.memoryMiB), hint: `${formatBytes(allocatedMemory)} VM-RAM` },
-    { label: "Laufende VMs", value: formatNum(runningVms.length), hint: `${formatNum(allocatedVcpu)} vCPU` },
-    { label: "vCPU / Core", value: vcpuPerCore === null ? "—" : vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 }), hint: "laufende VMs", tone: (vcpuPerCore ?? 0) > 6 ? "warning" : "neutral" },
-    { label: "RAM Commit", value: memoryCommit === null ? "—" : `${memoryCommit.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`, hint: "konfigurierter VM-RAM", tone: (memoryCommit ?? 0) > 100 ? "warning" : "neutral" },
+    { label: "Betriebszustand", value: matchedHost?.powerState || "—", hint: matchedHost?.connectionState || "—", tone: matchedHost?.connectionState?.toLowerCase() === "connected" ? "good" : "warning", info: HOST_DETAIL_KPIS.powerState },
+    { label: "CPU-Kerne", value: formatNum(host.totalCores), hint: `${formatNum(host.threads)} Threads`, info: HOST_DETAIL_KPIS.cpuCores },
+    { label: "Arbeitsspeicher", value: formatBytes(host.memoryMiB), hint: `${formatBytes(allocatedMemory)} VM-RAM`, info: HOST_DETAIL_KPIS.memory },
+    { label: "Laufende VMs", value: formatNum(runningVms.length), hint: `${formatNum(allocatedVcpu)} vCPU`, info: HOST_DETAIL_KPIS.runningVms },
+    { label: "vCPU / Core", value: vcpuPerCore === null ? "—" : vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 }), hint: "laufende VMs", tone: (vcpuPerCore ?? 0) > 6 ? "warning" : "neutral", info: HOST_DETAIL_KPIS.vcpuPerCore, infoExample: vcpuPerCoreExample },
+    { label: "RAM Commit", value: memoryCommit === null ? "—" : `${memoryCommit.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`, hint: "konfigurierter VM-RAM", tone: (memoryCommit ?? 0) > 100 ? "warning" : "neutral", info: HOST_DETAIL_KPIS.ramCommit, infoExample: memoryCommitExample },
   ];
   const identityFields: DetailField[] = [
     { label: "vCenter", value: matchedHost?.vcenterId || "—", sensitivity: "identifier" },
@@ -134,21 +144,21 @@ export function HostSystemDetailDialog({
     { label: "Build", value: matchedHost?.build || "—" },
     { label: "BIOS", value: [host.biosVendor, host.biosVersion].filter(Boolean).join(" ") || "—" },
     { label: "BIOS-Datum", value: host.biosDate || "—" },
-    { label: "Maintenance Mode", value: host.maintenanceMode ? "Aktiv" : "Nein" },
+    { label: "Maintenance Mode", value: host.maintenanceMode ? "Aktiv" : "Nein", info: HOST_DETAIL_FIELDS.maintenance },
   ];
   const resourceFields: DetailField[] = [
-    { label: "CPU-Modell", value: host.cpuModel || "—" },
-    { label: "Sockel", value: formatNum(host.cpuSockets) },
-    { label: "Kerne je Sockel", value: formatNum(host.coresPerCpu) },
-    { label: "Kerne gesamt", value: formatNum(host.totalCores) },
-    { label: "Threads", value: formatNum(host.threads) },
-    { label: "Takt", value: host.speedMHz ? `${formatNum(host.speedMHz)} MHz` : "—" },
-    { label: "CPU-Kapazität", value: matchedHost?.cpuTotalMHz ? `${formatNum(matchedHost.cpuTotalMHz)} MHz` : "—" },
-    { label: "Hyper-Threading", value: host.htActive ? "Aktiv" : "Aus" },
-    { label: "RAM", value: formatBytes(host.memoryMiB) },
-    { label: "NICs", value: formatNum(nics.length) },
-    { label: "HBAs", value: formatNum(hbas.length) },
-    { label: "HBA-Auffälligkeiten", value: formatNum(hbaIssues) },
+    { label: "CPU-Modell", value: host.cpuModel || "—", info: HOST_DETAIL_FIELDS.cpuModel },
+    { label: "Sockel", value: formatNum(host.cpuSockets), info: HOST_DETAIL_FIELDS.sockets },
+    { label: "Kerne je Sockel", value: formatNum(host.coresPerCpu), info: HOST_DETAIL_FIELDS.coresPerSocket },
+    { label: "Kerne gesamt", value: formatNum(host.totalCores), info: HOST_DETAIL_FIELDS.totalCores },
+    { label: "Threads", value: formatNum(host.threads), info: HOST_DETAIL_FIELDS.threads },
+    { label: "Takt", value: host.speedMHz ? `${formatNum(host.speedMHz)} MHz` : "—", info: HOST_DETAIL_FIELDS.clock },
+    { label: "CPU-Kapazität", value: matchedHost?.cpuTotalMHz ? `${formatNum(matchedHost.cpuTotalMHz)} MHz` : "—", info: HOST_DETAIL_FIELDS.cpuCapacity },
+    { label: "Hyper-Threading", value: host.htActive ? "Aktiv" : "Aus", info: HOST_DETAIL_FIELDS.hyperThreading },
+    { label: "RAM", value: formatBytes(host.memoryMiB), info: HOST_DETAIL_FIELDS.ram },
+    { label: "NICs", value: formatNum(nics.length), info: HOST_DETAIL_FIELDS.nics },
+    { label: "HBAs", value: formatNum(hbas.length), info: HOST_DETAIL_FIELDS.hbas },
+    { label: "HBA-Auffälligkeiten", value: formatNum(hbaIssues), info: HOST_DETAIL_FIELDS.hbaIssues },
   ];
   const hbaTable: DetailTable = {
     headers: ["Device", "Status", "Typ", "Treiber", "Modell", "PCI", "WWN"],
@@ -209,7 +219,7 @@ export function HostSystemDetailDialog({
       >
         <DetailNarrative source="RVTools · vROps optional">{narrative}</DetailNarrative>
         <DetailKpiGrid items={kpis} />
-        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe.">
+        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe." info={SYSTEM_DETAIL_SECTIONS.utilizationTrend} infoExample={trendExample}>
           <VropsTrendChart {...vrops} />
           {!vrops.hasImport && <DetailUnavailable title="Keine vROps-Zeitreihe importiert" description="Inventar- und Kapazitätsdaten bleiben vollständig sichtbar. Nach einem passenden Import erscheint hier der Verlauf." />}
         </DetailSection>
@@ -217,17 +227,17 @@ export function HostSystemDetailDialog({
           <DetailSection icon={<ServerCog className="size-4" />} title="Identität & Lifecycle" description="Standort, Hardwareplattform, ESXi- und BIOS-Stand.">
             <DetailFieldGrid fields={identityFields} columns={2} />
           </DetailSection>
-          <DetailSection icon={<Cpu className="size-4" />} title="CPU, RAM & Kapazität" description="Physische Ressourcen und aktuelle Belegung durch laufende VMs.">
+          <DetailSection icon={<Cpu className="size-4" />} title="CPU, RAM & Kapazität" description="Physische Ressourcen und aktuelle Belegung durch laufende VMs." info={SYSTEM_DETAIL_SECTIONS.hostCapacity} infoExample={memoryCommitExample}>
             <DetailFieldGrid fields={resourceFields} columns={2} />
           </DetailSection>
         </div>
-        <DetailSection icon={<CircuitBoard className="size-4" />} title="Host Bus Adapter" description="Storage-Pfade, Treiber und Status der physischen Adapter." aside={<DetailCountBadge>{hbas.length}</DetailCountBadge>}>
+        <DetailSection icon={<CircuitBoard className="size-4" />} title="Host Bus Adapter" description="Storage-Pfade, Treiber und Status der physischen Adapter." info={SYSTEM_DETAIL_SECTIONS.hostHbas} infoExample={`Hier: ${formatNum(hbas.length)} HBAs, davon ${formatNum(hbaIssues)} mit auffälligem Status.`} aside={<DetailCountBadge>{hbas.length}</DetailCountBadge>}>
           <DetailTableView table={hbaTable} />
         </DetailSection>
-        <DetailSection icon={<Network className="size-4" />} title="Netzwerkadapter" description="Physische Uplinks, Switch-Zuordnung und Treiberstände." aside={<DetailCountBadge>{nics.length}</DetailCountBadge>}>
+        <DetailSection icon={<Network className="size-4" />} title="Netzwerkadapter" description="Physische Uplinks, Switch-Zuordnung und Treiberstände." info={SYSTEM_DETAIL_SECTIONS.hostNics} infoExample={`Hier: ${formatNum(nics.length)} physische NICs im Host-Inventar.`} aside={<DetailCountBadge>{nics.length}</DetailCountBadge>}>
           <DetailTableView table={nicTable} />
         </DetailSection>
-        <DetailSection icon={<Workflow className="size-4" />} title="Laufende virtuelle Maschinen" description="Aktuell eingeschaltete Workloads auf diesem Host." aside={<DetailCountBadge>{runningVms.length}</DetailCountBadge>}>
+        <DetailSection icon={<Workflow className="size-4" />} title="Laufende virtuelle Maschinen" description="Aktuell eingeschaltete Workloads auf diesem Host." info={SYSTEM_DETAIL_SECTIONS.hostVms} infoExample={`Hier: ${formatNum(runningVms.length)} VMs mit zusammen ${formatNum(allocatedVcpu)} vCPU und ${formatBytes(allocatedMemory)} konfiguriertem RAM.`} aside={<DetailCountBadge>{runningVms.length}</DetailCountBadge>}>
           <DetailTableView table={vmTable} onRowClick={onVmClick ? (index) => onVmClick(runningVms[index]) : undefined} />
         </DetailSection>
       </SystemDetailContent>

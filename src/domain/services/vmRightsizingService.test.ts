@@ -21,14 +21,14 @@ describe("buildVmRightsizingCandidates", () => {
   it("leitet mhzPerCore, genutztes vCPU-Äquivalent und rückgewinnbare vCPU ab", () => {
     // Host: 20 GHz / 20 Cores = 1000 MHz/Core. P95-Demand 2000 MHz => 2 genutzte vCPU-Äquivalente.
     // Bedarfsgerecht sind ceil(2 / 0.65) = 3, aufgerundet auf gerade 4 vCPU – also 4 vCPU
-    // rückgewinnbar. Der erste Umsetzungsschritt bleibt bei einem Viertel von 8, also 2.
+    // rückgewinnbar.
     const candidates = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 8, demand: metricStats({ p95: 2_000 }) })],
       hosts,
     });
 
     expect(candidates).toHaveLength(1);
-    expect(candidates[0]).toMatchObject({ mhzPerCore: 1_000, usedVcpuEquivalentP95: 2, demandBasedVcpu: 4, recommendedVcpu: 4, reclaimableVcpu: 4, nextReclaimStepVcpu: 2 });
+    expect(candidates[0]).toMatchObject({ mhzPerCore: 1_000, usedVcpuEquivalentP95: 2, demandBasedVcpu: 4, recommendedVcpu: 4, reclaimableVcpu: 4 });
     expect(candidates[0].flags.manyVcpuLowDemand).toBe(true);
   });
 
@@ -72,7 +72,7 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
         profile({ objectKey: "vm-8", vcpu: 8, demand: metricStats({ p95: 200 }) }),
         profile({ objectKey: "vm-12", vcpu: 12, demand: metricStats({ p95: 200 }) }),
         profile({ objectKey: "vm-16", vcpu: 16, demand: metricStats({ p95: 200 }) }),
-        // Ungerade konfigurierte Größe: Ziel und Zwischenstand bleiben trotzdem gerade.
+        // Ungerade konfigurierte Größe: das Ziel bleibt trotzdem gerade.
         profile({ objectKey: "vm-9", vcpu: 9, demand: metricStats({ p95: 200 }) }),
         profile({ objectKey: "vm-3", vcpu: 3, demand: metricStats({ p95: 200 }) }),
       ],
@@ -81,17 +81,15 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
 
     for (const candidate of candidates) {
       expect(candidate.recommendedVcpu! % 2).toBe(0);
-      expect((candidate.vcpu! - candidate.nextReclaimStepVcpu!) % 2).toBe(0);
       // Empfehlung und Rückgabe ergeben zusammen immer die konfigurierte Anzahl.
       expect(candidate.recommendedVcpu! + candidate.reclaimableVcpu!).toBe(candidate.vcpu);
     }
   });
 
-  it("weist die vollständige Rückgabe aus und begrenzt nur den Umsetzungsschritt", () => {
-    // Der Kern der Trennung: „Rückgewinnbar“ ist die Planungszahl und nennt den ganzen
-    // Betrag; das Viertel je Runde steuert allein das Tempo. Solange beides in einer Zahl
-    // steckte, verdeckte die Schrittgrenze am gemessenen Bestand knapp die Hälfte des
-    // Potenzials und traf ausgerechnet die breiten VMs.
+  it("weist die vollständige Rückgabe bis zur empfohlenen Zielgröße aus", () => {
+    // „Rückgewinnbar“ ist die Planungszahl und nennt den ganzen Betrag. Solange eine
+    // Schrittgrenze darin steckte, verdeckte sie am gemessenen Bestand knapp die Hälfte
+    // des Potenzials und traf ausgerechnet die breiten VMs.
     const [candidate] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }) })],
       hosts,
@@ -99,14 +97,9 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.demandBasedVcpu).toBe(2);
     expect(candidate.reclaimableVcpu).toBe(14);
     expect(candidate.recommendedVcpu).toBe(2);
-    // Ein Viertel von 16 sind 4; die Zwischengröße ist damit 12.
-    expect(candidate.nextReclaimStepVcpu).toBe(4);
   });
 
-  it("schlägt auch unter acht konfigurierten vCPU einen Schritt vor, wenn der Bedarf es hergibt", () => {
-    // Regression: ein Viertel von 4 bzw. 6 vCPU sind 1 bzw. 1,5 und unterschreiten damit
-    // ein Paar. Ohne Mindestschritt bliebe „Nächster Schritt“ für die Mehrzahl der VMs 0,
-    // obwohl der Hinweis „Empfehlung berechenbar“ lautet.
+  it("empfiehlt auch unter acht konfigurierten vCPU die volle Zielgröße", () => {
     const candidates = buildVmRightsizingCandidates({
       profiles: [
         profile({ objectKey: "vm-4", vcpu: 4, demand: metricStats({ p95: 200 }) }),
@@ -120,13 +113,12 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
       expect(candidate.recommendationWithheldReason).toBeNull();
       expect(candidate.recommendedVcpu).toBe(2);
       expect(candidate.reclaimableVcpu).toBe(candidate.vcpu! - 2);
-      expect(candidate.nextReclaimStepVcpu).toBeGreaterThanOrEqual(1);
     }
   });
 
   it("bleibt bei 0, wenn schon der bedarfsgerechte Zielwert kein Paar freigibt", () => {
     // 4 vCPU bei 1,8 genutzten vCPU-Äquivalenten: bedarfsgerecht sind bereits 4 vCPU,
-    // der Mindestschritt darf den gemessenen Bedarf nicht überschreiben.
+    // es bleibt also nichts zurückzugewinnen.
     const [candidate] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-4", vcpu: 4, demand: metricStats({ p95: 1_800 }) })],
       hosts,

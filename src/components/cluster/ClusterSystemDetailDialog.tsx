@@ -10,6 +10,7 @@ import { formatBytes, formatNum, formatPct } from "@/lib/xlsx/parseHelpers";
 import { useVropsObjectSeries } from "@/hooks/useVropsObjectSeries";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 import type { DetailDossier, DetailField, DetailKpi, DetailTable } from "@/lib/detailExport";
+import { CLUSTER_DETAIL_FIELDS, SYSTEM_DETAIL_SECTIONS } from "@/lib/glossaries/systemDetails";
 import {
   DetailCountBadge,
   DetailFieldGrid,
@@ -117,28 +118,37 @@ export function ClusterSystemDetailDialog({
     host: host.host,
     count: runningVms.filter((vm) => vm.host === host.host).length,
   })).sort((a, b) => b.count - a.count);
+  const trendExample = vrops.isMatched
+    ? `Für dieses Cluster sind ${vrops.hourly.length.toLocaleString("de-DE")} Stunden importiert. Die Ansicht zeigt CPU Demand und RAM-Auslastung als Verlauf; die aktuelle Momentaufnahme ist davon getrennt zu lesen.`
+    : "Für dieses Cluster liegt noch keine passende vROps-Zeitreihe vor; die Inventarwerte bleiben trotzdem auswertbar.";
+  const vcpuPerCoreExample = vcpuPerCore === null
+    ? undefined
+    : `Hier: ${formatNum(totalVcpu)} konfigurierte vCPU geteilt durch ${formatNum(totalCores)} physische Cores = ${vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 })}:1. Das ist Overcommit, nicht die aktuelle CPU-Usage.`;
+  const ramCommitExample = ramCommit === null
+    ? undefined
+    : `Hier: ${formatBytes(totalVram)} konfigurierter VM-RAM gegenüber ${formatBytes(totalMemory)} physischem RAM = ${formatPct(ramCommit)}. Erst aktive Nutzung, Ballooning oder Swapping zeigen echten RAM-Druck.`;
 
   const kpis: DetailKpi[] = [
-    { label: "Hosts", value: formatNum(hostCount), hint: `${formatNum(cluster.numEffectiveHosts)} effektiv`, tone: (cluster.numEffectiveHosts ?? hostCount) < hostCount ? "warning" : "neutral" },
-    { label: "Laufende VMs", value: formatNum(runningVms.length), hint: `${formatNum(totalVcpu)} vCPU` },
-    { label: "CPU-Auslastung", value: formatPct(cpuUsage), hint: "RVTools Momentaufnahme", tone: (cpuUsage ?? 0) > 75 ? "warning" : "neutral" },
-    { label: "RAM-Auslastung", value: formatPct(memoryUsage), hint: "RVTools Momentaufnahme", tone: (memoryUsage ?? 0) > 80 ? "warning" : "neutral" },
-    { label: "vCPU / Core", value: vcpuPerCore === null ? "—" : vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 }), hint: "laufende VMs", tone: (vcpuPerCore ?? 0) > 6 ? "warning" : "neutral" },
-    { label: "Datastore frei", value: formatPct(avgFree), hint: criticalDatastores ? `${criticalDatastores} kritisch` : "keine kritischen", tone: criticalDatastores ? "critical" : "good" },
+    { label: "Hosts", value: formatNum(hostCount), hint: `${formatNum(cluster.numEffectiveHosts)} effektiv`, tone: (cluster.numEffectiveHosts ?? hostCount) < hostCount ? "warning" : "neutral", info: CLUSTER_DETAIL_FIELDS.hosts, infoExample: `Hier: ${formatNum(hostCount)} Hosts, davon ${formatNum(cluster.numEffectiveHosts)} als effektiv gemeldet.` },
+    { label: "Laufende VMs", value: formatNum(runningVms.length), hint: `${formatNum(totalVcpu)} vCPU`, info: CLUSTER_DETAIL_FIELDS.runningVms },
+    { label: "CPU-Auslastung", value: formatPct(cpuUsage), hint: "RVTools Momentaufnahme", tone: (cpuUsage ?? 0) > 75 ? "warning" : "neutral", info: CLUSTER_DETAIL_FIELDS.cpuUsage, infoExample: `Hier: Durchschnitt ${formatPct(cpuUsage)} über ${formatNum(scopedHosts.length)} Hosts aus dem RVTools-Snapshot.` },
+    { label: "RAM-Auslastung", value: formatPct(memoryUsage), hint: "RVTools Momentaufnahme", tone: (memoryUsage ?? 0) > 80 ? "warning" : "neutral", info: CLUSTER_DETAIL_FIELDS.memoryUsage, infoExample: `Hier: Durchschnitt ${formatPct(memoryUsage)} über ${formatNum(scopedHosts.length)} Hosts aus dem RVTools-Snapshot.` },
+    { label: "vCPU / Core", value: vcpuPerCore === null ? "—" : vcpuPerCore.toLocaleString("de-DE", { maximumFractionDigits: 2 }), hint: "laufende VMs", tone: (vcpuPerCore ?? 0) > 6 ? "warning" : "neutral", info: CLUSTER_DETAIL_FIELDS.vcpuPerCore, infoExample: vcpuPerCoreExample },
+    { label: "Datastore frei", value: formatPct(avgFree), hint: criticalDatastores ? `${criticalDatastores} kritisch` : "keine kritischen", tone: criticalDatastores ? "critical" : "good", info: CLUSTER_DETAIL_FIELDS.datastoreFree, infoExample: `Hier: ${formatPct(avgFree)} Durchschnitt über ${formatNum(scopedDatastores.length)} Datastores; ${formatNum(criticalDatastores)} liegen unter 10 % frei.` },
   ];
   const overviewFields: DetailField[] = [
     { label: "vCenter", value: vcenterDisplayName?.trim() || identity.vcenterId, sensitivity: "identifier" },
     { label: "Datacenter", value: identity.datacenter || "—", sensitivity: "identifier" },
-    { label: "HA", value: cluster.haEnabled === null ? "—" : cluster.haEnabled ? "Aktiv" : "Aus" },
-    { label: "DRS", value: cluster.drsEnabled === null ? "—" : cluster.drsEnabled ? "Aktiv" : "Aus" },
-    { label: "Hosts", value: formatNum(hostCount) },
-    { label: "Effektive Hosts", value: formatNum(cluster.numEffectiveHosts) },
-    { label: "CPU-Kerne", value: formatNum(totalCores) },
-    { label: "CPU-Threads", value: formatNum(totalThreads) },
-    { label: "CPU-Kapazität", value: cluster.totalCpuMHz ? `${formatNum(cluster.totalCpuMHz)} MHz` : "—" },
-    { label: "Physischer RAM", value: formatBytes(totalMemory) },
-    { label: "Konfigurierter VM-RAM", value: formatBytes(totalVram) },
-    { label: "RAM Commit", value: formatPct(ramCommit) },
+    { label: "HA", value: cluster.haEnabled === null ? "—" : cluster.haEnabled ? "Aktiv" : "Aus", info: CLUSTER_DETAIL_FIELDS.ha },
+    { label: "DRS", value: cluster.drsEnabled === null ? "—" : cluster.drsEnabled ? "Aktiv" : "Aus", info: CLUSTER_DETAIL_FIELDS.drs },
+    { label: "Hosts", value: formatNum(hostCount), info: CLUSTER_DETAIL_FIELDS.hosts },
+    { label: "Effektive Hosts", value: formatNum(cluster.numEffectiveHosts), info: CLUSTER_DETAIL_FIELDS.effectiveHosts },
+    { label: "CPU-Kerne", value: formatNum(totalCores), info: CLUSTER_DETAIL_FIELDS.cpuCores },
+    { label: "CPU-Threads", value: formatNum(totalThreads), info: CLUSTER_DETAIL_FIELDS.cpuThreads },
+    { label: "CPU-Kapazität", value: cluster.totalCpuMHz ? `${formatNum(cluster.totalCpuMHz)} MHz` : "—", info: CLUSTER_DETAIL_FIELDS.cpuCapacity },
+    { label: "Physischer RAM", value: formatBytes(totalMemory), info: CLUSTER_DETAIL_FIELDS.physicalMemory },
+    { label: "Konfigurierter VM-RAM", value: formatBytes(totalVram), info: CLUSTER_DETAIL_FIELDS.configuredVmRam },
+    { label: "RAM Commit", value: formatPct(ramCommit), info: CLUSTER_DETAIL_FIELDS.ramCommit, infoExample: ramCommitExample },
   ];
   const hostTable: DetailTable = {
     headers: ["Host", "Modell", "Cores", "RAM", "VMs", "ESXi", "Power", "Connection"],
@@ -214,20 +224,20 @@ export function ClusterSystemDetailDialog({
       >
         <DetailNarrative source="RVTools · vROps optional">{narrative}</DetailNarrative>
         <DetailKpiGrid items={kpis} />
-        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe.">
+        <DetailSection icon={<Activity className="size-4" />} title="Auslastung · sieben Tage" description="CPU Demand und Speicherauslastung aus der optionalen vROps-Zeitreihe." info={SYSTEM_DETAIL_SECTIONS.utilizationTrend} infoExample={trendExample}>
           <VropsTrendChart {...vrops} />
           {!vrops.hasImport && <DetailUnavailable title="Keine vROps-Zeitreihe importiert" description="Kapazitäts- und Inventardaten bleiben sichtbar. Der Verlauf wird automatisch ergänzt, sobald passende Daten vorliegen." />}
         </DetailSection>
-        <DetailSection icon={<Cpu className="size-4" />} title="Kapazität & Cluster-Services" description="Physische Kapazität, Belegung und Verfügbarkeitsfunktionen.">
+        <DetailSection icon={<Cpu className="size-4" />} title="Kapazität & Cluster-Services" description="Physische Kapazität, Belegung und Verfügbarkeitsfunktionen." info={SYSTEM_DETAIL_SECTIONS.clusterCapacity} infoExample={ramCommitExample}>
           <DetailFieldGrid fields={overviewFields} />
         </DetailSection>
-        <DetailSection icon={<Server className="size-4" />} title="ESXi Hosts" description="Hardware, Belegung und Verbindungszustand der Cluster-Nodes." aside={<DetailCountBadge>{scopedHosts.length}</DetailCountBadge>}>
+        <DetailSection icon={<Server className="size-4" />} title="ESXi Hosts" description="Hardware, Belegung und Verbindungszustand der Cluster-Nodes." info={SYSTEM_DETAIL_SECTIONS.clusterHosts} infoExample={`Hier: ${formatNum(scopedHosts.length)} Hosts und ${formatNum(runningVms.length)} laufende VMs im Cluster.`} aside={<DetailCountBadge>{scopedHosts.length}</DetailCountBadge>}>
           <DetailTableView table={hostTable} />
         </DetailSection>
-        <DetailSection icon={<HardDrive className="size-4" />} title="Datastores" description="Gemeinsam erreichbare Storage-Kapazität, nach freiem Anteil sortiert." aside={<DetailCountBadge>{scopedDatastores.length}</DetailCountBadge>}>
+        <DetailSection icon={<HardDrive className="size-4" />} title="Datastores" description="Gemeinsam erreichbare Storage-Kapazität, nach freiem Anteil sortiert." info={SYSTEM_DETAIL_SECTIONS.clusterDatastores} infoExample={`Hier: ${formatNum(scopedDatastores.length)} Datastores, im Mittel ${formatPct(avgFree)} frei.`} aside={<DetailCountBadge>{scopedDatastores.length}</DetailCountBadge>}>
           <DetailTableView table={datastoreTable} />
         </DetailSection>
-        <DetailSection icon={<MemoryStick className="size-4" />} title={`Laufende VMs (${runningVms.length})`} description="Aktive Workloads und ihre konfigurierte Ressourcenbelegung." aside={<DetailCountBadge>{runningVms.length}</DetailCountBadge>}>
+        <DetailSection icon={<MemoryStick className="size-4" />} title={`Laufende VMs (${runningVms.length})`} description="Aktive Workloads und ihre konfigurierte Ressourcenbelegung." info={SYSTEM_DETAIL_SECTIONS.clusterVms} infoExample={`Hier: ${formatNum(runningVms.length)} VMs mit zusammen ${formatNum(totalVcpu)} vCPU und ${formatBytes(totalVram)} konfiguriertem RAM.`} aside={<DetailCountBadge>{runningVms.length}</DetailCountBadge>}>
           <DetailTableView table={vmTable} />
         </DetailSection>
       </SystemDetailContent>

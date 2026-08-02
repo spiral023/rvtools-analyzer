@@ -1,5 +1,6 @@
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 import { buildAverageWeekTrendPoints } from "@/lib/trendDownsampling";
+import type { GlossaryEntry } from "@/lib/glossary";
 
 export type DetailSensitivity = "identifier" | "person" | "department" | "text" | "network";
 
@@ -8,6 +9,10 @@ export interface DetailField {
   value: string;
   sensitivity?: DetailSensitivity;
   tone?: "neutral" | "good" | "warning" | "critical";
+  /** Optionale Fach-Erklärung für die interaktive Detailansicht. */
+  info?: GlossaryEntry;
+  /** Zahlenbeispiel aus dem aktuell geöffneten Objekt. */
+  infoExample?: string;
 }
 
 export interface DetailKpi extends DetailField {
@@ -27,6 +32,10 @@ export interface DetailSection {
   fields?: DetailField[];
   table?: DetailTable;
   note?: string;
+  /** Optionale Fach-Erklärung für die Abschnittsüberschrift. */
+  info?: GlossaryEntry;
+  /** Zahlenbeispiel aus dem aktuell geöffneten Objekt. */
+  infoExample?: string;
 }
 
 export interface DetailTrend {

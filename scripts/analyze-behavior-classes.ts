@@ -467,7 +467,7 @@ function main(): void {
   console.log(`\n=== 11. Kreuztabelle: Lastmuster x Auslastungsniveau ===`);
   console.log(`  Die eigentliche Auswertung des zweiachsigen Modells. Jede Zelle war zuvor`);
   console.log(`  unsichtbar, weil ein niedriges Niveau das Muster überschrieb.`);
-  const shapeOrder: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+  const shapeOrder: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
   const intensityOrder: VmWorkloadIntensity[] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
   const cell = (shape: VmWorkloadShape, intensity: VmWorkloadIntensity): number =>
     results.filter((entry) => entry.shape === shape && entry.intensity === intensity).length;

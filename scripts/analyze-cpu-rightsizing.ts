@@ -461,7 +461,7 @@ for (const vm of vms) {
   });
 }
 
-const SHAPES = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "variable", "bursty", "irregular", "unclassified"];
+const SHAPES = ["constant", "business-hours", "night-batch", "weekend", "variable", "bursty", "irregular", "unclassified"];
 function byShape(): Map<string, VmMetrics[]> {
   const groups = new Map<string, VmMetrics[]>();
   for (const entry of metrics) {
@@ -671,7 +671,7 @@ section("7  Variationskoeffizient der stündlichen Demand-Reihe");
     const cumulative = buckets.slice(0, index + 1).reduce((sum, value) => sum + value, 0);
     return [`${(index * 0.1).toFixed(1)}`, String(count), pct(cumulative, values.length), "#".repeat(Math.round((count / Math.max(...buckets)) * 40))];
   }));
-  console.log("\nWie viele VMs fielen bei welcher Schwelle auf constant/constant-with-peak?");
+  console.log("\nWie viele VMs fielen bei welcher Schwelle auf constant?");
   table(["constantLoadCvMax", "VMs mit CV ≤ Schwelle", "Anteil"],
     [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5].map((threshold) => {
       const count = values.filter((value) => value <= threshold).length;

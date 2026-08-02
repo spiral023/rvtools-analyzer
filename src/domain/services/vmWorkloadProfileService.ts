@@ -36,8 +36,6 @@ export const VM_BEHAVIOR_CLASS_LABEL: Record<VmBehaviorClass, string> = {
 export const VM_WORKLOAD_SHAPE_LABEL: Record<VmWorkloadShape, string> = {
   unclassified: "Nicht berechenbar",
   constant: "Dauerlast",
-  // Fensterneutral benannt: welches Fenster dominiert, sagen die Konzentrationssignale.
-  "constant-with-peak": "Grundlast mit Lastfenster",
   "business-hours": "Business-Hours",
   "night-batch": "Nächtlicher Batch",
   weekend: "Wochenendlast",
@@ -128,8 +126,9 @@ export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
    *
    * Der Anteil flacher VMs kippt im Band 0,15–0,20 von 51,7 % auf 23,8 %; 0,2 hält die
    * Trefferquote bei 89,1 % und verdreifacht zugleich die Präzision. Die Umstellung
-   * verschiebt rund 1.500 VMs nach `variable` und lässt `constant-with-peak` leer
-   * laufen – deren VMs erreicht der Kalenderpfad (`business-hours` +145).
+   * verschiebt rund 1.500 VMs nach `variable`; das frühere Mischmuster „Grundlast mit
+   * Lastfenster“ lief dadurch leer und ist entfallen – deren VMs erreicht der
+   * Kalenderpfad (`business-hours` +145).
    */
   constantLoadCvMax: 0.2,
   calendarConcentrationMin: 1.35,
@@ -594,12 +593,11 @@ function determineShape(input: ShapeInput, thresholds: VmBehaviorThresholds): Vm
   if (input.samples < thresholds.classificationMinSamples || input.coverageRatio < thresholds.classificationMinCoverageRatio) {
     return "unclassified";
   }
+  // Die Streuung entscheidet vor dem Kalender: Bei einem Variationskoeffizienten unter
+  // der Schwelle ist der Verlauf so flach, dass ein dominantes Zeitfenster darauf keine
+  // planbare Spitze mehr beschreibt.
+  if (cv !== null && cv <= thresholds.constantLoadCvMax) return "constant";
   const calendarWindow = dominantCalendarShape(input, thresholds);
-  if (cv !== null && cv <= thresholds.constantLoadCvMax) {
-    // Geringe Streuung schließt einen Rhythmus nicht aus: dominiert zugleich ein
-    // Kalenderfenster, liegt eine Spitze über durchgehender Grundlast.
-    return calendarWindow !== null ? "constant-with-peak" : "constant";
-  }
   if (calendarWindow !== null) return calendarWindow;
   if (cv !== null && cv >= thresholds.burstyCvMin && p95 > 0 && median < p95 * thresholds.burstyMedianToP95Max) {
     return "bursty";
@@ -640,9 +638,6 @@ function determineIntensity(utilizationP95Pct: number | null): VmWorkloadIntensi
 
 const SHAPE_TO_BEHAVIOR_CLASS: Record<Exclude<VmWorkloadShape, "unclassified">, VmBehaviorClass> = {
   constant: "constant-load",
-  // Fiel in der früheren Kaskade unter „constant-load“, weil die CV-Regel vor den
-  // Kalenderregeln stand. Die Zuordnung hält die Altklasse dadurch unverändert.
-  "constant-with-peak": "constant-load",
   "business-hours": "business-hours",
   "night-batch": "night-batch",
   weekend: "weekend-load",

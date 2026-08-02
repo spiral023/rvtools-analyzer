@@ -1,5 +1,10 @@
 # Changelog
 
+## 02.08.2026
+
+- Das Rightsizing nennt nur noch die empfohlene Zielgröße. Die Spalte **Nächster Schritt** – höchstens ein Viertel der konfigurierten vCPU je Wartungsfenster – entfällt in Tabelle, VM-Detail und in beiden Exporten. Die Umsetzung geht direkt auf die empfohlene CPU-Konfiguration; **Rückgewinnbar** nennt wie bisher die volle Differenz.
+- Das Lastmuster **Grundlast mit Lastfenster** ist entfallen. Seit der Streuungsschwelle von 0,2 traf die Kombination aus flachem Verlauf und dominantem Zeitfenster auf keine einzige von rund 5.000 VMs zu; solche Verläufe erscheinen als Business-Hours, nächtlicher Batch oder Wochenendlast, flache Verläufe als Dauerlast.
+
 ## 01.08.2026
 
 - Einzelne Datenqualitätsbefunde lassen den vROps-Zeitreihenimport nicht mehr scheitern. Betroffen sind drei Fälle, die bei einem Monat Messzeitraum praktisch immer irgendwo im Bestand auftreten: Prozentwerte über 100 % — mehrere VMware-Metriken überschreiten diese Grenze planmäßig, etwa CPU Usage unter Turbo-Boost —, ein Stundenmaximum minimal unter dem Mittelwert durch unabhängige Rundung beider Werte, sowie eine Messlücke bei einem einzelnen Objekt. Alle drei werden weiterhin gemeldet, jetzt aber als Hinweis; die Messwerte bleiben erhalten und fließen wie bisher in Datenabdeckung und Vertrauensniveau ein. Die Rasterprüfung zwischen VM-, Cluster- und Host-Datei bleibt unverändert ein Abbruchgrund.

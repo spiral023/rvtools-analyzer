@@ -26,6 +26,7 @@ import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage
 import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailFormat";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import {
   DetailFieldGrid,
   DetailKpiGrid,
@@ -69,6 +70,12 @@ function decimal(value: number | null | undefined, digits = 2): string {
   return value === null || value === undefined || !Number.isFinite(value)
     ? "—"
     : value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function hours(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "—"
+    : value.toLocaleString("de-DE");
 }
 
 function bool(value: boolean | null | undefined): string {
@@ -169,13 +176,31 @@ export function VmDetailDialog({
   const p95Pct = workloadProfile?.signals.utilizationP95Pct ?? null;
   const reclaimable = rightsizing?.reclaimableVcpu ?? 0;
   const additional = rightsizing?.additionalVcpu ?? 0;
+  const demandP95Example = workloadProfile
+    ? `Hier: ${decimal(workloadProfile.demand.p95, 0)} MHz entsprechen ${percent(p95Pct)} der konfigurierten Kapazität von ${workloadProfile.configuredCpuCapacityMHz ? `${decimal(workloadProfile.configuredCpuCapacityMHz, 0)} MHz` : "—"}. In 95 % der verwertbaren Stunden lag der Demand höchstens auf diesem Niveau.`
+    : undefined;
+  const readyP95Example = workloadProfile
+    ? `Hier: CPU Ready P95 ${percent(workloadProfile.ready.p95)} über ${workloadProfile.ready.sampleCount.toLocaleString("de-DE")} Messpunkten. Werte über etwa 5 % sollten auf Host-/Cluster-Contention und vCPU-Breite geprüft werden.`
+    : undefined;
+  const profileExample = workloadProfile
+    ? `Hier: Muster „${VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape]}“, Niveau „${VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity]}“, Datenabdeckung ${percent(workloadProfile.demand.coverageRatio * 100)} bei ${workloadProfile.demand.sampleCount.toLocaleString("de-DE")} Messpunkten.`
+    : undefined;
+  const trendExample = workloadProfile
+    ? `Für diese VM: Demand P95 ${decimal(workloadProfile.demand.p95, 0)} MHz; höchster Stundenmittelwert ${decimal(workloadProfile.demand.maximum, 0)} MHz. Kurze Spitzen können darüber liegen, wenn Demand Max importiert wurde.`
+    : undefined;
+  const concentrationExample = workloadProfile
+    ? `Hier: Index ${decimal(workloadProfile.capacitySignals.concentrationIndexP90)}. 0 bedeutet gleichmäßig verteilte Last, 1 annähernd Last auf einem Kern; ergänzend werden maximal ${decimal(workloadProfile.capacitySignals.effectiveCoresMax)} effektiv belastete Kerne geschätzt.`
+    : undefined;
+  const singleCoreExample = workloadProfile
+    ? `Hier: ${hours(workloadProfile.capacitySignals.singleCoreBoundHours)} Stunden mit geschätzter Sättigung des heißesten Kerns bei gleichzeitig höchstens 60 % Gesamtlast. Mehr vCPU helfen dann nicht automatisch – Anwendungsthreads und Parallelisierung prüfen.`
+    : undefined;
 
   const kpis: DetailKpi[] = [
     { label: "Betriebszustand", value: compactValue(vm.powerState), hint: compactValue(vm.connectionState), tone: vmTone(vm.powerState) },
-    { label: "vCPU", value: compactValue(vm.cpuCount === null ? null : String(vm.cpuCount)), hint: `${toNumber(cpu["Sockets"]) ?? "—"} Sockel`, tone: "neutral" },
+    { label: "vCPU", value: compactValue(vm.cpuCount === null ? null : String(vm.cpuCount)), hint: `${toNumber(cpu["Sockets"]) ?? "—"} Sockel`, tone: "neutral", info: VM_PROFILE_COLUMNS.vcpu },
     { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `aktiv ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
-    { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && p95Pct >= 80 ? "critical" : p95Pct !== null && p95Pct >= 60 ? "warning" : "neutral" },
-    { label: "CPU Ready P95", value: percent(workloadProfile?.ready.p95), hint: workloadProfile ? `${workloadProfile.demand.sampleCount} Messpunkte` : "Keine Zeitreihe", tone: (workloadProfile?.ready.p95 ?? 0) > 5 ? "warning" : workloadProfile ? "good" : "neutral" },
+    { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && p95Pct >= 80 ? "critical" : p95Pct !== null && p95Pct >= 60 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.demandP95Pct, infoExample: demandP95Example },
+    { label: "CPU Ready P95", value: percent(workloadProfile?.ready.p95), hint: workloadProfile ? `${workloadProfile.demand.sampleCount} Messpunkte` : "Keine Zeitreihe", tone: (workloadProfile?.ready.p95 ?? 0) > 5 ? "warning" : workloadProfile ? "good" : "neutral", info: VM_PROFILE_COLUMNS.readyP95, infoExample: readyP95Example },
     {
       label: "Rightsizing",
       value: rightsizing?.recommendedVcpu ? `${rightsizing.recommendedVcpu} vCPU` : "Keine Änderung",
@@ -187,6 +212,7 @@ export function VmDetailDialog({
       // Unterdimensionierung wiegt schwerer als ungenutzte Kapazität: Die eine kostet
       // Leistung im laufenden Betrieb, die andere nur Reserve.
       tone: additional > 0 ? "critical" : reclaimable > 0 ? "warning" : "neutral",
+      info: RIGHTSIZING_COLUMNS.recommendedVcpu,
     },
   ];
 
@@ -213,7 +239,7 @@ export function VmDetailDialog({
   ] : [];
 
   const workloadFields: DetailField[] = workloadProfile ? [
-    { label: "Lastmuster", value: VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape] },
+    { label: "Lastmuster", value: VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape], info: VM_PROFILE_COLUMNS.shape },
     {
       label: "Auslastungsniveau",
       value: VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity],
@@ -222,52 +248,46 @@ export function VmDetailDialog({
         : ["moderate", "elevated"].includes(workloadProfile.intensity)
           ? "warning"
           : workloadProfile.intensity === "high"
-            ? "critical"
+          ? "critical"
             : "neutral",
+      info: VM_PROFILE_COLUMNS.intensity,
+      infoExample: profileExample,
     },
-    { label: "Vertrauen", value: workloadProfile.confidence },
-    { label: "Datenabdeckung", value: percent(workloadProfile.demand.coverageRatio * 100) },
-    { label: "Variationskoeffizient", value: decimal(workloadProfile.signals.coefficientOfVariation) },
-    { label: "Aktive Stunden", value: percent(workloadProfile.signals.dutyCyclePct) },
-    { label: "Grundlastanteil", value: percent(workloadProfile.signals.baselineRatio === null ? null : workloadProfile.signals.baselineRatio * 100) },
-    { label: "Tages-Wiederholbarkeit", value: decimal(workloadProfile.signals.dailyRepeatability) },
-    { label: "Wochen-Wiederholbarkeit", value: decimal(workloadProfile.signals.weeklyRepeatability) },
-    { label: "Streuung der Wochenmaxima", value: decimal(workloadProfile.signals.weeklyPeakVariation) },
-    { label: "Business-Hours-Konzentration", value: decimal(workloadProfile.signals.businessHoursConcentration) },
-    { label: "Nacht-Konzentration", value: decimal(workloadProfile.signals.nightConcentration) },
-    { label: "Wochenend-Konzentration", value: decimal(workloadProfile.signals.weekendConcentration) },
-    { label: "Konfigurierte CPU-Kapazität", value: workloadProfile.configuredCpuCapacityMHz ? `${decimal(workloadProfile.configuredCpuCapacityMHz, 0)} MHz` : "—" },
-    { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity75) },
-    { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : String(workloadProfile.capacitySignals.hoursAboveCapacity90) },
-    { label: "Co-Stop unter Last P95", value: percent(workloadProfile.capacitySignals.costopUnderLoadP95Pct) },
-    { label: "Stunden Einzelkern-Engpass", value: workloadProfile.capacitySignals.singleCoreBoundHours === null ? "—" : String(workloadProfile.capacitySignals.singleCoreBoundHours) },
-    { label: "Lastkonzentration", value: decimal(workloadProfile.capacitySignals.concentrationIndexP90) },
-    { label: "Belastete Kerne (max.)", value: decimal(workloadProfile.capacitySignals.effectiveCoresMax) },
+    { label: "Vertrauen", value: workloadProfile.confidence, info: VM_PROFILE_UI.confidence },
+    { label: "Datenabdeckung", value: percent(workloadProfile.demand.coverageRatio * 100), info: VM_PROFILE_COLUMNS.coverage },
+    { label: "Variationskoeffizient", value: decimal(workloadProfile.signals.coefficientOfVariation), info: VM_PROFILE_COLUMNS.coefficientOfVariation },
+    { label: "Aktive Stunden", value: percent(workloadProfile.signals.dutyCyclePct), info: VM_PROFILE_COLUMNS.dutyCycle },
+    { label: "Grundlastanteil", value: percent(workloadProfile.signals.baselineRatio === null ? null : workloadProfile.signals.baselineRatio * 100), info: VM_PROFILE_COLUMNS.baselineRatio },
+    { label: "Tages-Wiederholbarkeit", value: decimal(workloadProfile.signals.dailyRepeatability), info: VM_PROFILE_COLUMNS.dailyRepeatability },
+    { label: "Wochen-Wiederholbarkeit", value: decimal(workloadProfile.signals.weeklyRepeatability), info: VM_PROFILE_COLUMNS.weeklyRepeatability },
+    { label: "Streuung der Wochenmaxima", value: decimal(workloadProfile.signals.weeklyPeakVariation), info: VM_PROFILE_COLUMNS.weeklyPeakVariation },
+    { label: "Business-Hours-Konzentration", value: decimal(workloadProfile.signals.businessHoursConcentration), info: VM_PROFILE_COLUMNS.businessHoursConcentration },
+    { label: "Nacht-Konzentration", value: decimal(workloadProfile.signals.nightConcentration), info: VM_PROFILE_COLUMNS.nightConcentration },
+    { label: "Wochenend-Konzentration", value: decimal(workloadProfile.signals.weekendConcentration), info: VM_PROFILE_COLUMNS.weekendConcentration },
+    { label: "Konfigurierte CPU-Kapazität", value: workloadProfile.configuredCpuCapacityMHz ? `${decimal(workloadProfile.configuredCpuCapacityMHz, 0)} MHz` : "—", info: VM_PROFILE_COLUMNS.configuredCapacity },
+    { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity75), info: VM_PROFILE_COLUMNS.hoursAboveCapacity75 },
+    { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity90), info: VM_PROFILE_COLUMNS.hoursAboveCapacity90 },
+    { label: "Co-Stop unter Last P95", value: percent(workloadProfile.capacitySignals.costopUnderLoadP95Pct), info: VM_PROFILE_COLUMNS.costopUnderLoadP95 },
+    { label: "Stunden Einzelkern-Engpass", value: hours(workloadProfile.capacitySignals.singleCoreBoundHours), info: VM_PROFILE_COLUMNS.singleCoreBoundHours, infoExample: singleCoreExample },
+    { label: "Lastkonzentration", value: decimal(workloadProfile.capacitySignals.concentrationIndexP90), info: VM_PROFILE_COLUMNS.concentrationIndexP90, infoExample: concentrationExample },
+    { label: "Belastete Kerne (max.)", value: decimal(workloadProfile.capacitySignals.effectiveCoresMax), info: VM_PROFILE_COLUMNS.effectiveCoresMax },
   ] : [];
 
   const rightsizingFields: DetailField[] = rightsizing ? [
-    { label: "Konfiguriert", value: rightsizing.vcpu === null ? "—" : `${rightsizing.vcpu} vCPU` },
-    { label: "Genutzt P95", value: rightsizing.usedVcpuEquivalentP95 === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentP95)} vCPU` },
-    { label: "Genutzt Spitze", value: rightsizing.usedVcpuEquivalentPeak === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentPeak)} vCPU` },
-    { label: "MHz je vCPU", value: rightsizing.mhzPerVcpu === null ? "—" : `${decimal(rightsizing.mhzPerVcpu, 0)} MHz` },
-    { label: "Bedarfsgerecht", value: rightsizing.demandBasedVcpu === null ? "—" : `${rightsizing.demandBasedVcpu} vCPU` },
-    { label: "Empfohlen", value: rightsizing.recommendedVcpu === null ? "Keine Empfehlung" : `${rightsizing.recommendedVcpu} vCPU` },
-    { label: "Rückgewinnbar", value: rightsizing.reclaimableVcpu === null ? "—" : `${rightsizing.reclaimableVcpu} vCPU` },
-    {
-      label: "Nächster Schritt",
-      value: !rightsizing.nextReclaimStepVcpu
-        ? "—"
-        : rightsizing.nextReclaimStepVcpu === rightsizing.reclaimableVcpu
-          ? `${rightsizing.nextReclaimStepVcpu} vCPU`
-          : `${rightsizing.nextReclaimStepVcpu} vCPU (auf ${(rightsizing.vcpu ?? 0) - rightsizing.nextReclaimStepVcpu} vCPU)`,
-    },
-    { label: "Zusätzlich nötig", value: rightsizing.additionalVcpu === null ? "—" : `${rightsizing.additionalVcpu} vCPU` },
-    { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand) },
-    { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady) },
-    { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad) },
-    { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound) },
-    { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores) },
-    { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity) },
+    { label: "Konfiguriert", value: rightsizing.vcpu === null ? "—" : `${rightsizing.vcpu} vCPU`, info: RIGHTSIZING_COLUMNS.configured },
+    { label: "Genutzt P95", value: rightsizing.usedVcpuEquivalentP95 === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentP95)} vCPU`, info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent },
+    { label: "Genutzt Spitze", value: rightsizing.usedVcpuEquivalentPeak === null ? "—" : `${decimal(rightsizing.usedVcpuEquivalentPeak)} vCPU`, info: RIGHTSIZING_COLUMNS.usedVcpuEquivalentPeak },
+    { label: "MHz je vCPU", value: rightsizing.mhzPerVcpu === null ? "—" : `${decimal(rightsizing.mhzPerVcpu, 0)} MHz`, info: RIGHTSIZING_COLUMNS.mhzPerVcpu },
+    { label: "Bedarfsgerecht", value: rightsizing.demandBasedVcpu === null ? "—" : `${rightsizing.demandBasedVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.demandBasedVcpu },
+    { label: "Empfohlen", value: rightsizing.recommendedVcpu === null ? "Keine Empfehlung" : `${rightsizing.recommendedVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.recommendedVcpu },
+    { label: "Rückgewinnbar", value: rightsizing.reclaimableVcpu === null ? "—" : `${rightsizing.reclaimableVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
+    { label: "Zusätzlich nötig", value: rightsizing.additionalVcpu === null ? "—" : `${rightsizing.additionalVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.additionalVcpu },
+    { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand), info: RIGHTSIZING_COLUMNS.manyVcpuLowDemand },
+    { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady), info: RIGHTSIZING_COLUMNS.highCpuReady },
+    { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad), info: RIGHTSIZING_COLUMNS.costopUnderLoad },
+    { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound), info: RIGHTSIZING_COLUMNS.singleCoreBound, infoExample: singleCoreExample },
+    { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores), info: RIGHTSIZING_COLUMNS.concentratedOnFewCores, infoExample: concentrationExample },
+    { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity), info: RIGHTSIZING_COLUMNS.sustainedNearCapacity },
   ] : [];
   const clientFields: DetailField[] = client ? [
     { label: "Standort", value: compactValue(client.standort), sensitivity: "identifier" },
@@ -438,6 +458,8 @@ export function VmDetailDialog({
           icon={<Activity className="size-4" />}
           title={`Auslastung · ${describeTrendRange(workloadProfile?.hourly.length ?? 0)}`}
           description="CPU-Demand- und CPU-Ready-Werte; Wochenende, höchster Peak und die aktuelle Wochenzeit sind hervorgehoben."
+          info={VM_PROFILE_SECTIONS.detailTrend}
+          infoExample={trendExample}
         >
           {workloadProfile ? (
             <VropsTrendChart
@@ -471,13 +493,14 @@ export function VmDetailDialog({
         </div>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <DetailSection icon={<Gauge className="size-4" />} title="Lastprofil" description="Muster, Niveau und Qualität der beobachteten Auslastung.">
+          <DetailSection icon={<Gauge className="size-4" />} title="Lastprofil" description="Muster, Niveau und Qualität der beobachteten Auslastung." info={VM_PROFILE_SECTIONS.detailProfile} infoExample={profileExample}>
             {workloadProfile ? <DetailFieldGrid fields={workloadFields} columns={2} /> : <DetailUnavailable title="Profil nicht verfügbar" description="Ohne vROps-Zeitreihe wird keine Verhaltensklasse abgeleitet." />}
           </DetailSection>
           <DetailSection
             icon={<Recycle className="size-4" />}
             title="CPU-Rightsizing"
             description="Konservative, prüfpflichtige Empfehlung auf Basis von Demand und CPU Ready."
+            info={RIGHTSIZING_SECTIONS.candidateTable}
             aside={rightsizing && <Badge variant={reclaimable > 0 ? "secondary" : "outline"} className="rounded-full">{reclaimable > 0 ? `${reclaimable} vCPU Potenzial` : "Kein Schritt"}</Badge>}
           >
             {rightsizing ? <DetailFieldGrid fields={rightsizingFields} columns={2} /> : <DetailUnavailable title="Keine Rightsizing-Auswertung" description="Ohne passendes Profil oder bei fehlenden Kapazitätsdaten wird keine Empfehlung angezeigt." />}

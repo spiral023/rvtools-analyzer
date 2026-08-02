@@ -126,7 +126,6 @@ section("1  Vorhergesagte gegen tatsächliche Wirkung");
     line("VMs mit Verkleinerung", (vms) => count(vms, (row) => (num(row, "reclaimableVcpu") ?? 0) > 0)),
     line("zusätzlich nötige vCPU", (vms) => sum(vms, "additionalVcpu")),
     line("VMs mit Vergrößerung", (vms) => count(vms, (row) => (num(row, "additionalVcpu") ?? 0) > 0)),
-    line("Summe „nächster Schritt“", (vms) => sum(vms, "nextReclaimStepVcpu")),
     line("VMs mit Einzelkern-Engpass", (vms) => count(vms, (row) => row.flagSingleCoreBound === "1")),
     line("Grow mit Einzelkern-Warnung", (vms) => count(vms, (row) => row.flagSingleCoreBound === "1" && (num(row, "additionalVcpu") ?? 0) > 0)),
   ]);
@@ -152,17 +151,32 @@ section("1  Vorhergesagte gegen tatsächliche Wirkung");
 
 section("2  Wohin sind die Lastmuster gewandert?");
 {
-  const SHAPES = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "variable", "bursty", "irregular", "unclassified"];
+  /**
+   * Bevorzugte Reihenfolge der heute bekannten Muster. Bewusst keine abgeschlossene
+   * Liste: Der Vergleich läuft gerade dann, wenn sich die Klassifikation geändert hat –
+   * ein im alten Export noch vorhandenes, inzwischen entfallenes Muster (etwa
+   * `constant-with-peak`) muss auf der Alt-Achse sichtbar bleiben, sonst verschwindet
+   * genau die Wanderung, die geprüft werden soll. Unbekannte Werte werden deshalb
+   * angehängt statt verworfen.
+   */
+  const SHAPE_ORDER = ["constant", "business-hours", "night-batch", "weekend", "variable", "bursty", "irregular", "unclassified"];
   const transitions = new Map<string, Map<string, number>>();
+  const observed = new Set<string>();
   for (const vmId of shared) {
     const from = oldVms.get(vmId)!.shape || "unclassified";
     const to = newVms.get(vmId)!.shape || "unclassified";
+    observed.add(from);
+    observed.add(to);
     const row = transitions.get(from) ?? new Map<string, number>();
     row.set(to, (row.get(to) ?? 0) + 1);
     transitions.set(from, row);
   }
+  const SHAPES = [
+    ...SHAPE_ORDER.filter((shape) => observed.has(shape)),
+    ...[...observed].filter((shape) => !SHAPE_ORDER.includes(shape)).sort(),
+  ];
   console.log("Zeilen = altes Muster, Spalten = neues Muster. Diagonale = unverändert.");
-  table(["alt \\ neu", ...SHAPES.map((shape) => shape.slice(0, 9)), "Σ"],
+  table(["alt \\ neu", ...SHAPES.map((shape) => shape.slice(0, 10)), "Σ"],
     SHAPES.flatMap((from) => {
       const row = transitions.get(from);
       if (!row) return [];
@@ -375,12 +389,12 @@ section("6  Die größten Verkleinerungen — zur Plausibilitätsprüfung");
   const shrinking = [...newVms.values()]
     .filter((row) => (num(row, "reclaimableVcpu") ?? 0) > 0)
     .sort((left, right) => (num(right, "reclaimableVcpu") ?? 0) - (num(left, "reclaimableVcpu") ?? 0));
-  table(["vmId", "vCPU", "→", "frei", "Schritt", "shape", "util p95 %", "Peak %", "h>75%", "costop", "Pool"],
+  table(["vmId", "vCPU", "→", "frei", "shape", "util p95 %", "Peak %", "h>75%", "costop", "Pool"],
     shrinking.slice(0, 25).map((row) => {
       const cap = num(row, "measuredCapacityMHz");
       const peak = num(row, "demandMaxP99MHz");
       return [
-        row.vmId, row.vcpu, row.recommendedVcpu, row.reclaimableVcpu, row.nextReclaimStepVcpu,
+        row.vmId, row.vcpu, row.recommendedVcpu, row.reclaimableVcpu,
         row.shape.slice(0, 12), fmt(num(row, "utilizationP95Pct"), 1),
         fmt(cap && peak !== null ? (peak / cap) * 100 : null, 1),
         row.hoursAboveCapacity75, fmt(num(row, "costopUnderLoadP95Pct"), 1),
@@ -494,7 +508,7 @@ section("7  Vollständigkeit der neuen Spalten");
     "measuredCapacityMHz", "measuredVcpu", "measuredMhzPerVcpu",
     "hoursAboveCapacity75", "hoursAboveCapacity90", "costopUnderLoadP95Pct", "loadHourCount",
     "concentrationIndexP90", "effectiveCoresMax", "singleCoreBoundHours", "weeklyRepeatability", "weeklyPeakVariation",
-    "mhzPerVcpu", "nextReclaimStepVcpu", "additionalVcpu",
+    "mhzPerVcpu", "additionalVcpu",
   ];
   table(["Spalte", "belegt", "Anteil", "p50", "p95"],
     columns.map((column) => {

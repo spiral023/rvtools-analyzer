@@ -882,14 +882,6 @@ export type VmBehaviorClass =
 export type VmWorkloadShape =
   | "unclassified"
   | "constant"
-  /**
-   * Geringe Streuung *und* dominantes Kalenderfenster. Gemessen an 3.950 VMs bildet das
-   * eine eigene Population: Grundlastanteil 0,30–0,44 gegenüber 0,60 bei reiner Dauerlast
-   * und 0,16 bei echten Kalenderlasten. Diese VMs haben einen belastbaren Rhythmus, fallen
-   * aber nie unter etwa ein Drittel ihres P95 – „business-hours“ würde eine Parkbarkeit
-   * suggerieren, die nicht besteht, „constant“ würde den Rhythmus verschweigen.
-   */
-  | "constant-with-peak"
   | "business-hours"
   | "night-batch"
   | "weekend"
@@ -1152,19 +1144,11 @@ export interface VmRightsizingCandidate {
    * `vcpu - recommendedVcpu`, nie negativ. Bewusst die **vollständige** Differenz und
    * nicht der nächste Umsetzungsschritt: Eine Schrittbegrenzung in dieser Zahl verdeckte
    * am gemessenen Bestand 6.183 der 12.753 rückgewinnbaren vCPU, also fast die Hälfte,
-   * und traf ausgerechnet die breiten VMs (bei 32 vCPU waren nur 32 % sichtbar). Wie
-   * schnell die Änderung ausgerollt wird, sagt {@link nextReclaimStepVcpu}.
+   * und traf ausgerechnet die breiten VMs (bei 32 vCPU waren nur 32 % sichtbar). Die
+   * Umsetzung geht in einem Schritt auf {@link recommendedVcpu}; eine gestufte
+   * Zwischengröße wird bewusst nicht mehr ausgewiesen.
    */
   reclaimableVcpu: number | null;
-  /**
-   * Wie viele vCPU im nächsten Wartungsfenster zurückgegeben werden sollten, wenn die
-   * Verkleinerung schrittweise erfolgt: höchstens ein Viertel der konfigurierten Anzahl,
-   * mindestens ein Paar, und stets so, dass die Zwischengröße gerade bleibt. Gleich
-   * {@link reclaimableVcpu}, wo die Zielgröße in einem Schritt erreichbar ist. Ohne
-   * Hot-Add kostet jeder Schritt eine Abschaltung – 45 % der Kandidaten bräuchten mehr
-   * als eine Runde, in Summe 5.502 statt 2.692 Wartungsfenster.
-   */
-  nextReclaimStepVcpu: number | null;
   /**
    * `recommendedVcpu - vcpu` bei Unterdimensionierung, nie negativ und immer gerade.
    * Verkleinerung und Vergrößerung schließen einander aus, sodass stets höchstens eines

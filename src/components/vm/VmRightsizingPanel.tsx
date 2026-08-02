@@ -38,7 +38,7 @@ import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 /** Dieselbe Reihenfolge wie im VM-Profile-Tab, damit die Farbzuordnung je Lastmuster app-weit konsistent bleibt. */
-const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "constant-with-peak", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
+const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
 /** Aufsteigend nach Auslastung; die Tabelle sortiert damit nach der Skala statt nach dem Label. */
 const INTENSITY_ORDER: VmRightsizingCandidate["intensity"][] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
 const shapeColor = (shape: VmWorkloadShape) => SEVERITY_COLORS[SHAPE_ORDER.indexOf(shape) % SEVERITY_COLORS.length];
@@ -191,21 +191,6 @@ export function VmRightsizingPanel() {
       meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
       accessorFn: (row) => row.reclaimableVcpu ?? -1,
       cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
-    },
-    {
-      id: "next-step-vcpu",
-      header: "Nächster Schritt",
-      meta: { info: RIGHTSIZING_COLUMNS.nextReclaimStepVcpu },
-      accessorFn: (row) => row.nextReclaimStepVcpu ?? -1,
-      cell: ({ row }) => {
-        const { nextReclaimStepVcpu, reclaimableVcpu, vcpu } = row.original;
-        if (!nextReclaimStepVcpu) return <span className="text-muted-foreground">—</span>;
-        // Wo das Ziel in einem Schritt erreichbar ist, wäre die Wiederholung der
-        // Rückgabemenge nur Rauschen; interessant ist der Zwischenstand.
-        return nextReclaimStepVcpu === reclaimableVcpu
-          ? <span>{formatVcpu(nextReclaimStepVcpu)}</span>
-          : <span>{formatVcpu(nextReclaimStepVcpu)} <span className="text-xs text-muted-foreground">(auf {formatVcpu((vcpu ?? 0) - nextReclaimStepVcpu)})</span></span>;
-      },
     },
     {
       id: "additional-vcpu",

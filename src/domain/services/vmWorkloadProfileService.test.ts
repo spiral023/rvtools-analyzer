@@ -121,13 +121,11 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
   });
 
   /**
-   * `constant-with-peak` verlangt geringe Streuung *und* ein dominantes Kalenderfenster.
-   * Beides zugleich ist rechnerisch eng: Eine Business-Hours-Konzentration von 1,35 setzt
-   * voraus, dass rund 30 % der Stunden deutlich über dem Rest liegen, was den
-   * Variationskoeffizienten über 0,2 hebt. Mit dem produktiven `constantLoadCvMax = 0,2`
-   * greift deshalb der Kalenderpfad – im gemessenen Bestand von 4.018 VMs trifft die
-   * Kombination auf keine einzige VM, während sie bei 0,5 noch 151 traf. Der Zweig bleibt
-   * erhalten, weil die Schwellen überschreibbar sind und Auswertungsskripte sie variieren.
+   * Grundlast mit zusätzlichem Lastfenster war einmal ein eigenes Mischmuster. Mit dem
+   * produktiven `constantLoadCvMax = 0,2` lief es leer: Eine Business-Hours-Konzentration
+   * von 1,35 setzt voraus, dass rund 30 % der Stunden deutlich über dem Rest liegen, was
+   * den Variationskoeffizienten über 0,2 hebt. Solche Verläufe gehören deshalb in den
+   * Kalenderpfad; unterhalb der Streuungsschwelle bleibt es reine Dauerlast.
    */
   it("ordnet Grundlast mit Lastfenster dem Kalenderfenster zu und trennt sie von reiner Dauerlast", () => {
     const grid = buildSyntheticWeek();
@@ -140,11 +138,10 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
     expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThanOrEqual(1.35);
     expect(result.shape).toBe("business-hours");
 
-    // Mit der früheren, großzügigeren Schwelle schlägt derselbe Verlauf in das
-    // Mischmuster um – der Zweig ist erreichbar, nur eben nicht mehr produktiv.
+    // Die Streuung entscheidet vor dem Kalender: Mit einer großzügigeren Schwelle gilt
+    // derselbe Verlauf als flach genug für Dauerlast.
     const lenient = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000, thresholds: { constantLoadCvMax: 0.5 } });
-    expect(lenient.shape).toBe("constant-with-peak");
-    // Die Altklasse bleibt unverändert „Dauerlast“, damit bestehende Auswertungen tragen.
+    expect(lenient.shape).toBe("constant");
     expect(lenient.behaviorClass).toBe("constant-load");
 
     // Ohne Lastfenster bleibt es reine Dauerlast.

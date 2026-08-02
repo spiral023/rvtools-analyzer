@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import { Database, Info, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { DetailDossier, DetailField, DetailKpi, DetailTable } from "@/lib/detailExport";
+import type { DetailDossier, DetailField, DetailKpi, DetailSection as DetailSectionModel, DetailTable } from "@/lib/detailExport";
 import { DetailExportMenu } from "@/components/detail/DetailExportMenu";
 
 export function SystemDetailContent({
@@ -24,44 +26,46 @@ export function SystemDetailContent({
   children: ReactNode;
 }) {
   return (
-    <DialogContent
-      overlayClassName="bg-black/65 backdrop-blur-[2px]"
-      showCloseButton={false}
-      className="system-detail-dialog flex h-[92vh] w-[96vw] max-w-[1480px] flex-col gap-0 overflow-hidden border-0 bg-background p-0 shadow-2xl sm:rounded-2xl"
-    >
-      <DialogHeader className="relative shrink-0 border-b border-border/70 bg-card px-5 py-3 text-left sm:px-7">
-        <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]">
-              {icon}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>
-              <DialogTitle className="truncate text-lg font-semibold tracking-tight text-balance">
-                {title}
-              </DialogTitle>
-              {/* Untertitel und Badges teilen eine Zeile: beide sind Kontext, keiner braucht eine eigene. */}
-              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-                <DialogDescription className="truncate text-xs text-pretty">{subtitle || "Systemdetails"}</DialogDescription>
-                {badges}
+    <TooltipProvider>
+      <DialogContent
+        overlayClassName="bg-black/65 backdrop-blur-[2px]"
+        showCloseButton={false}
+        className="system-detail-dialog flex h-[92vh] w-[96vw] max-w-[1480px] flex-col gap-0 overflow-hidden border-0 bg-background p-0 shadow-2xl sm:rounded-2xl"
+      >
+        <DialogHeader className="relative shrink-0 border-b border-border/70 bg-card px-5 py-3 text-left sm:px-7">
+          <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]">
+                {icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>
+                <DialogTitle className="truncate text-lg font-semibold tracking-tight text-balance">
+                  {title}
+                </DialogTitle>
+                {/* Untertitel und Badges teilen eine Zeile: beide sind Kontext, keiner braucht eine eigene. */}
+                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <DialogDescription className="truncate text-xs text-pretty">{subtitle || "Systemdetails"}</DialogDescription>
+                  {badges}
+                </div>
               </div>
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <DetailExportMenu dossier={dossier} />
+              <DialogClose
+                aria-label="Detailansicht schließen"
+                className="grid size-10 place-items-center rounded-xl bg-background text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)/0.75),0_1px_2px_hsl(var(--foreground)/0.06)] transition-[scale,color,background-color,box-shadow] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <X className="size-4" />
+              </DialogClose>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <DetailExportMenu dossier={dossier} />
-            <DialogClose
-              aria-label="Detailansicht schließen"
-              className="grid size-10 place-items-center rounded-xl bg-background text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)/0.75),0_1px_2px_hsl(var(--foreground)/0.06)] transition-[scale,color,background-color,box-shadow] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <X className="size-4" />
-            </DialogClose>
-          </div>
+        </DialogHeader>
+        <div className="system-detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <main className="mx-auto w-full max-w-[1380px] space-y-4 p-4 sm:px-6 sm:py-5">{children}</main>
         </div>
-      </DialogHeader>
-      <div className="system-detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <main className="mx-auto w-full max-w-[1380px] space-y-4 p-4 sm:px-6 sm:py-5">{children}</main>
-      </div>
-    </DialogContent>
+      </DialogContent>
+    </TooltipProvider>
   );
 }
 
@@ -82,18 +86,26 @@ export function DetailNarrative({ children, source }: { children: ReactNode; sou
 export function DetailKpiGrid({ items }: { items: DetailKpi[] }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-      {items.map((item) => (
-        <div key={item.label} className="detail-surface rounded-xl bg-card px-3 py-2.5 shadow-[var(--detail-surface-shadow)]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">{item.label}</p>
-          <p className={cn(
-            "mt-1 truncate font-mono text-base font-semibold tabular-nums tracking-tight",
-            item.tone === "good" && "text-success",
-            item.tone === "warning" && "text-warning",
-            item.tone === "critical" && "text-destructive",
-          )} title={item.value}>{item.value}</p>
-          {item.hint && <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={item.hint}>{item.hint}</p>}
-        </div>
-      ))}
+      {items.map((item) => {
+        const card = (
+          <div className={cn(
+            "detail-surface rounded-xl bg-card px-3 py-2.5 shadow-[var(--detail-surface-shadow)]",
+            item.info && "cursor-help",
+          )}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">{item.label}</p>
+            <p className={cn(
+              "mt-1 truncate font-mono text-base font-semibold tabular-nums tracking-tight",
+              item.tone === "good" && "text-success",
+              item.tone === "warning" && "text-warning",
+              item.tone === "critical" && "text-destructive",
+            )} title={item.value}>{item.value}</p>
+            {item.hint && <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={item.hint}>{item.hint}</p>}
+          </div>
+        );
+        return item.info
+          ? <InfoTooltip key={item.label} entry={item.info} example={item.infoExample} side="bottom">{card}</InfoTooltip>
+          : <div key={item.label}>{card}</div>;
+      })}
     </div>
   );
 }
@@ -105,6 +117,8 @@ export function DetailSection({
   aside,
   children,
   className,
+  info,
+  infoExample,
 }: {
   icon: ReactNode;
   title: string;
@@ -112,6 +126,8 @@ export function DetailSection({
   aside?: ReactNode;
   children: ReactNode;
   className?: string;
+  info?: DetailSectionModel["info"];
+  infoExample?: string;
 }) {
   return (
     <section className={cn("detail-surface rounded-2xl bg-card p-4 shadow-[var(--detail-surface-shadow)] sm:p-5", className)}>
@@ -119,7 +135,9 @@ export function DetailSection({
         <div className="flex min-w-0 items-start gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">{icon}</div>
           <div>
-            <h2 className="text-sm font-semibold tracking-tight text-balance">{title}</h2>
+            {info
+              ? <InfoTooltip entry={info} example={infoExample} side="bottom"><h2 className="w-fit cursor-help text-sm font-semibold tracking-tight text-balance">{title}</h2></InfoTooltip>
+              : <h2 className="text-sm font-semibold tracking-tight text-balance">{title}</h2>}
             {description && <p className="mt-1 text-xs leading-5 text-muted-foreground text-pretty">{description}</p>}
           </div>
         </div>
@@ -140,7 +158,11 @@ export function DetailFieldGrid({ fields, columns = 3 }: { fields: DetailField[]
     )}>
       {fields.map((field) => (
         <div key={field.label} className="min-w-0 border-b border-border/55 py-2.5 last:border-b-0">
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{field.label}</dt>
+          <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            {field.info
+              ? <InfoTooltip entry={field.info} example={field.infoExample} side="bottom"><span className="w-fit cursor-help decoration-dotted underline-offset-4">{field.label}</span></InfoTooltip>
+              : field.label}
+          </dt>
           <dd className={cn(
             "mt-1 break-words font-mono text-xs leading-5 tabular-nums",
             field.tone === "good" && "font-semibold text-success",
@@ -195,9 +217,17 @@ export function DetailTableView({
               key={`${rowIndex}-${row.join("-")}`}
               className={cn(
                 "border-t border-border/55 transition-[background-color] duration-150",
-                onRowClick && "cursor-pointer hover:bg-muted/35 focus-within:bg-muted/35",
+                onRowClick && "cursor-pointer hover:bg-muted/35 focus-within:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               )}
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? "button" : undefined}
               onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}
+              onKeyDown={onRowClick ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onRowClick(rowIndex);
+                }
+              } : undefined}
             >
               {table.headers.map((header, columnIndex) => (
                 <td key={`${header}-${columnIndex}`} className="max-w-80 px-3 py-2.5 font-mono tabular-nums first:font-semibold">
