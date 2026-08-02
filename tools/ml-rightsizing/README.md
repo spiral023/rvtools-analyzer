@@ -58,6 +58,9 @@ Die deterministische Referenz verwendet die im Projekt dokumentierten drei Zielg
 - `p95`: P95 der CPU-Nachfrage
 - `target_utilization`: Zielauslastung, mit der die Nachfrage in vCPU umgerechnet wird
 
+Die Zielgröße folgt dabei der App-Konvention: mindestens 2 vCPU und Aufrundung auf
+die nächste gerade vCPU-Zahl.
+
 Für die ML-Referenz werden zeitpunktbezogene Features aus Mittelwert-/Peak-Nachfrage, Lags, rollenden Fenstern, Uhrzeit, Wochentag, vCPU und MHz/vCPU gebildet. Das erste Modell sagt die nächste Stunde der normierten Peak-Nachfrage voraus; die Policy-Sweep-Auswertung bleibt der belastbarere Vergleich für die aktuelle Rightsizing-Logik. Ein späterer Ausbau sollte direkt das nächste 7-Tage-P99 als Zielgröße lernen.
 
 ## Interpretation
