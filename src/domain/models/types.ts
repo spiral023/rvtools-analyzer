@@ -1031,6 +1031,9 @@ export interface VmCpuCapacitySignals {
 /** Geschlossene, global gültige Risikostufe des CPU-Rightsizings. */
 export type CpuRightsizingLevel = "very-conservative" | "conservative" | "balanced" | "offensive";
 
+/** Eigenständige, global gültige Policy-Stufe des RAM-Rightsizings. */
+export type RamRightsizingLevel = "very-conservative" | "conservative" | "balanced" | "offensive";
+
 /**
  * Eigenständige, zentral sichtbare Policy für RAM-Rightsizing.
  *
@@ -1040,6 +1043,8 @@ export type CpuRightsizingLevel = "very-conservative" | "conservative" | "balanc
  * geprüft und bei Bedarf angepasst werden können.
  */
 export interface VmRamRightsizingPolicy {
+  level: RamRightsizingLevel;
+  label: string;
   normalStatistic: "p95" | "p99";
   peakStatistic: "p99" | "p995";
   targetWorkloadFactor: number;
@@ -1074,6 +1079,9 @@ export interface VmRamRightsizingCandidate {
   objectKey: string;
   /** RVTools-VM-Schlüssel für den Join mit der global gefilterten VM-Menge. */
   rvtoolsObjectKey: string | null;
+  policyLevel: RamRightsizingLevel;
+  normalStatistic: "p95" | "p99";
+  peakStatistic: "p99" | "p995";
   vmName: string;
   clusterKey: string | null;
   clusterName: string | null;

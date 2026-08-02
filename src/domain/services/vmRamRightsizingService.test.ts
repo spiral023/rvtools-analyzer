@@ -3,6 +3,7 @@ import type { NormalizedVm, VmWorkloadHourlyPoint, VmWorkloadProfile } from "@/d
 import { vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
 import {
   DEFAULT_RAM_RIGHTSIZING_POLICY,
+  RAM_RIGHTSIZING_POLICIES,
   buildVmRamRightsizingCandidates,
   calculateVmMemoryWorkloadStats,
   deriveRamDemand,
@@ -121,6 +122,25 @@ describe("VM-RAM-Bedarfsableitung", () => {
     expect(result.targetMemoryBeforeRoundingMiB).toBeCloseTo(3_868.4444, 4);
     expect(result.recommendedMemoryMiB).toBe(4_096);
     expect(result.recommendedMemoryMiB).toBeGreaterThanOrEqual(result.requiredMemoryMiB ?? 0);
+  });
+
+  it("stellt vier eigenständige RAM-Policies bereit und schreibt die gewählte Stufe in den Kandidaten", () => {
+    expect(Object.keys(RAM_RIGHTSIZING_POLICIES)).toEqual([
+      "very-conservative",
+      "conservative",
+      "balanced",
+      "offensive",
+    ]);
+
+    const [candidate] = buildVmRamRightsizingCandidates({
+      profiles: [profileFixture("vm-01", Array(24).fill(50), Array(24).fill(80))],
+      hasMemoryWorkloadMax: true,
+      level: "offensive",
+    });
+
+    expect(candidate.policyLevel).toBe("offensive");
+    expect(candidate.normalStatistic).toBe("p95");
+    expect(candidate.peakStatistic).toBe("p99");
   });
 });
 

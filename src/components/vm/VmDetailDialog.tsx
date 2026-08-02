@@ -297,7 +297,7 @@ export function VmDetailDialog({
     { label: "RAM aktuell", value: formatBytes(ramRightsizing.configuredMemoryMiB) },
     { label: "Workload Avg P95", value: percent(ramRightsizing.workloadAvg.p95) },
     { label: "Workload Avg P99", value: percent(ramRightsizing.workloadAvg.p99) },
-    { label: "Peak Workload", value: percent(ramRightsizing.workloadMax?.p995 ?? null) },
+    { label: `Peak Workload Max ${ramRightsizing.peakStatistic === "p995" ? "P99,5" : "P99"}`, value: percent(ramRightsizing.workloadMax?.[ramRightsizing.peakStatistic] ?? null) },
     { label: "RAM-Bedarf berechnet", value: formatBytes(ramRightsizing.requiredMemoryMiB) },
     { label: "RAM empfohlen", value: formatBytes(ramRightsizing.recommendedMemoryMiB) },
     { label: "Delta", value: ramRightsizing.deltaMiB === null ? "—" : `${ramRightsizing.deltaMiB > 0 ? "+" : ramRightsizing.deltaMiB < 0 ? "−" : ""}${formatBytes(Math.abs(ramRightsizing.deltaMiB))}` },

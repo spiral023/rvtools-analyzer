@@ -85,7 +85,7 @@ export default function Vms() {
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
           <TabsTrigger value="vm-profiles">VM-Profile</TabsTrigger>
-          <TabsTrigger value="rightsizing">Rightsizing</TabsTrigger>
+          <TabsTrigger value="rightsizing">CPU Rightsizing</TabsTrigger>
           <TabsTrigger value="ram-rightsizing">RAM-Rightsizing</TabsTrigger>
         </TabsList>
         <TabsContent value="inventory" className="space-y-6">

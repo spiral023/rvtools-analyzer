@@ -11,9 +11,12 @@ import { buildVmRamRightsizingCandidates } from "@/domain/services/vmRamRightsiz
 import { resolveVmDetailTarget } from "@/lib/vmDetail";
 import type { NormalizedVm } from "@/domain/models/types";
 import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
+import { useRamRightsizingLevel } from "@/hooks/useRamRightsizingLevel";
+import { RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
 
 export function useVmDetailDialog(vms: NormalizedVm[]) {
   const { level: rightsizingLevel } = useCpuRightsizingLevel();
+  const { level: ramRightsizingLevel } = useRamRightsizingLevel();
   const [selectedVm, setSelectedVm] = useState<NormalizedVm | null>(null);
   const loadDetailRows = selectedVm !== null;
 
@@ -37,8 +40,9 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
       vms,
       expectedSlots: workload.selectedImport?.expectedSlots,
       hasMemoryWorkloadMax: workload.hasMemoryWorkloadMax,
+      policy: RAM_RIGHTSIZING_POLICIES[ramRightsizingLevel],
     }),
-    [vms, workload.hasMemoryWorkloadMax, workload.profiles, workload.selectedImport?.expectedSlots],
+    [ramRightsizingLevel, vms, workload.hasMemoryWorkloadMax, workload.profiles, workload.selectedImport?.expectedSlots],
   );
 
   const matchedClient = useMemo(() => {

@@ -6,6 +6,7 @@ import type {
   VmRamRightsizingGroupSummary,
   VmRamRightsizingPolicy,
   VmWorkloadProfile,
+  RamRightsizingLevel,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
 import { average } from "@/lib/statistics";
@@ -13,24 +14,64 @@ import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
 /**
- * Vorläufige Produktions-Policy. Die beiden Perzentile und der Ziel-Faktor sind
- * bewusst explizit konfigurierbar: Der aktuelle Analyse-Export enthält noch keine
- * Memory-Workload-Reihe, deshalb ist diese Policy noch keine datenbelegte
- * Empfehlung für den Bestand. Der erste Export mit Memory|Workload muss sie
- * gegen dessen Verteilung validieren.
+ * Vorläufige, zentral konfigurierbare RAM-Policies. Die vier Stufen sind keine aus
+ * CPU-Klassen abgeleiteten Gates: Sie koppeln nur die beiden RAM-Perzentile mit der
+ * Zielauslastung. Bis der neue Memory-Export vorliegt, sind die Werte technische
+ * Planungsparameter und müssen anschließend gegen die reale Verteilung validiert werden.
  */
-export const DEFAULT_RAM_RIGHTSIZING_POLICY: VmRamRightsizingPolicy = {
-  normalStatistic: "p95",
-  peakStatistic: "p995",
-  targetWorkloadFactor: 0.9,
-  roundingStepMiB: 1_024,
-  // Technische Mindestbasis für eine stündliche Reihe; keine fachliche
-  // RAM-Schwelle. Sie verhindert nur scheinpräzise Empfehlungen aus wenigen Punkten.
-  minimumCoverageRatio: 0.5,
-  minimumSampleCount: 24,
-  highConfidenceCoverageRatio: 0.9,
-  highConfidenceMinSampleCount: 96,
+export const RAM_RIGHTSIZING_POLICIES: Readonly<Record<RamRightsizingLevel, VmRamRightsizingPolicy>> = {
+  "very-conservative": {
+    level: "very-conservative",
+    label: "Sehr vorsichtig",
+    normalStatistic: "p99",
+    peakStatistic: "p995",
+    targetWorkloadFactor: 0.8,
+    roundingStepMiB: 1_024,
+    minimumCoverageRatio: 0.5,
+    minimumSampleCount: 24,
+    highConfidenceCoverageRatio: 0.9,
+    highConfidenceMinSampleCount: 96,
+  },
+  conservative: {
+    level: "conservative",
+    label: "Vorsichtig",
+    normalStatistic: "p95",
+    peakStatistic: "p995",
+    targetWorkloadFactor: 0.85,
+    roundingStepMiB: 1_024,
+    minimumCoverageRatio: 0.5,
+    minimumSampleCount: 24,
+    highConfidenceCoverageRatio: 0.9,
+    highConfidenceMinSampleCount: 96,
+  },
+  balanced: {
+    level: "balanced",
+    label: "Ausgewogen",
+    normalStatistic: "p95",
+    peakStatistic: "p995",
+    targetWorkloadFactor: 0.9,
+    roundingStepMiB: 1_024,
+    minimumCoverageRatio: 0.5,
+    minimumSampleCount: 24,
+    highConfidenceCoverageRatio: 0.9,
+    highConfidenceMinSampleCount: 96,
+  },
+  offensive: {
+    level: "offensive",
+    label: "Offensiv",
+    normalStatistic: "p95",
+    peakStatistic: "p99",
+    targetWorkloadFactor: 0.95,
+    roundingStepMiB: 1_024,
+    minimumCoverageRatio: 0.5,
+    minimumSampleCount: 24,
+    highConfidenceCoverageRatio: 0.9,
+    highConfidenceMinSampleCount: 96,
+  },
 };
+
+export const DEFAULT_RAM_RIGHTSIZING_LEVEL: RamRightsizingLevel = "balanced";
+export const DEFAULT_RAM_RIGHTSIZING_POLICY = RAM_RIGHTSIZING_POLICIES[DEFAULT_RAM_RIGHTSIZING_LEVEL];
 
 export interface BuildVmRamRightsizingCandidatesInput {
   profiles: readonly VmWorkloadProfile[];
@@ -39,6 +80,7 @@ export interface BuildVmRamRightsizingCandidatesInput {
   expectedSlots?: number;
   /** Header vorhanden, Werte dürfen trotzdem vollständig fehlen. */
   hasMemoryWorkloadMax?: boolean;
+  level?: RamRightsizingLevel;
   policy?: Partial<VmRamRightsizingPolicy>;
 }
 
@@ -140,7 +182,8 @@ export function deriveRamDemand(
 export function buildVmRamRightsizingCandidates(
   input: BuildVmRamRightsizingCandidatesInput,
 ): VmRamRightsizingCandidate[] {
-  const policy = { ...DEFAULT_RAM_RIGHTSIZING_POLICY, ...input.policy };
+  const basePolicy = RAM_RIGHTSIZING_POLICIES[input.level ?? DEFAULT_RAM_RIGHTSIZING_LEVEL];
+  const policy = { ...basePolicy, ...input.policy };
   const profileByRvtoolsKey = new Map<string, VmWorkloadProfile>();
   for (const profile of input.profiles) {
     if (profile.rvtoolsObjectKey) profileByRvtoolsKey.set(profile.rvtoolsObjectKey, profile);
@@ -283,6 +326,9 @@ function buildCandidate(input: {
   return {
     objectKey: profile?.objectKey ?? `rvtools:${vm?.vmKey ?? vm?.vmName ?? "unknown"}`,
     rvtoolsObjectKey: profile?.rvtoolsObjectKey ?? vm?.vmKey ?? null,
+    policyLevel: policy.level,
+    normalStatistic: policy.normalStatistic,
+    peakStatistic: policy.peakStatistic,
     vmName: profile?.vmName ?? vm?.vmName ?? "Unbekannte VM",
     clusterKey: profile?.clusterKey ?? (vm?.cluster ? `rvtools:${vm.cluster}` : null),
     clusterName: profile?.clusterName ?? vm?.cluster ?? null,

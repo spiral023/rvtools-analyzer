@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, Check, HelpCircle, MemoryStick, SlidersHorizontal } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -8,18 +9,22 @@ import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { SearchScopeNotice } from "@/components/dashboard/SearchScopeNotice";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
+import { RamRightsizingLevelControl } from "@/components/vm/RamRightsizingLevelControl";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
+import { useRamRightsizingLevel } from "@/hooks/useRamRightsizingLevel";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import type { VmMemoryWorkloadStats, VmRamRightsizingCandidate, VmRamRightsizingDirection } from "@/domain/models/types";
 import {
-  DEFAULT_RAM_RIGHTSIZING_POLICY,
+  RAM_RIGHTSIZING_POLICIES,
   buildVmRamRightsizingCandidates,
   filterRamRightsizingCandidatesByVmScope,
   summarizeRamRightsizingByCluster,
   summarizeRamRightsizingByDirection,
 } from "@/domain/services/vmRamRightsizingService";
+import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { normalizeVmName } from "@/lib/globalFilter";
+import { average } from "@/lib/statistics";
 import { buildTechInfoSearchIndex } from "@/lib/vmSearch";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -75,8 +80,12 @@ function DirectionBadge({ direction }: { direction: VmRamRightsizingDirection })
   return <span className={`inline-flex items-center gap-1.5 font-medium ${color}`}>{icon}{DIRECTION_LABEL[direction]}</span>;
 }
 
-function memoryPolicyDescription(): string {
-  return `Avg ${DEFAULT_RAM_RIGHTSIZING_POLICY.normalStatistic.toUpperCase()} · Max ${DEFAULT_RAM_RIGHTSIZING_POLICY.peakStatistic === "p995" ? "P99,5" : "P99"} · Ziel ${formatPercent(DEFAULT_RAM_RIGHTSIZING_POLICY.targetWorkloadFactor * 100)} · Rundung ${formatMemory(DEFAULT_RAM_RIGHTSIZING_POLICY.roundingStepMiB)}`;
+function statisticLabel(statistic: "p95" | "p99" | "p995"): string {
+  return statistic === "p995" ? "P99,5" : statistic.toUpperCase();
+}
+
+function memoryPolicyDescription(policy: typeof RAM_RIGHTSIZING_POLICIES[keyof typeof RAM_RIGHTSIZING_POLICIES]): string {
+  return `${policy.label} · Avg ${statisticLabel(policy.normalStatistic)} · Max ${statisticLabel(policy.peakStatistic)} · Ziel ${formatPercent(policy.targetWorkloadFactor * 100)} · Rundung ${formatMemory(policy.roundingStepMiB)}`;
 }
 
 const directionColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByDirection>[number], unknown>[] = [
@@ -97,6 +106,8 @@ const clusterColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByClust
 ];
 
 export function VmRamRightsizingPanel() {
+  const { level: ramRightsizingLevel } = useRamRightsizingLevel();
+  const ramPolicy = RAM_RIGHTSIZING_POLICIES[ramRightsizingLevel];
   const { imports, profiles, selectedImport, hasMemoryWorkloadAvg, hasMemoryWorkloadMax, isLoading: workloadLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
   const { vms: scopedVms, allVms, isLoading: vmsLoading } = useVms();
@@ -108,8 +119,9 @@ export function VmRamRightsizingPanel() {
       vms: allVms,
       expectedSlots: selectedImport?.expectedSlots,
       hasMemoryWorkloadMax: hasMemoryWorkloadMax,
+      level: ramRightsizingLevel,
     }),
-    [allVms, hasMemoryWorkloadMax, profiles, selectedImport?.expectedSlots],
+    [allVms, hasMemoryWorkloadMax, profiles, ramRightsizingLevel, selectedImport?.expectedSlots],
   );
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allCandidates.map((candidate) => candidate.vmName));
   const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
@@ -127,9 +139,34 @@ export function VmRamRightsizingPanel() {
   const additionalMemoryMiB = useMemo(() => growCandidates.reduce((sum, candidate) => sum + (candidate.deltaMiB ?? 0), 0), [growCandidates]);
   const directionSummary = useMemo(() => summarizeRamRightsizingByDirection(candidates), [candidates]);
   const clusterSummary = useMemo(() => summarizeRamRightsizingByCluster(candidates), [candidates]);
+  const recommendationMix = useMemo(() => [
+    { key: "shrink", label: "Verkleinern", value: shrinkCandidates.length, color: CHART_COLORS.warning },
+    { key: "grow", label: "Vergrößern", value: growCandidates.length, color: CHART_COLORS.danger },
+    { key: "unchanged", label: "Unverändert", value: candidates.filter((candidate) => candidate.direction === "unchanged").length, color: CHART_COLORS.success },
+    { key: "not-computable", label: "Nicht berechenbar", value: notComputableCount, color: CHART_COLORS.secondary },
+  ].filter((entry) => entry.value > 0), [candidates, growCandidates.length, notComputableCount, shrinkCandidates.length]);
+  const workloadChart = useMemo(() => {
+    const entries = [
+      { key: "avg-p95", label: "Avg P95", values: candidates.map((candidate) => candidate.workloadAvg.p95), color: CHART_COLORS.primary },
+      { key: "avg-p99", label: "Avg P99", values: candidates.map((candidate) => candidate.workloadAvg.p99), color: CHART_COLORS.info },
+      { key: "peak", label: `Max ${statisticLabel(ramPolicy.peakStatistic)}`, values: candidates.map((candidate) => candidate.workloadMax?.[ramPolicy.peakStatistic] ?? null), color: CHART_COLORS.warning },
+    ];
+    return entries.flatMap((entry) => {
+      const values = entry.values.filter((value): value is number => value !== null && Number.isFinite(value));
+      const value = average(values);
+      return value === null ? [] : [{ key: entry.key, label: entry.label, value, color: entry.color }];
+    });
+  }, [candidates, ramPolicy.peakStatistic]);
+  const clusterChart = useMemo(
+    () => clusterSummary
+      .filter((summary) => summary.reclaimableMemoryMiB > 0 || summary.additionalMemoryMiB > 0)
+      .slice(0, 12),
+    [clusterSummary],
+  );
 
   const candidateColumns = useMemo<ColumnDef<VmRamRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM" },
+    { accessorKey: "clusterName", header: "Cluster", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
     {
       id: "sysv",
       header: "Systemverantwortlicher",
@@ -142,20 +179,34 @@ export function VmRamRightsizingPanel() {
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
-    { accessorKey: "clusterName", header: "Cluster", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
     { id: "configured-memory", header: "RAM aktuell", accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
     { id: "avg-p95", header: "Workload Avg P95", accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p95") },
     { id: "avg-p99", header: "Workload Avg P99", accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p99") },
     {
       id: "peak-workload",
-      header: `Peak-Workload Max ${DEFAULT_RAM_RIGHTSIZING_POLICY.peakStatistic === "p995" ? "P99,5" : "P99"}`,
-      accessorFn: (row) => row.workloadMax?.[DEFAULT_RAM_RIGHTSIZING_POLICY.peakStatistic] ?? -1,
+      header: `Peak-Workload Max ${statisticLabel(ramPolicy.peakStatistic)}`,
+      accessorFn: (row) => row.workloadMax?.[ramPolicy.peakStatistic] ?? -1,
       cell: ({ row }) => row.original.workloadMax
-        ? formatStatistic(row.original.workloadMax, DEFAULT_RAM_RIGHTSIZING_POLICY.peakStatistic)
+        ? formatStatistic(row.original.workloadMax, ramPolicy.peakStatistic)
         : "—",
     },
-    { id: "required-memory", header: "RAM-Bedarf berechnet", accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
+    { id: "normal-demand", header: "Bedarf normal", accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
+    { id: "peak-demand", header: "Bedarf Spitze", accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
+    { id: "required-memory", header: "Bedarfsgerecht", accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
+    { id: "target-memory", header: "Ziel vor Rundung", accessorFn: (row) => row.targetMemoryBeforeRoundingMiB ?? -1, cell: ({ row }) => formatMemory(row.original.targetMemoryBeforeRoundingMiB) },
     { id: "recommended-memory", header: "RAM empfohlen", accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <span className="font-semibold">{formatMemory(row.original.recommendedMemoryMiB)}</span> },
+    {
+      id: "reclaimable-memory",
+      header: "Rückgewinnbar",
+      accessorFn: (row) => row.direction === "shrink" ? Math.abs(row.deltaMiB ?? 0) : 0,
+      cell: ({ row }) => <span className={row.original.direction === "shrink" ? "font-semibold text-warning" : ""}>{row.original.direction === "shrink" ? formatMemory(Math.abs(row.original.deltaMiB ?? 0)) : "—"}</span>,
+    },
+    {
+      id: "additional-memory",
+      header: "Zusätzlich",
+      accessorFn: (row) => row.direction === "grow" ? Math.max(0, row.deltaMiB ?? 0) : 0,
+      cell: ({ row }) => <span className={row.original.direction === "grow" ? "font-semibold text-destructive" : ""}>{row.original.direction === "grow" ? formatMemory(Math.max(0, row.original.deltaMiB ?? 0)) : "—"}</span>,
+    },
     {
       id: "delta-memory",
       header: "Delta",
@@ -166,7 +217,7 @@ export function VmRamRightsizingPanel() {
     { id: "coverage", header: "Coverage", accessorFn: (row) => row.coverageRatio, cell: ({ row }) => formatPercent(row.original.coverageRatio * 100, 0) },
     {
       id: "confidence",
-      header: "Datenqualität",
+      header: "Vertrauen",
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
@@ -176,7 +227,7 @@ export function VmRamRightsizingPanel() {
       accessorFn: (row) => row.recommendationReason ?? "",
       cell: ({ row }) => <span className="block max-w-[28rem] whitespace-normal text-xs leading-5 text-muted-foreground">{row.original.recommendationReason ?? "—"}</span>,
     },
-  ], [techInfoIndex]);
+  ], [ramPolicy.peakStatistic, techInfoIndex]);
 
   if (imports.length === 0 && !isLoading) {
     return <EmptyState icon={<MemoryStick className="h-6 w-6" />} title="Kein vROps-Zeitreihenimport" description="RAM-Rightsizing benötigt einen vROps-VM-Export mit Memory Workload Avg sowie ein RVTools-Inventar. Importiere zuerst einen passenden Dateisatz." actionLabel="Zur Planung" actionTo="/planning" />;
@@ -189,16 +240,6 @@ export function VmRamRightsizingPanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-          <div className="flex items-start gap-3">
-            <SlidersHorizontal className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <p className="font-semibold">RAM-Rightsizing-Policy</p>
-              <p className="mt-1 text-muted-foreground">{memoryPolicyDescription()}. Der berechnete Bedarf bleibt roh sichtbar; das Ziel wird nur auf die konfigurierte Schrittweite aufgerundet. Die Parameter sind zentral konfigurierbar und werden nach dem ersten Memory-Workload-Export gegen dessen Verteilung validiert.</p>
-              <p className="mt-1 text-xs text-muted-foreground">Memory Workload wird als Prozentpunkte interpretiert. vMemory.Active ist ausdrücklich kein Signal dieser Berechnung.{hasMemoryWorkloadMax ? " Die Max-Reihe ist im Import vorhanden." : " Die Max-Reihe fehlt; die Empfehlung verwendet nur die Avg-Reihe."}</p>
-            </div>
-          </div>
-        </div>
         <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host, Betriebssystem, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
         <KpiGrid>
           <KpiCard title="Verwertbare RAM-Zeitreihe" value={formatNum(usableCount)} subtitle={`von ${formatNum(candidates.length)} VMs`} severity={usableCount > 0 ? "ok" : "warn"} icon={<MemoryStick className="h-4 w-4" />} />
@@ -208,6 +249,71 @@ export function VmRamRightsizingPanel() {
           <KpiCard title="Zusätzlicher RAM" value={formatMemory(additionalMemoryMiB)} severity={additionalMemoryMiB > 0 ? "crit" : "ok"} icon={<MemoryStick className="h-4 w-4" />} />
           <KpiCard title="Nicht berechenbare VMs" value={formatNum(notComputableCount)} severity={notComputableCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} />
         </KpiGrid>
+        <RamRightsizingLevelControl />
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="flex items-start gap-3">
+            <SlidersHorizontal className="mt-0.5 size-4 shrink-0 text-primary" />
+            <div>
+              <p className="font-semibold">RAM-Rightsizing-Policy · {memoryPolicyDescription(ramPolicy)}</p>
+              <p className="mt-1 text-muted-foreground">Der Bedarf bleibt separat sichtbar; das Ziel wird erst danach auf die konfigurierte Schrittweite aufgerundet. Die Policy nutzt ausschließlich Memory Workload Avg und – sofern vorhanden – Memory Workload Max. vMemory.Active und CPU-Verhaltensklassen sind kein Bestandteil der Empfehlung.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{hasMemoryWorkloadMax ? "Die Max-Reihe ist im Import vorhanden und fließt mit dem gewählten Peak-Perzentil ein." : "Die Max-Reihe fehlt; die Empfehlung verwendet nur die Avg-Reihe."}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <h3 className="mb-1 text-sm font-semibold text-muted-foreground">Memory-Workload-Perzentile</h3>
+            <p className="mb-3 text-xs text-muted-foreground">Durchschnitt der VM-Perzentile im aktuellen Filterbereich.</p>
+            {workloadChart.length > 0 ? <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={workloadChart} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 12 }}>
+                <CartesianGrid horizontal={false} {...CHART_GRID_STYLE} />
+                <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(value: number) => formatPercent(value, 0)} />
+                <YAxis type="category" dataKey="label" width={92} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatPercent(value), "VM-Durchschnitt"]} />
+                <Bar dataKey="value" name="Workload" radius={[0, 4, 4, 0]}>
+                  {workloadChart.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer> : <p className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">Keine auswertbaren Workload-Perzentile.</p>}
+          </div>
+          <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+            <h3 className="mb-1 text-sm font-semibold text-muted-foreground">Empfehlungswege</h3>
+            <p className="mb-3 text-xs text-muted-foreground">Verteilung der RAM-Bewertungen im aktuellen Filterbereich.</p>
+            <div className="relative h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={recommendationMix} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={82} paddingAngle={3} strokeWidth={0}>
+                    {recommendationMix.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatNum(value), "VMs"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-mono-data text-2xl font-semibold">{formatNum(candidates.length)}</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">VMs</span>
+              </div>
+            </div>
+            <div className="mt-1 grid gap-1.5 text-xs">
+              {recommendationMix.map((entry) => <div key={entry.key} className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-full" style={{ backgroundColor: entry.color }} />{entry.label}</span><span className="font-mono-data text-foreground">{formatNum(entry.value)}</span></div>)}
+            </div>
+          </div>
+        </div>
+
+        {clusterChart.length > 0 ? <div className="rounded-lg border border-border/50 bg-card/30 p-4">
+          <h3 className="mb-1 text-sm font-semibold text-muted-foreground">RAM-Differenz je Cluster</h3>
+          <p className="mb-3 text-xs text-muted-foreground">Top-Cluster nach freigebbarem oder zusätzlich benötigtem RAM.</p>
+          <ResponsiveContainer width="100%" height={Math.max(250, clusterChart.length * 28)}>
+            <BarChart data={clusterChart} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 12 }}>
+              <CartesianGrid horizontal={false} {...CHART_GRID_STYLE} />
+              <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(value: number) => formatMemory(value)} />
+              <YAxis type="category" dataKey="label" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number, name: string) => [formatMemory(value), name]} />
+              <Bar dataKey="reclaimableMemoryMiB" name="Rückgewinnbar" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="additionalMemoryMiB" name="Zusätzlich" fill={CHART_COLORS.danger} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div> : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div>

@@ -80,7 +80,7 @@ describe("VMs", () => {
     expect(screen.getByRole("tab", { name: "Performance" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Compliance" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "VM-Profile" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Rightsizing" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "CPU Rightsizing" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "RAM-Rightsizing" })).toBeInTheDocument();
   });
 
