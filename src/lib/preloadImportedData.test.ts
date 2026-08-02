@@ -128,7 +128,7 @@ describe("preloadImportedData", () => {
     expect(queryClient.getQueryData(["storedUploads"])).toHaveLength(9);
 
     expect(updates.at(-1)).toMatchObject({
-      phase: "loading",
+      phase: "computing",
       completedSteps: updates.at(-1)?.totalSteps,
       percent: 100,
     });

@@ -52,9 +52,9 @@ describe("ImportedDataPreloadControl", () => {
 
     fireEvent.click(button);
 
-    expect(await screen.findByRole("dialog", { name: "Importierte Daten werden vorgeladen" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Daten vorladen und Auswertungen berechnen" })).toBeInTheDocument();
     expect(document.querySelector(".backdrop-blur-md")).toBeInTheDocument();
-    expect(screen.getByText(/10-30 Sekunden/)).toBeInTheDocument();
+    expect(screen.getByText(/1–2 Minuten/)).toBeInTheDocument();
     expect(screen.getByText(/eine Stunde/)).toBeInTheDocument();
     expect(screen.getAllByText(/IndexedDB/)).toHaveLength(2);
     expect(screen.getByText("RVTools-Rohdaten: vCPU")).toBeInTheDocument();
@@ -64,6 +64,38 @@ describe("ImportedDataPreloadControl", () => {
 
     await act(async () => finish());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("markiert die drei Abschnitte passend zur gemeldeten Phase", async () => {
+    let report!: (phase: "preparing" | "loading" | "computing", label: string) => void;
+    const preload = vi.fn<ImportedDataPreloadRunner>(async (_queryClient, options) => {
+      report = (phase, currentLabel) => options?.onProgress?.({
+        phase,
+        currentLabel,
+        completedSteps: 40,
+        totalSteps: 41,
+        processedRecords: 9000,
+        percent: 98,
+      });
+      await new Promise<void>(() => {});
+      return { processedRecords: 0, totalSteps: 0 };
+    });
+    renderControl(preload);
+    fireEvent.click(await screen.findByRole("button", { name: "Alle importierten Daten vorladen" }));
+    await screen.findByRole("dialog");
+
+    const stageTexts = () => screen.getAllByRole("listitem").map((item) => item.textContent ?? "");
+
+    // Phase 1: nur das Inventar läuft, die späteren Abschnitte sind noch nummeriert.
+    expect(stageTexts()[0]).toContain("Inventar erfassen – läuft");
+    expect(stageTexts()[2]).toContain("Fill-Up-Auswertung berechnen – steht aus");
+
+    // Phase 3: Der Rechenschritt erklärt, warum die Leiste bei 98 % kaum noch steigt.
+    act(() => report("computing", "Fill-Up-Planung: Standardauswertung"));
+    expect(stageTexts()[0]).toContain("Inventar erfassen – abgeschlossen");
+    expect(stageTexts()[1]).toContain("Daten in den Arbeitsspeicher laden – abgeschlossen");
+    expect(stageTexts()[2]).toContain("Fill-Up-Auswertung berechnen – läuft");
+    expect(screen.getByText("Fill-Up-Planung: Standardauswertung")).toBeInTheDocument();
   });
 
   it("bestätigt Erfolg und verhindert parallele Starts", async () => {
