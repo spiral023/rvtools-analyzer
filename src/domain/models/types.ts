@@ -1266,20 +1266,6 @@ export interface VmRightsizingCandidate {
   };
 }
 
-/** Gemeinsame Grow-Bewertung gleichartiger VMs eines Ressourcenpools. */
-export interface VmRightsizingGrowthGroupSummary {
-  key: string;
-  resourcePool: string;
-  vcpu: number;
-  shape: VmWorkloadShape;
-  vmCount: number;
-  totalAdditionalVcpu: number;
-  recommendedVcpuMin: number;
-  recommendedVcpuMax: number;
-  costopUnderLoadCount: number;
-  singleCoreBoundCount: number;
-}
-
 /** Je Cluster oder Verhaltensklasse aufsummierte, potenziell rückgewinnbare vCPU-Kapazität. */
 export interface VmRightsizingGroupSummary {
   key: string;

@@ -3,7 +3,6 @@ import type {
   NormalizedHost,
   VmRightsizingCandidate,
   VmRightsizingGroupSummary,
-  VmRightsizingGrowthGroupSummary,
   VmWorkloadProfile,
   VmWorkloadProfileMetricStats,
   VmWorkloadShape,
@@ -263,44 +262,6 @@ export function summarizeReclaimableVcpuByBehaviorClass(candidates: readonly VmR
  */
 export function summarizeReclaimableVcpuByShape(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {
   return summarizeBy(candidates, (candidate) => ({ key: candidate.shape, label: VM_WORKLOAD_SHAPE_LABEL[candidate.shape] }));
-}
-
-/**
- * Bündelt gleichartige Grow-Kandidaten ohne zusätzlichen Risikoschwellwert. Einzelziele
- * bleiben erhalten, gemeinsame Ressourcenpool-Entscheidungen werden aber sichtbar.
- */
-export function summarizeGrowthCandidatesByResourcePool(
-  candidates: readonly VmRightsizingCandidate[],
-): VmRightsizingGrowthGroupSummary[] {
-  const groups = new Map<string, VmRightsizingGrowthGroupSummary>();
-  for (const candidate of candidates) {
-    if ((candidate.additionalVcpu ?? 0) <= 0 || candidate.vcpu === null) continue;
-    const resourcePool = candidate.resourcePool ?? "Ohne Ressourcenpool";
-    const key = `${resourcePool}\u0000${candidate.vcpu}\u0000${candidate.shape}`;
-    const recommended = candidate.recommendedVcpu ?? candidate.vcpu;
-    const group = groups.get(key) ?? {
-      key,
-      resourcePool,
-      vcpu: candidate.vcpu,
-      shape: candidate.shape,
-      vmCount: 0,
-      totalAdditionalVcpu: 0,
-      recommendedVcpuMin: recommended,
-      recommendedVcpuMax: recommended,
-      costopUnderLoadCount: 0,
-      singleCoreBoundCount: 0,
-    };
-    group.vmCount += 1;
-    group.totalAdditionalVcpu += candidate.additionalVcpu ?? 0;
-    group.recommendedVcpuMin = Math.min(group.recommendedVcpuMin, recommended);
-    group.recommendedVcpuMax = Math.max(group.recommendedVcpuMax, recommended);
-    if (candidate.flags.costopUnderLoad) group.costopUnderLoadCount += 1;
-    if (candidate.flags.singleCoreBound) group.singleCoreBoundCount += 1;
-    groups.set(key, group);
-  }
-  return [...groups.values()]
-    .filter((group) => group.vmCount > 1)
-    .sort((left, right) => right.totalAdditionalVcpu - left.totalAdditionalVcpu);
 }
 
 function summarizeBy(

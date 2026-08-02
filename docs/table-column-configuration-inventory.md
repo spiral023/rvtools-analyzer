@@ -59,37 +59,36 @@ Alle Einträge haben `columnPicker` aktiviert. Die erste fachliche Spalte bleibt
 | 49 | `network/nic-teaming` | `pages/NetworkSecurity.tsx` | `teamingColumns` – NIC Teaming | — |
 | 50 | `network/vmk-adapters` | `pages/NetworkSecurity.tsx` | `vmkColumns` – VMkernel Adapter | — |
 | 51 | `network/physical-nics` | `pages/NetworkSecurity.tsx` | `nicColumns` – physische NICs | — |
-| 52 | `vms/rightsizing-growth-groups` | `components/vm/VmRightsizingPanel.tsx` | `growthGroupColumns` – Grow-Gruppen | — |
-| 53 | `vms/rightsizing-candidates` | `components/vm/VmRightsizingPanel.tsx` | `candidateColumns` – Rightsizing-Kandidaten | — |
-| 54 | `vms/rightsizing-cluster-summary` | `components/vm/VmRightsizingPanel.tsx` | `summaryColumns` – Cluster-Summary | — |
-| 55 | `vms/rightsizing-shape-summary` | `components/vm/VmRightsizingPanel.tsx` | `summaryColumns` – Lastmuster-Summary | — |
-| 56 | `hosts/hygiene` | `components/hosts/HostHygienePanel.tsx` | `columns` – NTP/DNS-Hygiene | — |
-| 57 | `vms/rightsizing-density-details` | `components/vm/VmRightsizingDensityDialog.tsx` | `columns` – VMs einer Density-Kachel | — |
-| 58 | `vms/performance-cpu-ready` | `components/vm/VmPerformancePanel.tsx` | `perfColumns` – CPU Ready | — |
-| 59 | `vms/performance-memory-pressure` | `components/vm/VmPerformancePanel.tsx` | `memColumns` – Memory Pressure | — |
-| 60 | `vms/performance-entitlement-gaps` | `components/vm/VmPerformancePanel.tsx` | `entitlementColumns` – Entitlements | — |
-| 61 | `vms/performance-ft-latency` | `components/vm/VmPerformancePanel.tsx` | `ftColumns` – FT/Latenz | — |
-| 62 | `vms/performance-vm-network` | `components/vm/VmPerformancePanel.tsx` | `vmNetColumns` – VM-Netzwerk | — |
-| 63 | `vms/performance-latency-sensitivity` | `components/vm/VmPerformancePanel.tsx` | `latencyColumns` – Latency Sensitivity | — |
-| 64 | `vms/compliance` | `components/vm/VmComplianceLifecyclePanel.tsx` | `compColumns` – VM-Compliance | — |
-| 65 | `vms/compliance-hardware-upgrade` | `components/vm/VmComplianceLifecyclePanel.tsx` | `hwUpgradeColumns` – Hardware-Upgrade | — |
-| 66 | `vms/operations-config` | `components/vm/VmOperationsPanel.tsx` | `issueColumns` – Konfigurationsprobleme | — |
-| 67 | `vms/operations-snapshots` | `components/vm/VmOperationsPanel.tsx` | `snapshotColumns` – Snapshots | — |
-| 68 | `storage/datastore-details` | `components/storage/DatastoreCapacityDetails.tsx` | `datastoreColumns` – Datastore-Details | — |
-| 69 | `storage/thin-risk` | `components/storage/DatastoreCapacityDetails.tsx` | `thinRiskColumns` – Thin-Provisioning | — |
-| 70 | `storage/thin-disk-details` | `components/storage/DatastoreCapacityDetails.tsx` | `thinDiskColumns` – Thin Disks | — |
-| 71 | `vms/inventory` | `components/vm/VmInventoryTable.tsx` | `vmColumns` – VM-Inventar | — |
-| 72 | `tech-info/organisation-vm-drilldown` | `components/tech-info/TechInfoOrganisationPanel.tsx` | `drilldownColumns` – Organisation/VM-Drill-down | alte `tech-info-organisation`-Präferenz wird migriert |
-| 73 | `planning/what-if-clusters` | `components/planning/WhatIfComparisonTable.tsx` | `columns` – What-If-Clustervergleich | — |
-| 74 | `network-audit/port-mappings` | `components/network/NetworkAuditDetails.tsx` | `portColumns` – Switch-Port-Zuordnungen | — |
-| 75 | `network-audit/host-rvtools` | `components/network/NetworkAuditDetails.tsx` | `rvtoolsHostColumns` – Hostqualität RVTools | — |
-| 76 | `network-audit/host-tech-info` | `components/network/NetworkAuditDetails.tsx` | `techInfoHostColumns` – Hostqualität Tech-Info | — |
-| 77 | `network-audit/mac-cdp` | `components/network/NetworkAuditDetails.tsx` | `cdpMacColumns` – MAC/CDP | — |
-| 78 | `network-audit/mac-discovery` | `components/network/NetworkAuditDetails.tsx` | `l2DiscoveryColumns` – MAC-Discovery | — |
-| 79 | `planning/policy-cluster-assignment` | `components/planning/policies/PolicyClusterAssignmentTable.tsx` | `columns` – Policy-Zuweisung | — |
-| 80 | `planning/fill-up-clusters` | `components/planning/fill-up/FillUpClusterTable.tsx` | `columns` – Fill-Up-Cluster | — |
-| 81 | `planning/fill-up-observed-vm-profiles` | `components/planning/fill-up/FillUpObservedVmProfileTable.tsx` | `columns` – beobachtete VM-Profile | — |
-| 82 | `hosts/inventory` | `components/hosts/HostInventoryPanel.tsx` | `hostColumns` – Host-Inventar | — |
+| 52 | `vms/rightsizing-candidates` | `components/vm/VmRightsizingPanel.tsx` | `candidateColumns` – Rightsizing-Kandidaten | — |
+| 53 | `vms/rightsizing-cluster-summary` | `components/vm/VmRightsizingPanel.tsx` | `summaryColumns` – Cluster-Summary | — |
+| 54 | `vms/rightsizing-shape-summary` | `components/vm/VmRightsizingPanel.tsx` | `summaryColumns` – Lastmuster-Summary | — |
+| 55 | `hosts/hygiene` | `components/hosts/HostHygienePanel.tsx` | `columns` – NTP/DNS-Hygiene | — |
+| 56 | `vms/rightsizing-density-details` | `components/vm/VmRightsizingDensityDialog.tsx` | `columns` – VMs einer Density-Kachel | — |
+| 57 | `vms/performance-cpu-ready` | `components/vm/VmPerformancePanel.tsx` | `perfColumns` – CPU Ready | — |
+| 58 | `vms/performance-memory-pressure` | `components/vm/VmPerformancePanel.tsx` | `memColumns` – Memory Pressure | — |
+| 59 | `vms/performance-entitlement-gaps` | `components/vm/VmPerformancePanel.tsx` | `entitlementColumns` – Entitlements | — |
+| 60 | `vms/performance-ft-latency` | `components/vm/VmPerformancePanel.tsx` | `ftColumns` – FT/Latenz | — |
+| 61 | `vms/performance-vm-network` | `components/vm/VmPerformancePanel.tsx` | `vmNetColumns` – VM-Netzwerk | — |
+| 62 | `vms/performance-latency-sensitivity` | `components/vm/VmPerformancePanel.tsx` | `latencyColumns` – Latency Sensitivity | — |
+| 63 | `vms/compliance` | `components/vm/VmComplianceLifecyclePanel.tsx` | `compColumns` – VM-Compliance | — |
+| 64 | `vms/compliance-hardware-upgrade` | `components/vm/VmComplianceLifecyclePanel.tsx` | `hwUpgradeColumns` – Hardware-Upgrade | — |
+| 65 | `vms/operations-config` | `components/vm/VmOperationsPanel.tsx` | `issueColumns` – Konfigurationsprobleme | — |
+| 66 | `vms/operations-snapshots` | `components/vm/VmOperationsPanel.tsx` | `snapshotColumns` – Snapshots | — |
+| 67 | `storage/datastore-details` | `components/storage/DatastoreCapacityDetails.tsx` | `datastoreColumns` – Datastore-Details | — |
+| 68 | `storage/thin-risk` | `components/storage/DatastoreCapacityDetails.tsx` | `thinRiskColumns` – Thin-Provisioning | — |
+| 69 | `storage/thin-disk-details` | `components/storage/DatastoreCapacityDetails.tsx` | `thinDiskColumns` – Thin Disks | — |
+| 70 | `vms/inventory` | `components/vm/VmInventoryTable.tsx` | `vmColumns` – VM-Inventar | — |
+| 71 | `tech-info/organisation-vm-drilldown` | `components/tech-info/TechInfoOrganisationPanel.tsx` | `drilldownColumns` – Organisation/VM-Drill-down | alte `tech-info-organisation`-Präferenz wird migriert |
+| 72 | `planning/what-if-clusters` | `components/planning/WhatIfComparisonTable.tsx` | `columns` – What-If-Clustervergleich | — |
+| 73 | `network-audit/port-mappings` | `components/network/NetworkAuditDetails.tsx` | `portColumns` – Switch-Port-Zuordnungen | — |
+| 74 | `network-audit/host-rvtools` | `components/network/NetworkAuditDetails.tsx` | `rvtoolsHostColumns` – Hostqualität RVTools | — |
+| 75 | `network-audit/host-tech-info` | `components/network/NetworkAuditDetails.tsx` | `techInfoHostColumns` – Hostqualität Tech-Info | — |
+| 76 | `network-audit/mac-cdp` | `components/network/NetworkAuditDetails.tsx` | `cdpMacColumns` – MAC/CDP | — |
+| 77 | `network-audit/mac-discovery` | `components/network/NetworkAuditDetails.tsx` | `l2DiscoveryColumns` – MAC-Discovery | — |
+| 78 | `planning/policy-cluster-assignment` | `components/planning/policies/PolicyClusterAssignmentTable.tsx` | `columns` – Policy-Zuweisung | — |
+| 79 | `planning/fill-up-clusters` | `components/planning/fill-up/FillUpClusterTable.tsx` | `columns` – Fill-Up-Cluster | — |
+| 80 | `planning/fill-up-observed-vm-profiles` | `components/planning/fill-up/FillUpObservedVmProfileTable.tsx` | `columns` – beobachtete VM-Profile | — |
+| 81 | `hosts/inventory` | `components/hosts/HostInventoryPanel.tsx` | `hostColumns` – Host-Inventar | — |
 
 ## Technische Prüfpunkte
 

@@ -19,12 +19,11 @@ import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hook
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
-import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmRightsizingGrowthGroupSummary, VmWorkloadShape } from "@/domain/models/types";
+import type { VmRightsizingCandidate, VmRightsizingGroupSummary, VmWorkloadShape } from "@/domain/models/types";
 import {
   buildVmRightsizingCandidates,
   filterRightsizingCandidatesBySearch,
   isNotableRightsizingCandidate,
-  summarizeGrowthCandidatesByResourcePool,
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
@@ -76,24 +75,6 @@ const summaryColumns: ColumnDef<VmRightsizingGroupSummary, unknown>[] = [
   { accessorKey: "reclaimableVcpuPercent", header: "Rückgewinnbar %", cell: ({ getValue }) => { const value = getValue() as number | null; return <span className={value !== null && value > 0 ? "font-semibold text-warning" : "text-muted-foreground"}>{formatPercent(value)}</span>; } },
 ];
 
-const growthGroupColumns: ColumnDef<VmRightsizingGrowthGroupSummary, unknown>[] = [
-  { accessorKey: "resourcePool", header: "Ressourcenpool" },
-  { accessorKey: "vcpu", header: "Ist je VM", cell: ({ getValue }) => formatVcpu(getValue() as number) },
-  { id: "shape", header: "Lastmuster", accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape] },
-  { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
-  {
-    id: "target-range",
-    header: "Ziel je VM",
-    accessorFn: (row) => row.recommendedVcpuMin,
-    cell: ({ row }) => row.original.recommendedVcpuMin === row.original.recommendedVcpuMax
-      ? formatVcpu(row.original.recommendedVcpuMin)
-      : `${formatVcpu(row.original.recommendedVcpuMin)}–${formatVcpu(row.original.recommendedVcpuMax)}`,
-  },
-  { accessorKey: "totalAdditionalVcpu", header: "Zusätzlich", cell: ({ getValue }) => <span className="font-semibold text-destructive">{formatVcpu(getValue() as number)}</span> },
-  { accessorKey: "costopUnderLoadCount", header: "mit Co-Stop", cell: ({ getValue }) => formatNum(getValue() as number) },
-  { accessorKey: "singleCoreBoundCount", header: "mit Einzelkern", cell: ({ getValue }) => formatNum(getValue() as number) },
-];
-
 export function VmRightsizingPanel() {
   const { level: rightsizingLevel } = useCpuRightsizingLevel();
   const { imports, profiles, hosts, isLoading } = useVmWorkloadProfiles(null);
@@ -134,8 +115,6 @@ export function VmRightsizingPanel() {
   const clusterSummary = useMemo(() => summarizeReclaimableVcpuByCluster(candidates), [candidates]);
   const shapeSummary = useMemo(() => summarizeReclaimableVcpuByShape(candidates), [candidates]);
   const densityGrid = useMemo(() => buildRightsizingDensityGrid(candidates), [candidates]);
-  const growthGroups = useMemo(() => summarizeGrowthCandidatesByResourcePool(candidates), [candidates]);
-
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
@@ -242,15 +221,6 @@ export function VmRightsizingPanel() {
         </KpiGrid>
         <CpuRightsizingLevelControl />
         <SearchScopeNotice search={filters.search} fields="VM, Cluster, Systemverantwortliche:r und Abteilung" matched={candidates.length} total={allCandidates.length} />
-
-        {growthGroups.length > 0 ? <div>
-          <InfoTooltip entry={RIGHTSIZING_SECTIONS.growthGroups} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gemeinsam zu prüfende Vergrößerungen</h3></InfoTooltip>
-          <div className="mb-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-            <p><span className="font-semibold">Sammelaussage:</span> Gleichartige Grow-Kandidaten desselben Ressourcenpools gemeinsam bewerten. Einzelziele bleiben als Nachweis erhalten; ein gemeinsamer Rollout kann Co-Stop und Scheduling-Breite verstärken.</p>
-          </div>
-          <VirtualTable tableId="vms/rightsizing-growth-groups" columnPicker data={growthGroups} columns={growthGroupColumns} height={220} getRowId={(row) => row.key} emptyTitle="Keine gemeinsamen Grow-Gruppen" />
-        </div> : null}
 
         {densityGrid.vmCount > 0 && <div className="grid gap-6 xl:grid-cols-3">
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">

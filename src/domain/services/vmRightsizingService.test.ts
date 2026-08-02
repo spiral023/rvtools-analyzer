@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedHost, VmWorkloadProfile, VmWorkloadProfileMetricStats } from "@/domain/models/types";
 import { capacitySignalsFixture, classificationSignalsFixture, metricStatsFixture, vmWorkloadProfileFixture } from "@/test/fixtures/vmWorkload";
-import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeGrowthCandidatesByResourcePool, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
+import { buildVmRightsizingCandidates, filterRightsizingCandidatesBySearch, isNotableRightsizingCandidate, summarizeReclaimableVcpuByBehaviorClass, summarizeReclaimableVcpuByCluster } from "./vmRightsizingService";
 
 function metricStats(overrides: Partial<VmWorkloadProfileMetricStats>): VmWorkloadProfileMetricStats {
   return metricStatsFixture(overrides);
@@ -377,41 +377,6 @@ describe("summarizeReclaimableVcpuByCluster / summarizeReclaimableVcpuByBehavior
 
     const byBehavior = summarizeReclaimableVcpuByBehaviorClass(candidates);
     expect(byBehavior.map((entry) => entry.label)).toEqual(["Gering genutzt", "Dauerlast"]);
-  });
-});
-
-describe("summarizeGrowthCandidatesByResourcePool", () => {
-  it("bündelt gleichartige Grow-Kandidaten und zählt Konfliktsignale", () => {
-    const growProfile = (objectKey: string, costop: number, singleCoreBoundHours: number) => profile({
-      objectKey,
-      resourcePool: "Pool HIGH",
-      vcpu: 4,
-      shape: "business-hours",
-      demand: metricStats({ p95: 5_000 }),
-      capacitySignals: capacitySignalsFixture({
-        totalCapacityMHz: 4_000,
-        configuredVcpu: 4,
-        mhzPerVcpu: 1_000,
-        hoursAboveCapacity75: 30,
-        costopUnderLoadP95Pct: costop,
-        singleCoreBoundHours,
-      }),
-    });
-    const candidates = buildVmRightsizingCandidates({
-      profiles: [growProfile("vm-1", 8, 0), growProfile("vm-2", 0, 48)],
-      hosts,
-    });
-    expect(summarizeGrowthCandidatesByResourcePool(candidates)).toEqual([expect.objectContaining({
-      resourcePool: "Pool HIGH",
-      vcpu: 4,
-      shape: "business-hours",
-      vmCount: 2,
-      totalAdditionalVcpu: 8,
-      recommendedVcpuMin: 8,
-      recommendedVcpuMax: 8,
-      costopUnderLoadCount: 1,
-      singleCoreBoundCount: 1,
-    })]);
   });
 });
 
