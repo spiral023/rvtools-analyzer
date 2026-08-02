@@ -333,7 +333,7 @@ export default function TechInfo() {
         <EmptyState
           icon={<ClipboardList className="h-6 w-6" />}
           title="Keine Daten"
-          description="Laden Sie RVTools- und Tech-Info-Daten hoch."
+          description="Lade RVTools- und Tech-Info-Daten hoch."
           actionLabel="Zum Upload"
           actionTo="/upload"
         />

@@ -62,7 +62,7 @@ export function IpamPanel() {
       <EmptyState
         icon={<Network className="h-6 w-6" />}
         title="Keine IPAM-Daten"
-        description="Laden Sie eine IPAM-CSV (Infoblox-Export) auf der Upload-Seite hoch, um die IP-Adressverwaltung auszuwerten."
+        description="Lade eine IPAM-CSV (Infoblox-Export) auf der Upload-Seite hoch, um die IP-Adressverwaltung auszuwerten."
         actionLabel="Zum Upload"
         actionTo="/upload"
       />

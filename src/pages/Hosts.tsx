@@ -21,7 +21,7 @@ export default function Hosts() {
   if (snapshotsLoading || hostsLoading) return <PageLoadingState title="Hosts" />;
 
   if (snapshots.length === 0) {
-    return <div className="space-y-6 animate-fade-in"><PageHeader title="Hosts" /><EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>;
+    return <div className="space-y-6 animate-fade-in"><PageHeader title="Hosts" /><EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten" description="Lade RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>;
   }
 
   const connectedHosts = hosts.filter((host) => host.connectionState === "connected").length;

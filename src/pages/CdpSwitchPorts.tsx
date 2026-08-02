@@ -115,7 +115,7 @@ export function CdpPanel() {
         <EmptyState
           icon={<Cable className="h-6 w-6" />}
           title="Keine CDP-Daten"
-          description="Laden Sie eine CDP-CSV auf der Upload-Seite hoch, um die physische Switch-Anbindung auszuwerten."
+          description="Lade eine CDP-CSV auf der Upload-Seite hoch, um die physische Switch-Anbindung auszuwerten."
           actionLabel="Zum Upload"
           actionTo="/upload"
         >

@@ -88,7 +88,7 @@ export function FilterBar() {
 
   const openNewGroup = useCallback(() => {
     if (filters.vcenterIds.length === 0) {
-      toast.error("Wählen Sie mindestens ein vCenter aus.");
+      toast.error("Wähle mindestens ein vCenter aus.");
       return;
     }
     setEditingGroupId(null);
@@ -106,7 +106,7 @@ export function FilterBar() {
   const saveCurrentGroup = async () => {
     const name = groupName.trim();
     if (!name) {
-      toast.error("Bitte geben Sie einen Gruppennamen ein.");
+      toast.error("Bitte gib einen Gruppennamen ein.");
       return;
     }
     if (filters.vcenterIds.length === 0) {

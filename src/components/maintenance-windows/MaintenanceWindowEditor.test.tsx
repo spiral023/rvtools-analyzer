@@ -58,7 +58,7 @@ describe("MaintenanceWindowEditor", () => {
     const abbreviation = screen.getByLabelText("Abkürzung");
 
     fireEvent.change(abbreviation, { target: { value: "  " } });
-    expect(screen.getByText("Bitte geben Sie eine Abkürzung ein.")).toBeInTheDocument();
+    expect(screen.getByText("Bitte gib eine Abkürzung ein.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
 
     fireEvent.change(abbreviation, { target: { value: " other " } });
@@ -166,7 +166,7 @@ describe("MaintenanceWindowEditor", () => {
 
     fireEvent.click(screen.getByLabelText("Montag"));
     fireEvent.click(screen.getByRole("button", { name: "Zeitregel anwenden" }));
-    expect(screen.getByText("Wählen Sie mindestens einen Wochentag aus.")).toBeInTheDocument();
+    expect(screen.getByText("Wähle mindestens einen Wochentag aus.")).toBeInTheDocument();
   });
 
   it("macht immer verfügbar, ohne externe oder freigabepflichtige Import-Slots umzuschreiben", () => {

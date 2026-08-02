@@ -37,13 +37,13 @@ const NotFound = () => {
               <p className="text-xs font-semibold text-destructive">404 · ROUTE NICHT GEFUNDEN</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">Diese Seite gibt es nicht.</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground text-pretty">
-                Der angeforderte Pfad konnte nicht gefunden werden. Prüfen Sie die Adresse oder kehren Sie zur Übersicht zurück.
+                Der angeforderte Pfad konnte nicht gefunden werden. Prüfe die Adresse oder kehre zur Übersicht zurück.
               </p>
             </header>
 
             <div className="rounded-xl bg-muted/45 p-4 shadow-[inset_3px_0_0_hsl(var(--destructive))]">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Empfohlener nächster Schritt</p>
-              <p className="mt-1.5 text-sm leading-6">Kehren Sie zur Übersicht zurück oder starten Sie einen neuen Upload.</p>
+              <p className="mt-1.5 text-sm leading-6">Kehre zur Übersicht zurück oder starte einen neuen Upload.</p>
             </div>
 
             <details className="group rounded-xl border border-border/75 bg-card">

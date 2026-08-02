@@ -136,7 +136,7 @@ function MaintenanceWeekGridInteractive({
         <span><i className="maintenance-grid__legend-symbol maintenance-grid__legend-symbol--blocked" aria-hidden="true" /> Gesperrt</span>
       </div>
       <p className="sr-only" id={instructionsId}>
-        Jede Zelle steht für 30 Minuten. Mit den Pfeiltasten bewegen Sie sich durch die Woche; am Rand wird zur gegenüberliegenden Seite umgebrochen. Leertaste oder Enter übernimmt den aktuellen Malmodus.
+        Jede Zelle steht für 30 Minuten. Mit den Pfeiltasten bewegst du dich durch die Woche; am Rand wird zur gegenüberliegenden Seite umgebrochen. Leertaste oder Enter übernimmt den aktuellen Malmodus.
       </p>
       <div className="maintenance-grid__scroll">
         <div className="maintenance-grid" role="grid" aria-label="Wöchentlicher Zeitplan" aria-describedby={instructionsId}>

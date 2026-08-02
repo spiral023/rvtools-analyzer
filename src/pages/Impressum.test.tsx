@@ -28,7 +28,7 @@ describe("Impressum", () => {
       "/favicon-master.png",
     );
     expect(screen.getByRole("heading", { name: "RVTools Analyzer" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ihre Daten bleiben lokal" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Deine Daten bleiben lokal" })).toBeInTheDocument();
     expect(screen.getByText("Philipp Asanger")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "philipp.asanger@gmail.com" })).toHaveAttribute(
       "href",

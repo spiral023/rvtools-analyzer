@@ -62,7 +62,7 @@ export function EramonIfacePanel() {
       <EmptyState
         icon={<Network className="h-6 w-6" />}
         title="Keine Eramon-Switch-Port-Daten"
-        description="Laden Sie eine Eramon-Switch-Port-CSV (device_name/port_name/port_status) auf der Upload-Seite hoch."
+        description="Lade eine Eramon-Switch-Port-CSV (device_name/port_name/port_status) auf der Upload-Seite hoch."
         actionLabel="Zum Upload"
         actionTo="/upload"
       />

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import StorageBackup from "@/pages/StorageBackup";
 import type { NormalizedVm, SheetRow } from "@/domain/models/types";
@@ -64,7 +65,7 @@ vi.mock("@/components/ui/info-tooltip", () => ({ InfoTooltip: ({ children }: { c
 
 describe("StorageBackup KPI-Kacheln", () => {
   it("zeigt je Tab passende KPI-Kacheln unterhalb der Tab-Leiste", () => {
-    render(<StorageBackup />);
+    render(<MemoryRouter><StorageBackup /></MemoryRouter>);
 
     expect(within(screen.getByTestId("kpi-grid")).getAllByTestId("kpi-card").map((card) => card.textContent)).toEqual([
       "Kritisch (<10%)",
@@ -97,7 +98,7 @@ describe("StorageBackup KPI-Kacheln", () => {
   });
 
   it("zeigt Gast-Partitionen durchgehend in 5%-Intervallen von 0 bis 100 Prozent", () => {
-    render(<StorageBackup />);
+    render(<MemoryRouter><StorageBackup /></MemoryRouter>);
 
     expect(screen.getByTestId("partition-chart")).toHaveAttribute("data-layout", "horizontal");
 
@@ -108,5 +109,12 @@ describe("StorageBackup KPI-Kacheln", () => {
     })) {
       expect(screen.getByText(bucket)).toBeInTheDocument();
     }
+  });
+
+  it("öffnet einen Storage-Untertab aus der URL", () => {
+    render(<MemoryRouter initialEntries={["/storage-backup?tab=backup"]}><StorageBackup /></MemoryRouter>);
+
+    expect(screen.getByRole("tab", { name: "Backup & Recovery" })).toHaveAttribute("data-state", "active");
+    expect(screen.getByText("Kein Backup")).toBeInTheDocument();
   });
 });

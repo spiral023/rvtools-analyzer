@@ -136,7 +136,7 @@ export function ClusterPlanningPanel() {
               {cluster.vropsRamAssignedHighPctBefore !== null && <p className="text-xs text-muted-foreground">HIGH-RP RAM zugewiesen (Cluster): {coloredPct(cluster.vropsRamAssignedHighPctBefore, 45, 50, 0)} → {coloredPct(cluster.vropsRamAssignedHighPctAfter, 45, 50, 0)} · {siteFailoverBadge(cluster.siteFailoverRiskBefore)} → {siteFailoverBadge(cluster.siteFailoverRiskAfter)}</p>}
             </Card>)}</div></div>
             </div>}
-          </> : <Card className="p-8 text-center text-sm text-muted-foreground">Wählen Sie ein Szenario aus oder erstellen Sie ein neues, um zu beginnen.</Card>}
+          </> : <Card className="p-8 text-center text-sm text-muted-foreground">Wähle ein Szenario aus oder erstelle ein neues, um zu beginnen.</Card>}
           <div><InfoTooltip entry={PLANNING_SECTIONS.vmSelection} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">VM-Auswahl</h3></InfoTooltip><VirtualTable tableId="planning/vm-selection" columnPicker data={vms} columns={vmColumns} selectionEnabled getRowId={(vm) => vm.vmKey} selectedKeys={selectedVmKeys} onToggleRow={(vmKey, shiftKey, sortedKeys, index) => { if (shiftKey && anchorIndexRef.current >= 0) { const keys = getRangeKeys(sortedKeys, anchorIndexRef.current, index); if (keys.every((key) => selectedVmKeys.has(key))) deselectMany(keys); else selectMany(keys); } else { toggleVm(vmKey); anchorIndexRef.current = index; } }} onToggleAll={(selectAll) => { if (selectAll) selectMany(allVmKeys); else clear(); }} height={500} /></div>
         </div>
       </div>

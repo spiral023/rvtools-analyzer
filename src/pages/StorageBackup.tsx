@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useActiveSnapshotIds, useDatastores, useHosts, useRawSheet, useVmSnapshots, useVms } from "@/hooks/useActiveSnapshots";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -33,6 +34,12 @@ import {
   STORAGE_SECTIONS,
 } from "@/lib/glossaries/storageBackup";
 import type { ColumnDef } from "@tanstack/react-table";
+
+type StorageTab = "capacity" | "paths" | "backup";
+
+function isStorageTab(value: string | null): value is StorageTab {
+  return value === "capacity" || value === "paths" || value === "backup";
+}
 
 interface PartitionRow { snapshotId: string; vm: string; disk: string; capacityMiB: number; consumedMiB: number; freeMiB: number; freePct: number }
 interface MultipathRow { host: string; datastore: string; disk: string; policy: string; state: string; paths: number; activePaths: number; deadPaths: number }
@@ -151,11 +158,23 @@ const siocColumns: ColumnDef<SiocRow, unknown>[] = [
 ];
 
 export default function StorageBackup() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const activeTab: StorageTab = isStorageTab(queryTab) ? queryTab : "capacity";
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
+  const handleTabChange = (value: string) => {
+    if (!isStorageTab(value)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === "capacity") next.delete("tab");
+      else next.set("tab", value);
+      return next;
+    });
+  };
   const { data: rawPartitions = [], isLoading: rawPartitionsLoading } = useRawSheet("vPartition");
   const { data: rawMultiPath = [], isLoading: rawMultiPathLoading } = useRawSheet("vMultiPath");
   const { data: rawDisks = [], isLoading: rawDisksLoading } = useRawSheet("vDisk");
@@ -315,7 +334,7 @@ export default function StorageBackup() {
   if (dataLoading) return <PageLoadingState title="Storage / Backup" />;
 
   if (snapshots.length === 0) {
-    return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Storage / Backup</h1><EmptyState icon={<Database className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
+    return (<div className="space-y-6 animate-fade-in"><h1 className="text-2xl font-bold">Storage / Backup</h1><EmptyState icon={<Database className="h-6 w-6" />} title="Keine Daten" description="Lade RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
   return (
@@ -324,7 +343,7 @@ export default function StorageBackup() {
       </PageHeader>
       <GlobalFilterScopeHint text="Datastores und Multipath bleiben unverändert; VM-bezogene Disks, Partitionen, Backups und Snapshot-Korrelationen folgen dem globalen Filter." />
 
-      <Tabs defaultValue="capacity" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="capacity">Kapazität</TabsTrigger>
           <TabsTrigger value="paths">Pfade &amp; Geräte</TabsTrigger>

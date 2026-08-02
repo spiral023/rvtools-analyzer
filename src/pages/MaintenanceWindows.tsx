@@ -265,7 +265,7 @@ export default function MaintenanceWindows() {
             onDelete={(definition) => { void handleDelete(definition); }}
             onDuplicate={(definition) => { void handleDuplicate(definition); }}
             onDirtyChange={setDirty}
-          /> : <Card className="min-h-[18rem] border-dashed shadow-none"><CardHeader><CardTitle className="text-base">Definition auswählen</CardTitle><CardDescription>Wählen Sie ein Wartungsfenster im Katalog oder legen Sie ein neues an.</CardDescription></CardHeader></Card>}
+          /> : <Card className="min-h-[18rem] border-dashed shadow-none"><CardHeader><CardTitle className="text-base">Definition auswählen</CardTitle><CardDescription>Wähle ein Wartungsfenster im Katalog oder lege ein neues an.</CardDescription></CardHeader></Card>}
         </section>
       </div>
 
@@ -276,7 +276,7 @@ export default function MaintenanceWindows() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ungespeicherte Änderungen</DialogTitle>
-            <DialogDescription>Ihre Änderungen am Wartungsfenster wurden noch nicht gespeichert. Möchten Sie die Navigation wirklich fortsetzen?</DialogDescription>
+            <DialogDescription>Deine Änderungen am Wartungsfenster wurden noch nicht gespeichert. Möchtest du die Navigation wirklich fortsetzen?</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => blocker.reset?.()}>Bleiben</Button>

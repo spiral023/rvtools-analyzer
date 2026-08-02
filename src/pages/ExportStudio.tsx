@@ -259,7 +259,7 @@ export default function ExportStudio() {
 
   const saveTemplate = async () => {
     const name = templateName.trim();
-    if (!name) { toast.error("Bitte vergeben Sie einen Namen für die Vorlage."); return; }
+    if (!name) { toast.error("Bitte vergib einen Namen für die Vorlage."); return; }
     if (!columnIds.length) { toast.error("Eine Vorlage benötigt mindestens eine Spalte."); return; }
     const now = new Date().toISOString();
     const existing = templates.find((template) => template.name.localeCompare(name, "de-DE", { sensitivity: "base" }) === 0);
@@ -279,7 +279,7 @@ export default function ExportStudio() {
   };
 
   const executeExport = async (format: "xlsx" | "csv" | "markdown") => {
-    if (!columnIds.length) { toast.error("Fügen Sie mindestens eine Spalte hinzu."); return; }
+    if (!columnIds.length) { toast.error("Füge mindestens eine Spalte hinzu."); return; }
     const name = normalizeExportFilename(fileName || `rvtools-${source}`);
     try {
       if (format === "xlsx") await exportExcelTable(exportData, name);
@@ -293,11 +293,11 @@ export default function ExportStudio() {
 
   const loading = snapshotsLoading || vmsLoading || hostsQuery.isLoading || clustersQuery.isLoading || datastoresQuery.isLoading || rawVHostLoading || runsLoading || workloadProfilesLoading || techInfoLoading;
   if (loading) return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Exportdaten werden vorbereitet…</div>;
-  if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Laden Sie zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
+  if (!snapshots.length) return <EmptyState icon={<Table2 className="h-6 w-6" />} title="Keine Daten für den Export" description="Lade zuerst mindestens einen RVTools-Snapshot hoch." actionLabel="Zum Upload" actionTo="/upload" />;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Export & Berichte" subtitle="Stellen Sie einen lokalen Export aus dem aktuell gefilterten Datenbestand zusammen." meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
+      <PageHeader title="Export & Berichte" subtitle="Stelle einen lokalen Export aus dem aktuell gefilterten Datenbestand zusammen." meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
 
       <KpiGrid>
         <KpiCard title="Datensätze im Scope" value={dataset.rows.length.toLocaleString("de-DE")} subtitle={sourceLabels[source]} icon={<Table2 className="h-4 w-4" />} />
@@ -348,7 +348,7 @@ export default function ExportStudio() {
             </div>
             <div className="rounded-md border border-border/70 bg-muted/15 p-3">
               <div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Exportspalten</p><span className="text-xs text-muted-foreground">per Drag & Drop sortieren</span></div>
-              {!selectedColumns.length ? <p className="rounded border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">Fügen Sie links die gewünschten Spalten hinzu.</p> : <div className="max-h-80 space-y-1 overflow-y-auto pr-1">{selectedColumns.map((column) => <div key={column.id} draggable onDragStart={() => { draggedColumnId.current = column.id; }} onDragOver={(event: DragEvent) => event.preventDefault()} onDrop={() => reorderColumn(column.id)} onDragEnd={() => { draggedColumnId.current = null; }} className="flex items-center gap-2 rounded border border-border/70 bg-background px-2 py-1.5 text-sm"><GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" /><span className="flex-1">{column.label}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeColumn(column.id)} aria-label={`${column.label} entfernen`}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}
+              {!selectedColumns.length ? <p className="rounded border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">Füge links die gewünschten Spalten hinzu.</p> : <div className="max-h-80 space-y-1 overflow-y-auto pr-1">{selectedColumns.map((column) => <div key={column.id} draggable onDragStart={() => { draggedColumnId.current = column.id; }} onDragOver={(event: DragEvent) => event.preventDefault()} onDrop={() => reorderColumn(column.id)} onDragEnd={() => { draggedColumnId.current = null; }} className="flex items-center gap-2 rounded border border-border/70 bg-background px-2 py-1.5 text-sm"><GripVertical className="h-4 w-4 cursor-grab text-muted-foreground" /><span className="flex-1">{column.label}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeColumn(column.id)} aria-label={`${column.label} entfernen`}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}
             </div>
           </div>
         </section>
@@ -402,7 +402,7 @@ export default function ExportStudio() {
         </DialogContent>
       </Dialog>
 
-      <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wählen Sie Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
+      <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wähle Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
     </div>
   );
 }

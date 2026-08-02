@@ -23,7 +23,7 @@ describe("EmptyState", () => {
     const view = renderWithRouter(
       <EmptyState
         title="Keine Daten"
-        description="Importieren Sie zuerst Daten."
+        description="Importiere zuerst Daten."
         actionLabel="Daten importieren"
         actionTo="/upload"
       />,

@@ -265,7 +265,7 @@ export function NetworkAuditHelp() {
           Wie die Netzwerk-Kontrolle arbeitet
         </h2>
         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Die Kontrolle vergleicht, was Ihre Switches, ESXi-Hosts und Verwaltungssysteme jeweils über
+          Die Kontrolle vergleicht, was deine Switches, ESXi-Hosts und Verwaltungssysteme jeweils über
           dieselbe physische Verbindung berichten. Stimmen die Angaben überein, gilt der Punkt als
           bestätigt. Weichen sie ab oder fehlt eine Angabe ganz, entsteht ein Befund – etwas, das
           jemand sich ansieht, kein automatisch behobener Fehler. Die Ansicht selbst ist rein lesend;

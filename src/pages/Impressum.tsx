@@ -31,7 +31,7 @@ const privacyFacts = [
     icon: ShieldCheck,
     title: "Kein eigenes Daten-Backend",
     description:
-      "Die Anwendung überträgt importierte RVTools-Inhalte nicht an ein eigenes Backend. Sie können die Daten jederzeit in der App oder über die Website-Einstellungen des Browsers löschen.",
+      "Die Anwendung überträgt importierte RVTools-Inhalte nicht an ein eigenes Backend. Du kannst die Daten jederzeit in der App oder über die Website-Einstellungen des Browsers löschen.",
   },
 ];
 
@@ -76,11 +76,11 @@ export default function Impressum() {
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Datenschutz durch Architektur</p>
           <h2 id="local-data-heading" className="mt-2 text-balance text-2xl font-semibold tracking-tight">
-            Ihre Daten bleiben lokal
+            Deine Daten bleiben lokal
           </h2>
           <p className="mt-2 text-pretty leading-7 text-muted-foreground">
-            Die Anwendung ist bewusst ohne Server-Persistenz aufgebaut. Ihre Analysedaten verbleiben im
-            Speicher Ihres Browsers.
+            Die Anwendung ist bewusst ohne Server-Persistenz aufgebaut. Deine Analysedaten verbleiben im
+            Speicher deines Browsers.
           </p>
         </div>
 

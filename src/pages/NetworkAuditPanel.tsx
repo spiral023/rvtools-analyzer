@@ -314,7 +314,7 @@ export function NetworkAuditPanel() {
         <AlertTriangle aria-hidden="true" className="h-4 w-4" />
         <AlertTitle>Netzwerkdaten konnten nicht geladen werden</AlertTitle>
         <AlertDescription className="space-y-3">
-          <p>Versuchen Sie es erneut. Ihre importierten Daten bleiben erhalten.</p>
+          <p>Versuche es erneut. Deine importierten Daten bleiben erhalten.</p>
           <Button
             type="button"
             variant="destructive"

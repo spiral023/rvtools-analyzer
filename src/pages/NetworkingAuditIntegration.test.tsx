@@ -128,7 +128,7 @@ describe("NetworkAuditPanel integration", () => {
       screen.getByRole("tablist", { name: "Bereich der Netzwerk-Kontrolle" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Netzwerk-Kontrolle" })).toBeInTheDocument();
-    expect(screen.queryByText("Prüfen Sie Datenqualität, physische Zuordnungen und unbekannte Geräte.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Prüfe Datenqualität, physische Zuordnungen und unbekannte Geräte.")).not.toBeInTheDocument();
     expect(screen.getByText("Kritisch")).toBeInTheDocument();
     expect(screen.getByText("Prüfen")).toBeInTheDocument();
     expect(screen.getAllByText("Bestanden").length).toBeGreaterThanOrEqual(1);

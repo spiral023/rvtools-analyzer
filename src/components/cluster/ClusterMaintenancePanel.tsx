@@ -335,7 +335,7 @@ export function AssignmentPanel({
           <CardTitle className="text-base">Cluster-Zuweisungen</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Wählen Sie eine Tabellenzeile für Details oder mehrere Cluster für Bulk-Bearbeitung.
+          Wähle eine Tabellenzeile für Details oder mehrere Cluster für Bulk-Bearbeitung.
         </CardContent>
       </Card>
     );
@@ -1019,7 +1019,7 @@ export function ClusterMaintenancePanel() {
         <Alert variant="destructive">
           <AlertTitle>Auswahl enthält Cluster ohne Empfänger</AlertTitle>
           <AlertDescription>
-            Prüfen Sie die Zuweisungen (Verantwortliche oder zusätzliche Mail-Adresse) vor dem Erstellen der Mailvorlage.
+            Prüfe die Zuweisungen (Verantwortliche oder zusätzliche Mail-Adresse) vor dem Erstellen der Mailvorlage.
           </AlertDescription>
         </Alert>
       )}

@@ -21,7 +21,7 @@ function HealthTooltipContent({ healthIssues, healthBreakdown }: Pick<VCenterSum
           ))}
         </ul>
       )}
-      <p className="mt-1 text-muted-foreground">Details zu den einzelnen Meldungen finden Sie in der vCenter-Detailansicht.</p>
+      <p className="mt-1 text-muted-foreground">Details zu den einzelnen Meldungen findest du in der vCenter-Detailansicht.</p>
     </div>
   );
 }

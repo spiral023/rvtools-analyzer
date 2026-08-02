@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, Cpu, Layers, Monitor, MemoryStick, Power } from "lucide-react";
 import { AverageVmPanel } from "@/components/dashboard/AverageVmPanel";
 import { VmLoadDistributionTab } from "@/components/dashboard/insights/VmLoadDistributionTab";
@@ -21,7 +22,22 @@ import { VmRightsizingPanel } from "@/components/vm/VmRightsizingPanel";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
+type VmTab = "inventory" | "load-distribution" | "operations" | "performance" | "compliance" | "vm-profiles" | "rightsizing";
+
+function isVmTab(value: string | null): value is VmTab {
+  return value === "inventory"
+    || value === "load-distribution"
+    || value === "operations"
+    || value === "performance"
+    || value === "compliance"
+    || value === "vm-profiles"
+    || value === "rightsizing";
+}
+
 export default function Vms() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const activeTab: VmTab = isVmTab(queryTab) ? queryTab : "inventory";
   const { snapshots, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vmsWithTechInfo, isLoading: vmsLoading } = useVmsWithTechInfo();
 
@@ -33,11 +49,20 @@ export default function Vms() {
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(vms);
   // Dieselbe Auswertung wie in der Overview – auf denselben gefilterten Bestand angewandt.
   const averageVm = useAverageVm(vmsWithTechInfo);
+  const handleTabChange = (value: string) => {
+    if (!isVmTab(value)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === "inventory") next.delete("tab");
+      else next.set("tab", value);
+      return next;
+    });
+  };
 
   if (snapshotsLoading || vmsLoading) return <PageLoadingState title="VMs" />;
 
   if (snapshots.length === 0) {
-    return <div className="space-y-6 animate-fade-in"><PageHeader title="VMs" /><EmptyState icon={<Monitor className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>;
+    return <div className="space-y-6 animate-fade-in"><PageHeader title="VMs" /><EmptyState icon={<Monitor className="h-6 w-6" />} title="Keine Daten" description="Lade RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>;
   }
 
   const poweredOn = vms.filter((vm) => vm.powerState === "poweredOn").length;
@@ -50,7 +75,7 @@ export default function Vms() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="VMs" />
       <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung. VM-Profile und Rightsizing basieren zusätzlich auf einem ausgewählten vROps-Zeitreihenimport." />
-      <Tabs defaultValue="inventory" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="inventory">Inventar</TabsTrigger>
           <TabsTrigger value="load-distribution">Lastverteilung</TabsTrigger>

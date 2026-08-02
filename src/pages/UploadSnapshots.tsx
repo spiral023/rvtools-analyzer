@@ -405,7 +405,7 @@ function useUploadSnapshotsView() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Alle Systemdaten löschen?</DialogTitle>
-                <DialogDescription>Dies löscht alle importierten Snapshots und Analysedaten (RVTools, Tech-Info, Netzwerk, vROps etc.) unwiderruflich aus Ihrem Browser. Daten, die im Backup-Export enthalten sind (Wartungseinstellungen, Szenarien, vCenter-Gruppen), bleiben erhalten.</DialogDescription>
+                <DialogDescription>Dies löscht alle importierten Snapshots und Analysedaten (RVTools, Tech-Info, Netzwerk, vROps etc.) unwiderruflich aus deinem Browser. Daten, die im Backup-Export enthalten sind (Wartungseinstellungen, Szenarien, vCenter-Gruppen), bleiben erhalten.</DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <Button variant="outline" onClick={() => dispatch({ type: "set-delete-system-open", value: false })}>Abbrechen</Button>

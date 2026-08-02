@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ClusterPlanningPanel } from "@/components/cluster/ClusterPlanningPanel";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -6,13 +6,30 @@ import { FillUpPlanningPanel } from "@/components/planning/fill-up/FillUpPlannin
 import { PolicyManagementPanel } from "@/components/planning/policies/PolicyManagementPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+type PlanningTab = "what-if" | "fill-up" | "policies";
+
+function isPlanningTab(value: string | null): value is PlanningTab {
+  return value === "what-if" || value === "fill-up" || value === "policies";
+}
+
 export default function Planning() {
-  const [tab, setTab] = useState("what-if");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const activeTab: PlanningTab = isPlanningTab(queryTab) ? queryTab : "what-if";
+  const handleTabChange = (value: string) => {
+    if (!isPlanningTab(value)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === "what-if") next.delete("tab");
+      else next.set("tab", value);
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Planung" />
-      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList aria-label="Planungsbereich">
           <TabsTrigger value="what-if">What-if</TabsTrigger>
           <TabsTrigger value="fill-up">Fill up</TabsTrigger>

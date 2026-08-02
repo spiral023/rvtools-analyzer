@@ -27,7 +27,7 @@ export function ScenarioList({
       </div>
       {scenarios.length === 0 ? (
         <Card className="p-4 text-center text-sm text-muted-foreground">
-          Noch keine Szenarien vorhanden. Klicken Sie auf „Neu", um ein Szenario zu erstellen.
+          Noch keine Szenarien vorhanden. Klicke auf „Neu", um ein Szenario zu erstellen.
         </Card>
       ) : (
         <div className="space-y-1.5">

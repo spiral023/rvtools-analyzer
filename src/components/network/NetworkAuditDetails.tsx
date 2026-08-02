@@ -305,12 +305,12 @@ export function PortAuditDetail({
             ? "Keine offenen Port-Befunde"
             : "Keine Einträge in diesem Ergebnisfilter"}
         emptyDescription={search
-          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          ? "Entferne den Suchbegriff oder ändere den Ergebnisfilter."
           : scope === "attention" && visibleRows.length === 0
             ? rows.length === 1
               ? "1 auswertbarer Port wurde ohne offenen Befund bestätigt."
               : `${rows.length.toLocaleString("de-DE")} auswertbare Ports wurden ohne offenen Befund bestätigt.`
-            : "Wählen Sie einen anderen Ergebnisfilter."}
+            : "Wähle einen anderen Ergebnisfilter."}
       />
     </AuditDetailView>
   );
@@ -458,10 +458,10 @@ export function HostDataAuditDetail({
               ? "Keine passenden Einträge"
               : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
             emptyDescription={search
-              ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+              ? "Entferne den Suchbegriff oder ändere den Ergebnisfilter."
               : scope === "attention"
                 ? "In dieser Perspektive wurden keine Datenlücken erkannt."
-                : "Ändern Sie Filter oder Suchbegriff."}
+                : "Ändere Filter oder Suchbegriff."}
           />
         ) : (
           <VirtualTable
@@ -476,10 +476,10 @@ export function HostDataAuditDetail({
               ? "Keine passenden Einträge"
               : scope === "attention" ? "Keine offenen Datenlücken" : "Keine passenden Einträge"}
             emptyDescription={search
-              ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+              ? "Entferne den Suchbegriff oder ändere den Ergebnisfilter."
               : scope === "attention"
                 ? "In dieser Perspektive wurden keine Datenlücken erkannt."
-                : "Ändern Sie Filter oder Suchbegriff."}
+                : "Ändere Filter oder Suchbegriff."}
           />
         )}
       </div>
@@ -535,10 +535,10 @@ export function MacAuditDetail({
           ? "Keine passenden Einträge"
           : scope === "attention" ? "Keine offenen MAC-Befunde" : "Keine passenden Einträge"}
         emptyDescription={search
-          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          ? "Entferne den Suchbegriff oder ändere den Ergebnisfilter."
           : scope === "attention"
             ? "Alle auswertbaren ESXi-Adapter wurden ohne Abweichung gefunden."
-            : "Ändern Sie Filter oder Suchbegriff."}
+            : "Ändere Filter oder Suchbegriff."}
       />
     </AuditDetailView>
   );
@@ -592,10 +592,10 @@ export function NetworkDiscoveryDetail({
           ? "Keine passenden Einträge"
           : scope === "attention" ? "Keine unbekannten Geräte" : "Keine passenden Einträge"}
         emptyDescription={search
-          ? "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."
+          ? "Entferne den Suchbegriff oder ändere den Ergebnisfilter."
           : scope === "attention"
             ? "Alle auswertbaren L2-MACs konnten klassifiziert werden."
-            : "Ändern Sie Filter oder Suchbegriff."}
+            : "Ändere Filter oder Suchbegriff."}
       />
     </AuditDetailView>
   );

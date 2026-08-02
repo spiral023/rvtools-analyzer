@@ -26,7 +26,7 @@ function RvtoolsEmptyState() {
     <EmptyState
       icon={<Network aria-hidden="true" className="h-6 w-6" />}
       title="Keine RVTools-Daten"
-      description="Laden Sie RVTools-Daten hoch."
+      description="Lade RVTools-Daten hoch."
       actionLabel="Zum Upload"
       actionTo="/upload"
     />

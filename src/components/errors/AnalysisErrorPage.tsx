@@ -104,7 +104,7 @@ export function AnalysisErrorPage({ error }: { error: unknown }) {
             </div>
             <p aria-live="polite" className="text-right text-[11px] text-muted-foreground">
               {copyState === "failed"
-                ? "Kopieren war nicht möglich. Öffnen Sie die technischen Details und kopieren Sie den Text manuell."
+                ? "Kopieren war nicht möglich. Öffne die technischen Details und kopiere den Text manuell."
                 : "Der Bericht enthält Laufzeit- und Browserdaten, aber keine importierten Tabellen oder Zeitreihen."}
             </p>
           </div>

@@ -100,7 +100,7 @@ export default function Overview() {
     return (
       <div className="space-y-6 animate-fade-in">
         <h1 className="text-2xl font-bold">Overview</h1>
-        <EmptyState icon={<Monitor className="h-6 w-6" />} title="Keine Daten vorhanden" description="Laden Sie einen RVTools XLSX-Export hoch, um Ihre VMware-Infrastruktur zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />
+        <EmptyState icon={<Monitor className="h-6 w-6" />} title="Keine Daten vorhanden" description="Lade einen RVTools XLSX-Export hoch, um deine VMware-Infrastruktur zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />
       </div>
     );
   }

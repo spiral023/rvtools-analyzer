@@ -492,7 +492,7 @@ describe("Network audit orchestrator", () => {
     renderAudit("/network-security?tab=audit");
 
     expect(screen.getByText("Netzwerkdaten konnten nicht geladen werden")).toBeInTheDocument();
-    expect(screen.getByText("Versuchen Sie es erneut. Ihre importierten Daten bleiben erhalten.")).toBeInTheDocument();
+    expect(screen.getByText("Versuche es erneut. Deine importierten Daten bleiben erhalten.")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Datenbasis" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
@@ -735,7 +735,7 @@ describe("Network audit details", () => {
       name: "Ports nach globaler Suche",
       tableId: "table-network-audit",
       title: "Keine passenden Einträge",
-      description: "Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter.",
+      description: "Entferne den Suchbegriff oder ändere den Ergebnisfilter.",
       node: () => (
         <PortAuditDetail
           rows={portRows}
@@ -870,7 +870,7 @@ describe("Network audit details", () => {
     });
     expect(screen.getByText("Keine passenden Einträge")).toBeInTheDocument();
     expect(
-      screen.getByText("Entfernen Sie den Suchbegriff oder ändern Sie den Ergebnisfilter."),
+      screen.getByText("Entferne den Suchbegriff oder ändere den Ergebnisfilter."),
     ).toBeInTheDocument();
     expect(screen.queryByText(successText)).not.toBeInTheDocument();
   });

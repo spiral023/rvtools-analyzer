@@ -79,4 +79,27 @@ describe("VMs", () => {
     expect(screen.getByRole("tab", { name: "VM-Profile" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Rightsizing" })).toBeInTheDocument();
   });
+
+  it("öffnet einen VM-Untertab aus der URL", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/vms?tab=performance"]}>
+          <TooltipProvider>
+            <Vms />
+          </TooltipProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("tab", { name: "Performance" })).toHaveAttribute("data-state", "active");
+    expect(screen.getByText("CPU Ready Details")).toBeInTheDocument();
+  });
 });

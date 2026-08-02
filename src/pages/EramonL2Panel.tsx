@@ -44,7 +44,7 @@ export function EramonL2Panel() {
       <EmptyState
         icon={<Network className="h-6 w-6" />}
         title="Keine Eramon-MAC-Tabellen-Daten"
-        description="Laden Sie eine Eramon-L2-CSV (name/interface/mac/vlan) auf der Upload-Seite hoch."
+        description="Lade eine Eramon-L2-CSV (name/interface/mac/vlan) auf der Upload-Seite hoch."
         actionLabel="Zum Upload"
         actionTo="/upload"
       />

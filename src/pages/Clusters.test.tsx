@@ -251,14 +251,14 @@ function renderClusters(initialEntry = "/clusters", includeLocation = false) {
   );
 }
 
-function renderToolPage(page: ReactNode) {
+function renderToolPage(page: ReactNode, initialEntry = "/") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <FilterProvider>
           <SelectionProvider>
-            <MemoryRouter>{page}</MemoryRouter>
+            <MemoryRouter initialEntries={[initialEntry]}>{page}</MemoryRouter>
           </SelectionProvider>
         </FilterProvider>
       </TooltipProvider>
@@ -425,6 +425,12 @@ describe("Clusters", () => {
     expect(await screen.findByText("Eigene Policies")).toBeInTheDocument();
     expect(screen.getByText("Explizit zugewiesen")).toBeInTheDocument();
     expect(screen.getByText("Cluster mit Overrides")).toBeInTheDocument();
+  });
+
+  it("öffnet einen Planungs-Untertab aus der URL", async () => {
+    renderToolPage(<Planning />, "/planning?tab=policies");
+
+    expect(screen.getByRole("tab", { name: "Policies" })).toHaveAttribute("data-state", "active");
   });
 
   it("entfernt den Infrastruktur-Tab samt CPU- und Treiberinventar", async () => {

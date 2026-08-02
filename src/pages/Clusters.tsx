@@ -118,7 +118,7 @@ export default function Clusters() {
   const dataLoading = snapshotsLoading || clustersLoading || hostsLoading || datastoresLoading || vmsLoading || rawVHostLoading || rawResourcePoolsLoading;
   if (dataLoading) return <PageLoadingState title="Cluster" />;
   if (snapshots.length === 0) {
-    return <EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten vorhanden" description="Laden Sie einen RVTools XLSX-Export hoch, um Ihre Cluster zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />;
+    return <EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten vorhanden" description="Lade einen RVTools XLSX-Export hoch, um deine Cluster zu analysieren." actionLabel="Zum Upload" actionTo="/upload" />;
   }
 
   return (

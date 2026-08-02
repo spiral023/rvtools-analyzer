@@ -187,7 +187,7 @@ export function GlobalFilterControl() {
         <DialogHeader className="border-b border-border px-6 py-5">
           <DialogTitle>Globaler Systemfilter</DialogTitle>
           <DialogDescription>
-            Filtern Sie Systeme über mehrere Quellen mit AND/OR-Gruppen. Gruppen auf Disk/Partition/Tools gelten immer auf derselben Zeile.
+            Filtere Systeme über mehrere Quellen mit AND/OR-Gruppen. Gruppen auf Disk/Partition/Tools gelten immer auf derselben Zeile.
           </DialogDescription>
         </DialogHeader>
 
@@ -367,10 +367,10 @@ function FilterGroupEditor({
       {group.children.length === 0 && (
         <div className="rounded-lg border border-dashed border-border/60 px-4 py-5 text-sm text-muted-foreground">
           {isRoot
-            ? "Fügen Sie eine Quelle hinzu, um zu beginnen."
+            ? "Füge eine Quelle hinzu, um zu beginnen."
             : sourceFields.length === 0
               ? "Für diese Quelle sind in den aktiven Snapshots derzeit keine Felder verfügbar."
-              : "Fügen Sie eine Bedingung hinzu."}
+              : "Füge eine Bedingung hinzu."}
         </div>
       )}
 

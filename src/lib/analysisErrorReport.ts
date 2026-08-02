@@ -110,38 +110,38 @@ function classifyError(error: unknown, message: string) {
       category: "Navigation",
       title: "Analyseansicht nicht gefunden",
       summary: "Die aufgerufene Adresse gehört zu keiner verfügbaren Analyseansicht.",
-      nextStep: "Prüfen Sie die Adresse oder wechseln Sie zurück zur Übersicht.",
+      nextStep: "Prüfe die Adresse oder wechsle zurück zur Übersicht.",
     };
     return {
       category: "Navigation",
       title: "Analyseansicht konnte nicht geöffnet werden",
       summary: `Der Router hat die Ansicht mit Status ${error.status} abgebrochen.`,
-      nextStep: "Laden Sie die Ansicht erneut. Bleibt der Fehler bestehen, kopieren Sie die Analysedetails.",
+      nextStep: "Lade die Ansicht erneut. Bleibt der Fehler bestehen, kopiere die Analysedetails.",
     };
   }
   if (LAZY_IMPORT_PATTERN.test(message)) return {
     category: "Anwendungsupdate",
     title: "Neue Anwendungsversion wird geladen",
     summary: "Ein veralteter Browser-Cache verweist auf eine nicht mehr vorhandene Programmdatei.",
-    nextStep: "Die Anwendung aktualisiert Cache und Service Worker automatisch. Falls die Seite stehen bleibt, laden Sie sie neu.",
+    nextStep: "Die Anwendung aktualisiert Cache und Service Worker automatisch. Falls die Seite stehen bleibt, lade sie neu.",
   };
   if (CHART_AXIS_PATTERN.test(message)) return {
     category: "Diagrammdarstellung",
     title: "Diagramm konnte nicht aufgebaut werden",
     summary: "Eine Messreihe konnte keiner gültigen Diagrammachse zugeordnet werden. Die importierten Analysedaten bleiben unverändert.",
-    nextStep: "Kopieren Sie die Analysedetails. Wechseln Sie danach zurück zur Übersicht und öffnen Sie die Ansicht erneut.",
+    nextStep: "Kopiere die Analysedetails. Wechsle danach zurück zur Übersicht und öffne die Ansicht erneut.",
   };
   if (STORAGE_PATTERN.test(message)) return {
     category: "Lokaler Datenspeicher",
     title: "Analysedaten konnten nicht gelesen werden",
     summary: "Der Browser konnte eine lokale Abfrage auf die importierten Daten nicht abschließen.",
-    nextStep: "Laden Sie die Seite neu. Löschen Sie keine Browserdaten, bevor die Analysedetails geprüft wurden.",
+    nextStep: "Lade die Seite neu. Lösche keine Browserdaten, bevor du die Analysedetails geprüft hast.",
   };
   return {
     category: "Datenverarbeitung",
     title: "Analyseansicht wurde abgebrochen",
     summary: "Beim Aufbereiten oder Darstellen der lokalen Analysedaten ist ein Laufzeitfehler aufgetreten. Die Quelldaten wurden nicht verändert.",
-    nextStep: "Kopieren Sie die Analysedetails und laden Sie die Ansicht anschließend neu.",
+    nextStep: "Kopiere die Analysedetails und lade die Ansicht anschließend neu.",
   };
 }
 

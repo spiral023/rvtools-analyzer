@@ -46,7 +46,7 @@ function HealthTooltipContent({ healthIssues, healthBreakdown }: Pick<VCenterSum
           ))}
         </ul>
       )}
-      <p className="mt-1 text-muted-foreground">Details zu den einzelnen Meldungen finden Sie in der vCenter-Detailansicht.</p>
+      <p className="mt-1 text-muted-foreground">Details zu den einzelnen Meldungen findest du in der vCenter-Detailansicht.</p>
     </div>
   );
 }
@@ -247,7 +247,7 @@ export default function FleetCompare() {
   if (dataLoading) return <PageLoadingState title="vCenter" />;
 
   if (snapshots.length === 0) {
-    return (<div className="space-y-6 animate-fade-in"><PageHeader title="vCenter" /><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Laden Sie RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
+    return (<div className="space-y-6 animate-fade-in"><PageHeader title="vCenter" /><EmptyState icon={<GitCompare className="h-6 w-6" />} title="Keine Daten" description="Lade RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>);
   }
 
   if (allLatestSnapshots.length < 2) {
@@ -255,7 +255,7 @@ export default function FleetCompare() {
       <div className="space-y-6 animate-fade-in">
         <PageHeader title="vCenter" />
         {kpis}
-        <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Laden Sie Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
+        <EmptyState icon={<GitCompare className="h-6 w-6" />} title="Nur 1 vCenter vorhanden" description="Lade Exporte weiterer vCenter hoch, um Umgebungen direkt zu vergleichen." />
         {summaries.length === 1 && (<div><InfoTooltip entry={FLEET_SECTIONS.singleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Aktueller vCenter</h3></InfoTooltip><VirtualTable tableId="fleet/current-vcenter" columnPicker data={summaries} columns={fleetColumns} onRowClick={(row) => setSelectedVcenterId(row.vcenterId)} /></div>)}
         <VCenterVersionsTable />
         <LicenseDetailsTable licenses={licenses} />

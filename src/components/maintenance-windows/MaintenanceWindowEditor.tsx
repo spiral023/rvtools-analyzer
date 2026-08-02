@@ -142,7 +142,7 @@ export function MaintenanceWindowEditor({
 
   const abbreviationError = useMemo(() => {
     const normalized = normalizeMaintenanceAbbreviation(draft.abbreviation);
-    if (!normalized) return "Bitte geben Sie eine Abkürzung ein.";
+    if (!normalized) return "Bitte gib eine Abkürzung ein.";
     const ownOriginal = normalizeMaintenanceAbbreviation(value.abbreviation);
     const duplicate = existingAbbreviations.some((abbreviation) => {
       const existing = normalizeMaintenanceAbbreviation(abbreviation);
@@ -201,11 +201,11 @@ export function MaintenanceWindowEditor({
 
   const applyRule = () => {
     if (selectedDays.length === 0) {
-      setTimeRuleError("Wählen Sie mindestens einen Wochentag aus.");
+      setTimeRuleError("Wähle mindestens einen Wochentag aus.");
       return;
     }
     if (!isTimeValue(startTime) || !isTimeValue(endTime)) {
-      setTimeRuleError("Geben Sie gültige Zeiten im 30-Minuten-Raster ein.");
+      setTimeRuleError("Gib gültige Zeiten im 30-Minuten-Raster ein.");
       return;
     }
     try {
@@ -257,7 +257,7 @@ export function MaintenanceWindowEditor({
         onDirtyChangeRef.current?.(false);
       }
     } catch (error) {
-      setSaveError(error instanceof Error ? `Speichern fehlgeschlagen: ${error.message}` : "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.");
+      setSaveError(error instanceof Error ? `Speichern fehlgeschlagen: ${error.message}` : "Speichern fehlgeschlagen. Bitte versuche es erneut.");
     } finally {
       setIsSubmitting(false);
     }

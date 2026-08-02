@@ -167,7 +167,7 @@ describe("NetworkAuditOverview", () => {
     renderWithProviders(<NetworkAuditOverview viewModel={emptyViewModel} onOpenCheck={vi.fn()} />);
 
     expect(
-      screen.getByText("Noch keine Netzwerkprüfung ausführbar. Importieren Sie die benötigten Datenquellen."),
+      screen.getByText("Noch keine Netzwerkprüfung ausführbar. Importiere die benötigten Datenquellen."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nächsten Befund prüfen" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Nicht ausführbar")).toHaveLength(4);

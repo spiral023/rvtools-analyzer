@@ -78,7 +78,7 @@ export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOve
             <ListChecks aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-sm">
               {!viewModel.hasExecutableChecks
-                ? "Noch keine Netzwerkprüfung ausführbar. Importieren Sie die benötigten Datenquellen."
+                ? "Noch keine Netzwerkprüfung ausführbar. Importiere die benötigten Datenquellen."
                 : viewModel.nextCheck
                   ? formatOpenFindings(viewModel.totals.critical, viewModel.totals.review)
                   : "Keine offenen Netzwerkbefunde."}
@@ -104,7 +104,7 @@ export function NetworkAuditOverview({ viewModel, onOpenCheck }: NetworkAuditOve
             Empfohlener Prüfpfad
           </h2>
           <p className="text-sm text-muted-foreground">
-            Beginnen Sie links mit den physischen Zuordnungen und arbeiten Sie sich bis zur Netz-Discovery vor.
+            Beginne links mit den physischen Zuordnungen und arbeite dich bis zur Netz-Discovery vor.
           </p>
         </div>
         <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
