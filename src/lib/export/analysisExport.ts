@@ -41,7 +41,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * Version des Exportformats. Erhöhen, sobald sich Spalten oder Kodierung ändern —
  * Auswertungsskripte prüfen sie, statt Spaltenpositionen zu raten.
  */
-export const ANALYSIS_EXPORT_FORMAT_VERSION = 3;
+export const ANALYSIS_EXPORT_FORMAT_VERSION = 4;
 
 /** Metriken, die als Rohreihe ausgegeben werden, samt Kodierung und Einheit. */
 const SERIES_METRICS: ReadonlyArray<{
@@ -52,6 +52,8 @@ const SERIES_METRICS: ReadonlyArray<{
 }> = [
   { metric: "vmCpuDemandAvgMHz", fileName: "cpu_demand_avg", unit: "MHz", encoding: MHZ_ENCODING },
   { metric: "vmCpuDemandMaxMHz", fileName: "cpu_demand_max", unit: "MHz", encoding: MHZ_ENCODING },
+  { metric: "vmMemoryWorkloadAvgPct", fileName: "memory_workload_avg_pct", unit: "%", encoding: PERCENT_ENCODING },
+  { metric: "vmMemoryWorkloadMaxPct", fileName: "memory_workload_max_pct", unit: "%", encoding: PERCENT_ENCODING },
   { metric: "vmCpuReadyMaxPct", fileName: "cpu_ready_max", unit: "%", encoding: PERCENT_ENCODING },
   { metric: "vmCpuPeakReadyMaxPct", fileName: "cpu_peak_vcpu_ready_max", unit: "%", encoding: PERCENT_ENCODING },
   { metric: "vmCpuPeakCostopMaxPct", fileName: "cpu_peak_vcpu_costop_max", unit: "%", encoding: PERCENT_ENCODING },

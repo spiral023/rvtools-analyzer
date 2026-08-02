@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getBySnapshotIds, getVropsTimeSeriesChunks, getVropsTimeSeriesImports, getVropsTimeSeriesObjects } from "@/data/db";
 import type { NormalizedHost, NormalizedVm } from "@/domain/models/types";
 import { buildVmWorkloadProfiles } from "@/domain/services/vmWorkloadProfileService";
+import { findVropsTimeSeriesMetricHeader } from "@/domain/services/vropsTimeSeriesSchema";
 
 /**
  * Lädt den ausgewählten vROps-Zeitreihenimport samt RVTools-Inventar und
@@ -18,6 +19,15 @@ export function useVmWorkloadProfiles(importId: string | null, enabled = true) {
     if (importId !== null) return imports.find((entry) => entry.id === importId) ?? null;
     return imports[0] ?? null;
   }, [enabled, importId, importsQuery.data]);
+
+  const memoryWorkloadMetrics = useMemo(() => {
+    const vmFile = selectedImport?.files.find((file) => file.objectType === "vm");
+    const headers = vmFile?.detectedColumns ?? [];
+    return {
+      hasAvg: Boolean(findVropsTimeSeriesMetricHeader(headers, "vmMemoryWorkloadAvgPct")),
+      hasMax: Boolean(findVropsTimeSeriesMetricHeader(headers, "vmMemoryWorkloadMaxPct")),
+    };
+  }, [selectedImport]);
 
   const dataQuery = useQuery({
     queryKey: ["vmWorkloadProfiles", selectedImport?.id],
@@ -40,6 +50,8 @@ export function useVmWorkloadProfiles(importId: string | null, enabled = true) {
   return {
     imports: importsQuery.data ?? [],
     selectedImport,
+    hasMemoryWorkloadAvg: memoryWorkloadMetrics.hasAvg,
+    hasMemoryWorkloadMax: memoryWorkloadMetrics.hasMax,
     profiles: dataQuery.data?.profiles ?? [],
     hosts: dataQuery.data?.hosts ?? [],
     isLoading: importsQuery.isLoading || dataQuery.isLoading,

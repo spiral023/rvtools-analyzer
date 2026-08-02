@@ -1,0 +1,59 @@
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+
+const mockWorkloadState = vi.hoisted(() => ({
+  current: {
+    imports: [{ id: "import-1" }],
+    profiles: [],
+    selectedImport: { expectedSlots: 744 },
+    hasMemoryWorkloadAvg: false,
+    hasMemoryWorkloadMax: false,
+    isLoading: false,
+  },
+}));
+
+vi.mock("@/hooks/useVmWorkloadProfiles", () => ({
+  useVmWorkloadProfiles: () => mockWorkloadState.current,
+}));
+
+vi.mock("@/hooks/useActiveSnapshots", () => ({
+  useActiveSnapshotIds: () => ({ filters: { search: "" } }),
+  useVms: () => ({ allVms: [], isLoading: false }),
+  useTechInfoLatestByVmNames: () => ({ data: [] }),
+}));
+
+vi.mock("@/hooks/useVmDetailDialog", () => ({
+  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null }),
+}));
+
+const { VmRamRightsizingPanel } = await import("./VmRamRightsizingPanel");
+
+describe("VmRamRightsizingPanel", () => {
+  it("zeigt einen verständlichen Empty State ohne Memory Workload Avg", () => {
+    render(
+      <MemoryRouter>
+        <VmRamRightsizingPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Keine Memory-Workload-Metrik" })).toBeInTheDocument();
+    expect(screen.getByText(/noch keine verwertbare Memory\|Workload\|Avg-Spalte/i)).toBeInTheDocument();
+  });
+
+  it("unterscheidet einen komplett fehlenden vROps-Import", () => {
+    mockWorkloadState.current = {
+      ...mockWorkloadState.current,
+      imports: [],
+      selectedImport: null,
+    };
+
+    render(
+      <MemoryRouter>
+        <VmRamRightsizingPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Kein vROps-Zeitreihenimport" })).toBeInTheDocument();
+  });
+});

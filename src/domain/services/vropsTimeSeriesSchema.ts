@@ -46,6 +46,32 @@ export const VROPS_TIME_SERIES_SCHEMAS: readonly VropsTimeSeriesSchemaDefinition
         valueKind: "percent",
         aliases: ["VM|CPU|Ready (%)|Max", "VM|CPU|Ready|Max", "VM CPU Ready Max", "CPU Ready Max"],
       },
+      // RAM-Workload ist fachlich optional für den vROps-Import, aber Avg ist
+      // die notwendige Grundlage des separaten RAM-Rightsizing-Tabs. So bleiben
+      // ältere CPU-Exporte gültig und der Tab kann einen verständlichen Empty
+      // State statt eines kaputten Imports anzeigen.
+      {
+        key: "vmMemoryWorkloadAvgPct",
+        required: false,
+        valueKind: "percent",
+        aliases: [
+          "VM|Memory|Workload (%)|Avg",
+          "VM|Memory|Workload|Avg",
+          "Memory|Workload (%)|Avg",
+          "Memory|Workload|Avg",
+        ],
+      },
+      {
+        key: "vmMemoryWorkloadMaxPct",
+        required: false,
+        valueKind: "percent",
+        aliases: [
+          "VM|Memory|Workload (%)|Max",
+          "VM|Memory|Workload|Max",
+          "Memory|Workload (%)|Max",
+          "Memory|Workload|Max",
+        ],
+      },
       // Ab hier optional: ältere Importe und Exporte ohne die erweiterte vROps-View
       // bleiben gültig, die Metriken fehlen dann schlicht. Fachlicher Hintergrund
       // siehe VROPS_METRICS.md — sie tragen das CPU-Rightsizing in beide Richtungen.
@@ -193,6 +219,14 @@ export function getVropsTimeSeriesMetricDefinition(key: VropsTimeSeriesMetricKey
     if (metric) return metric;
   }
   throw new Error(`Unknown vROps time-series metric: ${key}`);
+}
+
+/** Findet die tatsächlich exportierte Spalte für eine optionale Metrik. */
+export function findVropsTimeSeriesMetricHeader(
+  headers: readonly string[],
+  key: VropsTimeSeriesMetricKey,
+): string | undefined {
+  return findHeader(headers, getVropsTimeSeriesMetricDefinition(key).aliases);
 }
 
 export function matchVropsTimeSeriesSchema(headers: readonly string[]): {

@@ -6,6 +6,7 @@ import {
   Check,
   Cpu,
   Gauge,
+  MemoryStick,
   Monitor,
   Recycle,
   ServerCog,
@@ -20,6 +21,7 @@ import type {
   TechInfoClientLatest,
   TechInfoLatest,
   VmRightsizingCandidate,
+  VmRamRightsizingCandidate,
   VmWorkloadProfile,
 } from "@/domain/models/types";
 import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage } from "@/lib/vmDetail";
@@ -47,6 +49,7 @@ interface VmDetailDialogProps {
   client?: TechInfoClientLatest | null;
   workloadProfile?: VmWorkloadProfile | null;
   rightsizing?: VmRightsizingCandidate | null;
+  ramRightsizing?: VmRamRightsizingCandidate | null;
   vropsImportedAt?: string | null;
   optionalDataLoading?: boolean;
   open: boolean;
@@ -146,6 +149,7 @@ export function VmDetailDialog({
   client = null,
   workloadProfile = null,
   rightsizing = null,
+  ramRightsizing = null,
   vropsImportedAt = null,
   optionalDataLoading = false,
   open,
@@ -198,7 +202,7 @@ export function VmDetailDialog({
   const kpis: DetailKpi[] = [
     { label: "Betriebszustand", value: compactValue(vm.powerState), hint: compactValue(vm.connectionState), tone: vmTone(vm.powerState) },
     { label: "vCPU", value: compactValue(vm.cpuCount === null ? null : String(vm.cpuCount)), hint: `${toNumber(cpu["Sockets"]) ?? "—"} Sockel`, tone: "neutral", info: VM_PROFILE_COLUMNS.vcpu },
-    { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `aktiv ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
+    { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `vMemory.Active Rohdiagnose: ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
     { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && p95Pct >= 80 ? "critical" : p95Pct !== null && p95Pct >= 60 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.demandP95Pct, infoExample: demandP95Example },
     { label: "CPU Ready P95", value: percent(workloadProfile?.ready.p95), hint: workloadProfile ? `${workloadProfile.demand.sampleCount} Messpunkte` : "Keine Zeitreihe", tone: (workloadProfile?.ready.p95 ?? 0) > 5 ? "warning" : workloadProfile ? "good" : "neutral", info: VM_PROFILE_COLUMNS.readyP95, infoExample: readyP95Example },
     {
@@ -288,6 +292,19 @@ export function VmDetailDialog({
     { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound), info: RIGHTSIZING_COLUMNS.singleCoreBound, infoExample: singleCoreExample },
     { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores), info: RIGHTSIZING_COLUMNS.concentratedOnFewCores, infoExample: concentrationExample },
     { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity), info: RIGHTSIZING_COLUMNS.sustainedNearCapacity },
+  ] : [];
+  const ramRightsizingFields: DetailField[] = ramRightsizing ? [
+    { label: "RAM aktuell", value: formatBytes(ramRightsizing.configuredMemoryMiB) },
+    { label: "Workload Avg P95", value: percent(ramRightsizing.workloadAvg.p95) },
+    { label: "Workload Avg P99", value: percent(ramRightsizing.workloadAvg.p99) },
+    { label: "Peak Workload", value: percent(ramRightsizing.workloadMax?.p995 ?? null) },
+    { label: "RAM-Bedarf berechnet", value: formatBytes(ramRightsizing.requiredMemoryMiB) },
+    { label: "RAM empfohlen", value: formatBytes(ramRightsizing.recommendedMemoryMiB) },
+    { label: "Delta", value: ramRightsizing.deltaMiB === null ? "—" : `${ramRightsizing.deltaMiB > 0 ? "+" : ramRightsizing.deltaMiB < 0 ? "−" : ""}${formatBytes(Math.abs(ramRightsizing.deltaMiB))}` },
+    { label: "Richtung", value: ramRightsizing.direction === "shrink" ? "Verkleinern" : ramRightsizing.direction === "grow" ? "Vergrößern" : ramRightsizing.direction === "unchanged" ? "Unverändert" : "Nicht berechenbar" },
+    { label: "Datenabdeckung", value: percent(ramRightsizing.coverageRatio * 100) },
+    { label: "Datenqualität", value: ramRightsizing.confidence },
+    { label: "Begründung", value: ramRightsizing.recommendationReason ?? "—" },
   ] : [];
   const clientFields: DetailField[] = client ? [
     { label: "Standort", value: compactValue(client.standort), sensitivity: "identifier" },
@@ -506,6 +523,15 @@ export function VmDetailDialog({
             {rightsizing ? <DetailFieldGrid fields={rightsizingFields} columns={2} /> : <DetailUnavailable title="Keine Rightsizing-Auswertung" description="Ohne passendes Profil oder bei fehlenden Kapazitätsdaten wird keine Empfehlung angezeigt." />}
           </DetailSection>
         </div>
+
+        <DetailSection
+          icon={<MemoryStick className="size-4" />}
+          title="RAM-Rightsizing"
+          description="Eigenständige Bewertung aus vROps Memory|Workload und konfiguriertem RAM aus RVTools vInfo.Memory. vMemory.Active bleibt eine Rohdiagnose und fließt nicht ein."
+          aside={ramRightsizing && <Badge variant={ramRightsizing.direction === "shrink" ? "secondary" : ramRightsizing.direction === "grow" ? "destructive" : "outline"} className="rounded-full">{ramRightsizing.direction === "shrink" ? "Verkleinern prüfen" : ramRightsizing.direction === "grow" ? "Vergrößern prüfen" : ramRightsizing.direction === "unchanged" ? "Kein Schritt" : "Nicht berechenbar"}</Badge>}
+        >
+          {ramRightsizing ? <DetailFieldGrid fields={ramRightsizingFields} columns={2} /> : <DetailUnavailable title="Keine RAM-Rightsizing-Auswertung" description="Ohne Memory Workload Avg im vROps-Import wird keine RAM-Empfehlung berechnet. Die vMemory.Active-Rohkennzahl bleibt davon unabhängig sichtbar." />}
+        </DetailSection>
 
         {client && (
           <DetailSection icon={<ShieldCheck className="size-4" />} title="Ergänzende Client-Informationen" description="Zusätzliche Daten aus dem verknüpften Tech-Info-Clientbestand.">

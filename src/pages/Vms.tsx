@@ -19,10 +19,11 @@ import { VmPerformancePanel } from "@/components/vm/VmPerformancePanel";
 import { VmComplianceLifecyclePanel } from "@/components/vm/VmComplianceLifecyclePanel";
 import { VmWorkloadProfilePanel } from "@/components/vm/VmWorkloadProfilePanel";
 import { VmRightsizingPanel } from "@/components/vm/VmRightsizingPanel";
+import { VmRamRightsizingPanel } from "@/components/vm/VmRamRightsizingPanel";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import { OVERVIEW_KPI } from "@/lib/glossary";
 
-type VmTab = "inventory" | "load-distribution" | "operations" | "performance" | "compliance" | "vm-profiles" | "rightsizing";
+type VmTab = "inventory" | "load-distribution" | "operations" | "performance" | "compliance" | "vm-profiles" | "rightsizing" | "ram-rightsizing";
 
 function isVmTab(value: string | null): value is VmTab {
   return value === "inventory"
@@ -31,7 +32,8 @@ function isVmTab(value: string | null): value is VmTab {
     || value === "performance"
     || value === "compliance"
     || value === "vm-profiles"
-    || value === "rightsizing";
+    || value === "rightsizing"
+    || value === "ram-rightsizing";
 }
 
 export default function Vms() {
@@ -84,6 +86,7 @@ export default function Vms() {
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
           <TabsTrigger value="vm-profiles">VM-Profile</TabsTrigger>
           <TabsTrigger value="rightsizing">Rightsizing</TabsTrigger>
+          <TabsTrigger value="ram-rightsizing">RAM-Rightsizing</TabsTrigger>
         </TabsList>
         <TabsContent value="inventory" className="space-y-6">
           <KpiGrid>
@@ -107,6 +110,7 @@ export default function Vms() {
         <TabsContent value="compliance"><VmComplianceLifecyclePanel /></TabsContent>
         <TabsContent value="vm-profiles"><VmWorkloadProfilePanel /></TabsContent>
         <TabsContent value="rightsizing"><VmRightsizingPanel /></TabsContent>
+        <TabsContent value="ram-rightsizing"><VmRamRightsizingPanel /></TabsContent>
       </Tabs>
       {vmDetailDialog}
     </div>

@@ -213,6 +213,7 @@ function forwardFillMaintenance(rows: VropsTimeSeriesParsedRow[]) {
 
 function validateAverageMaximumPairs(rows: VropsTimeSeriesParsedRow[], issues: VropsTimeSeriesValidationIssue[]) {
   const pairs: Array<[VropsTimeSeriesMetricKey, VropsTimeSeriesMetricKey]> = [
+    ["vmMemoryWorkloadAvgPct", "vmMemoryWorkloadMaxPct"],
     ["clusterCpuDemandAvgMHz", "clusterCpuDemandMaxMHz"],
     ["clusterMemoryUtilizationAvgMiB", "clusterMemoryUtilizationMaxMiB"],
     ["clusterCpuContentionAvgPct", "clusterCpuContentionMaxPct"],

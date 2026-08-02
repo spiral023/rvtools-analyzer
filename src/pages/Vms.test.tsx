@@ -42,6 +42,9 @@ vi.mock("@/components/vm/VmWorkloadProfilePanel", () => ({
 vi.mock("@/components/vm/VmRightsizingPanel", () => ({
   VmRightsizingPanel: () => <div>Rightsizing Panel</div>,
 }));
+vi.mock("@/components/vm/VmRamRightsizingPanel", () => ({
+  VmRamRightsizingPanel: () => <div>RAM-Rightsizing Panel</div>,
+}));
 vi.mock("@/components/tables/VirtualTable", () => ({
   VirtualTable: () => <div>VMTools Wellen-Tabelle</div>,
 }));
@@ -49,7 +52,7 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 const { default: Vms } = await import("./Vms");
 
 describe("VMs", () => {
-  it("bündelt die VM-Übersicht in sechs Sitzungstabs", () => {
+  it("bündelt die VM-Übersicht in ihre Sitzungstabs", () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -78,6 +81,7 @@ describe("VMs", () => {
     expect(screen.getByRole("tab", { name: "Compliance" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "VM-Profile" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Rightsizing" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "RAM-Rightsizing" })).toBeInTheDocument();
   });
 
   it("öffnet einen VM-Untertab aus der URL", () => {

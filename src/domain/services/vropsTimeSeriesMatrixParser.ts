@@ -41,6 +41,7 @@ export const MAX_ISSUES_PER_CODE = 50;
 /** Avg/Max-Paare, deren Verhältnis je Zeile geprüft wird. */
 const AVERAGE_MAXIMUM_PAIRS: ReadonlyArray<readonly [VropsTimeSeriesMetricKey, VropsTimeSeriesMetricKey]> = [
   ["vmCpuDemandAvgMHz", "vmCpuDemandMaxMHz"],
+  ["vmMemoryWorkloadAvgPct", "vmMemoryWorkloadMaxPct"],
   ["clusterCpuDemandAvgMHz", "clusterCpuDemandMaxMHz"],
   ["clusterMemoryUtilizationAvgMiB", "clusterMemoryUtilizationMaxMiB"],
   ["clusterCpuContentionAvgPct", "clusterCpuContentionMaxPct"],

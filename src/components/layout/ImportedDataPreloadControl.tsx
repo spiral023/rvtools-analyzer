@@ -103,7 +103,7 @@ export function ImportedDataPreloadControl({
             <div className="grid gap-3 pt-5 sm:grid-cols-2">
               <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
                 <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                  <Clock3 className="h-4 w-4 text-primary" /> Etwa 10-30 Sekunden
+                  <Clock3 className="h-4 w-4 text-primary" /> Etwa 1-2 Minuten
                 </div>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   Die Dauer hängt von Datenmenge, Gerät und Browser ab.

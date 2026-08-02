@@ -85,7 +85,12 @@ export interface PreloadDependencies {
 }
 
 export interface PreloadProgress {
-  phase: "preparing" | "loading";
+  /**
+   * Der Abschnitt des Durchlaufs, in dem der Fortschritt entstanden ist: erst das Inventar
+   * ermitteln, dann aus IndexedDB in den Arbeitsspeicher laden, zuletzt die Fill-Up-Auswertung
+   * berechnen. Der Vorlade-Dialog zeigt daran an, woran gerade gearbeitet wird.
+   */
+  phase: "preparing" | "loading" | "computing";
   currentLabel: string;
   completedSteps: number;
   totalSteps: number;
@@ -379,7 +384,7 @@ export async function preloadImportedData(
   queryClient.setQueryData(["hasImportedData"], processedRecords > 0);
 
   notify({
-    phase: "loading",
+    phase: "computing",
     currentLabel: "Fill-Up-Planung: Standardauswertung",
     completedSteps,
     totalSteps,
@@ -395,7 +400,7 @@ export async function preloadImportedData(
 
   completedSteps += 1;
   notify({
-    phase: "loading",
+    phase: "computing",
     currentLabel: "Fill-Up-Planung: Standardauswertung",
     completedSteps,
     totalSteps,

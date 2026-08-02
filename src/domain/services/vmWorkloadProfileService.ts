@@ -215,11 +215,15 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
       const demandSeries = readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuDemandAvgMHz");
       const demandMaxSeries = readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuDemandMaxMHz");
       const readySeries = readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmCpuReadyMaxPct");
+      const memoryWorkloadAvgSeries = readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmMemoryWorkloadAvgPct");
+      const memoryWorkloadMaxSeries = readVropsTimeSeriesMetric(input.chunks, object.objectKey, "vmMemoryWorkloadMaxPct");
       const hourly: VmWorkloadHourlyPoint[] = hourGrid.map((entry) => ({
         timestampUtc: entry.timestampUtc,
         cpuDemandMHz: finiteOrNull(demandSeries.get(entry.timestampUtc)),
         cpuDemandMaxMHz: finiteOrNull(demandMaxSeries.get(entry.timestampUtc)),
         cpuReadyPct: finiteOrNull(readySeries.get(entry.timestampUtc)),
+        memoryWorkloadAvgPct: finiteOrNull(memoryWorkloadAvgSeries.get(entry.timestampUtc)),
+        memoryWorkloadMaxPct: finiteOrNull(memoryWorkloadMaxSeries.get(entry.timestampUtc)),
       }));
       const demand = buildMetricStats(hourly.map((point) => point.cpuDemandMHz), input.import.expectedSlots);
       const demandMax = buildMetricStats(hourly.map((point) => point.cpuDemandMaxMHz), input.import.expectedSlots);

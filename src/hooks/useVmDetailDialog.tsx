@@ -7,6 +7,7 @@ import {
 } from "@/hooks/useActiveSnapshots";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildVmRightsizingCandidates } from "@/domain/services/vmRightsizingService";
+import { buildVmRamRightsizingCandidates } from "@/domain/services/vmRamRightsizingService";
 import { resolveVmDetailTarget } from "@/lib/vmDetail";
 import type { NormalizedVm } from "@/domain/models/types";
 import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
@@ -30,6 +31,15 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
     () => buildVmRightsizingCandidates({ profiles: workload.profiles, hosts: workload.hosts, level: rightsizingLevel }),
     [rightsizingLevel, workload.hosts, workload.profiles],
   );
+  const ramRightsizingCandidates = useMemo(
+    () => buildVmRamRightsizingCandidates({
+      profiles: workload.profiles,
+      vms,
+      expectedSlots: workload.selectedImport?.expectedSlots,
+      hasMemoryWorkloadMax: workload.hasMemoryWorkloadMax,
+    }),
+    [vms, workload.hasMemoryWorkloadMax, workload.profiles, workload.selectedImport?.expectedSlots],
+  );
 
   const matchedClient = useMemo(() => {
     if (!selectedVm) return null;
@@ -47,8 +57,11 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
     const rightsizing = rightsizingCandidates.find(
       (entry) => entry.objectKey === profile?.objectKey || entry.vmName.trim().toLowerCase() === vmNameNorm,
     ) ?? null;
-    return { vm: selectedVm, techInfo, profile, rightsizing };
-  }, [rightsizingCandidates, selectedVm, techInfoLatest, workload.profiles]);
+    const ramRightsizing = ramRightsizingCandidates.find(
+      (entry) => entry.objectKey === profile?.objectKey || entry.vmName.trim().toLowerCase() === vmNameNorm,
+    ) ?? null;
+    return { vm: selectedVm, techInfo, profile, rightsizing, ramRightsizing };
+  }, [ramRightsizingCandidates, rightsizingCandidates, selectedVm, techInfoLatest, workload.profiles]);
 
   const { data: rawCpuRows = [] } = useRawSheet("vCPU", loadDetailRows);
   const { data: rawMemoryRows = [] } = useRawSheet("vMemory", loadDetailRows);
@@ -75,6 +88,7 @@ export function useVmDetailDialog(vms: NormalizedVm[]) {
       client={matchedClient}
       workloadProfile={detailData?.profile ?? null}
       rightsizing={detailData?.rightsizing ?? null}
+      ramRightsizing={detailData?.ramRightsizing ?? null}
       vropsImportedAt={workload.selectedImport?.importedAt ?? null}
       optionalDataLoading={clientFetching || workload.isLoading}
       open={selectedVm !== null}

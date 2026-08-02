@@ -407,6 +407,8 @@ export type VropsTimeSeriesMetricKey =
   | "vmCpuDemandAvgMHz"
   | "vmCpuReadyMaxPct"
   | "vmCpuDemandMaxMHz"
+  | "vmMemoryWorkloadAvgPct"
+  | "vmMemoryWorkloadMaxPct"
   | "vmCpuUsageDisparityAvgPct"
   | "vmCpuPeakReadyMaxPct"
   | "vmCpuPeakCostopMaxPct"
@@ -1029,6 +1031,82 @@ export interface VmCpuCapacitySignals {
 /** Geschlossene, global gültige Risikostufe des CPU-Rightsizings. */
 export type CpuRightsizingLevel = "very-conservative" | "conservative" | "balanced" | "offensive";
 
+/**
+ * Eigenständige, zentral sichtbare Policy für RAM-Rightsizing.
+ *
+ * Die Policy ist bewusst nicht aus CPU-Klassen oder vMemory.Active abgeleitet.
+ * `targetWorkloadFactor`, Datenqualitätsgrenzen und Rundung sind technische
+ * Annahmen, die nach dem ersten Memory-Workload-Export gegen die reale Verteilung
+ * geprüft und bei Bedarf angepasst werden können.
+ */
+export interface VmRamRightsizingPolicy {
+  normalStatistic: "p95" | "p99";
+  peakStatistic: "p99" | "p995";
+  targetWorkloadFactor: number;
+  roundingStepMiB: number;
+  minimumCoverageRatio: number;
+  minimumSampleCount: number;
+  highConfidenceCoverageRatio: number;
+  highConfidenceMinSampleCount: number;
+}
+
+export type VmRamRightsizingDirection = "shrink" | "grow" | "unchanged" | "not-computable";
+
+/** Prozentstatistik ausschließlich der vROps-Memory-Workload-Reihen. */
+export interface VmMemoryWorkloadStats {
+  expectedHours: number;
+  presentHours: number;
+  missingHours: number;
+  coverageRatio: number;
+  average: number | null;
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  p995: number | null;
+  maximum: number | null;
+}
+
+/**
+ * Prüfpflichtige RAM-Rightsizing-Bewertung einer VM. Der Delta-Wert ist signiert:
+ * negativ = freigebbarer RAM, positiv = zusätzlicher RAM.
+ */
+export interface VmRamRightsizingCandidate {
+  objectKey: string;
+  vmName: string;
+  clusterKey: string | null;
+  clusterName: string | null;
+  configuredMemoryMiB: number | null;
+  expectedHours: number;
+  presentHours: number;
+  coverageRatio: number;
+  workloadAvg: VmMemoryWorkloadStats;
+  workloadMax: VmMemoryWorkloadStats | null;
+  normalDemandRequirementMiB: number | null;
+  peakRequirementMiB: number | null;
+  requiredMemoryMiB: number | null;
+  targetMemoryBeforeRoundingMiB: number | null;
+  recommendedMemoryMiB: number | null;
+  deltaMiB: number | null;
+  direction: VmRamRightsizingDirection;
+  confidence: VropsTimeSeriesConfidenceLevel;
+  /** Menschlich verwendbarer Grund, wenn keine Empfehlung berechnet werden kann. */
+  recommendationReason: string | null;
+  /** Zeigt, ob eine Max-Reihe importiert und für die Policy verwendet wurde. */
+  peakSignalUsed: boolean;
+}
+
+export interface VmRamRightsizingGroupSummary {
+  key: string;
+  label: string;
+  vmCount: number;
+  shrinkCount: number;
+  growCount: number;
+  unchangedCount: number;
+  notComputableCount: number;
+  reclaimableMemoryMiB: number;
+  additionalMemoryMiB: number;
+}
+
 export interface VmWorkloadHourlyPoint {
   timestampUtc: number;
   cpuDemandMHz: number | null;
@@ -1036,9 +1114,13 @@ export interface VmWorkloadHourlyPoint {
    * Höchster Demand innerhalb der Stunde. Nur belegt, wenn die vROps-View
    * `Demand Max` liefert; der Mittelwert allein glättet kurze Lastspitzen
    * vollständig weg.
-   */
+  */
   cpuDemandMaxMHz: number | null;
   cpuReadyPct: number | null;
+  /** vROps Memory|Workload als Prozentpunkte; fehlt bei älteren Imports. */
+  memoryWorkloadAvgPct?: number | null;
+  /** Höchste Memory|Workload innerhalb der Stunde; fehlt, wenn Max nicht exportiert wurde. */
+  memoryWorkloadMaxPct?: number | null;
 }
 
 /**
