@@ -23,10 +23,10 @@ import { normalizeVmName } from "@/lib/globalFilter";
 import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
-function formatPercent(value: number | null | undefined): string {
+function formatPercent(value: number | null | undefined, fractionDigits = 1): string {
   return value === null || value === undefined || !Number.isFinite(value)
     ? "—"
-    : `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+    : `${value.toLocaleString("de-DE", { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })} %`;
 }
 
 function formatMemory(value: number | null): string {
@@ -229,7 +229,7 @@ export function VmRamRightsizingPanel() {
             data={candidates}
             columns={candidateColumns}
             height={520}
-            getRowId={(row) => row.objectKey}
+            getRowId={(row: VmRamRightsizingCandidate) => row.objectKey}
             onRowClick={openVmDetail}
             exportFileName="vm-ram-rightsizing"
             emptyTitle="Keine RAM-Rightsizing-Zeilen"

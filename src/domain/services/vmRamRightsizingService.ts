@@ -147,7 +147,7 @@ export function buildVmRamRightsizingCandidates(
   );
   const sources: CandidateSource[] = input.vms
     ? input.vms.map((vm) => ({ vm, profile: profileByRvtoolsKey.get(vm.vmKey) ?? null }))
-    : input.profiles.map((profile) => ({ vm: null, profile }));
+    : input.profiles.map((profile): CandidateSource => ({ vm: null, profile }));
 
   // Ein Profil kann in einem alten/teilweise verknüpften Import existieren, ohne
   // im aktiven Inventar zu liegen. Es soll nicht verloren gehen.

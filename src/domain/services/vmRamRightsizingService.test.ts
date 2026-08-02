@@ -19,7 +19,7 @@ const TEST_POLICY = {
 };
 
 function hourlyPoints(avgValues: readonly (number | null | undefined)[], maxValues?: readonly (number | null | undefined)[]): VmWorkloadHourlyPoint[] {
-  return avgValues.map((memoryWorkloadAvgPct, index) => ({
+  return avgValues.map((memoryWorkloadAvgPct, index): VmWorkloadHourlyPoint => ({
     timestampUtc: index * 60 * 60 * 1000,
     cpuDemandMHz: null,
     cpuDemandMaxMHz: null,

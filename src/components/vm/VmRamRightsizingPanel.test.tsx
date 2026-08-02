@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import type { NormalizedVm, TechInfoLatest, VmWorkloadProfile } from "@/domain/models/types";
 
 const mockWorkloadState = vi.hoisted(() => ({
   current: {
     imports: [{ id: "import-1" }],
-    profiles: [],
+    profiles: [] as VmWorkloadProfile[],
     selectedImport: { expectedSlots: 744 },
     hasMemoryWorkloadAvg: false,
     hasMemoryWorkloadMax: false,
@@ -19,12 +21,12 @@ vi.mock("@/hooks/useVmWorkloadProfiles", () => ({
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useActiveSnapshotIds: () => ({ filters: { search: "" } }),
-  useVms: () => ({ allVms: [], isLoading: false }),
-  useTechInfoLatestByVmNames: () => ({ data: [] }),
+  useVms: () => ({ allVms: [] as NormalizedVm[], isLoading: false }),
+  useTechInfoLatestByVmNames: () => ({ data: [] as TechInfoLatest[] }),
 }));
 
 vi.mock("@/hooks/useVmDetailDialog", () => ({
-  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null }),
+  useVmDetailDialog: () => ({ openVmDetail: vi.fn(), vmDetailDialog: null as ReactNode }),
 }));
 
 const { VmRamRightsizingPanel } = await import("./VmRamRightsizingPanel");
