@@ -35,6 +35,10 @@ tmp/
 .worktrees/
 .superpowers/
 
+# Lokales ML-Analysewerkzeug samt erzeugter Reports. Es ist eine Nebenrechnung
+# zur Rightsizing-Logik und wird nicht mit der Anwendung ausgeliefert.
+tools/ml-rightsizing/
+
 # Produktivdaten und daraus erzeugte Auswertungen. Sie enthalten reale
 # Kundenumgebungen bzw. deren pseudonymisierte Ableitungen und gehören nicht
 # in die Versionsverwaltung — die Exporte sind zudem zweistellige MB gross.
