@@ -28,6 +28,7 @@ import type {
   VropsTimeSeriesImport,
   VropsTimeSeriesImportedObject,
   VropsTimeSeriesQualitySummary,
+  VropsTimeSeriesSourceFile,
   VropsTimeSeriesSummary,
 } from "@/domain/models/types";
 import { clusterScopeKey } from "@/lib/clusterIdentity";
@@ -288,6 +289,44 @@ function cloneVropsSummary(summary: VropsTimeSeriesSummary, importId: string): V
   return { ...summary, importId, metricStats: { ...summary.metricStats } };
 }
 
+/**
+ * Beschreibt die im Paket tatsächlich enthaltenen Zeitreihen als Quellangabe.
+ *
+ * Ohne diese Ersetzung würden die Metadaten der ursprünglichen vROps-CSVs
+ * unverändert mitwandern. Der Empfänger sähe in der Uploadliste Dateinamen,
+ * Byte- und Zeilenzahlen des vollständigen Quellimports — also Kennzahlen eines
+ * Datenbestands, der gar nicht im Paket ist.
+ */
+export function describeScopedVropsSource(
+  packageId: string,
+  chunks: readonly VropsTimeSeriesChunk[],
+): VropsTimeSeriesSourceFile[] {
+  let sizeBytes = 0;
+  let dataPointCount = 0;
+  const metrics = new Set<string>();
+  for (const chunk of chunks) {
+    for (const [metric, buffer] of Object.entries(chunk.metricValues)) {
+      if (!buffer) continue;
+      metrics.add(metric);
+      sizeBytes += buffer.byteLength;
+    }
+    sizeBytes += chunk.maintenanceCodes?.byteLength ?? 0;
+    sizeBytes += chunk.maintenanceDerived?.byteLength ?? 0;
+    dataPointCount += chunk.objectKeys.length * chunk.slotCount;
+  }
+  const detectedColumns = [...metrics].sort((left, right) => left.localeCompare(right, "en"));
+  return [{
+    objectType: "vm",
+    fileName: `sysv-datenpaket_${packageId}_vm-zeitreihen`,
+    fileSizeBytes: sizeBytes,
+    fileChecksum: packageId,
+    rowCount: dataPointCount,
+    columnCount: detectedColumns.length,
+    detectedColumns,
+    status: "accepted",
+  }];
+}
+
 function buildScopedVropsPayload(
   packageId: string,
   selectedVmKeys: ReadonlySet<string>,
@@ -336,6 +375,7 @@ function buildScopedVropsPayload(
     rvtoolsSnapshotIds: importMeta.rvtoolsSnapshotIds.filter((snapshotId) => selectedSnapshotIds.has(snapshotId)),
     validationStatus: "relationships-partial",
     qualitySummary,
+    files: describeScopedVropsSource(packageId, scopedChunks),
     relationshipIssues: importMeta.relationshipIssues?.filter((issue) => issue.objectKey && scopedObjectKeys.has(issue.objectKey)),
   };
   return { importMeta: scopedMeta, objects: scopedObjects, chunks: scopedChunks, summaries: scopedSummaries };

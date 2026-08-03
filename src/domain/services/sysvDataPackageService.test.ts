@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedVm, VropsTimeSeriesChunk } from "@/domain/models/types";
 import {
+  describeScopedVropsSource,
   matchScopeVmsToRvtools,
   sliceVropsTimeSeriesChunk,
   toManifestWarnings,
@@ -61,6 +62,31 @@ function normalizedVm(vmName: string, vcenterId: string): NormalizedVm {
     vmName,
   } as NormalizedVm;
 }
+
+describe("SysV-vROps-Quellangabe", () => {
+  it("beschreibt den beschnittenen Paketinhalt statt der ursprünglichen CSV-Metadaten", () => {
+    const sliced = sliceVropsTimeSeriesChunk(chunk(), new Set(["vm-a", "vm-b"]))!;
+
+    const [file] = describeScopedVropsSource("sysv-abc", [sliced]);
+
+    // 2 Objekte × 2 Slots × 4 Byte Float32 + 4 Byte Codes + 4 Byte Derived.
+    expect(file.fileSizeBytes).toBe(24);
+    expect(file.rowCount).toBe(4);
+    expect(file.columnCount).toBe(1);
+    expect(file.detectedColumns).toEqual(["vmCpuDemandAvgMHz"]);
+    expect(file.fileChecksum).toBe("sysv-abc");
+    expect(file.objectType).toBe("vm");
+    expect(file.status).toBe("accepted");
+  });
+
+  it("meldet ein Paket ohne Zeitreihen als leer statt mit Fremdwerten", () => {
+    const [file] = describeScopedVropsSource("sysv-leer", []);
+
+    expect(file.fileSizeBytes).toBe(0);
+    expect(file.rowCount).toBe(0);
+    expect(file.detectedColumns).toEqual([]);
+  });
+});
 
 describe("SysV-Scope-Zuordnung zu RVTools", () => {
   it("überspringt mehrdeutige und fehlende Namen als Warnung, statt den Export zu blockieren", () => {
