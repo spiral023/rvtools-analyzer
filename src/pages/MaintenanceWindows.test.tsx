@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { AppSidebar } from "@/app/layout/AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import type { MaintenanceWindowDefinition, TechInfoLatest } from "@/domain/models/types";
+import type { MaintenanceWindowDefinition, SnapshotMeta, TechInfoLatest } from "@/domain/models/types";
 import MaintenanceWindows from "./MaintenanceWindows";
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +29,7 @@ vi.mock("@/hooks/useActiveSnapshots", () => ({
   useAllTechInfoLatest: mocks.useAllTechInfoLatest,
   // Die mitgerenderte AppSidebar prüft über useRestrictedDataset, ob der aktive
   // Datenbestand aus einem SysV-Paket stammt.
-  useActiveSnapshotIds: () => ({ snapshots: [], activeSnapshotIds: [], snapshotsLoading: false }),
+  useActiveSnapshotIds: () => ({ snapshots: [] as SnapshotMeta[], activeSnapshotIds: [] as string[], snapshotsLoading: false }),
 }));
 
 vi.mock("@/components/maintenance-windows/MaintenanceWindowEditor", () => ({
