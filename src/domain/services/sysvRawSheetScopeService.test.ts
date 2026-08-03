@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SheetRow } from "@/domain/models/types";
-import { filterSysvRawSheet } from "@/domain/services/sysvRawSheetScopeService";
+import { deriveSysvRawScopeReferences, filterSysvRawSheet } from "@/domain/services/sysvRawSheetScopeService";
 
 function row(sheetName: string, rowIndex: number, data: Record<string, string | number | null>): SheetRow {
   return { snapshotId: "snapshot-1", sheetName, rowIndex, data };
@@ -72,5 +72,37 @@ describe("SysV-RVTools-Rohdatenfilter", () => {
     expect(vPort.warnings.some((warning) => warning.code === "foreign-vm-reference")).toBe(true);
     expect(unknown.rows).toHaveLength(0);
     expect(unknown.warnings[0].code).toBe("unknown-sheet");
+  });
+
+  it("lässt Pfadredundanz, Distributed Ports und Lizenzen komplett aus dem Datenpaket", () => {
+    for (const [sheetName, data] of [
+      ["vMultiPath", { Host: "esxi-a", Datastore: "datastore-a", "Path 1": "vmhba1" }],
+      ["dvPort", { VM: "vm-a", Switch: "dvs-a", Port: "42" }],
+      ["vLicense", { Name: "vSphere", Key: "XXXXX" }],
+    ] as const) {
+      const result = filterSysvRawSheet({
+        sheetName,
+        headers: Object.keys(data),
+        rows: [row(sheetName, 0, data)],
+      }, context);
+
+      expect(result.rows, sheetName).toHaveLength(0);
+      expect(result.warnings[0]?.code, sheetName).toBe("excluded-sheet");
+    }
+  });
+
+  it("nutzt dvPort weiterhin als Referenzquelle für die Switch-Eingrenzung", () => {
+    const references = deriveSysvRawScopeReferences(
+      new Map([
+        ["vInfo", [row("vInfo", 0, { VM: "vm-a", Host: "esxi-a", Cluster: "cluster-a" })]],
+        ["dvPort", [
+          row("dvPort", 0, { VM: "vm-a", Switch: "dvs-a" }),
+          row("dvPort", 1, { VM: "vm-b", Switch: "dvs-b" }),
+        ]],
+      ]),
+      new Set(["vm-a"]),
+    );
+
+    expect([...references.switchIds]).toEqual(["dvs-a"]);
   });
 });

@@ -437,6 +437,13 @@ VM-Detailzeilen.
 
 `vLicense` wird nicht exportiert.
 
+Nachtrag 03.08.2026: `vMultiPath` und `dvPort` werden ebenfalls nicht
+exportiert. `vMultiPath` beschreibt SAN-Pfadredundanz der Hosts und machte den
+größten Teil der Rohdaten aus, ohne zur Beurteilung eigener Systeme
+beizutragen; `dvPort` ist für das SysV-Inventar ohne Aussage. Die
+Multipath-Kennzahlen der Storage-/Backup-Ansicht bleiben in einem SysV-Paket
+daher leer.
+
 ### 9.4 Hosts und Hostkomponenten
 
 Aus den ausgewählten VMs wird zunächst je Snapshot ein normalisierter
@@ -449,7 +456,6 @@ vHBA
 vNIC
 vSwitch
 vSC_VMK
-vMultiPath
 ```
 
 Zuordnungsschlüssel ist das explizite Feld `Host`. Fehlt es, wird die Zeile
@@ -465,10 +471,11 @@ Im Zweifel wird die Zeile ausgeschlossen.
 
 ### 9.5 Distributed Switches
 
-`dvPort` wird ausschließlich über sein VM-Feld auf ausgewählte VMs gefiltert.
-Aus den gefilterten `dvPort`- und `vNIC`-Zeilen werden referenzierte
-Switch-Identifier gesammelt. `dvSwitch` enthält anschließend nur Zeilen mit
-einem dieser Identifier im Feld `Switch`.
+`dvPort` wird ausschließlich über sein VM-Feld auf ausgewählte VMs gefiltert und
+dient seit dem Nachtrag vom 03.08.2026 nur noch als Referenzquelle, nicht mehr
+als exportiertes Sheet. Aus den gefilterten `dvPort`- und `vNIC`-Zeilen werden
+referenzierte Switch-Identifier gesammelt. `dvSwitch` enthält anschließend nur
+Zeilen mit einem dieser Identifier im Feld `Switch`.
 
 Gibt es keine sicher referenzierte Switch-ID, werden keine `dvSwitch`-Zeilen
 exportiert.
@@ -1172,7 +1179,7 @@ Jeder Testdatensatz enthält eine ausgewählte VM `ALLOWED-VM` und eine fremde V
 
 - jedes VM-Sheet enthält nach dem Filter nur `ALLOWED-VM`,
 - ein hostbezogenes Sheet enthält nur referenzierte Hosts,
-- `dvPort` enthält keinen Port von `FOREIGN-SECRET-VM`,
+- `vMultiPath`, `dvPort` und `vLicense` sind nicht im Paket enthalten,
 - `dvSwitch` enthält nur tatsächlich referenzierte Switches,
 - `vDatastore` enthält nur über ausgewählte VM-Zeilen referenzierte Datastores,
 - Zeilen ohne sicheren Schlüssel werden ausgeschlossen,

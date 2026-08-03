@@ -42,8 +42,15 @@ export interface SysvRawScopeReferences {
 const VM_SHEETS = new Set([
   "vInfo", "vCPU", "vMemory", "vDisk", "vPartition", "vNetwork", "vCD", "vUSB", "vSnapshot", "vTools",
 ]);
-const HOST_SHEETS = new Set(["vHost", "vHBA", "vNIC", "vSwitch", "vSC_VMK", "vMultiPath"]);
-const EXCLUDED_SHEETS = new Set(["vLicense"]);
+const HOST_SHEETS = new Set(["vHost", "vHBA", "vNIC", "vSwitch", "vSC_VMK"]);
+/**
+ * Bewusst nicht exportiert: `vMultiPath` beschreibt SAN-Pfadredundanz der Hosts
+ * und dominierte das Datenpaket mit Zeilen, die für die Beurteilung eigener
+ * Systeme keine Rolle spielen. `dvPort` und `vLicense` sind für das SysV-Inventar
+ * ebenso ohne Aussage. `dvPort` bleibt Eingangsgröße der Switch-Referenzen,
+ * damit `dvSwitch` unverändert eingegrenzt wird.
+ */
+const EXCLUDED_SHEETS = new Set(["vLicense", "vMultiPath", "dvPort"]);
 const SUPPORTED_SHEETS = new Set([
   ...VM_SHEETS,
   "vSource",
@@ -51,7 +58,6 @@ const SUPPORTED_SHEETS = new Set([
   ...HOST_SHEETS,
   "vPort",
   "dvSwitch",
-  "dvPort",
   "vDatastore",
 ]);
 
@@ -66,6 +72,8 @@ const VM_FIELD_CANDIDATES: Record<string, readonly string[]> = {
   vUSB: ["VM"],
   vSnapshot: ["VM", "VM Name"],
   vTools: ["VM"],
+  // dvPort wird nicht exportiert, liefert aber weiterhin die Switch-Referenzen
+  // der ausgewählten VMs für die dvSwitch-Eingrenzung.
   dvPort: ["VM", "VM Name", "Virtual Machine"],
   vPort: ["VM", "VM Name", "Virtual Machine"],
 };
@@ -259,14 +267,6 @@ function includeRow(
       return false;
     }
     return selectedHostNames.has(host);
-  }
-  if (sheetName === "dvPort") {
-    const vmName = readVmName(row, sheetName);
-    if (!vmName) {
-      warnings.push(warning("missing-vm-key", sheetName, "Distributed-Port ohne VM-Zuordnung ausgeschlossen."));
-      return false;
-    }
-    return selectedVmNames.has(vmName);
   }
   if (sheetName === "vPort") {
     const vmName = readVmName(row, sheetName);
