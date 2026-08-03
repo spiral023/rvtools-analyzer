@@ -40,6 +40,7 @@ import {
 } from "@/components/detail/SystemDetailLayout";
 import type { DetailDossier, DetailField, DetailKpi } from "@/lib/detailExport";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
+import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
 import { WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
 import { describeTrendRange } from "@/lib/trendDownsampling";
 import { VmTechnicalSections } from "@/components/vm/VmTechnicalSections";
@@ -203,7 +204,7 @@ export function VmDetailDialog({
   // Der RAM-Verlauf steht auf derselben Stundenreihe wie der CPU-Verlauf, führt
   // aber eine eigene Metrik: vROps liefert Memory|Workload bereits als Prozent
   // des konfigurierten RAM, nicht als absolute Größe.
-  const memoryTrendPoints = workloadProfile?.hourly.map((point) => ({
+  const memoryTrendPoints: VropsObjectTrendPoint[] = workloadProfile?.hourly.map((point): VropsObjectTrendPoint => ({
     timestampUtc: point.timestampUtc,
     primaryValue: point.memoryWorkloadAvgPct ?? null,
     primaryPeakValue: point.memoryWorkloadMaxPct ?? null,
