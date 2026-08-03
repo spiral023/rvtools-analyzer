@@ -27,9 +27,15 @@ export function useRestrictedDataset(): RestrictedDatasetState {
     const byPackageId = new Map<string, RestrictedDatasetSource>();
     for (const snapshot of snapshots) {
       if (!activeIds.has(snapshot.snapshotId)) continue;
-      const restricted = snapshot.restrictedDataset;
-      if (restricted?.kind !== "sysv-package") continue;
-      if (!byPackageId.has(restricted.packageId)) byPackageId.set(restricted.packageId, restricted);
+      const sources = snapshot.restrictedDatasetSources?.length
+        ? snapshot.restrictedDatasetSources
+        : snapshot.restrictedDataset?.kind === "sysv-package"
+          ? [snapshot.restrictedDataset]
+          : [];
+      for (const source of sources) {
+        if (source.kind !== "sysv-package") continue;
+        if (!byPackageId.has(source.packageId)) byPackageId.set(source.packageId, source);
+      }
     }
     return {
       isRestricted: byPackageId.size > 0,

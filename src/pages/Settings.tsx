@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Download, RotateCcw, Save, Settings as SettingsIcon, Upload } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { CalendarClock, Download, PackageOpen, RotateCcw, Save, Server, Settings as SettingsIcon, Upload } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { useFilterState } from "@/hooks/useFilterState";
 import { useTableDisplayPreferencesActions } from "@/hooks/useTableDisplayPreferences";
 import { deriveSettingsEmail } from "@/lib/maintenance";
 import { applyUserDataBackup, collectUserDataBackup } from "@/domain/services/backupService";
+import { getImportedSysvPackages } from "@/data/db";
 import {
   buildBackupFileName,
   parseUserDataBackup,
@@ -37,6 +38,11 @@ export default function Settings() {
   const [previousSettings, setPreviousSettings] = useState(settings);
   const [form, setForm] = useState<MaintenanceSettings>(settings);
   const queryClient = useQueryClient();
+  const { data: importedSysvPackages = [] } = useQuery({
+    queryKey: ["sysvPackages"],
+    queryFn: getImportedSysvPackages,
+    staleTime: 30_000,
+  });
   const importInputRef = useRef<HTMLInputElement>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [isResettingTablePreferences, setIsResettingTablePreferences] = useState(false);
@@ -244,6 +250,29 @@ export default function Settings() {
           </p>
         </CardContent>
       </Card>
+
+      {importedSysvPackages.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><PackageOpen className="size-5 text-primary" />Importierte SysV-Datenpakete</CardTitle>
+            <CardDescription>Die Liste zeigt die Paketquellen, aus denen der aktuelle eingeschränkte Datensatz vereinigt wurde.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {importedSysvPackages.map((pkg) => (
+              <div key={pkg.packageId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/15 px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium" title={pkg.scopeLabel}>{pkg.scopeLabel}</p>
+                  <p className="truncate font-mono text-[11px] text-muted-foreground" title={pkg.containerPath || pkg.packageId}>{pkg.containerPath || pkg.packageId}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5" title="VM-Anzahl"><Server className="size-3.5" />{pkg.vmCount.toLocaleString("de-DE")} VMs</span>
+                  <span className="flex items-center gap-1.5" title="Importzeitpunkt"><CalendarClock className="size-3.5" />{new Date(pkg.importedAt).toLocaleString("de-DE")}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {techInfoRows.length > 0 && (
         <Card>

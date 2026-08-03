@@ -56,7 +56,7 @@ describe("IndexedDB-Migration", () => {
     const { getDb, getMaintenanceWindows } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(29);
+    expect(db.version).toBe(30);
     expect(db.objectStoreNames.contains("maintenance_windows")).toBe(true);
     expect(db.objectStoreNames.contains("vrops_timeseries_imports")).toBe(true);
     expect(db.objectStoreNames.contains("capacity_policies")).toBe(true);
@@ -79,7 +79,7 @@ describe("IndexedDB-Migration", () => {
     const { getDb } = await import("./index");
     const db = await getDb();
 
-    expect(db.version).toBe(29);
+    expect(db.version).toBe(30);
     const storeNames = Array.from(db.objectStoreNames) as string[];
     expect(storeNames.includes("switch_imports")).toBe(false);
     expect(storeNames.includes("switch_rows")).toBe(false);

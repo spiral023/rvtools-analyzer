@@ -1,9 +1,9 @@
 import {
   getAllTechInfoLatest,
+  getAllTechInfoRows,
   getBySnapshotIds,
   getRawSheetBlobsBySnapshotIds,
   getSnapshots,
-  getTechInfoRowsByLatestPointers,
   getVropsTimeSeriesChunks,
   getVropsTimeSeriesImports,
   getVropsTimeSeriesObjects,
@@ -104,23 +104,52 @@ export interface BuiltSysvDataPackage {
   preview: SysvDataPackagePreview;
 }
 
-interface ResolvedSysvDataPackage {
+export interface ResolvedSysvDataPackage {
   payload: SysvDataPackagePayload | null;
   preview: SysvDataPackagePreview;
 }
 
-interface SnapshotRawData {
+export interface SnapshotRawData {
   snapshot: SnapshotMeta;
   blobs: RawSheetBlob[];
   sheets: Map<string, SheetRow[]>;
+}
+
+/** Einmalig geladene, über alle Scopes eines Laufs geteilte Rohdatenbasis. */
+export interface SysvDataPackageSource {
+  snapshots: SnapshotMeta[];
+  techInfoLatest: TechInfoLatest[];
+  techInfoRows: TechInfoRow[];
+  /** `techInfoImportId`+`rowIndex` → Rohzeile, damit Zeiger je Scope in O(1) auflösbar bleiben. */
+  techInfoRowsByPointer: ReadonlyMap<string, TechInfoRow>;
+  allVms: NormalizedVm[];
+  vmsByNormalizedName: ReadonlyMap<string, readonly NormalizedVm[]>;
+  /** Normalisierte Namen aller RVTools-VMs je Snapshot (fail-closed Raw-Sheet-Filter). */
+  vmNamesBySnapshot: ReadonlyMap<string, ReadonlySet<string>>;
+  hosts: NormalizedHost[];
+  clusters: NormalizedCluster[];
+  datastores: NormalizedDatastore[];
+  snapshotEntities: NormalizedSnapshot[];
+  rawData: SnapshotRawData[];
+  vrops: {
+    importMeta: VropsTimeSeriesImport;
+    objects: VropsTimeSeriesImportedObject[];
+    chunks: VropsTimeSeriesChunk[];
+    summaries: VropsTimeSeriesSummary[];
+  } | null;
 }
 
 function report(options: BuildSysvDataPackageOptions, step: SysvDataPackageProgressStep, percent: number, detail?: string): void {
   options.onProgress?.({ step, percent, detail });
 }
 
-function sortedStrings(values: Iterable<string>): string[] {
+export function sortedStrings(values: Iterable<string>): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right, "de-DE", { sensitivity: "base" }));
+}
+
+/** Zeigerschlüssel von `techinfo_latest` auf die zugehörige `techinfo_rows`-Zeile. */
+function techInfoPointerKey(pointer: { techInfoImportId: string; rowIndex: number }): string {
+  return `${pointer.techInfoImportId}\u0000${pointer.rowIndex}`;
 }
 
 function normalizedSet(values: Iterable<string>): Set<string> {
@@ -166,11 +195,11 @@ function snapshotScopedKey(snapshotId: string, name: string): string {
 function buildSnapshotScopedRawPayload(
   snapshotData: SnapshotRawData,
   selectedVms: readonly NormalizedVm[],
-  allVms: readonly NormalizedVm[],
+  vmNamesBySnapshot: ReadonlyMap<string, ReadonlySet<string>>,
   warnings: SysvDataPackageDiagnostic[],
 ): { rawSheets: SysvDataPackageRawSheet[]; snapshot: SnapshotMeta; hostNames: Set<string>; clusterNames: Set<string>; datastoreNames: Set<string> } {
   const selectedVmNames = normalizedSet(selectedVms.map((vm) => vm.vmName));
-  const allVmNames = normalizedSet(allVms.filter((vm) => vm.snapshotId === snapshotData.snapshot.snapshotId).map((vm) => vm.vmName));
+  const allVmNames = vmNamesBySnapshot.get(snapshotData.snapshot.snapshotId) ?? new Set<string>();
   const references = deriveSysvRawScopeReferences(snapshotData.sheets, selectedVmNames);
   // Host- und Cluster-Sheets müssen auch dann sicher filterbar bleiben, wenn ein
   // einzelnes VM-Sheet das Feld nicht führt. Die normalisierten VM-Beziehungen
@@ -522,48 +551,101 @@ function previewFrom(
   };
 }
 
-async function resolveSysvDataPackage(
-  scope: SysvDataPackageScope,
-  options: BuildSysvDataPackageOptions,
-): Promise<ResolvedSysvDataPackage> {
-  const packageId = options.packageId ?? `sysv-${shortId()}`;
-  report(options, "Scope auflösen", 5, scope.displayName);
-  const [snapshots, techInfoRows, vropsImports] = await Promise.all([
+export async function loadSysvDataPackageSource(
+  options: Pick<BuildSysvDataPackageOptions, "includeVropsTimeSeries" | "onProgress"> = {},
+): Promise<SysvDataPackageSource> {
+  report(options, "Scope auflösen", 2, "Gemeinsame Datenbasis laden");
+  const [snapshots, techInfoLatest, techInfoRows, vropsImports] = await Promise.all([
     getSnapshots(),
     getAllTechInfoLatest(),
-    getVropsTimeSeriesImports(),
+    getAllTechInfoRows(),
+    options.includeVropsTimeSeries !== false ? getVropsTimeSeriesImports() : Promise.resolve([] as VropsTimeSeriesImport[]),
   ]);
-  const selectedNames = resolveSysvDataPackageVmNames(techInfoRows, scope);
   const allSnapshotIds = snapshots.map((snapshot) => snapshot.snapshotId);
-  const allVms = await getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds);
-  const byName = new Map<string, NormalizedVm[]>();
-  for (const vm of allVms) {
-    const key = normalizeVmNameForMatch(vm.vmName);
-    byName.set(key, [...(byName.get(key) ?? []), vm]);
-  }
-  const errors: SysvDataPackageDiagnostic[] = [];
-  const { selectedVms, warnings } = matchScopeVmsToRvtools(selectedNames, byName);
-  if (selectedVms.length === 0) errors.push({ code: "no-rvtools-vm", message: "Keine VM des gewählten SysV-Scopes konnte eindeutig RVTools zugeordnet werden." });
-  const selectedSnapshotIds = new Set(selectedVms.map((vm) => vm.snapshotId));
-  const selectedSnapshots = snapshots.filter((snapshot) => selectedSnapshotIds.has(snapshot.snapshotId));
-  report(options, "RVTools-Daten filtern", 18, `${selectedVms.length.toLocaleString("de-DE")} eindeutig zugeordnete VMs`);
-  const [hostsAll, clustersAll, datastoresAll, snapshotsEntitiesAll] = await Promise.all([
+  const [allVms, hosts, clusters, datastores, snapshotEntities, rawData] = await Promise.all([
+    getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds),
     getBySnapshotIds<NormalizedHost>("entities_host", allSnapshotIds),
     getBySnapshotIds<NormalizedCluster>("entities_cluster", allSnapshotIds),
     getBySnapshotIds<NormalizedDatastore>("entities_datastore", allSnapshotIds),
     getBySnapshotIds<NormalizedSnapshot>("entities_snapshot", allSnapshotIds),
+    loadSnapshotRawData(snapshots, options),
   ]);
-  const rawData = selectedSnapshots.length > 0 ? await loadSnapshotRawData(selectedSnapshots, options) : [];
+  const vropsImport = vropsImports[0] ?? null;
+  let vrops: SysvDataPackageSource["vrops"] = null;
+  if (vropsImport) {
+    report(options, "vROps-Zeitreihen beschneiden", 36, "vROps-Datenbasis laden");
+    const [objects, chunks, summaries] = await Promise.all([
+      getVropsTimeSeriesObjects(vropsImport.id),
+      getVropsTimeSeriesChunks(vropsImport.id),
+      getVropsTimeSeriesSummaries(vropsImport.id),
+    ]);
+    vrops = { importMeta: vropsImport, objects, chunks, summaries };
+  }
+  // Beide Indizes werden einmal je Lauf aufgebaut; ein Neuaufbau pro Scope wäre im
+  // Batch-Export linear in der Zahl der Blattpakete.
+  const vmsByNormalizedName = new Map<string, NormalizedVm[]>();
+  const vmNamesBySnapshot = new Map<string, Set<string>>();
+  for (const vm of allVms) {
+    const key = normalizeVmNameForMatch(vm.vmName);
+    const bucket = vmsByNormalizedName.get(key);
+    if (bucket) bucket.push(vm);
+    else vmsByNormalizedName.set(key, [vm]);
+    if (key) {
+      const names = vmNamesBySnapshot.get(vm.snapshotId);
+      if (names) names.add(key);
+      else vmNamesBySnapshot.set(vm.snapshotId, new Set([key]));
+    }
+  }
+  const techInfoRowsByPointer = new Map(techInfoRows.map((row) => [techInfoPointerKey(row), row] as const));
+  report(options, "Scope auflösen", 42, `${allVms.length.toLocaleString("de-DE")} RVTools-VMs verfügbar`);
+  return {
+    snapshots,
+    techInfoLatest,
+    techInfoRows,
+    techInfoRowsByPointer,
+    allVms,
+    vmsByNormalizedName,
+    vmNamesBySnapshot,
+    hosts,
+    clusters,
+    datastores,
+    snapshotEntities,
+    rawData,
+    vrops,
+  };
+}
+
+export function resolveSysvDataPackageFromSource(
+  source: SysvDataPackageSource,
+  scope: SysvDataPackageScope,
+  options: BuildSysvDataPackageOptions = {},
+): ResolvedSysvDataPackage {
+  const packageId = options.packageId ?? `sysv-${shortId()}`;
+  report(options, "Scope auflösen", 5, scope.displayName);
+  const selectedNames = resolveSysvDataPackageVmNames(source.techInfoLatest, scope);
+  const errors: SysvDataPackageDiagnostic[] = [];
+  const { selectedVms, warnings } = matchScopeVmsToRvtools(selectedNames, source.vmsByNormalizedName);
+  if (selectedVms.length === 0) errors.push({ code: "no-rvtools-vm", message: "Keine VM des gewählten SysV-Scopes konnte eindeutig RVTools zugeordnet werden." });
+  const selectedSnapshotIds = new Set(selectedVms.map((vm) => vm.snapshotId));
+  report(options, "RVTools-Daten filtern", 18, `${selectedVms.length.toLocaleString("de-DE")} eindeutig zugeordnete VMs`);
   const rawSheets: SysvDataPackageRawSheet[] = [];
   const hostRefs = new Set<string>();
   const datastoreRefs = new Set<string>();
   const scopedSnapshots: SnapshotMeta[] = [];
-  for (const snapshotRaw of rawData) {
-    const snapshotVms = selectedVms.filter((vm) => vm.snapshotId === snapshotRaw.snapshot.snapshotId);
-    const scoped = buildSnapshotScopedRawPayload(snapshotRaw, snapshotVms, allVms, warnings);
+  const selectedVmsBySnapshot = new Map<string, NormalizedVm[]>();
+  for (const vm of selectedVms) {
+    const bucket = selectedVmsBySnapshot.get(vm.snapshotId);
+    if (bucket) bucket.push(vm);
+    else selectedVmsBySnapshot.set(vm.snapshotId, [vm]);
+  }
+  for (const snapshotRaw of source.rawData) {
+    const snapshotVms = selectedVmsBySnapshot.get(snapshotRaw.snapshot.snapshotId);
+    if (!snapshotVms) continue;
+    const scoped = buildSnapshotScopedRawPayload(snapshotRaw, snapshotVms, source.vmNamesBySnapshot, warnings);
     rawSheets.push(...scoped.rawSheets);
+    const { restrictedDatasetSources: _previousSources, ...snapshotWithoutPreviousSources } = scoped.snapshot;
     scopedSnapshots.push({
-      ...scoped.snapshot,
+      ...snapshotWithoutPreviousSources,
       restrictedDataset: {
         kind: "sysv-package",
         packageId,
@@ -586,34 +668,31 @@ async function resolveSysvDataPackage(
   // quadratisch in der Zahl der ausgewählten VMs.
   const selectedClusterRefs = new Set(selectedVms.map((vm) => `${vm.snapshotId}\u0000${clusterScopeKey(vm.vcenterId, vm.datacenter, vm.cluster)}`));
   const selectedVmRefs = new Set(selectedVms.map((vm) => snapshotScopedKey(vm.snapshotId, vm.vmName)));
-  const hosts = hostsAll.filter((host) => hostRefs.has(snapshotScopedKey(host.snapshotId, host.host)));
-  const clusters = clustersAll.filter((cluster) => selectedClusterRefs.has(`${cluster.snapshotId}\u0000${cluster.clusterKey}`));
-  const datastores = datastoresAll.filter((datastore) => datastoreRefs.has(snapshotScopedKey(datastore.snapshotId, datastore.name)));
-  const vms = selectedVms;
-  const snapshotEntities = snapshotsEntitiesAll.filter((row) => selectedVmRefs.has(snapshotScopedKey(row.snapshotId, row.vmName)));
+  const hosts = source.hosts.filter((host) => hostRefs.has(snapshotScopedKey(host.snapshotId, host.host)));
+  const clusters = source.clusters.filter((cluster) => selectedClusterRefs.has(`${cluster.snapshotId}\u0000${cluster.clusterKey}`));
+  const datastores = source.datastores.filter((datastore) => datastoreRefs.has(snapshotScopedKey(datastore.snapshotId, datastore.name)));
+  const vms = selectedVms.map(({ sysvPackageScopes: _previousScopes, ...vm }) => vm);
+  const snapshotEntities = source.snapshotEntities.filter((row) => selectedVmRefs.has(snapshotScopedKey(row.snapshotId, row.vmName)));
   // Cluster- und Hostverweise werden oben über die finalen VM-Objekte ermittelt. Die
   // Rohdatenrefs dienen ausschließlich dem fail-closed Datastore-/Host-Sheet-Filter.
 
   report(options, "Tech-Info filtern", 56, `${selectedNames.size.toLocaleString("de-DE")} Scope-Namen`);
   const finalNameSet = new Set(vms.map((vm) => normalizeVmNameForMatch(vm.vmName)));
-  const selectedLatest = techInfoRows.filter((row) => finalNameSet.has(normalizeVmNameForMatch(row.vmName)));
-  const selectedLatestPointers = await getTechInfoRowsByLatestPointers(selectedLatest);
+  const selectedLatest = source.techInfoLatest.filter((row) => finalNameSet.has(normalizeVmNameForMatch(row.vmName)));
+  const selectedLatestPointers = selectedLatest
+    .map((latest) => source.techInfoRowsByPointer.get(techInfoPointerKey(latest)))
+    .filter((row): row is TechInfoRow => Boolean(row));
   const techInfoResult = buildTechInfoPayload(packageId, selectedLatest, selectedLatestPointers);
   if (techInfoResult.error) errors.push(techInfoResult.error);
   const techInfo = techInfoResult.techInfo;
 
   let vrops: SysvDataPackageVropsPayload | undefined;
   let vropsImport: VropsTimeSeriesImport | null = null;
-  if (options.includeVropsTimeSeries !== false && vropsImports.length > 0) {
-    vropsImport = vropsImports[0];
+  if (options.includeVropsTimeSeries !== false && source.vrops) {
+    vropsImport = source.vrops.importMeta;
     report(options, "vROps-Zeitreihen beschneiden", 68, new Date(vropsImport.rangeStartUtc).toLocaleDateString("de-DE"));
-    const [objects, chunks, summaries] = await Promise.all([
-      getVropsTimeSeriesObjects(vropsImport.id),
-      getVropsTimeSeriesChunks(vropsImport.id),
-      getVropsTimeSeriesSummaries(vropsImport.id),
-    ]);
     try {
-      vrops = buildScopedVropsPayload(packageId, new Set(vms.map((vm) => vm.vmKey)), selectedSnapshotIds, vropsImport, objects, chunks, summaries, warnings);
+      vrops = buildScopedVropsPayload(packageId, new Set(vms.map((vm) => vm.vmKey)), selectedSnapshotIds, vropsImport, source.vrops.objects, source.vrops.chunks, source.vrops.summaries, warnings);
     } catch (error) {
       errors.push({ code: "invalid-vrops-chunk", message: error instanceof Error ? error.message : String(error) });
     }
@@ -635,6 +714,14 @@ async function resolveSysvDataPackage(
     : null;
   const preview = previewFrom(packageId, scope, selectedNames, vms, hosts, clusters, datastores, vrops, vropsImport, warnings, errors, payload);
   return { payload, preview };
+}
+
+async function resolveSysvDataPackage(
+  scope: SysvDataPackageScope,
+  options: BuildSysvDataPackageOptions = {},
+): Promise<ResolvedSysvDataPackage> {
+  const source = await loadSysvDataPackageSource(options);
+  return resolveSysvDataPackageFromSource(source, scope, options);
 }
 
 export async function buildSysvDataPackagePreview(
@@ -664,9 +751,13 @@ export async function buildSysvDataPackage(
   return { payload: resolved.payload, manifest: serialized.manifest, files: serialized.files, preview: resolved.preview };
 }
 
+/** Dateisystem- und ZIP-Pfad-taugliche Kurzform eines Scope-Labels. */
+export function sysvScopeSlug(value: string): string {
+  return value.trim().replace(/\s+/g, "-").replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "scope";
+}
+
 export function buildSysvDataPackageFileName(scope: SysvDataPackageScope, date = new Date()): string {
-  const label = scope.displayName.trim().replace(/\s+/g, "-").replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "scope";
-  return `rvtools-sysv_${scope.kind}_${label}_${date.toISOString().slice(0, 10)}.zip`;
+  return `rvtools-sysv_${scope.kind}_${sysvScopeSlug(scope.displayName)}_${date.toISOString().slice(0, 10)}.zip`;
 }
 
 /** Re-exportiert die Scope-Hilfe für Komponenten, die nur die Service-Datei kennen. */

@@ -16,7 +16,7 @@ import {
   type ImportProgress,
 } from "@/domain/services/importService";
 import { importUserDataBackupFile } from "@/domain/services/backupService";
-import { hasImportedData, replaceAnalysisDataWithSysvPackage } from "@/data/db";
+import { hasImportedData, mergeAnalysisDataWithSysvPackages } from "@/data/db";
 import {
   detectVropsTimeSeriesCsvFile,
   inferVropsTimeSeriesObjectTypeFromFileName,
@@ -26,7 +26,9 @@ import {
   type VropsTimeSeriesFileSet,
 } from "@/domain/services/vropsTimeSeriesImportService";
 import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
-import { inspectSysvDataPackageFile, validateSysvDataPackageZip } from "@/lib/export/sysvDataPackageFormat";
+import { discoverSysvPackages, type DiscoveredSysvPackage } from "@/lib/export/sysvDataPackageContainer";
+import { validateAndMergeSysvPackages } from "@/domain/services/sysvPackageMergeService";
+import { SysvPackageSelectionDialog } from "@/components/import/SysvPackageSelectionDialog";
 import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
 import { isModeFileName, parseModeFile } from "@/lib/appMode";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
@@ -214,6 +216,14 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ImportQueueItem[]>([]);
   const [rejectedFileNames, setRejectedFileNames] = useState<string[]>([]);
   const [importSuccessSignal, setImportSuccessSignal] = useState(0);
+  const [packageSelection, setPackageSelection] = useState<DiscoveredSysvPackage[] | null>(null);
+  const packageSelectionResolverRef = useRef<((packages: DiscoveredSysvPackage[]) => void) | null>(null);
+
+  const resolvePackageSelection = useCallback((packages: DiscoveredSysvPackage[]) => {
+    packageSelectionResolverRef.current?.(packages);
+    packageSelectionResolverRef.current = null;
+    setPackageSelection(null);
+  }, []);
 
   const patchItem = useCallback((id: string, patch: Partial<ImportQueueItem>) => {
     setItems((current) =>
@@ -229,42 +239,66 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
 
       const inputFiles = Array.from(input);
-      const packageCandidates = (await Promise.all(inputFiles.map(async (file) => {
-        if (!file.name.toLocaleLowerCase("en-US").endsWith(".zip")) return null;
-        return await inspectSysvDataPackageFile(file) ? file : null;
-      }))).filter((file): file is File => file !== null);
+      let discoveredPackages: DiscoveredSysvPackage[] = [];
+      try {
+        discoveredPackages = await discoverSysvPackages(inputFiles);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`SysV-Container konnte nicht geprüft werden: ${message}`);
+        setRejectedFileNames(inputFiles.map((file) => file.name));
+        return;
+      }
 
-      if (packageCandidates.length > 0) {
-        if (packageCandidates.length !== 1 || inputFiles.length !== 1) {
-          toast.error("Ein SysV-Datenpaket darf nicht zusammen mit weiteren Dateien importiert werden.");
+      if (discoveredPackages.length > 0) {
+        const packageRootNames = new Set(discoveredPackages.map((item) => item.path.split("/")[0]));
+        const hasMixedUpload = inputFiles.some((file) => {
+          const isZip = file.name.toLocaleLowerCase("en-US").endsWith(".zip");
+          return !isZip || !packageRootNames.has(file.name);
+        });
+        if (hasMixedUpload) {
+          toast.error("SysV-Datenpakete dürfen nicht zusammen mit XLSX-, CSV-, TXT- oder anderen Importdateien hochgeladen werden.");
           setRejectedFileNames(inputFiles.map((file) => file.name));
           return;
         }
-        const packageFile = packageCandidates[0];
-        const packageItem: ImportQueueItem = {
-          id: `${Date.now()}-sysv-package-${packageFile.name}`,
-          fileName: packageFile.name,
+
+        runningRef.current = true;
+        setImporting(true);
+        let selectedPackages = discoveredPackages;
+        if (discoveredPackages.length >= 2) {
+          selectedPackages = await new Promise<DiscoveredSysvPackage[]>((resolve) => {
+            packageSelectionResolverRef.current = resolve;
+            setPackageSelection(discoveredPackages);
+          });
+        }
+        if (selectedPackages.length === 0) {
+          runningRef.current = false;
+          setImporting(false);
+          toast.info("SysV-Paketimport wurde abgebrochen.");
+          return;
+        }
+
+        const packageItems = selectedPackages.map<ImportQueueItem>((item, index) => ({
+          id: `${Date.now()}-sysv-package-${index}-${item.manifest.packageId}`,
+          fileName: item.path,
           fileKind: "sysv-data-package",
           progress: null,
           result: null,
           status: "queued",
-        };
-        setItems([packageItem]);
+        }));
+        setItems(packageItems);
         setRejectedFileNames([]);
-        runningRef.current = true;
-        setImporting(true);
         try {
-          patchItem(packageItem.id, {
-            status: "running",
-            progress: { step: "SysV-Datenpaket prüfen", percent: 5, detail: packageFile.name },
-          });
           if (!appMode) throw new Error("Der App-Modus ist in diesem Kontext nicht verfügbar.");
-          const validated = await validateSysvDataPackageZip(new Uint8Array(await packageFile.arrayBuffer()));
-          patchItem(packageItem.id, {
-            progress: { step: "Paket validiert", percent: 30, detail: `${validated.manifest.scope.displayName} · ${validated.payload.vms.length} VMs` },
-          });
+          packageItems.forEach((item) => patchItem(item.id, {
+            status: "running",
+            progress: { step: "SysV-Datenpakete prüfen", percent: 5, detail: item.fileName },
+          }));
+          const merged = await validateAndMergeSysvPackages(selectedPackages);
+          packageItems.forEach((item) => patchItem(item.id, {
+            progress: { step: "Paketvereinigung validiert", percent: 55, detail: `${merged.payload.vms.length.toLocaleString("de-DE")} eindeutige VMs` },
+          }));
           if (await hasImportedData()) {
-            const confirmationMessage = "Das SysV-Datenpaket ersetzt die vorhandenen Analysedaten. Wartungsfenster, Szenarien, vCenter-Gruppen und lokale Einstellungen bleiben erhalten; Kapazitätsrichtlinien-Zuordnungen werden zurückgesetzt.";
+            const confirmationMessage = "Die ausgewählten SysV-Datenpakete ersetzen die vorhandenen Analysedaten. Wartungsfenster, Szenarien, vCenter-Gruppen und lokale Einstellungen bleiben erhalten; Kapazitätsrichtlinien-Zuordnungen werden zurückgesetzt.";
             let confirmed = true;
             if (typeof window !== "undefined" && typeof window.confirm === "function") {
               try {
@@ -280,16 +314,16 @@ export function ImportProvider({ children }: { children: ReactNode }) {
                 warnings: ["Import vom Benutzer abgebrochen; vorhandene Analysedaten wurden nicht verändert."],
                 errors: [],
               };
-              patchItem(packageItem.id, {
+              packageItems.forEach((item) => patchItem(item.id, {
                 status: "warning",
                 progress: { step: "Abgebrochen", percent: 100, detail: "Keine Daten verändert" },
                 result,
-              });
-              toast.info("SysV-Datenpaket wurde nicht importiert.");
+              }));
+              toast.info("SysV-Paketvereinigung wurde nicht importiert.");
               return;
             }
           }
-          await replaceAnalysisDataWithSysvPackage(validated);
+          await mergeAnalysisDataWithSysvPackages(merged);
           setFilters({
             vcenterIds: [],
             clusters: [],
@@ -302,29 +336,32 @@ export function ImportProvider({ children }: { children: ReactNode }) {
           await appMode.saveLastSysvScope({ kind: "all" });
           await appMode.activateMode("sysv", { openSysvScopeDialog: false });
           await queryClient.invalidateQueries();
-          const warnings = validated.manifest.warnings.map((warning) => warning.message);
+          const warnings = [
+            ...selectedPackages.flatMap((item) => item.manifest.warnings.map((warning) => warning.message)),
+            ...merged.warnings,
+          ];
           const result: ImportResult = {
             success: true,
             fileKind: "sysv-data-package",
             warnings,
             errors: [],
           };
-          patchItem(packageItem.id, {
+          packageItems.forEach((item) => patchItem(item.id, {
             status: warnings.length > 0 ? "warning" : "success",
-            progress: { step: "Abgeschlossen", percent: 100, detail: "SysV-Modus · Scope all" },
+            progress: { step: "Abgeschlossen", percent: 100, detail: `SysV-Modus · ${merged.payload.vms.length.toLocaleString("de-DE")} eindeutige VMs` },
             result,
-          });
+          }));
           setImportSuccessSignal((n) => n + 1);
-          toast.success(`SysV-Datenpaket „${validated.manifest.scope.displayName}“ erfolgreich importiert.`);
+          toast.success(`${selectedPackages.length.toLocaleString("de-DE")} SysV-Paket${selectedPackages.length === 1 ? "" : "e"} erfolgreich als Vereinigung importiert.`);
           globalThis.dispatchEvent?.(new Event(SYSV_DATA_PACKAGE_IMPORTED_EVENT));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          patchItem(packageItem.id, {
+          packageItems.forEach((item) => patchItem(item.id, {
             status: "error",
             progress: { step: "Fehlgeschlagen", percent: 100, detail: message },
             result: { success: false, fileKind: "sysv-data-package", warnings: [], errors: [message] },
-          });
-          toast.error(`SysV-Datenpaket konnte nicht importiert werden: ${message}`);
+          }));
+          toast.error(`SysV-Paketimport konnte nicht abgeschlossen werden: ${message}`);
         } finally {
           runningRef.current = false;
           setImporting(false);
@@ -598,7 +635,17 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     [clearImportState, importFiles, importing, items, rejectedFileNames, importSuccessSignal],
   );
 
-  return <ImportContext.Provider value={value}>{children}</ImportContext.Provider>;
+  return (
+    <ImportContext.Provider value={value}>
+      {children}
+      <SysvPackageSelectionDialog
+        open={packageSelection !== null}
+        packages={packageSelection ?? []}
+        onCancel={() => resolvePackageSelection([])}
+        onConfirm={resolvePackageSelection}
+      />
+    </ImportContext.Provider>
+  );
 }
 
 export function useImportController(): ImportContextValue {

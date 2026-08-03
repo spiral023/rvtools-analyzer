@@ -119,14 +119,22 @@ export async function copyConfluenceWikiTable(data: TableExportData): Promise<vo
   await copyTableText(buildConfluenceWikiTable(data));
 }
 
-export function downloadTextFile(content: string, filename: string, type: string): void {
+/**
+ * Löst einen Browser-Download aus. Der Object-URL wird erst im nächsten Tick
+ * freigegeben, weil ein synchrones Revoke große Blobs (SysV-ZIPs) abbrechen kann.
+ */
+export function downloadBlobFile(content: BlobPart, filename: string, type: string): void {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export function downloadTextFile(content: string, filename: string, type: string): void {
+  downloadBlobFile(content, filename, type);
 }
 
 export function exportMarkdownTable(data: TableExportData, filename: string): void {
@@ -137,7 +145,7 @@ export function exportMarkdownTable(data: TableExportData, filename: string): vo
   );
 }
 
-function escapeCsvCell(value: string): string {
+export function escapeCsvCell(value: string): string {
   return /[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 

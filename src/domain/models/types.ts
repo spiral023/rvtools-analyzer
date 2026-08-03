@@ -36,6 +36,8 @@ export interface SnapshotMeta {
   importDurationMs?: number;
   /** Harte, beim SysV-Paketimport materialisierte Datengrenze. */
   restrictedDataset?: RestrictedDatasetSource;
+  /** Alle SysV-Pakete, die zu diesem Snapshot beigetragen haben. */
+  restrictedDatasetSources?: RestrictedDatasetSource[];
 }
 
 export type SysvDataPackageScope =
@@ -64,6 +66,48 @@ export interface RestrictedDatasetSource {
   scopeLabel: string;
   dataPolicy: "strict-vm-scope-v1";
   sharedCapacityContext: true;
+}
+
+export interface SysvBatchReport {
+  createdAt: string;
+  appVersion: string;
+  level: "person" | "department" | "area";
+  rootLabel: string;
+  includeVropsTimeSeries: boolean;
+  entries: SysvBatchReportEntry[];
+  skipped: SysvBatchReportSkip[];
+  /** Anzahl der Paket-VM-Referenzen geteilt durch die eindeutige VM-Anzahl. */
+  redundancyFactor?: number;
+}
+
+export interface SysvBatchReportEntry {
+  path: string;
+  packageId: string;
+  scopeKind: SysvDataPackageScope["kind"];
+  scopeLabel: string;
+  vmCount: number;
+  compressedBytes: number;
+  /** Personenpaket, das VMs außerhalb der Abteilung enthält, unter der es liegt. */
+  crossesParentScope: boolean;
+  warningCodes: string[];
+}
+
+export interface SysvBatchReportSkip {
+  scopeKind: SysvDataPackageScope["kind"];
+  scopeLabel: string;
+  reason: string;
+}
+
+export interface ImportedSysvPackage {
+  packageId: string;
+  scopeKind: SysvDataPackageScope["kind"];
+  scopeLabel: string;
+  createdAt: string;
+  importedAt: string;
+  /** Pfad innerhalb des Container-ZIPs; leer bei Einzelimport. */
+  containerPath: string;
+  vmCount: number;
+  vmKeys: string[];
 }
 
 export interface SysvDataPackageManifestWarning {
@@ -1581,6 +1625,8 @@ export interface NormalizedVm {
   firmware: string | null;
   efiSecureBoot: boolean | null;
   cbt: boolean | null;
+  /** Anzeigenamen der SysV-Pakete, aus denen diese VM stammt. */
+  sysvPackageScopes?: string[];
 }
 
 export interface NormalizedHost {

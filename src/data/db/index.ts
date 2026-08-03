@@ -36,6 +36,7 @@ import type {
   VropsTimeSeriesImportedObject,
   VropsTimeSeriesChunk,
   VropsTimeSeriesSummary,
+  ImportedSysvPackage,
   CapacityPolicy,
   ClusterCapacityPolicyAssignment,
   FillUpAnalysisRun,
@@ -48,7 +49,7 @@ import type {
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, buildVropsLatestFromRows, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
-import type { ValidatedSysvDataPackagePayload } from "@/lib/export/sysvDataPackageFormat";
+import type { SysvPackageMergeResult } from "@/domain/services/sysvPackageMergeService";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -56,6 +57,11 @@ interface RVToolsDBSchema extends DBSchema {
     key: string;
     value: SnapshotMeta;
     indexes: { vcenterId: string; exportTs: string; fileChecksum: string };
+  };
+  sysv_packages: {
+    key: string;
+    value: ImportedSysvPackage;
+    indexes: { scopeKind: string; importedAt: string };
   };
   rawSheetBlobs: {
     key: [string, string];
@@ -239,6 +245,7 @@ interface RVToolsDBSchema extends DBSchema {
 }
 
 export type StoreName = "snapshots" | "rawSheetBlobs" | "entities_vm" | "entities_host"
+  | "sysv_packages"
   | "entities_cluster" | "entities_datastore" | "entities_snapshot"
   | "entities_health" | "metrics_cache" | "ui_state" | "techinfo_imports"
   | "techinfo_rows" | "techinfo_latest"
@@ -276,9 +283,9 @@ type SnapshotScopedStoreName = "rawSheetBlobs" | "entities_vm" | "entities_host"
   | "entities_datastore" | "entities_snapshot" | "entities_health" | "metrics_cache";
 
 const DB_NAME = "rvtools-analyzer";
-const DB_VERSION = 29;
+const DB_VERSION = 30;
 const ALL_STORES: StoreName[] = [
-  "snapshots", "rawSheetBlobs", "entities_vm", "entities_host",
+  "snapshots", "sysv_packages", "rawSheetBlobs", "entities_vm", "entities_host",
   "entities_cluster", "entities_datastore", "entities_snapshot",
   "entities_health", "metrics_cache", "ui_state",
   "techinfo_imports", "techinfo_rows", "techinfo_latest",
@@ -332,6 +339,11 @@ export function getDb(): Promise<IDBPDatabase<RVToolsDBSchema>> {
           snap.createIndex("vcenterId", "vcenterId");
           snap.createIndex("exportTs", "exportTs");
           snap.createIndex("fileChecksum", "fileChecksum");
+        }
+        if (!db.objectStoreNames.contains("sysv_packages")) {
+          const packages = db.createObjectStore("sysv_packages", { keyPath: "packageId" });
+          packages.createIndex("scopeKind", "scopeKind");
+          packages.createIndex("importedAt", "importedAt");
         }
         if (!db.objectStoreNames.contains("rawSheetBlobs")) {
           const blobs = db.createObjectStore("rawSheetBlobs", { keyPath: ["snapshotId", "sheetName"] });
@@ -992,6 +1004,18 @@ export async function getAllTechInfoLatest(): Promise<TechInfoLatest[]> {
   const db = await getDb();
   const values = await db.getAll("techinfo_latest");
   return Promise.all(values.map((value) => hydrateTechInfoLatest(db, value)));
+}
+
+/** Lädt alle Tech-Info-Rohzeilen einmalig für paketübergreifende Auswertungen. */
+export async function getAllTechInfoRows(): Promise<TechInfoRow[]> {
+  const db = await getDb();
+  return db.getAll("techinfo_rows");
+}
+
+export async function getImportedSysvPackages(): Promise<ImportedSysvPackage[]> {
+  const db = await getDb();
+  const packages = await db.getAll("sysv_packages");
+  return packages.sort((left, right) => right.importedAt.localeCompare(left.importedAt));
 }
 
 export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<TechInfoLatest[]> {
@@ -1738,6 +1762,7 @@ const STORE_DELETE_LABELS: Record<StoreName, string> = {
   maintenance_windows: "Wartungsfenster",
   scenarios: "Szenarien",
   vcenter_groups: "vCenter-Gruppen",
+  sysv_packages: "SysV-Datenpakete",
 };
 
 async function runSequential<T>(
@@ -1848,6 +1873,7 @@ export async function deleteSystemData(onProgress?: DeleteProgressCallback): Pro
  */
 const SYSV_PACKAGE_REPLACE_STORES = [
   "snapshots",
+  "sysv_packages",
   "rawSheetBlobs",
   "entities_vm",
   "entities_host",
@@ -1887,9 +1913,11 @@ const SYSV_PACKAGE_REPLACE_STORES = [
 
 type SysvPackageReplaceStoreName = (typeof SYSV_PACKAGE_REPLACE_STORES)[number];
 
-export async function replaceAnalysisDataWithSysvPackage(
-  validated: ValidatedSysvDataPackagePayload,
-): Promise<void> {
+/**
+ * Ersetzt die Analysedaten atomar durch die Vereinigung der importierten SysV-Pakete.
+ * Ein Einzelimport ist der Sonderfall `inputs.length === 1` des Merge-Services.
+ */
+export async function mergeAnalysisDataWithSysvPackages(merged: SysvPackageMergeResult): Promise<void> {
   const db = await getDb();
   const transaction = db.transaction([...SYSV_PACKAGE_REPLACE_STORES], "readwrite");
   try {
@@ -1899,24 +1927,25 @@ export async function replaceAnalysisDataWithSysvPackage(
       const store = transaction.objectStore(storeName);
       for (const value of values) await store.put(value);
     };
-    const { payload, rawSheetBlobs } = validated;
+    const { payload, rawSheetBlobs } = merged;
     await putAll("snapshots", payload.snapshots);
     await putAll("rawSheetBlobs", rawSheetBlobs);
     await putAll("entities_vm", payload.vms);
     await putAll("entities_host", payload.hosts);
     await putAll("entities_cluster", payload.clusters);
     await putAll("entities_datastore", payload.datastores);
-    await putAll("entities_snapshot", payload.snapshotsEntities);
-    await putAll("entities_health", payload.health);
-    await putAll("techinfo_imports", [payload.techInfo.importMeta]);
-    await putAll("techinfo_rows", payload.techInfo.rows);
-    await putAll("techinfo_latest", payload.techInfo.latest);
-    if (payload.vrops) {
-      await putAll("vrops_timeseries_imports", [payload.vrops.importMeta]);
-      await putAll("vrops_timeseries_objects", payload.vrops.objects);
-      await putAll("vrops_timeseries_chunks", payload.vrops.chunks);
-      await putAll("vrops_timeseries_summaries", payload.vrops.summaries);
+    await putAll("entities_snapshot", payload.snapshotsEntities.map(({ id: _id, ...row }) => row));
+    await putAll("entities_health", payload.health.map(({ id: _id, ...row }) => row));
+    await putAll("techinfo_imports", merged.techInfoImports);
+    await putAll("techinfo_rows", merged.techInfoRows);
+    await putAll("techinfo_latest", merged.techInfoLatest);
+    if (merged.vrops) {
+      await putAll("vrops_timeseries_imports", [merged.vrops.importMeta]);
+      await putAll("vrops_timeseries_objects", merged.vrops.objects);
+      await putAll("vrops_timeseries_chunks", merged.vrops.chunks);
+      await putAll("vrops_timeseries_summaries", merged.vrops.summaries);
     }
+    await putAll("sysv_packages", merged.importedPackages);
     await transaction.done;
   } catch (error) {
     try {

@@ -103,6 +103,7 @@ const VM_FIELD_META: Record<string, Omit<GlobalFilterField, "source" | "key">> =
   firmware: { label: "Firmware", dataType: "text" },
   efiSecureBoot: { label: "EFI Secure boot", dataType: "boolean" },
   cbt: { label: "CBT", dataType: "boolean" },
+  sysvPackageScopes: { label: "SysV-Datenpaket", dataType: "text", isRepeated: true },
 };
 
 const TECH_INFO_FIELD_META: Record<string, Omit<GlobalFilterField, "source" | "key">> = {
@@ -249,6 +250,10 @@ export function buildGlobalFilterFields(
   const fields: GlobalFilterField[] = [];
   const seen = new Set<string>();
 
+  /** Mehrwertige Felder sind nur dann filterbar, wenn mindestens eine Zeile einen Wert führt. */
+  const hasFilterableValue = (value: unknown): boolean =>
+    value !== undefined && (!Array.isArray(value) || value.length > 0);
+
   const addField = (field: GlobalFilterField) => {
     const key = `${field.source}:${field.key}`;
     if (seen.has(key)) return;
@@ -257,7 +262,7 @@ export function buildGlobalFilterFields(
   };
 
   for (const key of Object.keys(VM_FIELD_META)) {
-    if (!vms.some((vm) => vm[key as keyof NormalizedVm] !== undefined)) continue;
+    if (!vms.some((vm) => hasFilterableValue(vm[key as keyof NormalizedVm]))) continue;
     addField({ source: "vm", key, ...VM_FIELD_META[key] });
   }
 
@@ -446,6 +451,10 @@ function evaluateValue(
   field: GlobalFilterField,
   rule: GlobalFilterRule,
 ): boolean {
+  if (Array.isArray(rawValue)) {
+    return rawValue.length > 0 && rawValue.some((value) => evaluateValue(value, field, rule));
+  }
+
   if (field.dataType === "boolean") {
     const boolValue = toBoolean(rawValue);
     if (rule.operator === "is_true") return boolValue === true;

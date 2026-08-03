@@ -6,6 +6,7 @@ import {
   sliceVropsTimeSeriesChunk,
   toManifestWarnings,
 } from "@/domain/services/sysvDataPackageService";
+import { mergeVropsTimeSeriesChunksWithWarnings } from "@/lib/export/sysvDataPackageFormat";
 
 function chunk(): VropsTimeSeriesChunk {
   return {
@@ -117,5 +118,41 @@ describe("SysV-Scope-Zuordnung zu RVTools", () => {
       { code: "ambiguous-vm-name", message: "nicht eindeutig" },
       { code: "excluded-sheet", message: "vLicense ausgeschlossen", count: 3 },
     ]);
+  });
+});
+
+describe("SysV-vROps-Chunk-Merge", () => {
+  it("vereinigt Objektkeys, füllt fehlende Float32-Werte mit NaN und Wartungscodes mit 0", () => {
+    const result = mergeVropsTimeSeriesChunksWithWarnings([
+      {
+        ...chunk(),
+        objectKeys: ["vm-a", "vm-b"],
+        metricValues: { vmCpuDemandAvgMHz: new Float32Array([1, 2, 3, 4]).buffer },
+        maintenanceCodes: Uint8Array.from([1, 2, 3, 4]).buffer,
+        maintenanceDerived: Uint8Array.from([1, 0, 1, 0]).buffer,
+      },
+      {
+        ...chunk(),
+        objectKeys: ["vm-c"],
+        metricValues: { vmCpuDemandAvgMHz: new Float32Array([5, 6]).buffer },
+        maintenanceCodes: undefined,
+        maintenanceDerived: Uint8Array.from([0, 1]).buffer,
+      },
+    ], "sysv-merge:test:vrops");
+
+    expect(result.warnings).toEqual([]);
+    expect(result.chunks[0].objectKeys).toEqual(["vm-a", "vm-b", "vm-c"]);
+    expect([...new Float32Array(result.chunks[0].metricValues.vmCpuDemandAvgMHz!)]).toEqual([1, 2, 3, 4, 5, 6]);
+    expect([...new Uint8Array(result.chunks[0].maintenanceCodes!)]).toEqual([1, 2, 3, 4, 0, 0]);
+  });
+
+  it("verwirft Wartungscodes bei inkompatiblen Lexika und lehnt widersprüchliche Zeitachsen ab", () => {
+    const first = { ...chunk(), maintenanceLexicon: ["planned"] };
+    const second = { ...chunk(), maintenanceLexicon: ["unplanned"], objectKeys: ["vm-c", "vm-d", "vm-e"] };
+    const result = mergeVropsTimeSeriesChunksWithWarnings([first, second]);
+
+    expect(result.warnings[0]).toContain("unterschiedlicher Lexika");
+    expect(result.chunks[0].maintenanceCodes).toBeUndefined();
+    expect(() => mergeVropsTimeSeriesChunksWithWarnings([{ ...first, startUtc: 3600 }, second])).toThrow(/widersprüchliche Zeitachsen/);
   });
 });

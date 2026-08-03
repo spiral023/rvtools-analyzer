@@ -744,3 +744,123 @@ export async function validateSysvDataPackageZip(
 export function estimateSysvDataPackageUncompressedBytes(files: Record<string, Uint8Array>): number {
   return Object.values(files).reduce((sum, file) => sum + file.byteLength, 0);
 }
+
+export interface MergedVropsTimeSeriesChunks {
+  chunks: VropsTimeSeriesChunk[];
+  warnings: string[];
+}
+
+function cloneFloat32Buffer(buffer: ArrayBuffer | undefined, expectedLength: number, label: string): Float32Array | null {
+  if (!buffer) return null;
+  if (buffer.byteLength !== expectedLength * 4) throw new Error(`vROps-${label} hat eine falsche Quelllänge.`);
+  return new Float32Array(buffer);
+}
+
+function mergeVropsByteBuffers(
+  chunks: readonly VropsTimeSeriesChunk[],
+  objectIndexes: ReadonlyMap<string, number>,
+  slotCount: number,
+  property: "maintenanceCodes" | "maintenanceDerived",
+): ArrayBuffer | undefined {
+  if (!chunks.some((chunk) => chunk[property])) return undefined;
+  const target = new Uint8Array(objectIndexes.size * slotCount);
+  for (const chunk of chunks) {
+    if (!chunk[property]) continue;
+    if (chunk[property]!.byteLength !== chunk.objectKeys.length * slotCount) {
+      throw new Error(`vROps-${property} hat eine falsche Quelllänge.`);
+    }
+    const source = new Uint8Array(chunk[property]!);
+    chunk.objectKeys.forEach((objectKey, sourceIndex) => {
+      const targetIndex = objectIndexes.get(objectKey);
+      if (targetIndex === undefined) return;
+      target.set(source.subarray(sourceIndex * slotCount, (sourceIndex + 1) * slotCount), targetIndex * slotCount);
+    });
+  }
+  return target.buffer as ArrayBuffer;
+}
+
+/**
+ * Führt physisch beschnittene VM-Chunks wieder zusammen. Die Funktion ist
+ * absichtlich frei von IndexedDB- oder UI-Zugriffen und erhält die erste
+ * Einfügereihenfolge der Objektkeys.
+ */
+export function mergeVropsTimeSeriesChunksWithWarnings(
+  chunks: readonly VropsTimeSeriesChunk[],
+  importId = "sysv-merge:preview:vrops",
+): MergedVropsTimeSeriesChunks {
+  const byChunkKey = new Map<string, VropsTimeSeriesChunk[]>();
+  for (const chunk of chunks) {
+    if (chunk.objectType !== "vm") throw new Error("SysV-vROps-Merges dürfen nur VM-Chunks enthalten.");
+    const group = byChunkKey.get(chunk.chunkKey);
+    if (group) group.push(chunk);
+    else byChunkKey.set(chunk.chunkKey, [chunk]);
+  }
+
+  const merged: VropsTimeSeriesChunk[] = [];
+  const warnings: string[] = [];
+  for (const group of byChunkKey.values()) {
+    const first = group[0];
+    const slotCount = first.slotCount;
+    if (!Number.isInteger(slotCount) || slotCount < 1) throw new Error(`vROps-Chunk ${first.chunkKey} hat eine ungültige Slot-Anzahl.`);
+    if (group.some((chunk) => chunk.startUtc !== first.startUtc || chunk.slotCount !== slotCount)) {
+      throw new Error(`vROps-Chunk ${first.chunkKey} hat widersprüchliche Zeitachsen.`);
+    }
+
+    const objectKeys: string[] = [];
+    const objectIndexes = new Map<string, number>();
+    for (const chunk of group) {
+      for (const objectKey of chunk.objectKeys) {
+        if (!objectIndexes.has(objectKey)) {
+          objectIndexes.set(objectKey, objectKeys.length);
+          objectKeys.push(objectKey);
+        }
+      }
+    }
+
+    const metricNames = new Set<string>();
+    for (const chunk of group) for (const metric of Object.keys(chunk.metricValues)) metricNames.add(metric);
+    const metricValues: VropsTimeSeriesChunk["metricValues"] = {};
+    for (const metric of metricNames) {
+      const target = new Float32Array(objectKeys.length * slotCount);
+      target.fill(Number.NaN);
+      for (const chunk of group) {
+        const source = cloneFloat32Buffer(chunk.metricValues[metric as keyof typeof chunk.metricValues], chunk.objectKeys.length * slotCount, metric);
+        if (!source) continue;
+        chunk.objectKeys.forEach((objectKey, sourceIndex) => {
+          const targetIndex = objectIndexes.get(objectKey);
+          if (targetIndex === undefined) return;
+          target.set(source.subarray(sourceIndex * slotCount, (sourceIndex + 1) * slotCount), targetIndex * slotCount);
+        });
+      }
+      metricValues[metric as keyof typeof metricValues] = target.buffer as ArrayBuffer;
+    }
+
+    const lexicons = group
+      .filter((chunk) => chunk.maintenanceCodes)
+      .map((chunk) => JSON.stringify(chunk.maintenanceLexicon ?? []));
+    const maintenanceLexiconMatches = lexicons.every((lexicon) => lexicon === lexicons[0]);
+    let maintenanceCodes = mergeVropsByteBuffers(group, objectIndexes, slotCount, "maintenanceCodes");
+    if (maintenanceCodes && !maintenanceLexiconMatches) {
+      maintenanceCodes = undefined;
+      warnings.push(`vROps-Chunk ${first.chunkKey}: Wartungscodes wurden wegen unterschiedlicher Lexika verworfen.`);
+    }
+    const maintenanceDerived = mergeVropsByteBuffers(group, objectIndexes, slotCount, "maintenanceDerived");
+    const {
+      maintenanceCodes: _firstMaintenanceCodes,
+      maintenanceLexicon: _firstMaintenanceLexicon,
+      maintenanceDerived: _firstMaintenanceDerived,
+      maintenanceStates: _legacyMaintenanceStates,
+      ...baseChunk
+    } = first;
+    // Ohne übernommene Wartungscodes bleibt auch das Lexikon weg — sonst würde ein
+    // Lexikon ohne zugehörige Codes in die Zieldaten wandern.
+    const mergedChunk: VropsTimeSeriesChunk = { ...baseChunk, importId, objectKeys, metricValues };
+    if (maintenanceCodes) {
+      mergedChunk.maintenanceCodes = maintenanceCodes;
+      mergedChunk.maintenanceLexicon = [...(first.maintenanceLexicon ?? [])];
+    }
+    if (maintenanceDerived) mergedChunk.maintenanceDerived = maintenanceDerived;
+    merged.push(mergedChunk);
+  }
+  return { chunks: merged, warnings };
+}
