@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "@/app/layout/AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-const { importFiles, useOptionalImportControllerMock, useOptionalAppModeMock } = vi.hoisted(() => ({
+const { importFiles, useOptionalImportControllerMock, useOptionalAppModeMock, useRestrictedDatasetMock } = vi.hoisted(() => ({
   importFiles: vi.fn(),
   useOptionalImportControllerMock: vi.fn(),
   useOptionalAppModeMock: vi.fn(),
+  useRestrictedDatasetMock: vi.fn(),
 }));
 
 vi.mock("@/hooks/useImportController", () => ({
@@ -16,6 +17,10 @@ vi.mock("@/hooks/useImportController", () => ({
 
 vi.mock("@/hooks/useAppMode", () => ({
   useOptionalAppMode: useOptionalAppModeMock,
+}));
+
+vi.mock("@/hooks/useRestrictedDataset", () => ({
+  useRestrictedDataset: useRestrictedDatasetMock,
 }));
 
 function renderSidebar() {
@@ -34,6 +39,8 @@ describe("AppSidebar", () => {
     useOptionalImportControllerMock.mockReset();
     useOptionalAppModeMock.mockReset();
     useOptionalAppModeMock.mockReturnValue(null);
+    useRestrictedDatasetMock.mockReset();
+    useRestrictedDatasetMock.mockReturnValue({ isRestricted: false, sources: [], isPending: false });
   });
 
   it("benennt den Upload-Menüpunkt in Uploads um", () => {
@@ -110,6 +117,32 @@ describe("AppSidebar", () => {
     for (const name of ["Übersicht", "Uploads", "Hosts", "VMs", "Storage / Backup", "Netzwerk", "Tech-Info", "Export & Berichte"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
+  });
+
+  it("blendet Hosts im eingeschränkten SysV-Datensatz aus", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useRestrictedDatasetMock.mockReturnValue({ isRestricted: true, sources: [], isPending: false });
+    renderSidebar();
+
+    expect(screen.queryByRole("link", { name: "Hosts" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "VMs" })).toBeInTheDocument();
+  });
+
+  it("behält Hosts im SysV-Modus auf einem vollständigen Datenbestand", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
+    useRestrictedDatasetMock.mockReturnValue({ isRestricted: false, sources: [], isPending: false });
+    renderSidebar();
+
+    expect(screen.getByRole("link", { name: "Hosts" })).toHaveAttribute("href", "/hosts");
+  });
+
+  it("hält Hosts bis zum Abschluss der Snapshot-Abfrage sichtbar", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useRestrictedDatasetMock.mockReturnValue({ isRestricted: false, sources: [], isPending: true });
+    renderSidebar();
+
+    expect(screen.getByRole("link", { name: "Hosts" })).toBeInTheDocument();
   });
 
   it("hält modusabhängige Einträge bis zum Abschluss der Hydrierung zurück", () => {

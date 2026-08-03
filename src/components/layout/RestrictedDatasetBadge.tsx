@@ -1,13 +1,12 @@
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useActiveSnapshotIds } from "@/hooks/useActiveSnapshots";
+import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
 
 /** Zentraler, persistenter Hinweis, wenn der aktive Analysedatensatz aus einem SysV-Paket stammt. */
 export function RestrictedDatasetBadge() {
-  const { snapshots, activeSnapshotIds } = useActiveSnapshotIds();
-  const activeSnapshotIdSet = new Set(activeSnapshotIds);
+  const { isRestricted } = useRestrictedDataset();
 
-  if (!snapshots.some((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId) && snapshot.restrictedDataset?.kind === "sysv-package")) return null;
+  if (!isRestricted) return null;
 
   return (
     <Badge

@@ -76,7 +76,7 @@ const thinDiskColumns: ColumnDef<ThinDiskRow, unknown>[] = [
   { accessorKey: "host", header: "Host", meta: { info: CAPACITY_THIN_DISK_COLUMNS.host }, cell: ({ getValue }) => (getValue() as string) || "—" },
 ];
 
-export function DatastoreCapacityDetails({ datastores, hosts, allVms, rawDatastores, rawDisks, search, onOpenVm }: { datastores: NormalizedDatastore[]; hosts: NormalizedHost[]; allVms: NormalizedVm[]; rawDatastores: SheetRow[]; rawDisks: SheetRow[]; search: string; onOpenVm: (row: unknown) => void }) {
+export function DatastoreCapacityDetails({ datastores, hosts, allVms, rawDatastores, rawDisks, search, onOpenVm, hideDatastoreDetails = false }: { datastores: NormalizedDatastore[]; hosts: NormalizedHost[]; allVms: NormalizedVm[]; rawDatastores: SheetRow[]; rawDisks: SheetRow[]; search: string; onOpenVm: (row: unknown) => void; /** Im eingeschränkten SysV-Datensatz sind nur referenzierte Datastores enthalten; die Detailtabelle wäre unvollständig. */ hideDatastoreDetails?: boolean }) {
   const datastoreDetailRows = useMemo(() => buildDatastoreDetailRows(datastores, hosts, rawDatastores), [datastores, hosts, rawDatastores]);
 
   const thinRiskRows = useMemo<ThinRiskRow[]>(() => {
@@ -113,7 +113,7 @@ export function DatastoreCapacityDetails({ datastores, hosts, allVms, rawDatasto
 
   return (
     <>
-      <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable tableId="storage/datastore-details" columnPicker data={datastoreDetailRows} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>
+      {!hideDatastoreDetails && <div><InfoTooltip entry={CAPACITY_SECTIONS.datastoreDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Details</h3></InfoTooltip><VirtualTable tableId="storage/datastore-details" columnPicker data={datastoreDetailRows} columns={datastoreColumns} globalFilter={search} initialSorting={[{ id: "freePct", desc: false }]} /></div>}
       {thinRiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinRisk} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin-Provisioning Risiko</h3></InfoTooltip><VirtualTable tableId="storage/thin-risk" columnPicker data={thinRiskRows} columns={thinRiskColumns} globalFilter={search} height={250} /></div>}
       {thinDiskRows.length > 0 && <div><InfoTooltip entry={CAPACITY_SECTIONS.thinDiskDetails} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Thin Disks – Migrationsplanung ({thinDiskRows.length})</h3></InfoTooltip><VirtualTable tableId="storage/thin-disk-details" columnPicker data={thinDiskRows} columns={thinDiskColumns} globalFilter={search} height={400} onRowClick={onOpenVm} /></div>}
     </>

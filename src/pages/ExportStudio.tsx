@@ -20,6 +20,7 @@ import { getUiState, putUiState } from "@/data/db";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
 import { useFillUpAnalysisRuns } from "@/hooks/useFillUpAnalysisRuns";
+import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import { buildClusterCapacityWorkspace } from "@/lib/clusterCapacityWorkspace";
 import type { ExportStudioSource, ExportStudioTemplate, NormalizedDatastore } from "@/domain/models/types";
@@ -110,7 +111,10 @@ export default function ExportStudio() {
   const [templateName, setTemplateName] = useState("");
   const [templates, setTemplates] = useState<ExportStudioTemplate[]>([]);
   const draggedColumnId = useRef<string | null>(null);
-  const exportTab = searchParams.get("tab") === "sysv-package" ? "sysv-package" : "reports";
+  const { isRestricted: isRestrictedDataset } = useRestrictedDataset();
+  // Aus einem bereits eingeschränkten Paket lässt sich kein sinnvolles Weiterverteilungs-
+  // paket schneiden. Der Tab entfällt deshalb samt Deep-Link auf `?tab=sysv-package`.
+  const exportTab = searchParams.get("tab") === "sysv-package" && !isRestrictedDataset ? "sysv-package" : "reports";
 
   const setExportTab = (value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -313,7 +317,7 @@ export default function ExportStudio() {
       <Tabs value={exportTab} onValueChange={setExportTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="reports">Berichte</TabsTrigger>
-          <TabsTrigger value="sysv-package">SysV-Datensatz</TabsTrigger>
+          {!isRestrictedDataset && <TabsTrigger value="sysv-package">SysV-Datensatz</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="reports" className="space-y-6">
@@ -423,9 +427,11 @@ export default function ExportStudio() {
       <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wähle Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
         </TabsContent>
 
-        <TabsContent value="sysv-package" className="space-y-6">
-          <SysvDataPackageTab />
-        </TabsContent>
+        {!isRestrictedDataset && (
+          <TabsContent value="sysv-package" className="space-y-6">
+            <SysvDataPackageTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

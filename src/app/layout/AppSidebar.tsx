@@ -16,6 +16,7 @@ import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
 import { RELATED_TOOLS } from "@/lib/relatedTools";
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
+import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -82,6 +83,15 @@ const SYSV_HIDDEN_NAV_URLS = new Set([
   "/hardware",
   "/planning",
   "/wartungsfenster",
+]);
+
+/**
+ * In einem importierten SysV-Datenpaket sind Hosts nur als gemeinsamer
+ * Kapazitätskontext enthalten. Eine Hostübersicht würde dort eine Vollständigkeit
+ * suggerieren, die der Paketinhalt nicht hat.
+ */
+const RESTRICTED_DATASET_HIDDEN_NAV_URLS = new Set([
+  "/hosts",
 ]);
 
 function NavSection({
@@ -196,7 +206,9 @@ export function AppSidebar() {
   const appMode = useOptionalAppMode();
   const mode = appMode?.mode ?? "vm-admin";
   const isModeHydrated = appMode?.isHydrated ?? true;
+  const { isRestricted, isPending: restrictedPending } = useRestrictedDataset();
   const visibleInCurrentMode = (item: NavItem) => {
+    if (RESTRICTED_DATASET_HIDDEN_NAV_URLS.has(item.url) && !restrictedPending && isRestricted) return false;
     if (!SYSV_HIDDEN_NAV_URLS.has(item.url)) return true;
     // Während die lokale Modusvorgabe lädt, bleiben ausschließlich die
     // modusabhängigen Einträge verborgen. Dadurch blinkt keine falsche Navigation auf.

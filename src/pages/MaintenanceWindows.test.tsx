@@ -27,6 +27,9 @@ vi.mock("@/hooks/useMaintenanceWindows", () => ({
 
 vi.mock("@/hooks/useActiveSnapshots", () => ({
   useAllTechInfoLatest: mocks.useAllTechInfoLatest,
+  // Die mitgerenderte AppSidebar prüft über useRestrictedDataset, ob der aktive
+  // Datenbestand aus einem SysV-Paket stammt.
+  useActiveSnapshotIds: () => ({ snapshots: [], activeSnapshotIds: [], snapshotsLoading: false }),
 }));
 
 vi.mock("@/components/maintenance-windows/MaintenanceWindowEditor", () => ({

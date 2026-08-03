@@ -10,6 +10,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useGlobalVmFilterEngine } from "@/hooks/useGlobalVmFilter";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
+import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { DatastoreCapacityDetails } from "@/components/storage/DatastoreCapacityDetails";
 import { calculateDatastoreCapacityStats } from "@/lib/datastoreCapacity";
@@ -165,6 +166,10 @@ export default function StorageBackup() {
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
+  // Multipath- und Datastore-Auswertungen beziehen sich auf die vollständige
+  // Storage-Landschaft. Im SysV-Paket sind nur die von den enthaltenen VMs
+  // referenzierten Datastores vorhanden, die Werte wären also irreführend.
+  const { isRestricted: isRestrictedDataset } = useRestrictedDataset();
   const { filterVmRows, matchingVmJoinKeys } = useGlobalVmFilterEngine();
   const handleTabChange = (value: string) => {
     if (!isStorageTab(value)) return;
@@ -380,7 +385,7 @@ export default function StorageBackup() {
 
           <div><InfoTooltip entry={STORAGE_SECTIONS.partitionTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Gast-Partitionen ({partitions.length})</h3></InfoTooltip><VirtualTable tableId="storage/guest-partitions" columnPicker data={partitions} columns={partColumns} globalFilter={filters.search} onRowClick={openVmDetail} /></div>
 
-          <DatastoreCapacityDetails datastores={datastores} hosts={hosts} allVms={allVms} rawDatastores={rawDatastore} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} />
+          <DatastoreCapacityDetails datastores={datastores} hosts={hosts} allVms={allVms} rawDatastores={rawDatastore} rawDisks={filteredRawDisks} search={filters.search} onOpenVm={openVmDetail} hideDatastoreDetails={isRestrictedDataset} />
 
           {datastoreCapacityChart.length > 0 && (
             <div className="rounded-lg border border-border/50 bg-card/30 p-4">
@@ -401,7 +406,7 @@ export default function StorageBackup() {
             </div>
           )}
 
-          <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz ({dsEfficiency.length})</h3></InfoTooltip><VirtualTable tableId="storage/datastore-efficiency" columnPicker data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>
+          {!isRestrictedDataset && <div><InfoTooltip entry={STORAGE_SECTIONS.dsEfficiency} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Datastore Effizienz ({dsEfficiency.length})</h3></InfoTooltip><VirtualTable tableId="storage/datastore-efficiency" columnPicker data={dsEfficiency} columns={dsEffColumns} globalFilter={filters.search} height={300} /></div>}
           {siocData.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.sioc} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Storage Congestion / SIOC ({siocData.length})</h3></InfoTooltip><VirtualTable tableId="storage/sioc" columnPicker data={siocData} columns={siocColumns} globalFilter={filters.search} height={250} /></div>)}
           {dsLifecycle.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.dsLifecycleTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">MHA / VMFS Lifecycle ({dsLifecycle.length})</h3></InfoTooltip><VirtualTable tableId="storage/datastore-lifecycle" columnPicker data={dsLifecycle} columns={dsLifeColumns} globalFilter={filters.search} height={300} /></div>)}
         </TabsContent>
@@ -424,7 +429,7 @@ export default function StorageBackup() {
               <VirtualTable tableId="storage/dead-path-hosts" columnPicker data={deadPathHosts} columns={deadPathHostColumns} globalFilter={filters.search} height={250} onRowClick={openHostDetail} />
             </div>
           )}
-          {multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable tableId="storage/multipath" columnPicker data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
+          {!isRestrictedDataset && multipaths.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.multipathTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Multipath Status ({multipaths.length})</h3></InfoTooltip><VirtualTable tableId="storage/multipath" columnPicker data={multipaths} columns={mpColumns} globalFilter={filters.search} height={350} onRowClick={openHostDetail} /></div>)}
           {disks.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.diskTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Virtuelle Disks ({disks.length})</h3></InfoTooltip><VirtualTable tableId="storage/virtual-disks" columnPicker data={disks} columns={diskColumns} globalFilter={filters.search} height={350} onRowClick={openVmDetail} /></div>)}
           {scsiMapping.length > 0 && (<div><InfoTooltip entry={STORAGE_SECTIONS.scsiTable} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">SCSI/Controller Mapping ({scsiMapping.length})</h3></InfoTooltip><VirtualTable tableId="storage/scsi-mapping" columnPicker data={scsiMapping} columns={scsiColumns} globalFilter={filters.search} height={300} onRowClick={openVmDetail} /></div>)}
         </TabsContent>

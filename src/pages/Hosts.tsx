@@ -10,6 +10,7 @@ import { HostLoadMap } from "@/components/hosts/HostLoadMap";
 import { EsxiVersionsTable } from "@/components/vmware-versions/VmwareReleaseTables";
 import { useHostDetailDialog } from "@/hooks/useHostDetailDialog";
 import { useActiveSnapshotIds, useHosts, useRawSheet } from "@/hooks/useActiveSnapshots";
+import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 
 export default function Hosts() {
@@ -17,8 +18,26 @@ export default function Hosts() {
   const { data: hosts = [], isLoading: hostsLoading } = useHosts();
   const { data: rawVHost = [], isLoading: rawHostsLoading } = useRawSheet("vHost");
   const { openHostDetail, hostDetailDialog } = useHostDetailDialog();
+  const { isRestricted, isPending: restrictedPending } = useRestrictedDataset();
 
-  if (snapshotsLoading || hostsLoading) return <PageLoadingState title="Hosts" />;
+  if (snapshotsLoading || hostsLoading || restrictedPending) return <PageLoadingState title="Hosts" />;
+
+  // Die Navigation blendet den Eintrag bereits aus; dieser Zweig fängt Deep-Links
+  // und gespeicherte Lesezeichen ab.
+  if (isRestricted) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <PageHeader title="Hosts" />
+        <EmptyState
+          icon={<Server className="h-6 w-6" />}
+          title="Im eingeschränkten SysV-Datensatz nicht verfügbar"
+          description="Das importierte Datenpaket enthält Hosts ausschließlich als gemeinsamen Kapazitätskontext der enthaltenen VMs. Eine Hostübersicht wäre daher unvollständig."
+          actionLabel="Zu den VMs"
+          actionTo="/vms"
+        />
+      </div>
+    );
+  }
 
   if (snapshots.length === 0) {
     return <div className="space-y-6 animate-fade-in"><PageHeader title="Hosts" /><EmptyState icon={<Server className="h-6 w-6" />} title="Keine Daten" description="Lade RVTools-Daten hoch." actionLabel="Zum Upload" actionTo="/upload" /></div>;
