@@ -16,6 +16,7 @@ import {
   type ImportProgress,
 } from "@/domain/services/importService";
 import { importUserDataBackupFile } from "@/domain/services/backupService";
+import { hasImportedData, replaceAnalysisDataWithSysvPackage } from "@/data/db";
 import {
   detectVropsTimeSeriesCsvFile,
   inferVropsTimeSeriesObjectTypeFromFileName,
@@ -25,6 +26,7 @@ import {
   type VropsTimeSeriesFileSet,
 } from "@/domain/services/vropsTimeSeriesImportService";
 import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
+import { inspectSysvDataPackageFile, validateSysvDataPackageZip } from "@/lib/export/sysvDataPackageFormat";
 import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
 import { isModeFileName, parseModeFile } from "@/lib/appMode";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
@@ -32,6 +34,7 @@ import { useFilterState } from "@/hooks/useFilterState";
 import { isSysvScopeGlobalFilter } from "@/lib/sysvScope";
 
 const VROPS_SLOT_LABEL: Record<VropsTimeSeriesObjectType, string> = { vm: "VM", cluster: "Cluster", host: "Host" };
+export const SYSV_DATA_PACKAGE_IMPORTED_EVENT = "rvtools-analyzer:sysv-data-package-imported";
 
 /** Zip-Einträge, die nie als eigenständige Importdatei behandelt werden sollen (Ordner, macOS-Metadaten, versteckte Dateien). */
 function isIgnorableZipEntry(path: string): boolean {
@@ -175,6 +178,7 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "eramon-l2") return "Eramon MAC-Tabelle";
   if (kind === "vrops") return "vROps-Kapazitätsmetriken";
   if (kind === "vrops-timeseries") return "vROps-Zeitreihen";
+  if (kind === "sysv-data-package") return "SysV-Datenpaket";
   if (kind === "maintenance-windows") return "Wartungsfenster";
   if (kind === "user-data-backup") return "Userdaten-Backup";
   if (kind === "mode") return "Modusdatei";
@@ -224,7 +228,111 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { files: allFiles, zipErrors } = await expandZipFiles(Array.from(input));
+      const inputFiles = Array.from(input);
+      const packageCandidates = (await Promise.all(inputFiles.map(async (file) => {
+        if (!file.name.toLocaleLowerCase("en-US").endsWith(".zip")) return null;
+        return await inspectSysvDataPackageFile(file) ? file : null;
+      }))).filter((file): file is File => file !== null);
+
+      if (packageCandidates.length > 0) {
+        if (packageCandidates.length !== 1 || inputFiles.length !== 1) {
+          toast.error("Ein SysV-Datenpaket darf nicht zusammen mit weiteren Dateien importiert werden.");
+          setRejectedFileNames(inputFiles.map((file) => file.name));
+          return;
+        }
+        const packageFile = packageCandidates[0];
+        const packageItem: ImportQueueItem = {
+          id: `${Date.now()}-sysv-package-${packageFile.name}`,
+          fileName: packageFile.name,
+          fileKind: "sysv-data-package",
+          progress: null,
+          result: null,
+          status: "queued",
+        };
+        setItems([packageItem]);
+        setRejectedFileNames([]);
+        runningRef.current = true;
+        setImporting(true);
+        try {
+          patchItem(packageItem.id, {
+            status: "running",
+            progress: { step: "SysV-Datenpaket prüfen", percent: 5, detail: packageFile.name },
+          });
+          if (!appMode) throw new Error("Der App-Modus ist in diesem Kontext nicht verfügbar.");
+          const validated = await validateSysvDataPackageZip(new Uint8Array(await packageFile.arrayBuffer()));
+          patchItem(packageItem.id, {
+            progress: { step: "Paket validiert", percent: 30, detail: `${validated.manifest.scope.displayName} · ${validated.payload.vms.length} VMs` },
+          });
+          if (await hasImportedData()) {
+            const confirmationMessage = "Das SysV-Datenpaket ersetzt die vorhandenen Analysedaten. Wartungsfenster, Szenarien, vCenter-Gruppen und lokale Einstellungen bleiben erhalten; Kapazitätsrichtlinien-Zuordnungen werden zurückgesetzt.";
+            let confirmed = true;
+            if (typeof window !== "undefined" && typeof window.confirm === "function") {
+              try {
+                confirmed = window.confirm(confirmationMessage);
+              } catch {
+                confirmed = false;
+              }
+            }
+            if (!confirmed) {
+              const result: ImportResult = {
+                success: false,
+                fileKind: "sysv-data-package",
+                warnings: ["Import vom Benutzer abgebrochen; vorhandene Analysedaten wurden nicht verändert."],
+                errors: [],
+              };
+              patchItem(packageItem.id, {
+                status: "warning",
+                progress: { step: "Abgebrochen", percent: 100, detail: "Keine Daten verändert" },
+                result,
+              });
+              toast.info("SysV-Datenpaket wurde nicht importiert.");
+              return;
+            }
+          }
+          await replaceAnalysisDataWithSysvPackage(validated);
+          setFilters({
+            vcenterIds: [],
+            clusters: [],
+            hosts: [],
+            datastores: [],
+            search: "",
+            globalFilter: null,
+            vmNameList: "",
+          });
+          await appMode.saveLastSysvScope({ kind: "all" });
+          await appMode.activateMode("sysv", { openSysvScopeDialog: false });
+          await queryClient.invalidateQueries();
+          const warnings = validated.manifest.warnings.map((warning) => warning.message);
+          const result: ImportResult = {
+            success: true,
+            fileKind: "sysv-data-package",
+            warnings,
+            errors: [],
+          };
+          patchItem(packageItem.id, {
+            status: warnings.length > 0 ? "warning" : "success",
+            progress: { step: "Abgeschlossen", percent: 100, detail: "SysV-Modus · Scope all" },
+            result,
+          });
+          setImportSuccessSignal((n) => n + 1);
+          toast.success(`SysV-Datenpaket „${validated.manifest.scope.displayName}“ erfolgreich importiert.`);
+          globalThis.dispatchEvent?.(new Event(SYSV_DATA_PACKAGE_IMPORTED_EVENT));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          patchItem(packageItem.id, {
+            status: "error",
+            progress: { step: "Fehlgeschlagen", percent: 100, detail: message },
+            result: { success: false, fileKind: "sysv-data-package", warnings: [], errors: [message] },
+          });
+          toast.error(`SysV-Datenpaket konnte nicht importiert werden: ${message}`);
+        } finally {
+          runningRef.current = false;
+          setImporting(false);
+        }
+        return;
+      }
+
+      const { files: allFiles, zipErrors } = await expandZipFiles(inputFiles);
       if (zipErrors.length > 0) {
         toast.error(`ZIP-Datei konnte nicht entpackt werden: ${zipErrors.join(", ")}`);
       }

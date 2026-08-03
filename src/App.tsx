@@ -3,13 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useRouteError } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, useRouteError } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { AppModeProvider } from "@/hooks/useAppMode";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { AppLayout } from "@/app/layout/AppLayout";
-import { ImportProvider } from "@/hooks/useImportController";
+import { ImportProvider, SYSV_DATA_PACKAGE_IMPORTED_EVENT } from "@/hooks/useImportController";
 import { OnboardingProvider } from "@/hooks/useOnboarding";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { TableDisplayPreferencesProvider } from "@/hooks/useTableDisplayPreferences";
@@ -59,12 +59,26 @@ const PageFallback = () => (
 function AppRouteLayout() {
   return (
     <>
+      <SysvPackageImportNavigation />
       <AppLayout>
         <Suspense fallback={<PageFallback />}><Outlet /></Suspense>
       </AppLayout>
       <OnboardingDialog />
+      <SysvScopeDialog />
     </>
   );
+}
+
+function SysvPackageImportNavigation(): null {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleImport = () => navigate("/overview", { replace: true });
+    globalThis.addEventListener?.(SYSV_DATA_PACKAGE_IMPORTED_EVENT, handleImport);
+    return () => globalThis.removeEventListener?.(SYSV_DATA_PACKAGE_IMPORTED_EVENT, handleImport);
+  }, [navigate]);
+
+  return null;
 }
 
 function RouterErrorBoundary() {
@@ -128,7 +142,6 @@ const App = () => (
                     <RouterProvider router={router} fallbackElement={<PageFallback />} />
                   </TableDisplayPreferencesProvider>
                 </SelectionProvider>
-                <SysvScopeDialog />
               </OnboardingProvider>
             </ImportProvider>
           </FilterProvider>

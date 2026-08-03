@@ -48,6 +48,7 @@ import type {
 import { isTechInfoNewerOrEqual, mapTechInfoDisplayFields, mapTechInfoClientDisplayFields, mapCdpDisplayFields, mapIpamDisplayFields, mapEramonIfaceDisplayFields, mapEramonL2DisplayFields, buildVropsLatestFromRows, toStr } from "@/lib/xlsx/parseHelpers";
 import { gunzipJson } from "@/lib/compression";
 import { assertWeeklySlots, normalizeMaintenanceAbbreviation } from "@/lib/maintenanceWindows";
+import type { ValidatedSysvDataPackagePayload } from "@/lib/export/sysvDataPackageFormat";
 
 /* ---------- schema ---------- */
 interface RVToolsDBSchema extends DBSchema {
@@ -941,6 +942,18 @@ export async function getRawSheetRows(
   return hydrateRawSheetBlobsSequentially(blobs);
 }
 
+/** Liest Raw-Sheet-Blobs gezielt für mehrere Snapshots in einer einzigen IDB-Session. */
+export async function getRawSheetBlobsBySnapshotIds(snapshotIds: readonly string[]): Promise<RawSheetBlob[]> {
+  if (snapshotIds.length === 0) return [];
+  const db = await getDb();
+  const transaction = db.transaction("rawSheetBlobs", "readonly");
+  const blobs = await Promise.all(
+    [...new Set(snapshotIds)].map((snapshotId) => transaction.store.index("snapshotId").getAll(snapshotId)),
+  );
+  await transaction.done;
+  return blobs.flat();
+}
+
 export async function getRawSheetFieldNamesBySnapshot(
   snapshotIds: string[],
   sheetName: string,
@@ -992,6 +1005,23 @@ export async function getTechInfoLatestByVmNames(vmNames: string[]): Promise<Tec
   const values = await Promise.all([...uniqueNorm].map((vmNameNorm) => db.get("techinfo_latest", vmNameNorm)));
   const presentValues = values.filter((v): v is TechInfoLatest => Boolean(v));
   return Promise.all(presentValues.map((value) => hydrateTechInfoLatest(db, value)));
+}
+
+/**
+ * Lädt genau die Tech-Info-Rohzeilen, auf die Latest-Datensätze zeigen. Die
+ * Datenbank wird dabei nur einmal geöffnet und niemals vollständig gelesen.
+ */
+export async function getTechInfoRowsByLatestPointers(
+  pointers: readonly Pick<TechInfoLatest, "techInfoImportId" | "rowIndex">[],
+): Promise<TechInfoRow[]> {
+  if (pointers.length === 0) return [];
+  const db = await getDb();
+  const transaction = db.transaction("techinfo_rows", "readonly");
+  const rows = await Promise.all(
+    pointers.map((pointer) => transaction.store.get([pointer.techInfoImportId, pointer.rowIndex])),
+  );
+  await transaction.done;
+  return rows.filter((row): row is TechInfoRow => Boolean(row));
 }
 
 async function hydrateTechInfoLatest(
@@ -1807,6 +1837,95 @@ export async function deleteAllData(onProgress?: DeleteProgressCallback): Promis
 /** Löscht alle Daten außer denen, die beim Backup-Export gesichert werden (RVTools-/Tech-Info-/Netzwerkdaten etc.). */
 export async function deleteSystemData(onProgress?: DeleteProgressCallback): Promise<void> {
   await clearStores(SYSTEM_DATA_STORES, "Systemdaten löschen", onProgress);
+}
+
+/**
+ * Ersetzt ausschließlich die Analysedaten eines SysV-Pakets in genau einer
+ * IndexedDB-Transaktion. Wartungsfenster, Szenarien, vCenter-Gruppen, UI-Einstellungen
+ * und der Kapazitätsrichtlinien-Katalog (`capacity_policies`) liegen bewusst außerhalb
+ * dieser Liste. Die Richtlinien-*Zuordnungen* werden dagegen mitgeleert: Ihr Schlüssel
+ * `[vcenterId, clusterKey]` zeigt auf Cluster des ersetzten Bestands und wäre danach verwaist.
+ */
+const SYSV_PACKAGE_REPLACE_STORES = [
+  "snapshots",
+  "rawSheetBlobs",
+  "entities_vm",
+  "entities_host",
+  "entities_cluster",
+  "entities_datastore",
+  "entities_snapshot",
+  "entities_health",
+  "metrics_cache",
+  "techinfo_imports",
+  "techinfo_rows",
+  "techinfo_latest",
+  "techinfo_client_imports",
+  "techinfo_client_rows",
+  "techinfo_client_latest",
+  "cdp_imports",
+  "cdp_rows",
+  "cdp_latest",
+  "ipam_imports",
+  "ipam_rows",
+  "ipam_latest",
+  "eramon_iface_imports",
+  "eramon_iface_rows",
+  "eramon_iface_latest",
+  "eramon_l2_imports",
+  "eramon_l2_rows",
+  "eramon_l2_latest",
+  "vrops_imports",
+  "vrops_rows",
+  "vrops_latest",
+  "vrops_timeseries_imports",
+  "vrops_timeseries_objects",
+  "vrops_timeseries_chunks",
+  "vrops_timeseries_summaries",
+  "capacity_policy_assignments",
+  "fillup_analysis_runs",
+] as const satisfies readonly StoreName[];
+
+type SysvPackageReplaceStoreName = (typeof SYSV_PACKAGE_REPLACE_STORES)[number];
+
+export async function replaceAnalysisDataWithSysvPackage(
+  validated: ValidatedSysvDataPackagePayload,
+): Promise<void> {
+  const db = await getDb();
+  const transaction = db.transaction([...SYSV_PACKAGE_REPLACE_STORES], "readwrite");
+  try {
+    for (const storeName of SYSV_PACKAGE_REPLACE_STORES) await transaction.objectStore(storeName).clear();
+
+    const putAll = async <S extends SysvPackageReplaceStoreName>(storeName: S, values: readonly RVToolsDBSchema[S]["value"][]) => {
+      const store = transaction.objectStore(storeName);
+      for (const value of values) await store.put(value);
+    };
+    const { payload, rawSheetBlobs } = validated;
+    await putAll("snapshots", payload.snapshots);
+    await putAll("rawSheetBlobs", rawSheetBlobs);
+    await putAll("entities_vm", payload.vms);
+    await putAll("entities_host", payload.hosts);
+    await putAll("entities_cluster", payload.clusters);
+    await putAll("entities_datastore", payload.datastores);
+    await putAll("entities_snapshot", payload.snapshotsEntities);
+    await putAll("entities_health", payload.health);
+    await putAll("techinfo_imports", [payload.techInfo.importMeta]);
+    await putAll("techinfo_rows", payload.techInfo.rows);
+    await putAll("techinfo_latest", payload.techInfo.latest);
+    if (payload.vrops) {
+      await putAll("vrops_timeseries_imports", [payload.vrops.importMeta]);
+      await putAll("vrops_timeseries_objects", payload.vrops.objects);
+      await putAll("vrops_timeseries_chunks", payload.vrops.chunks);
+      await putAll("vrops_timeseries_summaries", payload.vrops.summaries);
+    }
+    await transaction.done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // Ein fehlgeschlagener Request kann die Transaktion bereits beendet haben.
+    }
+    throw error;
+  }
 }
 
 /** Löscht nur die Daten, die beim Backup-Export gesichert werden (Wartungseinstellungen, Szenarien, vCenter-Gruppen etc.). */

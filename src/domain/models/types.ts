@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "vrops-timeseries" | "maintenance-windows" | "user-data-backup" | "mode";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "vrops-timeseries" | "sysv-data-package" | "maintenance-windows" | "user-data-backup" | "mode";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -34,6 +34,81 @@ export interface SnapshotMeta {
   fileSizeBytes?: number;
   /** Gesamtdauer des Imports in Millisekunden (Start bis "Abgeschlossen"). Fehlt bei älteren Snapshots. */
   importDurationMs?: number;
+  /** Harte, beim SysV-Paketimport materialisierte Datengrenze. */
+  restrictedDataset?: RestrictedDatasetSource;
+}
+
+export type SysvDataPackageScope =
+  | {
+      kind: "area";
+      displayName: string;
+      normalizedOrganisation: string;
+      normalizedArea: string;
+    }
+  | {
+      kind: "department";
+      displayName: string;
+      normalizedPath: string;
+    }
+  | {
+      kind: "person";
+      displayName: string;
+      normalizedName: string;
+    };
+
+export interface RestrictedDatasetSource {
+  kind: "sysv-package";
+  packageId: string;
+  packageVersion: 1;
+  scopeKind: SysvDataPackageScope["kind"];
+  scopeLabel: string;
+  dataPolicy: "strict-vm-scope-v1";
+  sharedCapacityContext: true;
+}
+
+export interface SysvDataPackageManifestWarning {
+  code: string;
+  message: string;
+  count?: number;
+}
+
+export interface SysvDataPackageManifestFile {
+  path: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export interface SysvDataPackageManifestV1 {
+  kind: "rvtools-analyzer-sysv-data-package";
+  version: 1;
+  packageId: string;
+  createdAt: string;
+  appVersion: string;
+  dataPolicy: "strict-vm-scope-v1";
+  scope: SysvDataPackageScope & { roleMatch: "sysv-or-deputy" };
+  capabilities: {
+    vmInventory: true;
+    techInfo: true;
+    vmRawSheets: true;
+    vmVropsTimeSeries: boolean;
+    cpuRightsizing: boolean;
+    ramRightsizing: boolean;
+    fullClusterAnalysis: false;
+    fillUpPlanning: false;
+  };
+  counts: {
+    vcenters: number;
+    snapshots: number;
+    vms: number;
+    techInfoRows: number;
+    sharedHosts: number;
+    sharedClusters: number;
+    referencedDatastores: number;
+    vropsVmObjects: number;
+    vropsChunks: number;
+  };
+  warnings: SysvDataPackageManifestWarning[];
+  files: SysvDataPackageManifestFile[];
 }
 
 /**

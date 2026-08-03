@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { BookmarkCheck, CheckCheck, Clock, Columns3, Download, Eye, EyeOff, FileSpreadsheet, FileText, GripVertical, Plus, Save, Server, Settings2, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -13,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SysvDataPackageTab } from "@/components/exports/SysvDataPackageTab";
 import { getUiState, putUiState } from "@/data/db";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useActiveSnapshotIds, useAllTechInfoLatest, useAllVropsLatest, useClusters, useDatastores, useHosts, useRawSheet, useVms } from "@/hooks/useActiveSnapshots";
@@ -87,6 +90,7 @@ function scopeLabel(vcenterCount: number, hasVmGlobalFilter: boolean) {
 }
 
 export default function ExportStudio() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { vms, allVms, isLoading: vmsLoading } = useVms();
   const hostsQuery = useHosts();
@@ -106,6 +110,13 @@ export default function ExportStudio() {
   const [templateName, setTemplateName] = useState("");
   const [templates, setTemplates] = useState<ExportStudioTemplate[]>([]);
   const draggedColumnId = useRef<string | null>(null);
+  const exportTab = searchParams.get("tab") === "sysv-package" ? "sysv-package" : "reports";
+
+  const setExportTab = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", value === "sysv-package" ? "sysv-package" : "reports");
+    setSearchParams(next, { replace: true });
+  };
 
   const activeSnapshotIdSet = useMemo(() => new Set(activeSnapshotIds), [activeSnapshotIds]);
   const activeSnapshots = useMemo(() => snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId)), [activeSnapshotIdSet, snapshots]);
@@ -299,6 +310,13 @@ export default function ExportStudio() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Export & Berichte" subtitle="Stelle einen lokalen Export aus dem aktuell gefilterten Datenbestand zusammen." meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
 
+      <Tabs value={exportTab} onValueChange={setExportTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="reports">Berichte</TabsTrigger>
+          <TabsTrigger value="sysv-package">SysV-Datensatz</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="reports" className="space-y-6">
       <KpiGrid>
         <KpiCard title="Datensätze im Scope" value={dataset.rows.length.toLocaleString("de-DE")} subtitle={sourceLabels[source]} icon={<Table2 className="h-4 w-4" />} />
         <KpiCard title="Ausgewählte Spalten" value={columnIds.length} subtitle={`von ${dataset.columns.length} verfügbar`} severity={columnIds.length === 0 ? "warn" : undefined} icon={<Columns3 className="h-4 w-4" />} />
@@ -403,6 +421,12 @@ export default function ExportStudio() {
       </Dialog>
 
       <section className="rounded-lg border bg-card p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold">Exportvorschau</h2><p className="mt-1 text-xs text-muted-foreground">Die Vorschau zeigt die ersten fünf Zeilen der ausgewählten Spalten. Spaltennamen erklären Metrik und Datenquelle per Tooltip.</p></div><div className="flex flex-wrap gap-2">{dataset.kpis.map((kpi) => <Badge key={kpi.label} variant="secondary">{kpi.label}: {kpi.value}</Badge>)}</div></div>{!exportData.headers.length ? <p className="py-10 text-center text-sm text-muted-foreground">Wähle Spalten, um eine Vorschau zu sehen.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted/40"><tr>{exportData.headers.map((header, index) => <th key={header} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"><InfoTooltip entry={getExportColumnInfo(dataset.source, selectedColumns[index])} side="bottom"><span className="cursor-help underline decoration-dotted underline-offset-4">{header}</span></InfoTooltip></th>)}</tr></thead><tbody>{previewRows.map(({ key, row }) => <tr key={key} className="border-t border-border/50">{exportData.headers.map((header) => <td key={header} className="whitespace-nowrap px-3 py-2">{row[header] || "—"}</td>)}</tr>)}</tbody></table></div>}</section>
+        </TabsContent>
+
+        <TabsContent value="sysv-package" className="space-y-6">
+          <SysvDataPackageTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
