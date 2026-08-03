@@ -87,6 +87,24 @@ describe("buildTechInfoOrganisation", () => {
     expect(result.tree[0]!.bereiche[0]!.abteilungen[0]!.label).toBe("Ohne Abteilung");
   });
 
+  it("sortiert Organisationen, Bereiche, Abteilungen und Personen alphabetisch", () => {
+    const result = buildTechInfoOrganisation([
+      vm({ vmName: "vm-z", sysv: "Zora Beispiel", sysvDepartment: "ZETA/OPS-ZWEI" }),
+      vm({ vmName: "vm-b", sysv: "Berta Beispiel", sysvDepartment: "ALPHA/WEB-BETA" }),
+      vm({ vmName: "vm-a", sysv: "Anna Beispiel", sysvDepartment: "ALPHA/WEB-ALPHA" }),
+      vm({ vmName: "vm-c", sysv: "Clara Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
+      vm({ vmName: "vm-d", sysv: "Anton Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
+    ], "primary");
+
+    expect(result.tree.map((org) => org.label)).toEqual(["ALPHA", "ZETA"]);
+    expect(result.tree[0]!.bereiche.map((bereich) => bereich.label)).toEqual(["API", "WEB"]);
+    expect(result.tree[0]!.bereiche[1]!.abteilungen.map((abteilung) => abteilung.label)).toEqual(["ALPHA", "BETA"]);
+    expect(result.tree[0]!.bereiche[0]!.abteilungen[0]!.persons.map((person) => person.person)).toEqual([
+      "Anton Beispiel",
+      "Clara Beispiel",
+    ]);
+  });
+
   it("erkennt widersprüchliche Abteilungszuordnungen für dieselbe Person", () => {
     const result = buildTechInfoOrganisation(
       [

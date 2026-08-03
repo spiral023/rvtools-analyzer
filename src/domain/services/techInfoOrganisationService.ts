@@ -311,7 +311,22 @@ export function buildTechInfoOrganisation(
     });
   }
 
+  // Die Einfügereihenfolge hängt vom Tech-Info-Import ab. Für die Navigation ist
+  // eine stabile alphabetische Reihenfolge auf jeder Hierarchieebene hilfreicher.
+  const compareLabels = <T extends { label: string }>(left: T, right: T) => (
+    left.label.localeCompare(right.label, "de-DE", { sensitivity: "base" })
+  );
   const tree = [...orgNodes.values()];
+  for (const org of tree) {
+    org.bereiche.sort(compareLabels);
+    for (const bereich of org.bereiche) {
+      bereich.abteilungen.sort(compareLabels);
+      for (const abteilung of bereich.abteilungen) {
+        abteilung.persons.sort((left, right) => left.person.localeCompare(right.person, "de-DE", { sensitivity: "base" }));
+      }
+    }
+  }
+  tree.sort(compareLabels);
   const bereichCount = tree.reduce((sum, org) => sum + org.bereiche.length, 0);
   const abteilungCount = tree.reduce((sum, org) => sum + org.bereiche.reduce((s, bereich) => s + bereich.abteilungen.length, 0), 0);
   const personKeys = new Set<string>();

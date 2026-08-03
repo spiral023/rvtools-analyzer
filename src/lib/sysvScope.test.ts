@@ -70,6 +70,24 @@ describe("SysV-Scope-Verzeichnis", () => {
     ]);
   });
 
+  it("sortiert die Auswahlhierarchie in den Settings alphabetisch", () => {
+    const directory = buildSysvScopeDirectory([
+      techInfo({ vmNameNorm: "vm-z", vmName: "vm-z", sysv: "Zora Beispiel", sysvDepartment: "ZETA/OPS-ZWEI" }),
+      techInfo({ vmNameNorm: "vm-b", vmName: "vm-b", sysv: "Berta Beispiel", sysvDepartment: "ALPHA/WEB-BETA" }),
+      techInfo({ vmNameNorm: "vm-a", vmName: "vm-a", sysv: "Anna Beispiel", sysvDepartment: "ALPHA/WEB-ALPHA" }),
+      techInfo({ vmNameNorm: "vm-c", vmName: "vm-c", sysv: "Clara Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
+      techInfo({ vmNameNorm: "vm-d", vmName: "vm-d", sysv: "Anton Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
+    ]);
+
+    expect(directory.tree.map((node) => node.label)).toEqual(["ALPHA", "ZETA"]);
+    expect(directory.tree[0]!.children.map((node) => node.label)).toEqual(["API", "WEB"]);
+    expect(directory.tree[0]!.children[1]!.children.map((node) => node.label)).toEqual(["ALPHA", "BETA"]);
+    expect(directory.tree[0]!.children[0]!.children[0]!.children.map((node) => node.label)).toEqual([
+      "Anton Beispiel",
+      "Clara Beispiel",
+    ]);
+  });
+
   it("fällt bei nicht mehr eindeutigen oder fehlenden gespeicherten Werten auf Alle Systeme zurück", () => {
     const directory = buildSysvScopeDirectory([techInfo()]);
     expect(getAvailableSysvScopePreference(directory, {
