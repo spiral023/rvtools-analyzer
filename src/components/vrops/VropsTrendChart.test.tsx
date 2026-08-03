@@ -30,8 +30,8 @@ const { VropsTrendChart } = await import("@/components/vrops/VropsTrendChart");
 
 const hourly = [{
   timestampUtc: new Date(2026, 7, 1, 10).getTime(),
-  cpuDemandMHz: 2_000,
-  cpuDemandMaxMHz: 3_000,
+  primaryValue: 2_000,
+  primaryPeakValue: 3_000,
   secondaryValue: 32_000,
 }];
 
@@ -48,11 +48,11 @@ describe("VropsTrendChart", () => {
       />,
     );
 
-    expect(screen.getByTestId("axis-cpu")).toBeInTheDocument();
-    expect(screen.getByTestId("axis-cpu")).toHaveAttribute("data-tick-label", "0,44 %");
+    expect(screen.getByTestId("axis-primary")).toBeInTheDocument();
+    expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-tick-label", "0,44 %");
     expect(screen.queryByTestId("axis-secondary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("reference-dot-secondary")).not.toBeInTheDocument();
-    expect(screen.getByTestId("reference-dot-cpu")).toHaveAttribute("data-label", "Peak · 30,00 %");
+    expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 30,00 %");
   });
 
   it("zeigt den sekundären Peak nur zusammen mit der zugehörigen Achse", () => {
@@ -76,7 +76,7 @@ describe("VropsTrendChart", () => {
   it("zeichnet die Vermeidungszone im Prozentmodus vollständig von 80 bis 100 Prozent", () => {
     render(
       <VropsTrendChart
-        hourly={[{ ...hourly[0], cpuDemandMHz: 7_500, cpuDemandMaxMHz: 9_000 }]}
+        hourly={[{ ...hourly[0], primaryValue: 7_500, primaryPeakValue: 9_000 }]}
         cpuCapacityMHz={10_000}
         secondaryCapacity={null}
         hasImport
@@ -85,7 +85,28 @@ describe("VropsTrendChart", () => {
       />,
     );
 
-    expect(screen.getByTestId("reference-area-cpu-80")).toHaveAttribute("data-y2", "100");
-    expect(screen.getByTestId("axis-cpu")).toHaveAttribute("data-domain", JSON.stringify(["dataMin", 100]));
+    expect(screen.getByTestId("reference-area-primary-80")).toHaveAttribute("data-y2", "100");
+    expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-domain", JSON.stringify(["dataMin", 100]));
+  });
+
+  it("liest die RAM-Reihe als Prozentwerte des konfigurierten RAM und markiert die Policy-Schwelle", () => {
+    render(
+      <VropsTrendChart
+        hourly={[{ timestampUtc: hourly[0].timestampUtc, primaryValue: 62, primaryPeakValue: 94, secondaryValue: null }]}
+        primaryMetric="memory-workload"
+        cpuCapacityMHz={null}
+        memoryCapacityMiB={16_384}
+        secondaryCapacity={null}
+        avoidanceThresholdPct={90}
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    // Prozentachse ohne CPU-Kapazität: die Rohreihe ist bereits relativ zum RAM.
+    expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-tick-label", "0,44 %");
+    expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 94,00 %");
+    expect(screen.getByTestId("reference-area-primary-90")).toHaveAttribute("data-y2", "100");
   });
 });

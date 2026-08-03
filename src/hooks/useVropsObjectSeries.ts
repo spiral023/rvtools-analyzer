@@ -7,15 +7,19 @@ import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeri
 
 export interface VropsObjectTrendPoint {
   timestampUtc: number;
-  /** CPU-Demand in MHz; die primäre Kennzahl über alle drei Objekttypen hinweg. */
-  cpuDemandMHz: number | null;
   /**
-   * Höchster CPU-Demand innerhalb der Stunde, sofern die vROps-View ihn liefert.
-   * Der Mittelwert allein glättet kurze Lastspitzen vollständig weg; erst mit
-   * dieser Reihe wird im Chart sichtbar, wie stark eine VM innerhalb der Stunde
-   * schwankt.
+   * Mittelwert der Primärreihe des Charts. In diesem Hook und in allen
+   * Host-/Cluster-/VM-Verläufen ist das der CPU-Demand in MHz; die VM-Systemakte
+   * zeichnet mit derselben Struktur zusätzlich den RAM-Workload in Prozent.
    */
-  cpuDemandMaxMHz: number | null;
+  primaryValue: number | null;
+  /**
+   * Höchstwert der Primärreihe innerhalb der Stunde, sofern die vROps-View ihn
+   * liefert. Der Mittelwert allein glättet kurze Lastspitzen vollständig weg;
+   * erst mit dieser Reihe wird im Chart sichtbar, wie stark ein Objekt innerhalb
+   * der Stunde schwankt.
+   */
+  primaryPeakValue: number | null;
   /** VM: CPU-Ready in %; Host/Cluster: Memory-Utilization in MiB. */
   secondaryValue: number | null;
 }
@@ -89,11 +93,11 @@ export function useVropsObjectSeries({
     const secondarySeries = readVropsTimeSeriesMetric(chunks, matched.objectKey, SECONDARY_METRIC_BY_TYPE[objectType]);
     const hourly: VropsObjectTrendPoint[] = hourGrid.map((entry) => ({
       timestampUtc: entry.timestampUtc,
-      cpuDemandMHz: finiteOrNull(cpuSeries.get(entry.timestampUtc)),
-      cpuDemandMaxMHz: finiteOrNull(cpuMaxSeries.get(entry.timestampUtc)),
+      primaryValue: finiteOrNull(cpuSeries.get(entry.timestampUtc)),
+      primaryPeakValue: finiteOrNull(cpuMaxSeries.get(entry.timestampUtc)),
       secondaryValue: finiteOrNull(secondarySeries.get(entry.timestampUtc)),
     }));
-    const hasAnyValue = hourly.some((point) => point.cpuDemandMHz !== null || point.secondaryValue !== null);
+    const hasAnyValue = hourly.some((point) => point.primaryValue !== null || point.secondaryValue !== null);
     return hasAnyValue ? { hourly, importedAt: importMeta.importedAt } : null;
   }, [dataQuery.data, objectType, rvtoolsObjectKey]);
 

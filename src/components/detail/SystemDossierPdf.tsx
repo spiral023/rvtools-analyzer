@@ -96,19 +96,19 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
   const points = view === "average-week"
     ? buildAverageWeekTrendPoints(trend.points.map((point) => ({
       timestampMs: point.timestampUtc,
-      cpu: point.cpuDemandMHz,
-      cpuPeak: point.cpuDemandMaxMHz,
+      cpu: point.primaryValue,
+      cpuPeak: point.primaryPeakValue,
       secondary: point.secondaryValue,
     }))).map((point) => ({
       timestampUtc: point.timestampMs,
-      cpuDemandMHz: point.cpu,
-      cpuDemandMaxMHz: point.cpuPeak,
+      primaryValue: point.cpu,
+      primaryPeakValue: point.cpuPeak,
       secondaryValue: point.secondary,
     }))
     : trend.points;
   const toPercent = (value: number | null) => value === null || cpuCapacityMHz === null ? null : (value / cpuCapacityMHz) * 100;
   const formatPercent = (value: number | null) => value === null ? "—" : `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
-  const values = points.map((point) => toPercent(point.cpuDemandMHz) ?? 0);
+  const values = points.map((point) => toPercent(point.primaryValue) ?? 0);
   // Eine 0–100-%-Skala macht die beiden Ansichten direkt vergleichbar; echte
   // Überlast bleibt sichtbar, statt am oberen Rand abgeschnitten zu werden.
   const maximum = Math.max(...values, 100);
@@ -120,7 +120,7 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
   const plotHeight = height - plotTop - 28;
   const xFor = (index: number) => plotLeft + (index / Math.max(points.length - 1, 1)) * plotWidth;
   const yFor = (value: number) => plotTop + plotHeight - (value / maximum) * plotHeight;
-  const polyline = points.map((point, index) => `${xFor(index)},${yFor(toPercent(point.cpuDemandMHz) ?? 0)}`).join(" ");
+  const polyline = points.map((point, index) => `${xFor(index)},${yFor(toPercent(point.primaryValue) ?? 0)}`).join(" ");
   const peak = getTrendPeak(points);
   const peakIndex = peak ? points.indexOf(peak) : -1;
   const dayStarts = points.reduce<number[]>((indices, point, index) => {
@@ -147,9 +147,9 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
         <Polyline points={polyline} fill="none" stroke={colors.primary} strokeWidth={1.8} />
         {peak && peakIndex >= 0 && (
           <>
-            <Circle cx={xFor(peakIndex)} cy={yFor(toPercent(peak.cpuDemandMHz) ?? 0)} r={3.2} fill={colors.critical} />
-            <Text x={Math.min(xFor(peakIndex) + 5, width - 94)} y={Math.max(yFor(toPercent(peak.cpuDemandMHz) ?? 0) - 5, 9)} style={{ fontSize: 6.5, fill: colors.critical }}>
-              Peak {formatPercent(toPercent(peak.cpuDemandMHz))}
+            <Circle cx={xFor(peakIndex)} cy={yFor(toPercent(peak.primaryValue) ?? 0)} r={3.2} fill={colors.critical} />
+            <Text x={Math.min(xFor(peakIndex) + 5, width - 94)} y={Math.max(yFor(toPercent(peak.primaryValue) ?? 0) - 5, 9)} style={{ fontSize: 6.5, fill: colors.critical }}>
+              Peak {formatPercent(toPercent(peak.primaryValue))}
             </Text>
           </>
         )}
@@ -163,7 +163,7 @@ function TrendVector({ dossier, view = "timeline" }: { dossier: DetailDossier; v
           </Text>
         ))}
       </Svg>}
-      {peak && cpuCapacityMHz !== null && <Text style={styles.note}>{view === "average-week" ? "Höchster Wochenstunden-Peak" : "Höchster gemessener CPU-Peak"}: {formatPercent(toPercent(peak.cpuDemandMHz))} am {view === "average-week" ? new Date(peak.timestampUtc).toLocaleString("de-DE", { weekday: "long", hour: "2-digit", minute: "2-digit" }) : formatDetailTimestamp(peak.timestampUtc)}.</Text>}
+      {peak && cpuCapacityMHz !== null && <Text style={styles.note}>{view === "average-week" ? "Höchster Wochenstunden-Peak" : "Höchster gemessener CPU-Peak"}: {formatPercent(toPercent(peak.primaryValue))} am {view === "average-week" ? new Date(peak.timestampUtc).toLocaleString("de-DE", { weekday: "long", hour: "2-digit", minute: "2-digit" }) : formatDetailTimestamp(peak.timestampUtc)}.</Text>}
     </View>
   );
 }

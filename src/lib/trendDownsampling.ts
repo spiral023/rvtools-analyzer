@@ -11,9 +11,14 @@
  * seinen Mittelwert als Linie sowie sein Minimum und Maximum als Band.
  */
 
+/**
+ * Ein Ausgangspunkt der Verdichtung. Die Feldnamen stammen aus dem CPU-Verlauf,
+ * die Reihe ist aber metrik-neutral: die VM-Systemakte verdichtet damit auch den
+ * RAM-Workload in Prozent.
+ */
 export interface TrendSamplePoint {
   timestampMs: number;
-  /** Mittlere CPU-Last des Zeitpunkts. */
+  /** Mittelwert der Primärreihe zum Zeitpunkt. */
   cpu: number | null;
   /**
    * Höchstwert innerhalb der Stunde, sofern die Quelle ihn liefert
@@ -48,14 +53,20 @@ export const DEFAULT_MAX_TREND_POINTS = 336;
 /** Oberhalb dieser CPU-Auslastung beginnt der visuell markierte Vermeidungsbereich. */
 export const CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT = 80;
 
-/** Liefert die 80-%-Schwelle passend zur gewählten Chart-Einheit. */
-export function cpuDemandAvoidanceThreshold(
-  cpuCapacityMHz: number | null,
-  unit: "absolute" | "percent",
+/**
+ * Liefert die Vermeidungsschwelle in der Einheit der Chartachse.
+ *
+ * `capacityBound` ist der Wert, der 100 % der Kapazität entspricht: in der
+ * Prozentansicht also 100, in der Absolutansicht die in Achseneinheiten
+ * umgerechnete Kapazität (GHz bzw. GiB). Ohne bekannte Kapazität entfällt die
+ * Schwelle, weil eine Auslastungsgrenze ohne Bezugsgröße nicht bestimmbar ist.
+ */
+export function trendAvoidanceThreshold(
+  capacityBound: number | null,
+  thresholdPct: number,
 ): number | null {
-  if (unit === "percent") return CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT;
-  if (cpuCapacityMHz === null || !Number.isFinite(cpuCapacityMHz) || cpuCapacityMHz <= 0) return null;
-  return (cpuCapacityMHz * CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT) / 100 / 1_000;
+  if (capacityBound === null || !Number.isFinite(capacityBound) || capacityBound <= 0) return null;
+  return (capacityBound * thresholdPct) / 100;
 }
 
 function averageOf(values: readonly number[]): number | null {

@@ -174,7 +174,7 @@ export function buildDossierMarkdown(dossier: DetailDossier, pseudonymized = fal
     lines.push(
       "## Auslastungsverlauf",
       "",
-      `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.cpuDemandMHz)}` : ""}.`,
+      `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.primaryValue)}` : ""}.`,
       "",
       "### Durchschnittliche Woche",
       "",
@@ -222,7 +222,7 @@ export function buildDossierConfluence(dossier: DetailDossier, pseudonymized = f
     const averageWeek = summarizeAverageWeek(dossier.trend.points);
     lines.push(
       "h2. Auslastungsverlauf",
-      `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.cpuDemandMHz)}` : ""}.`,
+      `Sieben Tage mit stündlichen Werten${peak ? `; höchster CPU-Demand am ${formatDetailTimestamp(peak.timestampUtc)} mit ${formatCpuDemand(peak.primaryValue)}` : ""}.`,
       "h3. Durchschnittliche Woche",
       "|| Wochentag || CPU Demand Ø || CPU Demand Peak || Beobachtete Stunden ||",
       ...averageWeek.map((day) => `| ${day.label} | ${formatCpuDemand(day.averageCpuDemandMHz)} | ${formatCpuDemand(day.peakCpuDemandMHz)} | ${day.observedHours.toLocaleString("de-DE")} |`),
@@ -270,7 +270,7 @@ export function formatCpuDemand(value: number | null): string {
 export function getTrendPeak(points: VropsObjectTrendPoint[]): VropsObjectTrendPoint | null {
   return points.reduce<VropsObjectTrendPoint | null>(
     (peak, point) =>
-      point.cpuDemandMHz !== null && (!peak || peak.cpuDemandMHz === null || point.cpuDemandMHz > peak.cpuDemandMHz)
+      point.primaryValue !== null && (!peak || peak.primaryValue === null || point.primaryValue > peak.primaryValue)
         ? point
         : peak,
     null,
@@ -281,8 +281,8 @@ export function getTrendPeak(points: VropsObjectTrendPoint[]): VropsObjectTrendP
 export function summarizeAverageWeek(points: VropsObjectTrendPoint[]): DetailAverageWeekDay[] {
   const averageWeek = buildAverageWeekTrendPoints(points.map((point) => ({
     timestampMs: point.timestampUtc,
-    cpu: point.cpuDemandMHz,
-    cpuPeak: point.cpuDemandMaxMHz,
+    cpu: point.primaryValue,
+    cpuPeak: point.primaryPeakValue,
     secondary: point.secondaryValue,
   })));
 

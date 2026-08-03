@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateTrendPoints,
   buildAverageWeekTrendPoints,
-  cpuDemandAvoidanceThreshold,
   describeTrendRange,
   downsampleTrendPoints,
+  trendAvoidanceThreshold,
   type TrendSamplePoint,
 } from "@/lib/trendDownsampling";
 
@@ -106,17 +106,20 @@ describe("wählbare Verlaufsansichten", () => {
   });
 });
 
-describe("CPU-Vermeidungsbereich", () => {
-  it("liegt in der Prozentansicht bei 80 Prozent", () => {
-    expect(cpuDemandAvoidanceThreshold(16_000, "percent")).toBe(80);
+describe("Vermeidungsbereich", () => {
+  it("liegt in der Prozentansicht bei der Schwelle selbst", () => {
+    expect(trendAvoidanceThreshold(100, 80)).toBe(80);
+    expect(trendAvoidanceThreshold(100, 90)).toBe(90);
   });
 
-  it("rechnet 80 Prozent der Kapazität für die Absolutansicht in GHz um", () => {
-    expect(cpuDemandAvoidanceThreshold(16_000, "absolute")).toBe(12.8);
+  it("rechnet die Schwelle für die Absolutansicht auf die Kapazität um", () => {
+    expect(trendAvoidanceThreshold(16, 80)).toBe(12.8);
+    expect(trendAvoidanceThreshold(32, 90)).toBe(28.8);
   });
 
-  it("entfällt in der Absolutansicht ohne bekannte CPU-Kapazität", () => {
-    expect(cpuDemandAvoidanceThreshold(null, "absolute")).toBeNull();
+  it("entfällt ohne bekannte Kapazität", () => {
+    expect(trendAvoidanceThreshold(null, 80)).toBeNull();
+    expect(trendAvoidanceThreshold(0, 80)).toBeNull();
   });
 });
 

@@ -28,6 +28,7 @@ import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage
 import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailFormat";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { DEFAULT_RAM_RIGHTSIZING_POLICY, RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import {
   DetailFieldGrid,
@@ -199,6 +200,22 @@ export function VmDetailDialog({
     ? `Hier: ${hours(workloadProfile.capacitySignals.singleCoreBoundHours)} Stunden mit geschätzter Sättigung des heißesten Kerns bei gleichzeitig höchstens 60 % Gesamtlast. Mehr vCPU helfen dann nicht automatisch – Anwendungsthreads und Parallelisierung prüfen.`
     : undefined;
 
+  // Der RAM-Verlauf steht auf derselben Stundenreihe wie der CPU-Verlauf, führt
+  // aber eine eigene Metrik: vROps liefert Memory|Workload bereits als Prozent
+  // des konfigurierten RAM, nicht als absolute Größe.
+  const memoryTrendPoints = workloadProfile?.hourly.map((point) => ({
+    timestampUtc: point.timestampUtc,
+    primaryValue: point.memoryWorkloadAvgPct ?? null,
+    primaryPeakValue: point.memoryWorkloadMaxPct ?? null,
+    secondaryValue: null,
+  })) ?? [];
+  const hasMemoryTrend = memoryTrendPoints.some((point) => point.primaryValue !== null || point.primaryPeakValue !== null);
+  const memoryCapacityMiB = workloadProfile?.configuredMemoryMiB ?? vm.memoryMiB;
+  // Die markierte Zone folgt der aktiven RAM-Policy: oberhalb ihrer
+  // Zielauslastung ist der geplante Puffer aufgebraucht.
+  const ramPolicy = ramRightsizing ? RAM_RIGHTSIZING_POLICIES[ramRightsizing.policyLevel] : DEFAULT_RAM_RIGHTSIZING_POLICY;
+  const ramAvoidanceThresholdPct = Math.round(ramPolicy.targetWorkloadFactor * 100);
+
   const kpis: DetailKpi[] = [
     { label: "Betriebszustand", value: compactValue(vm.powerState), hint: compactValue(vm.connectionState), tone: vmTone(vm.powerState) },
     { label: "vCPU", value: compactValue(vm.cpuCount === null ? null : String(vm.cpuCount)), hint: `${toNumber(cpu["Sockets"]) ?? "—"} Sockel`, tone: "neutral", info: VM_PROFILE_COLUMNS.vcpu },
@@ -337,8 +354,8 @@ export function VmDetailDialog({
       title: `CPU-Auslastung · ${describeTrendRange(workloadProfile.hourly.length)}`,
       points: workloadProfile.hourly.map((point) => ({
         timestampUtc: point.timestampUtc,
-        cpuDemandMHz: point.cpuDemandMHz,
-        cpuDemandMaxMHz: point.cpuDemandMaxMHz,
+        primaryValue: point.cpuDemandMHz,
+        primaryPeakValue: point.cpuDemandMaxMHz,
         secondaryValue: point.cpuReadyPct,
       })),
       cpuCapacityMHz: workloadProfile.configuredCpuCapacityMHz,
@@ -482,8 +499,8 @@ export function VmDetailDialog({
             <VropsTrendChart
               hourly={workloadProfile.hourly.map((point) => ({
                 timestampUtc: point.timestampUtc,
-                cpuDemandMHz: point.cpuDemandMHz,
-                cpuDemandMaxMHz: point.cpuDemandMaxMHz,
+                primaryValue: point.cpuDemandMHz,
+                primaryPeakValue: point.cpuDemandMaxMHz,
                 secondaryValue: point.cpuReadyPct,
               }))}
               cpuCapacityMHz={workloadProfile.configuredCpuCapacityMHz}
@@ -497,6 +514,36 @@ export function VmDetailDialog({
             />
           ) : (
             <DetailUnavailable title="Keine vROps-Zeitreihe zugeordnet" description="Die Ansicht bleibt ohne Zeitreihe nutzbar. Nach einem passenden vROps-Import erscheint hier automatisch der siebentägige Verlauf." />
+          )}
+        </DetailSection>
+
+        {/* Der RAM-Verlauf ist die Datengrundlage, mit der Systemverantwortliche
+            das RAM-Rightsizing beurteilen; er bleibt deshalb neben dem CPU-Verlauf
+            eigenständig sichtbar. */}
+        <DetailSection
+          icon={<MemoryStick className="size-4" />}
+          title={`RAM-Auslastung · ${describeTrendRange(workloadProfile?.hourly.length ?? 0)}`}
+          description={`Memory-Workload aus vROps in Prozent des konfigurierten RAM (${formatBytes(memoryCapacityMiB)}); Wochenende, höchster Peak und die aktuelle Wochenzeit sind hervorgehoben.`}
+        >
+          {hasMemoryTrend ? (
+            <VropsTrendChart
+              hourly={memoryTrendPoints}
+              primaryMetric="memory-workload"
+              title="RAM-Auslastungsverlauf"
+              cpuCapacityMHz={null}
+              memoryCapacityMiB={memoryCapacityMiB}
+              secondaryCapacity={null}
+              avoidanceThresholdPct={ramAvoidanceThresholdPct}
+              hasImport
+              isMatched
+              isLoading={false}
+              importedAt={vropsImportedAt}
+            />
+          ) : (
+            <DetailUnavailable
+              title="Keine RAM-Workload-Zeitreihe zugeordnet"
+              description="Der CPU-Verlauf bleibt unabhängig davon nutzbar. Sobald ein vROps-Import die Spalte Memory|Workload enthält, erscheint hier der RAM-Verlauf mit derselben Auflösung."
+            />
           )}
         </DetailSection>
 
