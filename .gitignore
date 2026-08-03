@@ -52,3 +52,11 @@ vrops-*.csv
 /*.html
 /*.htm
 !/index.html
+
+# Lokale KI-/Editor-Konfiguration und generierte Skills
+.agents/
+.claude/
+.cursor/
+.opencode/
+.mcp.json
+opencode.json
