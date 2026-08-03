@@ -13,6 +13,7 @@ import { IpamPanel } from "@/pages/IpamPanel";
 import { EramonIfacePanel } from "@/pages/EramonIfacePanel";
 import { EramonL2Panel } from "@/pages/EramonL2Panel";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useOptionalAppMode } from "@/hooks/useAppMode";
 import { NET_NETWORK_TABS } from "@/lib/glossaries/networking";
 import {
   isNetworkTab,
@@ -20,6 +21,20 @@ import {
   updateNetworkAuditSearch,
   type NetworkTab,
 } from "@/lib/networkAuditNavigation";
+
+/**
+ * Im SysV-Modus bleibt nur die VLAN-Nutzung übrig: Alle anderen Tabs beschreiben die
+ * Netzwerk- und Sicherheitslage der gesamten Umgebung, nicht die eigenen Systeme.
+ */
+const SYSV_HIDDEN_NETWORK_TABS = new Set<NetworkTab>([
+  "security",
+  "host",
+  "cdp",
+  "ipam",
+  "eramon-iface",
+  "eramon-l2",
+]);
+const SYSV_FALLBACK_NETWORK_TAB: NetworkTab = "vlan";
 
 function RvtoolsEmptyState() {
   return (
@@ -36,7 +51,14 @@ function RvtoolsEmptyState() {
 export default function Networking({ initialTab = "security" }: { initialTab?: NetworkTab }) {
   const { snapshots, snapshotsLoading } = useActiveSnapshotIds();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = parseNetworkTab(searchParams, initialTab);
+  const appMode = useOptionalAppMode();
+  // Wie in der Navigation: Solange der Modus lädt, bleiben die modusabhängigen Tabs
+  // verborgen, damit keine falsche Auswahl aufblinkt.
+  const hidesSysvTabs = !(appMode?.isHydrated ?? true) || appMode?.mode === "sysv";
+  const isTabVisible = (tab: NetworkTab) => !hidesSysvTabs || !SYSV_HIDDEN_NETWORK_TABS.has(tab);
+  const requestedTab = parseNetworkTab(searchParams, initialTab);
+  // Ein Deeplink oder Bookmark auf einen verborgenen Tab landet auf dem sichtbaren Rest.
+  const activeTab = isTabVisible(requestedTab) ? requestedTab : SYSV_FALLBACK_NETWORK_TAB;
   const hasRvtools = snapshots.length > 0;
 
   // Alte Bookmarks mit dem früheren Netzwerk-Untertab bleiben gültig.
@@ -67,27 +89,39 @@ export default function Networking({ initialTab = "security" }: { initialTab?: N
         <PageHeader title="Netzwerk">
           <div className="w-full overflow-x-auto pb-1">
             <TabsList aria-label="Netzwerkbereich" className="min-w-max">
-              <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
-                <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
-              </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.host} side="bottom">
-                <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
-              </InfoTooltip>
+              {isTabVisible("security") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.security} side="bottom">
+                  <TabsTrigger value="security">Security &amp; Policies</TabsTrigger>
+                </InfoTooltip>
+              )}
+              {isTabVisible("host") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.host} side="bottom">
+                  <TabsTrigger value="host">Host-Netzwerk</TabsTrigger>
+                </InfoTooltip>
+              )}
               <InfoTooltip entry={NET_NETWORK_TABS.vlan} side="bottom">
                 <TabsTrigger value="vlan">VLAN-Nutzung</TabsTrigger>
               </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.cdp} side="bottom">
-                <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
-              </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.ipam} side="bottom">
-                <TabsTrigger value="ipam">IPAM</TabsTrigger>
-              </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.eramonIface} side="bottom">
-                <TabsTrigger value="eramon-iface">Switch-Ports (Eramon)</TabsTrigger>
-              </InfoTooltip>
-              <InfoTooltip entry={NET_NETWORK_TABS.eramonL2} side="bottom">
-                <TabsTrigger value="eramon-l2">MAC-Tabelle (Eramon)</TabsTrigger>
-              </InfoTooltip>
+              {isTabVisible("cdp") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.cdp} side="bottom">
+                  <TabsTrigger value="cdp">CDP/Switch-Ports</TabsTrigger>
+                </InfoTooltip>
+              )}
+              {isTabVisible("ipam") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.ipam} side="bottom">
+                  <TabsTrigger value="ipam">IPAM</TabsTrigger>
+                </InfoTooltip>
+              )}
+              {isTabVisible("eramon-iface") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.eramonIface} side="bottom">
+                  <TabsTrigger value="eramon-iface">Switch-Ports (Eramon)</TabsTrigger>
+                </InfoTooltip>
+              )}
+              {isTabVisible("eramon-l2") && (
+                <InfoTooltip entry={NET_NETWORK_TABS.eramonL2} side="bottom">
+                  <TabsTrigger value="eramon-l2">MAC-Tabelle (Eramon)</TabsTrigger>
+                </InfoTooltip>
+              )}
             </TabsList>
           </div>
         </PageHeader>

@@ -92,15 +92,24 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 
-  it("blendet im SysV-Modus nur Netzwerk-Kontrolle, Wartung und Hardware aus", () => {
+  it("blendet im SysV-Modus die umgebungsweiten Bereiche aus", () => {
     useOptionalImportControllerMock.mockReturnValue(null);
     useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
     renderSidebar();
 
-    expect(screen.queryByRole("link", { name: "Netzwerk-Kontrolle" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Hardware" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Wartungsfenster" })).toBeInTheDocument();
+    for (const name of ["vCenter", "Cluster", "Netzwerk-Kontrolle", "Wartung", "Hardware", "Planung", "Wartungsfenster"]) {
+      expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it("behält im SysV-Modus die auf eigene Systeme bezogenen Bereiche", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
+    renderSidebar();
+
+    for (const name of ["Übersicht", "Uploads", "Hosts", "VMs", "Storage / Backup", "Netzwerk", "Tech-Info", "Export & Berichte"]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
   });
 
   it("hält modusabhängige Einträge bis zum Abschluss der Hydrierung zurück", () => {

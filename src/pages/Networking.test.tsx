@@ -8,6 +8,13 @@ import Networking from "@/pages/Networking";
 import type { SnapshotMeta } from "@/domain/models/types";
 import type { NetworkTab } from "@/lib/networkAuditNavigation";
 
+const { useOptionalAppModeMock } = vi.hoisted(() => ({ useOptionalAppModeMock: vi.fn() }));
+
+vi.mock("@/hooks/useAppMode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useAppMode")>()),
+  useOptionalAppMode: useOptionalAppModeMock,
+}));
+
 vi.mock("@/pages/NetworkSecurity", () => ({
   NetworkSecurityPanel: () => <div data-testid="panel-security" />,
 }));
@@ -75,7 +82,40 @@ function selectTab(name: string) {
 }
 
 beforeEach(async () => {
+  useOptionalAppModeMock.mockReset();
+  useOptionalAppModeMock.mockReturnValue(null);
   await deleteAllData();
+});
+
+describe("Networking im SysV-Modus", () => {
+  it("lässt nur die VLAN-Nutzung stehen", async () => {
+    useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    renderNetworking();
+
+    expect(await screen.findByRole("tab", { name: "VLAN-Nutzung" })).toBeInTheDocument();
+    for (const name of ["Security & Policies", "Host-Netzwerk", "CDP/Switch-Ports", "IPAM", "Switch-Ports (Eramon)", "MAC-Tabelle (Eramon)"]) {
+      expect(screen.queryByRole("tab", { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it("fällt bei einem Deeplink auf einen verborgenen Tab auf die VLAN-Nutzung zurück", async () => {
+    useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    renderNetworking(["/network-security?tab=ipam"]);
+
+    expect(await screen.findByTestId("panel-vlan")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-ipam")).not.toBeInTheDocument();
+  });
+
+  it("zeigt vor Abschluss der Modus-Hydrierung keine modusabhängigen Tabs", async () => {
+    useOptionalAppModeMock.mockReturnValue({ mode: "vm-admin", isHydrated: false });
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+    renderNetworking();
+
+    expect(await screen.findByRole("tab", { name: "VLAN-Nutzung" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Security & Policies" })).not.toBeInTheDocument();
+  });
 });
 
 describe("Networking", () => {

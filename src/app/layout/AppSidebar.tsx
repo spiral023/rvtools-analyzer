@@ -68,7 +68,21 @@ const toolsNav: NavItem[] = [
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
 
-const SYSV_HIDDEN_NAV_URLS = new Set(["/network-audit", "/wartungsankuendigung", "/hardware"]);
+/**
+ * Im SysV-Modus sieht ein Systemverantwortlicher nur seine eigenen Systeme. Alles,
+ * was den Blick auf die gesamte Infrastruktur oder auf Betriebsplanung öffnet, bleibt
+ * deshalb verborgen. Die Routen selbst bleiben erreichbar; die Datengrenze zieht beim
+ * SysV-Datenpaket ohnehin der physische Paketinhalt.
+ */
+const SYSV_HIDDEN_NAV_URLS = new Set([
+  "/vcenter",
+  "/clusters",
+  "/network-audit",
+  "/wartungsankuendigung",
+  "/hardware",
+  "/planning",
+  "/wartungsfenster",
+]);
 
 function NavSection({
   label,
@@ -205,7 +219,7 @@ export function AppSidebar() {
       </div>
       <SidebarContent className="py-2">
         <NavSection label="Dashboard" items={mainNav} />
-        <NavSection label="Infrastruktur" items={infrastructureNav} />
+        <NavSection label="Infrastruktur" items={infrastructureNav.filter(visibleInCurrentMode)} />
         <NavSection label="Analyse" items={analysisNav.filter(visibleInCurrentMode)} />
         <NavSection label="Tools" items={toolsNav.filter(visibleInCurrentMode)} />
       </SidebarContent>
