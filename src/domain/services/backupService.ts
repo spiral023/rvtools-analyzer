@@ -18,6 +18,11 @@ import {
 import { buildUserDataBackup, parseUserDataBackup, type UserDataBackup } from "@/lib/backup/userDataBackup";
 import { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 import {
+  APP_MODE_UI_STATE_ID,
+  normalizeAppModeState,
+  notifyAppModeStateChanged,
+} from "@/lib/appMode";
+import {
   LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID,
   TABLE_DISPLAY_PREFERENCES_UI_STATE_ID,
   TECH_INFO_ORGANISATION_TABLE_ID,
@@ -33,11 +38,12 @@ export interface UserDataImportResult {
   vmScopeSettingsImported: boolean;
   techInfoOrganisationTablePreferencesImported: boolean;
   tableDisplayPreferencesImported: boolean;
+  sysvScopeImported?: boolean;
 }
 
 /** Sammelt alle Benutzerdaten (ohne RVTools-/Tech-Info-Daten) für den Export. */
 export async function collectUserDataBackup(): Promise<UserDataBackup> {
-  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups, tablePreferencesUiState, legacyTechInfoUiState] = await Promise.all([
+  const [settings, assignments, maintenanceWindows, scenarios, vcenterGroups, tablePreferencesUiState, legacyTechInfoUiState, appModeUiState] = await Promise.all([
     getMaintenanceSettings(),
     getMaintenanceAssignments(),
     getMaintenanceWindows(),
@@ -45,6 +51,7 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     getVcenterGroups(),
     getUiState(TABLE_DISPLAY_PREFERENCES_UI_STATE_ID),
     getUiState(LEGACY_TECH_INFO_ORGANISATION_UI_STATE_ID),
+    getUiState(APP_MODE_UI_STATE_ID),
   ]);
 
   const tableDisplayPreferences = {
@@ -65,6 +72,7 @@ export async function collectUserDataBackup(): Promise<UserDataBackup> {
     vmScopeSettings: getStoredVmScopeSettings(),
     techInfoOrganisationTablePreferences,
     tableDisplayPreferences: Object.keys(tableDisplayPreferences).length > 0 ? tableDisplayPreferences : undefined,
+    lastSysvScope: normalizeAppModeState(appModeUiState?.appModeState).lastSysvScope,
   });
 }
 
@@ -112,6 +120,22 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     notifyTableDisplayPreferencesChanged();
   }
 
+  if (backup.lastSysvScope) {
+    const existing = await getUiState(APP_MODE_UI_STATE_ID);
+    const currentAppModeState = normalizeAppModeState(existing?.appModeState);
+    await putUiState({
+      ...(existing ?? { id: APP_MODE_UI_STATE_ID, theme: "dark" }),
+      id: APP_MODE_UI_STATE_ID,
+      // Der Modus bleibt unangetastet: Ein Userdaten-Backup darf ihn nie umschalten.
+      appModeState: {
+        ...currentAppModeState,
+        lastSysvScope: backup.lastSysvScope,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    notifyAppModeStateChanged();
+  }
+
   return {
     settingsImported: Boolean(backup.maintenanceSettings),
     assignmentsImported: backup.maintenanceClusterAssignments.length,
@@ -121,6 +145,7 @@ export async function applyUserDataBackup(backup: UserDataBackup): Promise<UserD
     vmScopeSettingsImported: Boolean(backup.vmScopeSettings),
     techInfoOrganisationTablePreferencesImported: Boolean(tableDisplayPreferences[TECH_INFO_ORGANISATION_TABLE_ID]),
     tableDisplayPreferencesImported: Object.keys(tableDisplayPreferences).length > 0,
+    sysvScopeImported: Boolean(backup.lastSysvScope),
   };
 }
 
@@ -136,4 +161,17 @@ export async function importUserDataBackupFile(file: File): Promise<UserDataImpo
 export async function deleteUserData(onProgress?: DeleteProgressCallback): Promise<void> {
   await deleteUserDataStores(onProgress);
   saveVmScopeSettings(DEFAULT_VM_SCOPE_SETTINGS);
+  const existing = await getUiState(APP_MODE_UI_STATE_ID);
+  if (existing?.appModeState) {
+    const appModeState = normalizeAppModeState(existing.appModeState);
+    await putUiState({
+      ...existing,
+      appModeState: {
+        ...appModeState,
+        lastSysvScope: { kind: "all" },
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    notifyAppModeStateChanged();
+  }
 }

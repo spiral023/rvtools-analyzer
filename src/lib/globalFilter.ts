@@ -12,6 +12,7 @@ import type {
   TechInfoLatest,
   TechInfoClientLatest,
 } from "@/domain/models/types";
+import { normalizeSysvDepartmentPath, normalizeSysvPersonName } from "@/lib/sysvScope";
 
 export type VmRawFilterSource = Exclude<GlobalFilterSourceScope, "root" | "vm" | "techInfo" | "techInfoClient">;
 
@@ -471,8 +472,8 @@ function evaluateValue(
     return false;
   }
 
-  const left = String(rawValue).toLocaleLowerCase("de-DE");
-  const right = String(rule.value ?? "").toLocaleLowerCase("de-DE");
+  const left = normalizeTextForField(field, rawValue);
+  const right = normalizeTextForField(field, rule.value ?? "");
   if (rule.operator === "eq") return left === right;
   if (rule.operator === "neq") return left !== right;
   if (rule.operator === "contains") return left.includes(right);
@@ -481,6 +482,16 @@ function evaluateValue(
   if (rule.operator === "ends_with") return left.endsWith(right);
   if (rule.operator === "wildcard") return wildcardToRegExp(right).test(left);
   return false;
+}
+
+function normalizeTextForField(field: GlobalFilterField, value: unknown): string {
+  if (field.source === "techInfo" && (field.key === "sysv" || field.key === "sysvDeputy")) {
+    return normalizeSysvPersonName(String(value ?? ""));
+  }
+  if (field.source === "techInfo" && (field.key === "sysvDepartment" || field.key === "sysvDeputyDepartment")) {
+    return normalizeSysvDepartmentPath(String(value ?? ""));
+  }
+  return String(value ?? "").toLocaleLowerCase("de-DE");
 }
 
 function inferDataType(values: unknown[]): GlobalFilterDataType {

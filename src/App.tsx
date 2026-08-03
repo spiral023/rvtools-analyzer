@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useRouteError } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
+import { AppModeProvider } from "@/hooks/useAppMode";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { AppLayout } from "@/app/layout/AppLayout";
 import { ImportProvider } from "@/hooks/useImportController";
@@ -15,6 +16,7 @@ import { TableDisplayPreferencesProvider } from "@/hooks/useTableDisplayPreferen
 import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 import { isLazyImportFailure, recoverFromLazyImportFailure } from "@/lib/lazyImportRecovery";
 import { AnalysisErrorPage } from "@/components/errors/AnalysisErrorPage";
+import { SysvScopeDialog } from "@/components/sysv/SysvScopeDialog";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
@@ -117,17 +119,20 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <ImportProvider>
-          <OnboardingProvider>
-            <FilterProvider>
-              <SelectionProvider>
-                <TableDisplayPreferencesProvider>
-                  <RouterProvider router={router} fallbackElement={<PageFallback />} />
-                </TableDisplayPreferencesProvider>
-              </SelectionProvider>
-            </FilterProvider>
-          </OnboardingProvider>
-        </ImportProvider>
+        <AppModeProvider>
+          <ImportProvider>
+            <OnboardingProvider>
+              <FilterProvider>
+                <SelectionProvider>
+                  <TableDisplayPreferencesProvider>
+                    <RouterProvider router={router} fallbackElement={<PageFallback />} />
+                  </TableDisplayPreferencesProvider>
+                </SelectionProvider>
+                <SysvScopeDialog />
+              </FilterProvider>
+            </OnboardingProvider>
+          </ImportProvider>
+        </AppModeProvider>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

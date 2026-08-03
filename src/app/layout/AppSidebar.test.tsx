@@ -4,13 +4,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "@/app/layout/AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-const { importFiles, useOptionalImportControllerMock } = vi.hoisted(() => ({
+const { importFiles, useOptionalImportControllerMock, useOptionalAppModeMock } = vi.hoisted(() => ({
   importFiles: vi.fn(),
   useOptionalImportControllerMock: vi.fn(),
+  useOptionalAppModeMock: vi.fn(),
 }));
 
 vi.mock("@/hooks/useImportController", () => ({
   useOptionalImportController: useOptionalImportControllerMock,
+}));
+
+vi.mock("@/hooks/useAppMode", () => ({
+  useOptionalAppMode: useOptionalAppModeMock,
 }));
 
 function renderSidebar() {
@@ -27,6 +32,8 @@ describe("AppSidebar", () => {
   beforeEach(() => {
     importFiles.mockClear();
     useOptionalImportControllerMock.mockReset();
+    useOptionalAppModeMock.mockReset();
+    useOptionalAppModeMock.mockReturnValue(null);
   });
 
   it("benennt den Upload-Menüpunkt in Uploads um", () => {
@@ -83,6 +90,27 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Netzwerk-Kontrolle" })).toHaveAttribute("href", "/network-audit");
     expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
+  });
+
+  it("blendet im SysV-Modus nur Netzwerk-Kontrolle, Wartung und Hardware aus", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
+    renderSidebar();
+
+    expect(screen.queryByRole("link", { name: "Netzwerk-Kontrolle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Hardware" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Wartungsfenster" })).toBeInTheDocument();
+  });
+
+  it("hält modusabhängige Einträge bis zum Abschluss der Hydrierung zurück", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    useOptionalAppModeMock.mockReturnValue({ mode: "vm-admin", isHydrated: false });
+    renderSidebar();
+
+    expect(screen.queryByRole("link", { name: "Netzwerk-Kontrolle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Hardware" })).not.toBeInTheDocument();
   });
 
   it("zeigt Details verwandter Tools in einer festen Fläche statt als überlagernden Tooltip", () => {

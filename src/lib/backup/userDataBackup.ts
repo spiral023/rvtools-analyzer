@@ -3,6 +3,7 @@ import type {
   MaintenanceSettings,
   MaintenanceWindowDefinition,
   Scenario,
+  SysvScopePreference,
   TableDisplayPreferencesByTableId,
   TechInfoOrganisationTablePreferences,
   VCenterGroup,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/maintenanceWindows";
 import { normalizeTableDisplayPreferencesByTableId, normalizeTableDisplayPreferences } from "@/lib/tableDisplayPreferences";
 import { DEFAULT_VM_SCOPE_SETTINGS } from "@/lib/vmScopeSettings";
+import { readSysvScopePreference } from "@/lib/sysvScope";
 
 export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
 /**
@@ -24,13 +26,14 @@ export const USER_DATA_BACKUP_KIND = "rvtools-analyzer-user-data";
  * 1 – Grundbestand, 2 – Wartungsfenster, 3 – vCenter-Gruppen, 4 – VM-Scope-Vorgaben,
  * 5 – Wochenpläne als Zeitbereiche statt als 48er-Boolean-Matrix,
  * 6 – persönliche Ansicht des Tech-Info-Organisations-Drill-downs,
- * 7 – persönliche Tabellenansichten für alle VirtualTables.
+ * 7 – persönliche Tabellenansichten für alle VirtualTables,
+ * 8 – zuletzt gewählter persönlicher SysV-Systemkontext.
  *
  * Geschrieben wird stets die neueste Version; gelesen werden alle. Die Feldweichen unten
  * vergleichen deshalb numerisch (`version >= n`) und nicht gegen diese Konstante – sonst
  * verliert jede Versionserhöhung stillschweigend die Felder der Vorgängerversion.
  */
-export const USER_DATA_BACKUP_VERSION = 7;
+export const USER_DATA_BACKUP_VERSION = 8;
 const OLDEST_SUPPORTED_VERSION = 1;
 
 export interface UserDataBackup {
@@ -45,6 +48,8 @@ export interface UserDataBackup {
   vmScopeSettings?: VmScopeSettings;
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
   tableDisplayPreferences?: TableDisplayPreferencesByTableId;
+  /** App-Modus bleibt bewusst außerhalb eines Backups; nur die Scope-Vorgabe wird gesichert. */
+  lastSysvScope?: SysvScopePreference;
 }
 
 export function buildUserDataBackup(input: {
@@ -56,6 +61,7 @@ export function buildUserDataBackup(input: {
   vmScopeSettings?: VmScopeSettings;
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
   tableDisplayPreferences?: TableDisplayPreferencesByTableId;
+  lastSysvScope?: SysvScopePreference;
   exportedAt?: Date;
 }): UserDataBackup {
   return {
@@ -70,6 +76,7 @@ export function buildUserDataBackup(input: {
     vmScopeSettings: input.vmScopeSettings ?? DEFAULT_VM_SCOPE_SETTINGS,
     techInfoOrganisationTablePreferences: input.techInfoOrganisationTablePreferences,
     tableDisplayPreferences: input.tableDisplayPreferences,
+    lastSysvScope: input.lastSysvScope ?? { kind: "all" },
   };
 }
 
@@ -315,6 +322,9 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
   const tableDisplayPreferences = version >= 7
     ? normalizeTableDisplayPreferencesByTableId(parsed.tableDisplayPreferences) ?? undefined
     : undefined;
+  const lastSysvScope = version >= 8
+    ? readSysvScopePreference(parsed.lastSysvScope) ?? undefined
+    : undefined;
 
   return {
     kind: USER_DATA_BACKUP_KIND,
@@ -328,5 +338,6 @@ export function parseUserDataBackup(raw: string): UserDataBackup {
     vmScopeSettings,
     techInfoOrganisationTablePreferences,
     tableDisplayPreferences,
+    lastSysvScope,
   };
 }

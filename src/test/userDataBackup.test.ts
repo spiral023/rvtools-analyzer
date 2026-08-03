@@ -94,6 +94,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
       vcenterGroups: [vcenterGroup],
       techInfoOrganisationTablePreferences,
       tableDisplayPreferences,
+      lastSysvScope: { kind: "person", displayName: "MUSTERMANN Max", normalizedName: "mustermann max" },
       exportedAt: new Date("2026-07-03T12:00:00.000Z"),
     } as never);
 
@@ -114,6 +115,7 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     });
     expect(parsed.techInfoOrganisationTablePreferences).toEqual(techInfoOrganisationTablePreferences);
     expect(parsed.tableDisplayPreferences).toEqual(tableDisplayPreferences);
+    expect(parsed.lastSysvScope).toEqual({ kind: "person", displayName: "MUSTERMANN Max", normalizedName: "mustermann max" });
   });
 
   it("kommt mit leerem Datenbestand zurecht", () => {
@@ -466,6 +468,37 @@ describe("collectUserDataBackup / applyUserDataBackup", () => {
     expect((await getUiState("table-display-preferences"))?.tableDisplayPreferences).toEqual({
       ...tableDisplayPreferences,
       ...imported,
+    });
+  });
+
+  it("sichert den persönlichen SysV-Kontext, ohne den aktuellen App-Modus aus einem Backup zu verändern", async () => {
+    const { getUiState, putUiState } = await import("@/data/db");
+    const { applyUserDataBackup, collectUserDataBackup } = await import("@/domain/services/backupService");
+    await putUiState({
+      id: "app-mode",
+      theme: "dark",
+      appModeState: {
+        mode: "sysv",
+        lastSysvScope: { kind: "person", displayName: "MUSTERMANN Max", normalizedName: "mustermann max" },
+        updatedAt: "2026-08-03T10:00:00.000Z",
+      },
+    });
+
+    const collected = await collectUserDataBackup();
+    expect(collected.lastSysvScope).toEqual({ kind: "person", displayName: "MUSTERMANN Max", normalizedName: "mustermann max" });
+
+    const result = await applyUserDataBackup(buildUserDataBackup({
+      maintenanceSettings: null,
+      maintenanceClusterAssignments: [],
+      maintenanceWindows: [],
+      scenarios: [],
+      lastSysvScope: { kind: "department", displayName: "FIRMA/OPS-UNIX", normalizedPath: "firma/ops-unix" },
+    }));
+
+    expect(result.sysvScopeImported).toBe(true);
+    expect((await getUiState("app-mode"))?.appModeState).toMatchObject({
+      mode: "sysv",
+      lastSysvScope: { kind: "department", normalizedPath: "firma/ops-unix" },
     });
   });
 

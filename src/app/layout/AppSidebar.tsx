@@ -15,6 +15,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
 import { RELATED_TOOLS } from "@/lib/relatedTools";
 import { useOptionalImportController } from "@/hooks/useImportController";
+import { useOptionalAppMode } from "@/hooks/useAppMode";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -66,6 +67,8 @@ const toolsNav: NavItem[] = [
   { title: "Export & Berichte", url: "/exports", icon: FileOutput },
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
 ];
+
+const SYSV_HIDDEN_NAV_URLS = new Set(["/network-audit", "/wartungsankuendigung", "/hardware"]);
 
 function NavSection({
   label,
@@ -176,6 +179,16 @@ function RelatedToolsNav() {
 }
 
 export function AppSidebar() {
+  const appMode = useOptionalAppMode();
+  const mode = appMode?.mode ?? "vm-admin";
+  const isModeHydrated = appMode?.isHydrated ?? true;
+  const visibleInCurrentMode = (item: NavItem) => {
+    if (!SYSV_HIDDEN_NAV_URLS.has(item.url)) return true;
+    // Während die lokale Modusvorgabe lädt, bleiben ausschließlich die
+    // modusabhängigen Einträge verborgen. Dadurch blinkt keine falsche Navigation auf.
+    return isModeHydrated && mode !== "sysv";
+  };
+
   return (
     <Sidebar className="border-r border-sidebar-border">
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
@@ -193,8 +206,8 @@ export function AppSidebar() {
       <SidebarContent className="py-2">
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Infrastruktur" items={infrastructureNav} />
-        <NavSection label="Analyse" items={analysisNav} />
-        <NavSection label="Tools" items={toolsNav} />
+        <NavSection label="Analyse" items={analysisNav.filter(visibleInCurrentMode)} />
+        <NavSection label="Tools" items={toolsNav.filter(visibleInCurrentMode)} />
       </SidebarContent>
       <SidebarFooter className="p-0">
         <RelatedToolsNav />

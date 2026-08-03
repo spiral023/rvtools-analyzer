@@ -1,6 +1,6 @@
 export type SnapshotId = string;
 export type VCenterId = string;
-export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "vrops-timeseries" | "maintenance-windows" | "user-data-backup";
+export type ImportFileKind = "rvtools" | "tech-info" | "tech-info-client" | "cdp" | "ipam" | "eramon-iface" | "eramon-l2" | "vrops" | "vrops-timeseries" | "maintenance-windows" | "user-data-backup" | "mode";
 
 export type SheetName =
   | "vInfo" | "vCPU" | "vMemory" | "vDisk" | "vPartition" | "vNetwork"
@@ -1676,6 +1676,22 @@ export interface VmScopeSettings {
   excludeDummyVms: boolean;
 }
 
+/** Sichtbarkeitsmodus der Anwendung. Kein Berechtigungs- oder Sicherheitsmodell. */
+export type AppMode = "vm-admin" | "sysv";
+
+/** Zuletzt gewählter persönlicher Systemkontext für den SysV-Modus. */
+export type SysvScopePreference =
+  | { kind: "all" }
+  | { kind: "person"; displayName: string; normalizedName: string }
+  | { kind: "department"; displayName: string; normalizedPath: string };
+
+/** Lokal persistierter Modus samt unabhängiger persönlicher Scope-Vorgabe. */
+export interface AppModeState {
+  mode: AppMode;
+  lastSysvScope: SysvScopePreference;
+  updatedAt: string;
+}
+
 /**
  * Persönliche Ansicht einer einzelnen Tabelle. Die Spalten-IDs bleiben stabil,
  * damit die Konfiguration auch nach einem Reload oder Backup-Import erhalten bleibt.
@@ -1758,6 +1774,8 @@ export interface UiState {
   techInfoOrganisationTablePreferences?: TechInfoOrganisationTablePreferences;
   /** Persönliche Tabellenansichten, jeweils unter einer stabilen fachlichen Tabellen-ID. */
   tableDisplayPreferences?: TableDisplayPreferencesByTableId;
+  /** Eigener Datensatz (`app-mode`) für App-Modus und persönlichen Systemkontext. */
+  appModeState?: AppModeState;
 }
 
 export type ScenarioType = "cluster-migration";

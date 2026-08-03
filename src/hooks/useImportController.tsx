@@ -26,6 +26,8 @@ import {
 } from "@/domain/services/vropsTimeSeriesImportService";
 import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
+import { isModeFileName, parseModeFile } from "@/lib/appMode";
+import { useOptionalAppMode } from "@/hooks/useAppMode";
 
 const VROPS_SLOT_LABEL: Record<VropsTimeSeriesObjectType, string> = { vm: "VM", cluster: "Cluster", host: "Host" };
 
@@ -173,11 +175,28 @@ export function fileKindLabel(kind?: ImportFileKind): string {
   if (kind === "vrops-timeseries") return "vROps-Zeitreihen";
   if (kind === "maintenance-windows") return "Wartungsfenster";
   if (kind === "user-data-backup") return "Userdaten-Backup";
+  if (kind === "mode") return "Modusdatei";
   return "RVTools";
+}
+
+/** Prüft ausschließlich Ergebnisse des aktuellen Upload-Batches für eine SysV-Aktivierung. */
+export function getSysvModeActivationError(batchResults: readonly ImportResult[]): string | null {
+  const hasRvtools = batchResults.some((result) => result.fileKind === "rvtools" && result.success);
+  const hasTechInfo = batchResults.some((result) => result.fileKind === "tech-info" && result.success);
+  if (hasRvtools && hasTechInfo) return null;
+
+  const hasRvtoolsAttempt = batchResults.some((result) => result.fileKind === "rvtools");
+  const hasTechInfoAttempt = batchResults.some((result) => result.fileKind === "tech-info");
+  const causes = [
+    hasRvtools ? null : hasRvtoolsAttempt ? "RVTools-Import ist fehlgeschlagen" : "RVTools-Import fehlt",
+    hasTechInfo ? null : hasTechInfoAttempt ? "Tech-Info Server-Import ist fehlgeschlagen" : "Tech-Info Server-Import fehlt",
+  ].filter((cause): cause is string => Boolean(cause));
+  return `SysV-Modus wurde nicht aktiviert: ${causes.join("; ")}.`;
 }
 
 export function ImportProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const appMode = useOptionalAppMode();
   const runningRef = useRef(false);
   const [importing, setImporting] = useState(false);
   const [items, setItems] = useState<ImportQueueItem[]>([]);
@@ -215,11 +234,23 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
       if (validFiles.length === 0) return;
 
-      const { fileSet: vropsFileSet, otherFiles: unorderedOtherFiles } = await classifyVropsTimeSeriesFiles(validFiles);
+      // Modusdateien werden vor der generischen JSON-Backup-Erkennung ausgekoppelt.
+      // Die Erkennung arbeitet absichtlich nur mit dem Basisdateinamen, damit ZIP-Unterordner egal sind.
+      const modeFiles = validFiles.filter((file) => isModeFileName(file.name));
+      const nonModeFiles = validFiles.filter((file) => !isModeFileName(file.name));
+      const { fileSet: vropsFileSet, otherFiles: unorderedOtherFiles } = await classifyVropsTimeSeriesFiles(nonModeFiles);
       const otherFiles = sortRvtoolsFirst(unorderedOtherFiles);
-      if (otherFiles.length === 0 && !vropsFileSet) return;
+      if (modeFiles.length === 0 && otherFiles.length === 0 && !vropsFileSet) return;
 
       const batchId = Date.now();
+      const modeItems: ImportQueueItem[] = modeFiles.map((file, index) => ({
+        id: `${batchId}-mode-${index}-${file.name}`,
+        fileName: file.name,
+        fileKind: "mode",
+        progress: null as ImportProgress | null,
+        result: null as ImportResult | null,
+        status: "queued",
+      }));
       const queued: ImportQueueItem[] = otherFiles.map((file, index) => ({
         id: `${batchId}-${index}-${file.name}`,
         fileName: file.name,
@@ -236,12 +267,48 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         status: "queued",
       } : null;
 
-      setItems(vropsItem ? [...queued, vropsItem] : queued);
+      setItems([...modeItems, ...queued, ...(vropsItem ? [vropsItem] : [])]);
       runningRef.current = true;
       setImporting(true);
 
       let anySuccess = false;
+      const batchResults: ImportResult[] = [];
+      let requestedMode: "sysv" | "vm-admin" | null = null;
+      let requestedModeItem: ImportQueueItem | null = null;
       try {
+        if (modeFiles.length > 1) {
+          const message = "Mehrere modus.json-Dateien im selben Upload-Batch sind mehrdeutig.";
+          for (const item of modeItems) {
+            patchItem(item.id, {
+              status: "error",
+              result: { success: false, fileKind: "mode", warnings: [], errors: [message] },
+            });
+          }
+          toast.error(message);
+        } else if (modeFiles.length === 1 && modeItems[0]) {
+          const modeFile = modeFiles[0];
+          const item = modeItems[0];
+          patchItem(item.id, {
+            status: "running",
+            progress: { step: "Modusdatei prüfen", percent: 20, detail: modeFile.name },
+          });
+          try {
+            const definition = parseModeFile(await modeFile.text());
+            requestedMode = definition.mode;
+            requestedModeItem = item;
+            patchItem(item.id, {
+              progress: { step: "Warte auf Batch-Ergebnis", percent: 60, detail: definition.mode },
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            patchItem(item.id, {
+              status: "error",
+              result: { success: false, fileKind: "mode", warnings: [], errors: [message] },
+            });
+            toast.error(`Modusdatei „${modeFile.name}“ ist ungültig: ${message}`);
+          }
+        }
+
         for (let index = 0; index < otherFiles.length; index += 1) {
           const file = otherFiles[index];
           const item = queued[index];
@@ -261,6 +328,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
                 : await importRvtoolsXlsx(file, (progress) => {
                   patchItem(item.id, { progress });
                 });
+            batchResults.push(result);
             const status: ImportItemStatus = result.success
               ? result.warnings.length > 0
                 ? "warning"
@@ -331,13 +399,68 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         }
 
         await queryClient.invalidateQueries();
+        // Der Dialog soll nicht kurz einen älteren Tech-Info-Cache zeigen. Die
+        // Abfrage wird daher vor seiner Öffnung einmal gezielt erneuert.
+        if (requestedMode === "sysv") {
+          await queryClient.refetchQueries({ queryKey: ["techInfoLatestAll"] });
+        }
+
+        if (requestedMode && requestedModeItem) {
+          try {
+            if (!appMode) {
+              const message = "Der App-Modus ist in diesem Kontext nicht verfügbar.";
+              patchItem(requestedModeItem.id, {
+                status: "error",
+                result: { success: false, fileKind: "mode", warnings: [], errors: [message] },
+              });
+              toast.error(message);
+            } else if (requestedMode === "vm-admin") {
+              await appMode.activateMode("vm-admin");
+              patchItem(requestedModeItem.id, {
+                status: "success",
+                progress: { step: "Abgeschlossen", percent: 100, detail: "VM-Admin-Modus" },
+                result: { success: true, fileKind: "mode", warnings: [], errors: [] },
+              });
+              anySuccess = true;
+              toast.success("VM-Admin-Modus wurde aktiviert.");
+            } else {
+              const activationError = getSysvModeActivationError(batchResults);
+
+              if (!activationError) {
+                await appMode.activateMode("sysv", { openSysvScopeDialog: true });
+                patchItem(requestedModeItem.id, {
+                  status: "success",
+                  progress: { step: "Abgeschlossen", percent: 100, detail: "SysV-Modus" },
+                  result: { success: true, fileKind: "mode", warnings: [], errors: [] },
+                });
+                anySuccess = true;
+                toast.success("SysV-Modus wurde aktiviert. Bitte wähle optional deinen persönlichen Systemkontext.");
+              } else {
+                const message = activationError;
+                patchItem(requestedModeItem.id, {
+                  status: "error",
+                  result: { success: false, fileKind: "mode", warnings: [], errors: [message] },
+                });
+                toast.error(message);
+              }
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            patchItem(requestedModeItem.id, {
+              status: "error",
+              result: { success: false, fileKind: "mode", warnings: [], errors: [message] },
+            });
+            toast.error(`App-Modus konnte nicht aktiviert werden: ${message}`);
+          }
+        }
+
         if (anySuccess) setImportSuccessSignal((n) => n + 1);
       } finally {
         runningRef.current = false;
         setImporting(false);
       }
     },
-    [patchItem, queryClient],
+    [appMode, patchItem, queryClient],
   );
 
   const clearImportState = useCallback(() => {

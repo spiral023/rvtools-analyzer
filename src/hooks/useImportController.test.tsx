@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { importMaintenanceWindowsTxt, importRvtoolsXlsx } from "@/domain/services/importService";
 import { importVropsTimeSeriesFileSet } from "@/domain/services/vropsTimeSeriesImportService";
 import { importUserDataBackupFile } from "@/domain/services/backupService";
-import { ImportProvider, useImportController } from "@/hooks/useImportController";
+import { getSysvModeActivationError, ImportProvider, useImportController } from "@/hooks/useImportController";
 
 vi.mock("@/domain/services/importService", () => ({ importRvtoolsXlsx: vi.fn(), importMaintenanceWindowsTxt: vi.fn() }));
 vi.mock("@/domain/services/vropsTimeSeriesImportService", () => ({ importVropsTimeSeriesFileSet: vi.fn() }));
@@ -178,5 +178,25 @@ describe("ImportProvider", () => {
     await act(() => result.current.importFiles(files));
 
     expect(callOrder).toEqual(["RVTools_export_all_2026_01_01_00_00_test-vcenter.xlsx", "vrops-timeseries"]);
+  });
+});
+
+describe("SysV-Batch-Aktivierung", () => {
+  it("akzeptiert nur erfolgreiche RVTools- und Tech-Info-Server-Imports desselben Batches", () => {
+    expect(getSysvModeActivationError([
+      { success: true, fileKind: "rvtools", warnings: [], errors: [] },
+      { success: true, fileKind: "tech-info", warnings: [], errors: [] },
+      { success: false, fileKind: "ipam", warnings: [], errors: ["unabhängig"] },
+    ])).toBeNull();
+  });
+
+  it("erklärt fehlende oder fehlgeschlagene Voraussetzungen", () => {
+    expect(getSysvModeActivationError([
+      { success: true, fileKind: "rvtools", warnings: [], errors: [] },
+    ])).toContain("Tech-Info Server-Import fehlt");
+    expect(getSysvModeActivationError([
+      { success: false, fileKind: "rvtools", warnings: [], errors: ["kaputt"] },
+      { success: false, fileKind: "tech-info", warnings: [], errors: ["kaputt"] },
+    ])).toContain("RVTools-Import ist fehlgeschlagen");
   });
 });
