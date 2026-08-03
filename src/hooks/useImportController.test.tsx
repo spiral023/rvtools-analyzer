@@ -182,6 +182,10 @@ describe("ImportProvider", () => {
 });
 
 describe("SysV-Batch-Aktivierung", () => {
+  it("akzeptiert eine allein hochgeladene modus.json ohne Daten-Importe", () => {
+    expect(getSysvModeActivationError([], { allowStandaloneModeFile: true })).toBeNull();
+  });
+
   it("akzeptiert nur erfolgreiche RVTools- und Tech-Info-Server-Imports desselben Batches", () => {
     expect(getSysvModeActivationError([
       { success: true, fileKind: "rvtools", warnings: [], errors: [] },

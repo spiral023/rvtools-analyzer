@@ -62,6 +62,12 @@ Bereits früher importierte RVTools- oder Tech-Info-Daten erfüllen diese
 Voraussetzung nicht. Dadurch bildet das hochgeladene Paket einen
 nachvollziehbaren, in sich vollständigen SysV-Arbeitsstand.
 
+Wird dagegen **ausschließlich** eine gültige `modus.json` hochgeladen, wechselt
+die App unmittelbar in den darin angegebenen Modus. Für `mode: "sysv"` öffnet
+sich anschließend immer die Auswahl des persönlichen Systemkontexts – auch
+wenn der SysV-Modus bereits aktiv war. So kann der Modus unabhängig von einem
+erneuten Datenimport gezielt eingestellt werden.
+
 Eine `modus.json` mit `mode: "vm-admin"` benötigt keine RVTools- oder
 Tech-Info-Dateien. Sie wird nach erfolgreicher Validierung am Ende des Batches
 angewendet.

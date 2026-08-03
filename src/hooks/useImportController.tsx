@@ -180,7 +180,12 @@ export function fileKindLabel(kind?: ImportFileKind): string {
 }
 
 /** Prüft ausschließlich Ergebnisse des aktuellen Upload-Batches für eine SysV-Aktivierung. */
-export function getSysvModeActivationError(batchResults: readonly ImportResult[]): string | null {
+export function getSysvModeActivationError(
+  batchResults: readonly ImportResult[],
+  options?: { allowStandaloneModeFile?: boolean },
+): string | null {
+  if (options?.allowStandaloneModeFile && batchResults.length === 0) return null;
+
   const hasRvtools = batchResults.some((result) => result.fileKind === "rvtools" && result.success);
   const hasTechInfo = batchResults.some((result) => result.fileKind === "tech-info" && result.success);
   if (hasRvtools && hasTechInfo) return null;
@@ -240,6 +245,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       const nonModeFiles = validFiles.filter((file) => !isModeFileName(file.name));
       const { fileSet: vropsFileSet, otherFiles: unorderedOtherFiles } = await classifyVropsTimeSeriesFiles(nonModeFiles);
       const otherFiles = sortRvtoolsFirst(unorderedOtherFiles);
+      const isStandaloneModeUpload = modeFiles.length === 1 && otherFiles.length === 0 && !vropsFileSet;
       if (modeFiles.length === 0 && otherFiles.length === 0 && !vropsFileSet) return;
 
       const batchId = Date.now();
@@ -424,7 +430,9 @@ export function ImportProvider({ children }: { children: ReactNode }) {
               anySuccess = true;
               toast.success("VM-Admin-Modus wurde aktiviert.");
             } else {
-              const activationError = getSysvModeActivationError(batchResults);
+              const activationError = getSysvModeActivationError(batchResults, {
+                allowStandaloneModeFile: isStandaloneModeUpload,
+              });
 
               if (!activationError) {
                 await appMode.activateMode("sysv", { openSysvScopeDialog: true });
@@ -434,7 +442,9 @@ export function ImportProvider({ children }: { children: ReactNode }) {
                   result: { success: true, fileKind: "mode", warnings: [], errors: [] },
                 });
                 anySuccess = true;
-                toast.success("SysV-Modus wurde aktiviert. Bitte wähle optional deinen persönlichen Systemkontext.");
+                toast.success(isStandaloneModeUpload
+                  ? "SysV-Modus wurde aktiviert. Bitte wähle deinen persönlichen Systemkontext."
+                  : "SysV-Modus wurde aktiviert. Bitte wähle optional deinen persönlichen Systemkontext.");
               } else {
                 const message = activationError;
                 patchItem(requestedModeItem.id, {
