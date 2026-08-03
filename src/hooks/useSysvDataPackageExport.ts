@@ -13,14 +13,15 @@ import {
 import { zipSysvDataPackage } from "@/lib/export/sysvDataPackageFormat";
 import { downloadBlobFile } from "@/lib/export/tableExport";
 import { sysvDataPackageScopeKey } from "@/lib/sysvDataPackageScope";
+import { formatBytes } from "@/lib/utils";
 import {
-  buildSysvDataPackageBatch,
   buildSysvDataPackageBatchFileName,
   buildSysvDataPackageBatchPreview,
   type SysvBatchExportRequest,
   type SysvBatchPreviewResult,
   type SysvBatchProgress,
 } from "@/domain/services/sysvBatchExportService";
+import { buildSysvDataPackageBatchInWorker } from "@/domain/services/sysvBatchExportWorkerService";
 import type { SysvBatchReport } from "@/domain/models/types";
 
 export interface UseSysvDataPackageExportOptions {
@@ -124,13 +125,13 @@ export function useSysvDataPackageBatchExport(
     setExporting(true);
     setProgress({ step: "Datenbasis laden", percent: 0 });
     try {
-      const result = await buildSysvDataPackageBatch(request, {
-        signal: controller.signal,
-        onProgress: setProgress,
-      });
+      const result = await buildSysvDataPackageBatchInWorker(request,
+        (nextProgress) => setProgress(nextProgress),
+        controller.signal,
+      );
       setProgress({ step: "Download vorbereiten", percent: 100 });
       downloadBlobFile(result.zipBytes, buildSysvDataPackageBatchFileName(request), "application/zip");
-      toast.success(`SysV-Batch-Container wurde erzeugt (${result.report.entries.length.toLocaleString("de-DE")} Blattpakete).`);
+      toast.success(`SysV-Batch-Container wurde erzeugt (${result.report.entries.length.toLocaleString("de-DE")} Blattpakete, ${formatBytes(result.zipBytes.byteLength)} ZIP).`);
       return result;
     } catch (error) {
       if (controller.signal.aborted) {

@@ -6,14 +6,18 @@ import type {
 import {
   buildSysvDataPackageFileName,
   loadSysvDataPackageSource,
+  matchScopeVmsToRvtools,
   resolveSysvDataPackageFromSource,
   sysvScopeSlug,
   type SysvDataPackagePreview,
   type SysvDataPackageSource,
 } from "@/domain/services/sysvDataPackageService";
-import { buildSysvDataPackageScopeDirectory, sysvDataPackageScopeKey, type SysvDataPackageScopeNode } from "@/lib/sysvDataPackageScope";
+import { buildSysvDataPackageScopeDirectory, resolveSysvDataPackageVmNames, sysvDataPackageScopeKey, type SysvDataPackageScopeNode } from "@/lib/sysvDataPackageScope";
 import { serializeSysvDataPackage, zipSysvDataPackage, MAX_SYSV_PACKAGE_COMPRESSED_BYTES } from "@/lib/export/sysvDataPackageFormat";
 import { buildSysvBatchReportCsv, MAX_SYSV_CONTAINER_COMPRESSED_BYTES } from "@/lib/export/sysvDataPackageContainer";
+import { getAllTechInfoLatest, getBySnapshotIds, getSnapshots } from "@/data/db";
+import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
+import type { NormalizedVm } from "@/domain/models/types";
 
 /** Dieselbe Grenze, die der Import in `sysvDataPackageContainer` durchsetzt. */
 export const MAX_SYSV_BATCH_CONTAINER_BYTES = MAX_SYSV_CONTAINER_COMPRESSED_BYTES;
@@ -47,10 +51,10 @@ export interface SysvBatchScopeTarget {
   parentDepartmentScope?: Extract<SysvDataPackageScope, { kind: "department" }>;
 }
 
+/** Schlanke Vorschau: Sie lädt keine Rohblätter und erzeugt keine Paketnutzlasten. */
 export interface SysvBatchScopePreview {
   target: SysvBatchScopeTarget;
-  preview: SysvDataPackagePreview;
-  parentDepartmentPreview?: SysvDataPackagePreview;
+  vmCount: number;
 }
 
 export interface SysvBatchPreviewResult {
@@ -58,8 +62,9 @@ export interface SysvBatchPreviewResult {
   rootLabel: string;
   targets: SysvBatchScopePreview[];
   skipped: SysvBatchReportSkip[];
-  estimatedCompressedBytes: number;
-  estimatedUncompressedBytes: number;
+  /** Die exakte Größe wird erst im Worker beim Erzeugen bestimmt, ohne die Vorschau zu blockieren. */
+  estimatedCompressedBytes: null;
+  estimatedUncompressedBytes: null;
   uniqueVmCount: number;
 }
 
@@ -149,46 +154,43 @@ export function buildSysvBatchScopeTargets(
   return targets;
 }
 
-function buildPreviewForTargets(
-  source: SysvDataPackageSource,
+function buildVmNameIndex(vms: readonly NormalizedVm[]): Map<string, NormalizedVm[]> {
+  const byName = new Map<string, NormalizedVm[]>();
+  for (const vm of vms) {
+    const key = normalizeVmNameForMatch(vm.vmName);
+    if (!key) continue;
+    const bucket = byName.get(key);
+    if (bucket) bucket.push(vm);
+    else byName.set(key, [vm]);
+  }
+  return byName;
+}
+
+/** Ermittelt nur Scope, VM-Zahlen und Lücken – ohne Rohblätter oder Paketnutzlasten zu laden. */
+function buildLightweightPreviewForTargets(
+  techInfoLatest: SysvDataPackageSource["techInfoLatest"],
+  vmsByNormalizedName: ReadonlyMap<string, readonly NormalizedVm[]>,
   targets: readonly SysvBatchScopeTarget[],
   request: SysvBatchExportRequest,
   onProgress?: (progress: SysvBatchProgress) => void,
 ): SysvBatchPreviewResult {
-  const previewByScope = new Map<string, SysvDataPackagePreview>();
-  const skippedByScope = new Map<string, SysvBatchReportSkip>();
   const previews: SysvBatchScopePreview[] = [];
-  let estimatedCompressedBytes = 0;
-  let estimatedUncompressedBytes = 0;
+  const skipped: SysvBatchReportSkip[] = [];
   const uniqueVmKeys = new Set<string>();
 
   for (let index = 0; index < targets.length; index += 1) {
     const target = targets[index];
-    const key = sysvDataPackageScopeKey(target.scope);
-    let preview = previewByScope.get(key);
-    if (!preview) {
-      preview = resolveSysvDataPackageFromSource(source, target.scope, {
-        includeVropsTimeSeries: request.includeVropsTimeSeries,
-        packageId: `sysv-batch-${key.replace(/[^a-z0-9]+/giu, "-")}`,
-      }).preview;
-      previewByScope.set(key, preview);
-    }
-    if (!preview.canExport) {
-      skippedByScope.set(key, {
+    const selectedNames = resolveSysvDataPackageVmNames(techInfoLatest, target.scope);
+    const { selectedVms } = matchScopeVmsToRvtools(selectedNames, vmsByNormalizedName);
+    if (selectedVms.length === 0) {
+      skipped.push({
         scopeKind: target.scope.kind,
         scopeLabel: target.scope.displayName,
-        reason: preview.errors.map((error) => error.message).join(" ") || "Scope kann nicht exportiert werden.",
+        reason: "Keine VM des Scopes konnte eindeutig RVTools zugeordnet werden.",
       });
     } else {
-      const parentDepartmentPreview = target.parentDepartmentScope
-        ? previewByScope.get(sysvDataPackageScopeKey(target.parentDepartmentScope))
-          ?? resolveSysvDataPackageFromSource(source, target.parentDepartmentScope, { includeVropsTimeSeries: false }).preview
-        : undefined;
-      if (target.parentDepartmentScope && parentDepartmentPreview) previewByScope.set(sysvDataPackageScopeKey(target.parentDepartmentScope), parentDepartmentPreview);
-      previews.push({ target, preview, parentDepartmentPreview });
-      estimatedCompressedBytes += preview.estimatedCompressedBytes;
-      estimatedUncompressedBytes += preview.estimatedUncompressedBytes;
-      preview.vms.forEach((vm) => uniqueVmKeys.add(vm.vmKey));
+      previews.push({ target, vmCount: selectedVms.length });
+      for (const vm of selectedVms) uniqueVmKeys.add(vm.vmKey);
     }
     onProgress?.({
       step: "Zielscopes bestimmen",
@@ -203,9 +205,9 @@ function buildPreviewForTargets(
     level: request.level,
     rootLabel: request.root?.displayName ?? "Gesamter Bestand",
     targets: previews,
-    skipped: [...skippedByScope.values()],
-    estimatedCompressedBytes,
-    estimatedUncompressedBytes,
+    skipped,
+    estimatedCompressedBytes: null,
+    estimatedUncompressedBytes: null,
     uniqueVmCount: uniqueVmKeys.size,
   };
 }
@@ -215,18 +217,14 @@ export async function buildSysvDataPackageBatchPreview(
   options: { onProgress?: (progress: SysvBatchProgress) => void; signal?: AbortSignal } = {},
 ): Promise<SysvBatchPreviewResult> {
   throwIfAborted(options.signal);
-  options.onProgress?.({ step: "Datenbasis laden", percent: 0, detail: "Gemeinsame Datenbasis wird geladen" });
-  const source = await loadSysvDataPackageSource({
-    includeVropsTimeSeries: request.includeVropsTimeSeries,
-    onProgress: (progress) => options.onProgress?.({
-      step: "Datenbasis laden",
-      percent: Math.min(40, Math.max(1, Math.round(progress.percent * 0.4))),
-      detail: progress.detail,
-    }),
-  });
+  options.onProgress?.({ step: "Datenbasis laden", percent: 0, detail: "Scope- und VM-Verzeichnis wird geladen" });
+  const [snapshots, techInfoLatest] = await Promise.all([getSnapshots(), getAllTechInfoLatest()]);
+  const allVms = await getBySnapshotIds<NormalizedVm>("entities_vm", snapshots.map((snapshot) => snapshot.snapshotId));
   throwIfAborted(options.signal);
+  const source = { techInfoLatest } as SysvDataPackageSource;
   const targets = buildSysvBatchScopeTargets(source, request, new Date());
-  return buildPreviewForTargets(source, targets, request, options.onProgress);
+  options.onProgress?.({ step: "Zielscopes bestimmen", percent: 0, detail: `${allVms.length.toLocaleString("de-DE")} RVTools-VMs verfügbar` });
+  return buildLightweightPreviewForTargets(techInfoLatest, buildVmNameIndex(allVms), targets, request, options.onProgress);
 }
 
 function uniqueContainerFilePath(requestedPath: string, claimed: Set<string>): string {
@@ -249,10 +247,13 @@ function uniqueContainerFilePath(requestedPath: string, claimed: Set<string>): s
   return candidate;
 }
 
-function crossesParentScope(preview: SysvDataPackagePreview, parent: SysvDataPackagePreview | undefined): boolean {
-  if (!parent) return false;
-  const parentVmKeys = new Set(parent.vms.map((vm) => vm.vmKey));
-  return preview.vms.some((vm) => !parentVmKeys.has(vm.vmKey));
+function scopeVmKeys(source: SysvDataPackageSource, scope: SysvDataPackageScope): Set<string> {
+  const selectedNames = resolveSysvDataPackageVmNames(source.techInfoLatest, scope);
+  return new Set(matchScopeVmsToRvtools(selectedNames, source.vmsByNormalizedName).selectedVms.map((vm) => vm.vmKey));
+}
+
+function crossesParentScope(vms: readonly NormalizedVm[], parentVmKeys: ReadonlySet<string> | undefined): boolean {
+  return parentVmKeys ? vms.some((vm) => !parentVmKeys.has(vm.vmKey)) : false;
 }
 
 export async function buildSysvDataPackageBatch(
@@ -272,45 +273,51 @@ export async function buildSysvDataPackageBatch(
   throwIfAborted(options.signal);
   const createdAt = new Date();
   const targets = buildSysvBatchScopeTargets(source, request, createdAt);
-  const previews = buildPreviewForTargets(source, targets, request, options.onProgress);
   const files: Record<string, Uint8Array<ArrayBuffer>> = {};
   const claimedPaths = new Set<string>();
   const builtByScope = new Map<string, { zipBytes: Uint8Array<ArrayBuffer>; preview: SysvDataPackagePreview; packageId: string }>();
   const entries: SysvBatchReport["entries"] = [];
-  const skipped = [...previews.skipped];
+  const skipped: SysvBatchReportSkip[] = [];
   let totalLeafBytes = 0;
-  const packageTargets = previews.targets;
+  const packageTargets = targets;
+  const parentVmKeysByScope = new Map<string, Set<string>>();
+  const uniqueVmKeys = new Set<string>();
+  let vmReferences = 0;
 
   for (let index = 0; index < packageTargets.length; index += 1) {
     throwIfAborted(options.signal);
-    const { target, preview, parentDepartmentPreview } = packageTargets[index];
-    const key = sysvDataPackageScopeKey(target.scope);
+    const target = packageTargets[index];
+    const scope = target.scope;
+    const scopeLabel = scope.displayName;
+    const key = sysvDataPackageScopeKey(scope);
     let built = builtByScope.get(key);
     if (!built) {
-      const resolved = resolveSysvDataPackageFromSource(source, target.scope, {
+      const resolved = resolveSysvDataPackageFromSource(source, scope, {
         includeVropsTimeSeries: request.includeVropsTimeSeries,
-        packageId: preview.packageId,
+        packageId: `sysv-batch-${key.replace(/[^a-z0-9]+/giu, "-")}`,
         createdAt: createdAt.toISOString(),
         appVersion: appVersion(),
       });
       if (!resolved.payload || !resolved.preview.canExport) {
         skipped.push({
-          scopeKind: target.scope.kind,
-          scopeLabel: target.scope.displayName,
+          scopeKind: scope.kind,
+          scopeLabel,
           reason: resolved.preview.errors.map((error) => error.message).join(" ") || "Scope kann nicht exportiert werden.",
         });
         continue;
       }
+      // Absichtlich seriell: parallele Paketnutzlasten würden bei großen Rohdaten
+      // mehrfach im Worker-Speicher liegen und den Export destabilisieren.
       const serialized = await serializeSysvDataPackage(resolved.payload, {
         packageId: resolved.preview.packageId,
         createdAt: createdAt.toISOString(),
-        scope: target.scope,
+        scope,
         warnings: resolved.preview.warnings.map(({ code, message, count }) => count === undefined ? { code, message } : { code, message, count }),
         appVersion: appVersion(),
       });
       const zipBytes = await zipSysvDataPackage(serialized.files);
       if (zipBytes.byteLength > MAX_SYSV_PACKAGE_COMPRESSED_BYTES) {
-        throw new Error(`Das Blattpaket „${target.scope.displayName}“ überschreitet das komprimierte Größenlimit.`);
+        throw new Error(`Das Blattpaket „${scopeLabel}“ überschreitet das komprimierte Größenlimit.`);
       }
       built = { zipBytes, preview: resolved.preview, packageId: serialized.manifest.packageId };
       builtByScope.set(key, built);
@@ -321,12 +328,21 @@ export async function buildSysvDataPackageBatch(
     if (totalLeafBytes > MAX_SYSV_BATCH_CONTAINER_BYTES) {
       throw new Error("Der SysV-Batch-Container würde das Größenlimit von 3 GB überschreiten.");
     }
-    const crosses = crossesParentScope(built.preview, parentDepartmentPreview);
+    let parentVmKeys: Set<string> | undefined;
+    if (target.parentDepartmentScope) {
+      const parentKey = sysvDataPackageScopeKey(target.parentDepartmentScope);
+      parentVmKeys = parentVmKeysByScope.get(parentKey);
+      if (!parentVmKeys) {
+        parentVmKeys = scopeVmKeys(source, target.parentDepartmentScope);
+        parentVmKeysByScope.set(parentKey, parentVmKeys);
+      }
+    }
+    const crosses = crossesParentScope(built.preview.vms, parentVmKeys);
     entries.push({
       path,
       packageId: built.packageId,
-      scopeKind: target.scope.kind,
-      scopeLabel: target.scope.displayName,
+      scopeKind: scope.kind,
+      scopeLabel,
       vmCount: built.preview.vms.length,
       compressedBytes: built.zipBytes.byteLength,
       crossesParentScope: crosses,
@@ -335,10 +351,12 @@ export async function buildSysvDataPackageBatch(
         ...(crosses ? ["crosses-parent-scope"] : []),
       ])],
     });
+    vmReferences += built.preview.vms.length;
+    for (const vm of built.preview.vms) uniqueVmKeys.add(vm.vmKey);
     options.onProgress?.({
       step: "Paket erzeugen",
       percent: packageTargets.length === 0 ? 100 : Math.round(((index + 1) / packageTargets.length) * 85),
-      detail: target.scope.displayName,
+      detail: scopeLabel,
       completedPackages: index + 1,
       totalPackages: packageTargets.length,
     });
@@ -349,12 +367,6 @@ export async function buildSysvDataPackageBatch(
     throw new Error(`Der Batch enthält kein exportierbares Paket.${reason ? ` ${reason}` : ""}`);
   }
 
-  const uniqueVmKeys = new Set<string>();
-  let vmReferences = 0;
-  for (const entry of entries) vmReferences += entry.vmCount;
-  for (const item of builtByScope.values()) {
-    item.preview.vms.forEach((vm) => uniqueVmKeys.add(vm.vmKey));
-  }
   const report: SysvBatchReport = {
     createdAt: createdAt.toISOString(),
     appVersion: appVersion(),
