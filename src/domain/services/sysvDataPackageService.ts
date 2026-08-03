@@ -19,6 +19,7 @@ import type {
   SheetRow,
   SnapshotMeta,
   SysvDataPackageManifestV1,
+  SysvDataPackageManifestWarning,
   SysvDataPackageScope,
   TechInfoImportMeta,
   TechInfoLatest,
@@ -382,6 +383,45 @@ function buildTechInfoPayload(
   return { techInfo: { importMeta, rows, latest } };
 }
 
+/**
+ * Ordnet die Scope-VM-Namen den RVTools-VMs zu. Ein mehrdeutiger Name wird wie ein
+ * fehlender behandelt: Die VM landet in beiden Fällen nicht im Paket, deshalb darf
+ * ein einzelner Doppelname nicht den gesamten Export blockieren. Fail-closed bleibt
+ * erhalten — im Zweifel wird nichts übernommen, nur eben nicht alles verworfen.
+ */
+export function matchScopeVmsToRvtools(
+  selectedNames: Iterable<string>,
+  vmsByNormalizedName: ReadonlyMap<string, readonly NormalizedVm[]>,
+): { selectedVms: NormalizedVm[]; warnings: SysvDataPackageDiagnostic[] } {
+  const selectedVms: NormalizedVm[] = [];
+  const warnings: SysvDataPackageDiagnostic[] = [];
+  for (const vmName of selectedNames) {
+    const candidates = vmsByNormalizedName.get(vmName) ?? [];
+    if (candidates.length === 0) {
+      warnings.push({ code: "missing-rvtools-vm", message: `„${vmName}“ wurde in RVTools nicht gefunden.`, vmName });
+    } else if (candidates.length > 1) {
+      warnings.push({
+        code: "ambiguous-vm-name",
+        message: `„${vmName}“ ist in RVTools nicht eindeutig (${candidates.length} Treffer) und ist deshalb nicht im Paket enthalten.`,
+        vmName,
+        candidates: candidates.map((candidate) => ({ vmKey: candidate.vmKey, vmName: candidate.vmName, snapshotId: candidate.snapshotId, vcenterId: candidate.vcenterId })),
+      });
+    } else {
+      selectedVms.push(candidates[0]);
+    }
+  }
+  return { selectedVms, warnings };
+}
+
+/**
+ * Reduziert Diagnosen auf die Manifestfelder. `candidates` bleibt bewusst lokal:
+ * Der Eintrag nennt vmKey, snapshotId und vcenterId auch von vCentern, die gar nicht
+ * Teil des Pakets sind, und hat im ausgelieferten Manifest nichts zu suchen.
+ */
+export function toManifestWarnings(diagnostics: readonly SysvDataPackageDiagnostic[]): SysvDataPackageManifestWarning[] {
+  return diagnostics.map(({ code, message, count }) => count === undefined ? { code, message } : { code, message, count });
+}
+
 function estimatePayloadBytes(payload: SysvDataPackagePayload): number {
   let bytes = new TextEncoder().encode(JSON.stringify({
     snapshots: payload.snapshots,
@@ -461,24 +501,8 @@ async function resolveSysvDataPackage(
     const key = normalizeVmNameForMatch(vm.vmName);
     byName.set(key, [...(byName.get(key) ?? []), vm]);
   }
-  const warnings: SysvDataPackageDiagnostic[] = [];
   const errors: SysvDataPackageDiagnostic[] = [];
-  const selectedVms: NormalizedVm[] = [];
-  for (const vmName of selectedNames) {
-    const candidates = byName.get(vmName) ?? [];
-    if (candidates.length === 0) {
-      warnings.push({ code: "missing-rvtools-vm", message: `„${vmName}“ wurde in RVTools nicht gefunden.`, vmName });
-    } else if (candidates.length > 1) {
-      errors.push({
-        code: "ambiguous-vm-name",
-        message: `„${vmName}“ ist in RVTools nicht eindeutig (${candidates.length} Treffer).`,
-        vmName,
-        candidates: candidates.map((candidate) => ({ vmKey: candidate.vmKey, vmName: candidate.vmName, snapshotId: candidate.snapshotId, vcenterId: candidate.vcenterId })),
-      });
-    } else {
-      selectedVms.push(candidates[0]);
-    }
-  }
+  const { selectedVms, warnings } = matchScopeVmsToRvtools(selectedNames, byName);
   if (selectedVms.length === 0) errors.push({ code: "no-rvtools-vm", message: "Keine VM des gewählten SysV-Scopes konnte eindeutig RVTools zugeordnet werden." });
   const selectedSnapshotIds = new Set(selectedVms.map((vm) => vm.snapshotId));
   const selectedSnapshots = snapshots.filter((snapshot) => selectedSnapshotIds.has(snapshot.snapshotId));
@@ -593,7 +617,7 @@ export async function buildSysvDataPackage(
     packageId: resolved.preview.packageId,
     createdAt: options.createdAt ?? new Date().toISOString(),
     scope,
-    warnings: resolved.preview.warnings,
+    warnings: toManifestWarnings(resolved.preview.warnings),
     appVersion: options.appVersion,
   });
   report(options, "ZIP komprimieren", 94);

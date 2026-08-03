@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { VropsTimeSeriesChunk } from "@/domain/models/types";
-import { sliceVropsTimeSeriesChunk } from "@/domain/services/sysvDataPackageService";
+import type { NormalizedVm, VropsTimeSeriesChunk } from "@/domain/models/types";
+import {
+  matchScopeVmsToRvtools,
+  sliceVropsTimeSeriesChunk,
+  toManifestWarnings,
+} from "@/domain/services/sysvDataPackageService";
 
 function chunk(): VropsTimeSeriesChunk {
   return {
@@ -46,5 +50,46 @@ describe("SysV-vROps-Chunk-Slicing", () => {
 
   it("exportiert keine Nicht-VM-Chunks", () => {
     expect(sliceVropsTimeSeriesChunk({ ...chunk(), objectType: "host" }, new Set(["vm-a"]))).toBeNull();
+  });
+});
+
+function normalizedVm(vmName: string, vcenterId: string): NormalizedVm {
+  return {
+    snapshotId: `snapshot-${vcenterId}`,
+    vcenterId,
+    vmKey: `${vcenterId}::${vmName}`,
+    vmName,
+  } as NormalizedVm;
+}
+
+describe("SysV-Scope-Zuordnung zu RVTools", () => {
+  it("überspringt mehrdeutige und fehlende Namen als Warnung, statt den Export zu blockieren", () => {
+    const byName = new Map<string, NormalizedVm[]>([
+      ["vm-a", [normalizedVm("vm-a", "vcenter-1")]],
+      ["vm-b", [normalizedVm("vm-b", "vcenter-1"), normalizedVm("vm-b", "vcenter-2")]],
+    ]);
+
+    const result = matchScopeVmsToRvtools(["vm-a", "vm-b", "vm-c"], byName);
+
+    expect(result.selectedVms.map((vm) => vm.vmKey)).toEqual(["vcenter-1::vm-a"]);
+    expect(result.warnings.map((warning) => warning.code)).toEqual(["ambiguous-vm-name", "missing-rvtools-vm"]);
+    expect(result.warnings[0].candidates?.map((candidate) => candidate.vcenterId)).toEqual(["vcenter-1", "vcenter-2"]);
+  });
+
+  it("gibt Manifestwarnungen ohne lokale Kandidatenverweise aus", () => {
+    const manifestWarnings = toManifestWarnings([
+      {
+        code: "ambiguous-vm-name",
+        message: "nicht eindeutig",
+        vmName: "vm-b",
+        candidates: [{ vmKey: "vcenter-2::vm-b", vmName: "vm-b", snapshotId: "snapshot-vcenter-2", vcenterId: "vcenter-2" }],
+      },
+      { code: "excluded-sheet", message: "vLicense ausgeschlossen", count: 3 },
+    ]);
+
+    expect(manifestWarnings).toEqual([
+      { code: "ambiguous-vm-name", message: "nicht eindeutig" },
+      { code: "excluded-sheet", message: "vLicense ausgeschlossen", count: 3 },
+    ]);
   });
 });
