@@ -120,18 +120,18 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AppModeProvider>
-          <ImportProvider>
-            <OnboardingProvider>
-              <FilterProvider>
+          <FilterProvider>
+            <ImportProvider>
+              <OnboardingProvider>
                 <SelectionProvider>
                   <TableDisplayPreferencesProvider>
                     <RouterProvider router={router} fallbackElement={<PageFallback />} />
                   </TableDisplayPreferencesProvider>
                 </SelectionProvider>
                 <SysvScopeDialog />
-              </FilterProvider>
-            </OnboardingProvider>
-          </ImportProvider>
+              </OnboardingProvider>
+            </ImportProvider>
+          </FilterProvider>
         </AppModeProvider>
       </TooltipProvider>
     </ThemeProvider>

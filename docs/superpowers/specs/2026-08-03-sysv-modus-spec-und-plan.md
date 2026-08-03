@@ -81,6 +81,9 @@ mit genau drei Auswahlmöglichkeiten:
 2. **Abteilung**
 3. **Alle Systeme**
 
+Nach dem Übernehmen oder Überspringen der Auswahl navigiert die App automatisch
+zur Übersicht, damit die gewählte Sicht direkt sichtbar wird.
+
 Die Auswahl ist optional. Wird sie übersprungen oder „Alle Systeme“ gewählt,
 wird kein globaler Systemfilter gesetzt und alle Systeme bleiben sichtbar.
 

@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useActiveSnapshotIds, useVmsWithTechInfo } from "@/hooks/useActiveSnapshots";
 import { useAverageVm } from "@/hooks/useAverageVm";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
@@ -76,7 +75,6 @@ export default function Vms() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="VMs" />
-      <GlobalFilterScopeHint text="Die VM-Tabs folgen dem globalen Filter und strukturieren Inventar, Betrieb, Performance und Compliance für die aktuelle Sitzung. VM-Profile und Rightsizing basieren zusätzlich auf einem ausgewählten vROps-Zeitreihenimport." />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="inventory">Inventar</TabsTrigger>

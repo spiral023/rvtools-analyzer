@@ -6,6 +6,8 @@ import type {
 } from "@/domain/models/types";
 import { parseOrgPath } from "@/lib/techInfoOrgLabels";
 
+export const SYSV_SCOPE_GLOBAL_FILTER_ID = "sysv-scope-root";
+
 export interface SysvScopePerson {
   displayName: string;
   normalizedName: string;
@@ -328,7 +330,7 @@ export function buildSysvScopeGlobalFilter(scope: SysvScopePreference): GlobalFi
   const value = scope.kind === "person" ? scope.normalizedName : scope.normalizedPath;
 
   return {
-    id: "sysv-scope-root",
+    id: SYSV_SCOPE_GLOBAL_FILTER_ID,
     type: "group",
     operator: "or",
     sourceScope: "root",
@@ -340,4 +342,9 @@ export function buildSysvScopeGlobalFilter(scope: SysvScopePreference): GlobalFi
       children: [createTechInfoRule(`sysv-scope-${index}-rule`, field, value)],
     })),
   };
+}
+
+/** Erkennt den ausschließlich durch den SysV-Systemkontext erzeugten globalen Filter. */
+export function isSysvScopeGlobalFilter(filter: GlobalFilterGroup | null): boolean {
+  return filter?.id === SYSV_SCOPE_GLOBAL_FILTER_ID;
 }

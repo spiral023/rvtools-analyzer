@@ -28,6 +28,8 @@ import { parseRvtoolsExportFileName } from "@/lib/xlsx/parseHelpers";
 import type { ImportFileKind, ImportResult, VropsTimeSeriesObjectType } from "@/domain/models/types";
 import { isModeFileName, parseModeFile } from "@/lib/appMode";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
+import { useFilterState } from "@/hooks/useFilterState";
+import { isSysvScopeGlobalFilter } from "@/lib/sysvScope";
 
 const VROPS_SLOT_LABEL: Record<VropsTimeSeriesObjectType, string> = { vm: "VM", cluster: "Cluster", host: "Host" };
 
@@ -202,6 +204,7 @@ export function getSysvModeActivationError(
 export function ImportProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const appMode = useOptionalAppMode();
+  const { filters, setFilters } = useFilterState();
   const runningRef = useRef(false);
   const [importing, setImporting] = useState(false);
   const [items, setItems] = useState<ImportQueueItem[]>([]);
@@ -422,6 +425,9 @@ export function ImportProvider({ children }: { children: ReactNode }) {
               toast.error(message);
             } else if (requestedMode === "vm-admin") {
               await appMode.activateMode("vm-admin");
+              if (isSysvScopeGlobalFilter(filters.globalFilter)) {
+                setFilters({ globalFilter: null });
+              }
               patchItem(requestedModeItem.id, {
                 status: "success",
                 progress: { step: "Abgeschlossen", percent: 100, detail: "VM-Admin-Modus" },
@@ -470,7 +476,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         setImporting(false);
       }
     },
-    [appMode, patchItem, queryClient],
+    [appMode, filters.globalFilter, patchItem, queryClient, setFilters],
   );
 
   const clearImportState = useCallback(() => {

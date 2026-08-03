@@ -5,6 +5,7 @@ import {
   buildSysvScopeDirectory,
   buildSysvScopeGlobalFilter,
   getAvailableSysvScopePreference,
+  isSysvScopeGlobalFilter,
   normalizeSysvDepartmentPath,
   normalizeSysvPersonName,
   splitSysvContactName,
@@ -72,16 +73,19 @@ describe("SysV-Scope-Verzeichnis", () => {
 
   it("sortiert die Auswahlhierarchie in den Settings alphabetisch", () => {
     const directory = buildSysvScopeDirectory([
-      techInfo({ vmNameNorm: "vm-z", vmName: "vm-z", sysv: "Zora Beispiel", sysvDepartment: "ZETA/OPS-ZWEI" }),
-      techInfo({ vmNameNorm: "vm-b", vmName: "vm-b", sysv: "Berta Beispiel", sysvDepartment: "ALPHA/WEB-BETA" }),
-      techInfo({ vmNameNorm: "vm-a", vmName: "vm-a", sysv: "Anna Beispiel", sysvDepartment: "ALPHA/WEB-ALPHA" }),
-      techInfo({ vmNameNorm: "vm-c", vmName: "vm-c", sysv: "Clara Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
-      techInfo({ vmNameNorm: "vm-d", vmName: "vm-d", sysv: "Anton Beispiel", sysvDepartment: "ALPHA/API-GAMMA" }),
+      techInfo({ vmNameNorm: "vm-z", vmName: "vm-z", sysv: "Zora Beispiel", sysvDepartment: "ZETA/OPS-ZWEI", sysvDeputy: null, sysvDeputyDepartment: null }),
+      techInfo({ vmNameNorm: "vm-b", vmName: "vm-b", sysv: "Berta Beispiel", sysvDepartment: "ALPHA/WEB-BETA", sysvDeputy: null, sysvDeputyDepartment: null }),
+      techInfo({ vmNameNorm: "vm-a", vmName: "vm-a", sysv: "Anna Beispiel", sysvDepartment: "ALPHA/WEB-ALPHA", sysvDeputy: null, sysvDeputyDepartment: null }),
+      techInfo({ vmNameNorm: "vm-c", vmName: "vm-c", sysv: "Clara Beispiel", sysvDepartment: "ALPHA/API-GAMMA", sysvDeputy: null, sysvDeputyDepartment: null }),
+      techInfo({ vmNameNorm: "vm-d", vmName: "vm-d", sysv: "Anton Beispiel", sysvDepartment: "ALPHA/API-GAMMA", sysvDeputy: null, sysvDeputyDepartment: null }),
     ]);
 
     expect(directory.tree.map((node) => node.label)).toEqual(["ALPHA", "ZETA"]);
     expect(directory.tree[0]!.children.map((node) => node.label)).toEqual(["API", "WEB"]);
-    expect(directory.tree[0]!.children[1]!.children.map((node) => node.label)).toEqual(["ALPHA", "BETA"]);
+    expect(directory.tree[0]!.children[1]!.children.map((node) => node.label)).toEqual([
+      "ALPHA/WEB-ALPHA",
+      "ALPHA/WEB-BETA",
+    ]);
     expect(directory.tree[0]!.children[0]!.children[0]!.children.map((node) => node.label)).toEqual([
       "Anton Beispiel",
       "Clara Beispiel",
@@ -137,5 +141,7 @@ describe("SysV-Normalisierung und Filter", () => {
     expect(evaluateGlobalFilter(personFilter!, context, fields)).toBe(true);
     expect(evaluateGlobalFilter(departmentFilter!, context, fields)).toBe(true);
     expect(buildSysvScopeGlobalFilter({ kind: "all" })).toBeNull();
+    expect(isSysvScopeGlobalFilter(personFilter)).toBe(true);
+    expect(isSysvScopeGlobalFilter(null)).toBe(false);
   });
 });

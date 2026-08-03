@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/lib/sysvScope";
 
 export function SysvScopeDialog() {
+  const navigate = useNavigate();
   const {
     lastSysvScope,
     sysvScopeDialogOpen,
@@ -46,6 +48,7 @@ export function SysvScopeDialog() {
       await saveLastSysvScope(scope);
       closeSysvScopeDialog();
       toast.success(scope.kind === "all" ? "Alle Systeme bleiben sichtbar." : "Persönlicher Systemkontext wurde übernommen.");
+      navigate("/", { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Der persönliche Systemkontext konnte nicht gespeichert werden.");
     } finally {
