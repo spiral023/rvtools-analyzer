@@ -80,3 +80,8 @@ export function useOnboarding(): OnboardingContextValue {
   }
   return context;
 }
+
+/** Wie useOnboarding, aber liefert null außerhalb eines OnboardingProvider statt zu werfen. */
+export function useOptionalOnboarding(): OnboardingContextValue | null {
+  return useContext(OnboardingContext);
+}

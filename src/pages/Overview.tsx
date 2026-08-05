@@ -13,6 +13,7 @@ import { clusterOverviewColumns } from "@/components/cluster/clusterOverviewColu
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { GlobalFilterScopeHint } from "@/components/global-filter/GlobalFilterScopeHint";
 import { useAverageVm } from "@/hooks/useAverageVm";
+import { useOptionalAppMode } from "@/hooks/useAppMode";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { Server, Cpu, AlertTriangle, Monitor, Database as DbIcon } from "lucide-react";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -38,6 +39,11 @@ export default function Overview() {
     || rawDvPortLoading || rawVSourceLoading;
 
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(filteredVms);
+  const appMode = useOptionalAppMode();
+  // Health-Events und die vCenter-Übersicht beschreiben die gesamte Umgebung und passen nicht zum
+  // eingeschränkten Datensatz des SysV-Modus. Wie in der Navigation bleiben sie verborgen, solange
+  // der Modus noch lädt, damit sie nicht kurz aufblitzen.
+  const showsFleetWideSections = (appMode?.isHydrated ?? true) && appMode?.mode !== "sysv";
 
   const poweredOn = filteredVms.filter((v) => v.powerState === "poweredOn").length;
   const poweredOff = filteredVms.filter((v) => v.powerState === "poweredOff").length;
@@ -108,7 +114,9 @@ export default function Overview() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Overview" />
-      <GlobalFilterScopeHint text="VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert." />
+      <GlobalFilterScopeHint text={showsFleetWideSections
+        ? "VM-bezogene Bereiche und Health-Events mit eindeutigem VM-Entity folgen dem globalen Filter; Hosts und Datastores bleiben unverändert."
+        : "VM-bezogene Bereiche folgen dem globalen Filter; Hosts und Datastores bleiben unverändert."} />
       <KpiGrid>
         <KpiCard title="VMs Total" value={formatNum(filteredVms.length)} icon={<Monitor className="h-4 w-4" />} info={OVERVIEW_KPI.vmsTotal} />
         <KpiCard title="Powered On" value={formatNum(poweredOn)} severity="ok" icon={<Cpu className="h-4 w-4" />} info={OVERVIEW_KPI.poweredOn} />
@@ -118,8 +126,8 @@ export default function Overview() {
         <KpiCard title="Health Events" value={formatNum(healthEvents.length)} severity={healthEvents.length > 0 ? "warn" : "ok"} icon={<AlertTriangle className="h-4 w-4" />} info={OVERVIEW_KPI.healthEvents} />
       </KpiGrid>
       <AverageVmPanel avg={averageVm} workload={averageVmWorkload} hasVropsImport={hasVropsTimeSeriesImport} />
-      <HealthEventsPanel />
-      {vcenterSummaries.length > 0 && <VCenterOverviewTable summaries={vcenterSummaries} />}
+      {showsFleetWideSections && <HealthEventsPanel />}
+      {showsFleetWideSections && vcenterSummaries.length > 0 && <VCenterOverviewTable summaries={vcenterSummaries} />}
       {clusterRows.length > 0 && (
         <section>
           <div className="mb-3 flex items-baseline gap-2">

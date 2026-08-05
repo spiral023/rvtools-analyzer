@@ -312,7 +312,7 @@ export default function ExportStudio() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Export & Berichte" subtitle="Stelle einen lokalen Export aus dem aktuell gefilterten Datenbestand zusammen." meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
+      <PageHeader title="Export & Berichte" meta={`${dataset.rows.length.toLocaleString("de-DE")} Datensätze`} />
 
       <Tabs value={exportTab} onValueChange={setExportTab} className="space-y-6">
         <TabsList>
@@ -333,8 +333,7 @@ export default function ExportStudio() {
       <section className="rounded-lg border border-primary/25 bg-primary/[0.045] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Aktiver Datenkontext</p>
-            <p className="mt-1 text-xs text-muted-foreground">{scope}. vCenter-, Such-, Cluster- und Hostfilter werden übernommen; der globale Filter wirkt auf VM-Exporte gemäß seiner Definition.</p>
+            <p className="text-xs text-muted-foreground">{scope}. vCenter-, Such-, Cluster- und Hostfilter werden übernommen; der globale Filter wirkt auf VM-Exporte gemäß seiner Definition.</p>
           </div>
           <Badge variant="secondary">Nur lokal im Browser</Badge>
         </div>

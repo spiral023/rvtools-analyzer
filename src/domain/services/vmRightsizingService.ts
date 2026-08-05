@@ -9,8 +9,8 @@ import type {
   VmWorkloadShape,
 } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL, hasRepeatableWeeklyPeak } from "@/domain/services/vmWorkloadProfileService";
-import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
+import { filterByVmScope } from "@/lib/vmScope";
 
 export interface CpuRightsizingPolicy {
   level: CpuRightsizingLevel;
@@ -29,7 +29,8 @@ export const CPU_RIGHTSIZING_POLICIES: Readonly<Record<CpuRightsizingLevel, CpuR
   offensive: { level: "offensive", label: "Offensiv", peakStatistic: "p95", peakPercentile: 0.95, targetUtilizationP95: 0.7, targetUtilizationPeak: 0.95 },
 };
 
-export const DEFAULT_CPU_RIGHTSIZING_LEVEL: CpuRightsizingLevel = "balanced";
+/** Vorsichtig als Default: eine zu klein empfohlene VM kostet mehr als eine späte Verdichtung. */
+export const DEFAULT_CPU_RIGHTSIZING_LEVEL: CpuRightsizingLevel = "conservative";
 /** Untergrenze der Empfehlung: gerade Zahl und gängige Mindestgröße gängiger Gast-Betriebssysteme. */
 const MIN_RECOMMENDED_VCPU = 2;
 /**
@@ -269,12 +270,7 @@ export function filterRightsizingCandidatesByVmScope(
   candidates: readonly VmRightsizingCandidate[],
   scopedVms: readonly Pick<NormalizedVm, "vmKey" | "vmName">[],
 ): VmRightsizingCandidate[] {
-  const scopedVmKeys = new Set(scopedVms.map((vm) => vm.vmKey));
-  const scopedVmNames = new Set(scopedVms.map((vm) => normalizeVmName(vm.vmName)));
-
-  return candidates.filter((candidate) => candidate.rvtoolsObjectKey !== null
-    ? scopedVmKeys.has(candidate.rvtoolsObjectKey)
-    : scopedVmNames.has(normalizeVmName(candidate.vmName)));
+  return filterByVmScope(candidates, scopedVms);
 }
 
 export function summarizeReclaimableVcpuByCluster(candidates: readonly VmRightsizingCandidate[]): VmRightsizingGroupSummary[] {

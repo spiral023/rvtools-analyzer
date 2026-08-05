@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { TechInfoLatest } from "@/domain/models/types";
 import {
   buildSysvDataPackageScopeDirectory,
+  formatSysvScopeLabel,
   resolveSysvDataPackageVmNames,
+  sysvScopeKindPlural,
 } from "@/lib/sysvDataPackageScope";
 
 function techInfo(vmName: string, values: Partial<TechInfoLatest> = {}): TechInfoLatest {
@@ -71,5 +73,25 @@ describe("SysV-Datenpaket-Scope", () => {
     expect(directory.departments).toHaveLength(0);
     expect(directory.persons).toHaveLength(1);
     expect(resolveSysvDataPackageVmNames(rows, directory.persons[0])).toEqual(new Set(["vm-a"]));
+  });
+});
+
+describe("formatSysvScopeLabel", () => {
+  it("lässt Personennamen unverändert und benennt Organisationseinheiten", () => {
+    expect(formatSysvScopeLabel("person", "MUSTERMANN Max")).toBe("MUSTERMANN Max");
+    expect(formatSysvScopeLabel("department", "IN-VIA")).toBe("Abteilung IN-VIA");
+    expect(formatSysvScopeLabel("area", "IN")).toBe("Bereich IN");
+  });
+
+  it("behält Organisationspräfixe im Label", () => {
+    expect(formatSysvScopeLabel("department", "FIRMA/IN-VIA")).toBe("Abteilung FIRMA/IN-VIA");
+  });
+});
+
+describe("sysvScopeKindPlural", () => {
+  it("liefert den Sammelbegriff je Ebene", () => {
+    expect(sysvScopeKindPlural("person")).toBe("Personen");
+    expect(sysvScopeKindPlural("department")).toBe("Abteilungen");
+    expect(sysvScopeKindPlural("area")).toBe("Bereiche");
   });
 });

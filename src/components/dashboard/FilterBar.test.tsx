@@ -45,7 +45,15 @@ describe("FilterBar", () => {
     );
 
     expect(await screen.findByText("Nur Powered On")).toBeInTheDocument();
-    expect(screen.getByText("vCLS ausblenden")).toBeInTheDocument();
+    // vCLS- und dummy-vm*-Ausschluss sind beide Standard; der Auslöser fasst sie zusammen und
+    // nennt die vollständigen Bezeichnungen erst im geöffneten Menü.
+    const trigger = screen.getByRole("button", { name: "VMs ausblenden" });
+    expect(trigger).toHaveTextContent("2 Ausschlüsse aktiv");
+
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+
+    expect(await screen.findByText("vCLS ausblenden")).toBeInTheDocument();
+    expect(screen.getByText("dummy-vm* ausblenden")).toBeInTheDocument();
   });
 
   it("does not render a snapshot selector", async () => {
@@ -82,7 +90,7 @@ describe("FilterBar", () => {
     await waitFor(() => expect(trigger).toHaveTextContent("vCenter Server Prod"));
   });
 
-  it("erlaubt das zusätzliche Ausblenden von dummy-vm* per Mehrfachauswahl", async () => {
+  it("erlaubt das Abwählen von dummy-vm* per Mehrfachauswahl", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
@@ -94,11 +102,12 @@ describe("FilterBar", () => {
     );
 
     const trigger = await screen.findByRole("button", { name: "VMs ausblenden" });
-    expect(trigger).toHaveTextContent("vCLS ausblenden");
+    expect(trigger).toHaveTextContent("2 Ausschlüsse aktiv");
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
     fireEvent.click(await screen.findByText("dummy-vm* ausblenden"));
 
-    await waitFor(() => expect(trigger).toHaveTextContent("2 Ausschlüsse aktiv"));
+    // Bleibt nur ein Ausschluss übrig, nennt der Auslöser ihn wieder beim Namen.
+    await waitFor(() => expect(trigger).toHaveTextContent("vCLS ausblenden"));
   });
 });

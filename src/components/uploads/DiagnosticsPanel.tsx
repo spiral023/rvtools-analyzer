@@ -1,27 +1,41 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Boxes, Database, Gauge, HardDrive, Layers3, Loader2, RefreshCw, Timer } from "lucide-react";
-import { useDiagnostics } from "@/hooks/useDiagnostics";
+import { Boxes, Database, Gauge, HardDrive, Layers3, Timer } from "lucide-react";
+import type { DiagnosticsResult } from "@/hooks/useDiagnostics";
 import { formatBytes } from "@/lib/utils";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { AnalysisExportCard } from "@/components/uploads/AnalysisExportCard";
 
-export function DiagnosticsPanel() {
-  const { data, isFetching, refresh } = useDiagnostics(true);
-
+/**
+ * Messwerte und Analyse-Export der Diagnose. Der Auslöser für eine neue Messung liegt bewusst
+ * nicht hier, sondern als „Aktualisieren“ in der Kopfzeile der Uploads-Seite – deshalb kommen
+ * `data` und `isFetching` von außen und nicht aus einem eigenen `useDiagnostics`-Aufruf: zwei
+ * Instanzen des Hooks hätten getrennte Abfragen, und der Knopf würde diese Ansicht nicht erneuern.
+ */
+export function DiagnosticsPanel({
+  data,
+  isFetching,
+}: {
+  data: DiagnosticsResult | undefined;
+  isFetching: boolean;
+}) {
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={refresh} disabled={isFetching}>
-          {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Aktualisieren
-        </Button>
-      </div>
+      {data && (
+        <section aria-label="Diagnose-Kennzahlen">
+          <KpiGrid>
+            <KpiCard title="Snapshots" value={data.snapshots.length.toLocaleString("de-DE")} subtitle="RVTools-Exporte" icon={<Database aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="IndexedDB-Einträge" value={data.stores.reduce((sum, store) => sum + store.count, 0).toLocaleString("de-DE")} subtitle="über alle Stores" icon={<HardDrive aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Speicher belegt" value={data.storage.supported ? formatBytes(data.storage.usageBytes) : "—"} subtitle="Browser-Schätzung" icon={<Gauge aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Daten-Stores" value={data.stores.length.toLocaleString("de-DE")} subtitle="IndexedDB-Bereiche" icon={<Layers3 aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Query-Cache" value={data.cache.reduce((sum, entry) => sum + entry.entryCount, 0).toLocaleString("de-DE")} subtitle="zwischengespeicherte Datensätze" icon={<Boxes aria-hidden="true" className="h-4 w-4" />} />
+            <KpiCard title="Messungen" value={data.queryTimings.length.toLocaleString("de-DE")} subtitle="Seiten-Ladezeiten" icon={<Timer aria-hidden="true" className="h-4 w-4" />} />
+          </KpiGrid>
+        </section>
+      )}
 
-      {/* Steht bewusst vor den Kennzahlen und außerhalb der `data`-Bedingung:
-          der Export hängt an den importierten Daten, nicht an den Messwerten
-          der Diagnose. */}
+      {/* Steht außerhalb der `data`-Bedingung: der Export hängt an den importierten Daten,
+          nicht an den Messwerten der Diagnose. */}
       <AnalysisExportCard />
 
       {!data && isFetching && (
@@ -30,17 +44,6 @@ export function DiagnosticsPanel() {
 
       {data && (
         <>
-          <section aria-label="Diagnose-Kennzahlen" className="mb-4">
-            <KpiGrid>
-              <KpiCard title="Snapshots" value={data.snapshots.length.toLocaleString("de-DE")} subtitle="RVTools-Exporte" icon={<Database aria-hidden="true" className="h-4 w-4" />} />
-              <KpiCard title="IndexedDB-Einträge" value={data.stores.reduce((sum, store) => sum + store.count, 0).toLocaleString("de-DE")} subtitle="über alle Stores" icon={<HardDrive aria-hidden="true" className="h-4 w-4" />} />
-              <KpiCard title="Speicher belegt" value={data.storage.supported ? formatBytes(data.storage.usageBytes) : "—"} subtitle="Browser-Schätzung" icon={<Gauge aria-hidden="true" className="h-4 w-4" />} />
-              <KpiCard title="Daten-Stores" value={data.stores.length.toLocaleString("de-DE")} subtitle="IndexedDB-Bereiche" icon={<Layers3 aria-hidden="true" className="h-4 w-4" />} />
-              <KpiCard title="Query-Cache" value={data.cache.reduce((sum, entry) => sum + entry.entryCount, 0).toLocaleString("de-DE")} subtitle="zwischengespeicherte Datensätze" icon={<Boxes aria-hidden="true" className="h-4 w-4" />} />
-              <KpiCard title="Messungen" value={data.queryTimings.length.toLocaleString("de-DE")} subtitle="Seiten-Ladezeiten" icon={<Timer aria-hidden="true" className="h-4 w-4" />} />
-            </KpiGrid>
-          </section>
-
           <div className="grid gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-sm">Datei- &amp; Datenvolumen pro Snapshot</CardTitle></CardHeader>

@@ -17,6 +17,7 @@ import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 import { isLazyImportFailure, recoverFromLazyImportFailure } from "@/lib/lazyImportRecovery";
 import { AnalysisErrorPage } from "@/components/errors/AnalysisErrorPage";
 import { SysvScopeDialog } from "@/components/sysv/SysvScopeDialog";
+import { GlobalFileDropOverlay } from "@/components/import/GlobalFileDropOverlay";
 
 // Seiten lazy laden: jede Route landet in einem eigenen Chunk, der erst beim
 // Aufruf geladen wird – der Initial-Bundle bleibt klein.
@@ -65,6 +66,7 @@ function AppRouteLayout() {
       </AppLayout>
       <OnboardingDialog />
       <SysvScopeDialog />
+      <GlobalFileDropOverlay />
     </>
   );
 }

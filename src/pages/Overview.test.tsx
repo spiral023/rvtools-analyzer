@@ -19,6 +19,15 @@ const { deferredVms, resolveVms } = vi.hoisted(() => {
   return { deferredVms: promise, resolveVms: resolve };
 });
 
+const appModeMock = vi.hoisted(() => ({
+  current: null as { mode: "sysv" | "vm-admin"; isHydrated: boolean } | null,
+}));
+
+vi.mock("@/hooks/useAppMode", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useAppMode")>("@/hooks/useAppMode");
+  return { ...actual, useOptionalAppMode: () => appModeMock.current };
+});
+
 vi.mock("@/data/db", async () => {
   const actual = await vi.importActual<typeof import("@/data/db")>("@/data/db");
   return {
@@ -46,7 +55,26 @@ function snapshot(snapshotId: string, vcenterId: string, exportTs: string): Snap
   };
 }
 
+function renderOverview() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FilterProvider>
+            <Overview />
+          </FilterProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+
+  return queryClient;
+}
+
 beforeEach(async () => {
+  appModeMock.current = null;
   await deleteAllData();
 });
 
@@ -54,19 +82,7 @@ describe("Overview", () => {
   it("zeigt VM-KPIs und -Tabelle sowie die neuen Übersichtsbereiche", async () => {
     await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
 
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-
-    render(
-      <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <FilterProvider>
-              <Overview />
-            </FilterProvider>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
+    const queryClient = renderOverview();
 
     // Wartet, bis die snapshots-Query sicher aufgelöst ist (in der Praxis nur
     // wenige Metadaten-Einträge, daher schnell) — die vms-Query bleibt wegen
@@ -89,5 +105,32 @@ describe("Overview", () => {
     expect(screen.getByText(/Virtuelle Maschinen \(0\)/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Betriebssysteme je Cluster/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Host-Verteilung je Cluster" })).not.toBeInTheDocument();
+  });
+
+  it("zeigt die Health-Events im VM-Admin-Modus", async () => {
+    appModeMock.current = { mode: "vm-admin", isHydrated: true };
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+
+    renderOverview();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Health Events nach Typ/ })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: /Health-Events/ })).toBeInTheDocument();
+  });
+
+  it("blendet die umgebungsweiten Health-Events im SysV-Modus aus", async () => {
+    appModeMock.current = { mode: "sysv", isHydrated: true };
+    await putSnapshot(snapshot("snap-1", "vc-1", "2026-01-01T00:00:00.000Z"));
+
+    renderOverview();
+
+    await waitFor(() => {
+      expect(screen.getByText("VMs Total")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("heading", { name: /Health Events nach Typ/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Health-Events/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /vCenter/ })).not.toBeInTheDocument();
   });
 });

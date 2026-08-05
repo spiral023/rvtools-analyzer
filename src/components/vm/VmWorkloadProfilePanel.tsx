@@ -20,6 +20,7 @@ import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKL
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
 import { normalizeVmName } from "@/lib/globalFilter";
+import { filterByVmScope } from "@/lib/vmScope";
 import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { shortHostName } from "@/lib/utils";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
@@ -78,7 +79,7 @@ function Sparkline({ profile }: { profile: VmWorkloadProfile }) {
 export function VmWorkloadProfilePanel() {
   const { imports, profiles: allProfiles, isLoading } = useVmWorkloadProfiles(null);
   const { filters } = useActiveSnapshotIds();
-  const { allVms } = useVms();
+  const { vms: scopedVms, allVms } = useVms();
   const { openVmDetail, vmDetailDialog } = useVmDetailDialog(allVms);
 
   // Die Tech-Info-Zuordnung wird über den vollständigen Bestand geladen, damit eine
@@ -86,12 +87,18 @@ export function VmWorkloadProfilePanel() {
   const { data: techInfoLatest = [] } = useTechInfoLatestByVmNames(allProfiles.map((profile) => profile.vmName));
   const techInfoIndex = useMemo(() => buildTechInfoSearchIndex(techInfoLatest), [techInfoLatest]);
 
+  // Der globale VM-Scope (nur eingeschaltete VMs, vCLS-/Dummy-Ausschluss, VM-Namensliste) wirkt
+  // auf dem RVTools-Inventar. Die Profile stammen aus dem vROps-Import und müssen deshalb – wie im
+  // Rightsizing-Tab – über den RVTools-Schlüssel gegen den bereits gefilterten Bestand gejoint
+  // werden; ohne diesen Schritt bliebe der Scope in diesem Tab wirkungslos.
+  const scopedProfiles = useMemo(() => filterByVmScope(allProfiles, scopedVms), [allProfiles, scopedVms]);
+
   // Die Textsuche schränkt den gesamten Tab ein, nicht nur die Tabelle: KPI-Kacheln und
   // Verteilungsdiagramme leiten sich aus derselben gefilterten Liste ab.
   const searchQuery = normalizeVmSearchTerm(filters.search.trim());
   const profiles = useMemo(
-    () => filterVmWorkloadProfilesBySearch(allProfiles, searchQuery, techInfoIndex),
-    [allProfiles, searchQuery, techInfoIndex],
+    () => filterVmWorkloadProfilesBySearch(scopedProfiles, searchQuery, techInfoIndex),
+    [scopedProfiles, searchQuery, techInfoIndex],
   );
   const uncomputableProfiles = useMemo(
     () => profiles.filter((profile) => profile.shape === "unclassified" || profile.intensity === "unknown"),
@@ -190,7 +197,9 @@ export function VmWorkloadProfilePanel() {
   return (
     <div className="space-y-6">
       {isLoading ? <PanelLoadingState /> : <>
-        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host, Systemverantwortliche:r und Abteilung" matched={profiles.length} total={allProfiles.length} />
+        {/* `total` ist der Bestand nach VM-Scope: die Meldung erklärt die Wirkung der Suche,
+            nicht die des Scopes. */}
+        <SearchScopeNotice search={filters.search} fields="VM, Cluster, Host, Systemverantwortliche:r und Abteilung" matched={profiles.length} total={scopedProfiles.length} />
         <KpiGrid>
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />

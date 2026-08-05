@@ -19,6 +19,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Cartes
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatPct, formatNum } from "@/lib/xlsx/parseHelpers";
 import { buildVmJoinKey } from "@/lib/globalFilter";
+import { rvtoolsTimestampAgeInDays } from "@/lib/rvtoolsTimestamp";
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_AXIS_STYLE, CHART_COLORS } from "@/lib/chartStyles";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
@@ -56,12 +57,9 @@ interface DatastoreCapacityChartRow { datastore: string; freePct: number }
 interface BackupRiskDistributionRow { label: string; count: number; color: string }
 type BackupRisk = "kein Backup" | "hoch" | "mittel" | "niedrig";
 
+/** `-1` steht für „kein lesbarer Zeitstempel“ und wird in der Tabelle als „—“ ausgegeben. */
 function classifyBackup(status: string, lastBackupStr: string, now: number): { ageDays: number; risk: BackupRisk } {
-  let ageDays = -1;
-  if (lastBackupStr) {
-    const date = new Date(lastBackupStr);
-    if (!isNaN(date.getTime())) ageDays = Math.floor((now - date.getTime()) / 86400000);
-  }
+  const ageDays = rvtoolsTimestampAgeInDays(lastBackupStr, now) ?? -1;
 
   if (!status && !lastBackupStr) return { ageDays, risk: "kein Backup" };
   if (ageDays > 7) return { ageDays, risk: "hoch" };

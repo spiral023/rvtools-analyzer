@@ -1,5 +1,5 @@
 import type { FilterState, NormalizedHealth, NormalizedVm, SheetRow } from "@/domain/models/types";
-import { buildVmJoinKey } from "@/lib/globalFilter";
+import { buildVmJoinKey, normalizeVmName } from "@/lib/globalFilter";
 
 export function isPoweredOnVm(vm: NormalizedVm): boolean {
   const normalized = (vm.powerState || "").replace(/\s+/g, "").toLowerCase();
@@ -79,6 +79,26 @@ export function applyVmScopeToRows(
   const matchingJoinKeys = buildVmScopeJoinKeys(vms, filters);
   if (!matchingJoinKeys) return rows;
   return rows.filter((row) => matchingJoinKeys.has(buildVmJoinKey(row.snapshotId, String(row.data["VM"] ?? ""))));
+}
+
+/**
+ * Überträgt den bereits angewandten VM-Scope auf Analysen, die auf vROps-Objekten statt auf dem
+ * RVTools-Inventar aufsetzen (Auslastungsprofile, Rightsizing-Kandidaten). Erwartet die schon
+ * gefilterte VM-Liste aus `useVms()`, damit Power-Zustand, vCLS-/Dummy-Ausschluss und VM-Namensliste
+ * nur an einer Stelle ausgewertet werden. Der Join nutzt bevorzugt den eindeutigen
+ * RVTools-Schlüssel und fällt nur bei alten oder unvollständig verknüpften Daten auf den
+ * normalisierten VM-Namen zurück.
+ */
+export function filterByVmScope<T extends { rvtoolsObjectKey: string | null; vmName: string }>(
+  items: readonly T[],
+  scopedVms: readonly Pick<NormalizedVm, "vmKey" | "vmName">[],
+): T[] {
+  const scopedVmKeys = new Set(scopedVms.map((vm) => vm.vmKey));
+  const scopedVmNames = new Set(scopedVms.map((vm) => normalizeVmName(vm.vmName)));
+
+  return items.filter((item) => item.rvtoolsObjectKey !== null
+    ? scopedVmKeys.has(item.rvtoolsObjectKey)
+    : scopedVmNames.has(normalizeVmName(item.vmName)));
 }
 
 export function applyVmScopeToHealthEvents(

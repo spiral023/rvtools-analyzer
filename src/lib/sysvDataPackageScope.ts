@@ -5,6 +5,38 @@ import { parseOrgPath } from "@/lib/techInfoOrgLabels";
 
 export type SysvDataPackageScopeNodeKind = "organisation" | "area" | "department" | "person";
 
+type SysvScopeKind = SysvDataPackageScope["kind"];
+
+/**
+ * Ein Personenname trägt sich selbst („MUSTERMANN Max“), eine Organisationseinheit nicht: „IN-VIA“
+ * allein lässt offen, ob Bereich oder Abteilung gemeint ist.
+ */
+const SCOPE_KIND_PREFIX: Record<SysvScopeKind, string> = {
+  area: "Bereich ",
+  department: "Abteilung ",
+  person: "",
+};
+
+const SCOPE_KIND_PLURAL: Record<SysvScopeKind, string> = {
+  area: "Bereiche",
+  department: "Abteilungen",
+  person: "Personen",
+};
+
+/**
+ * Benennt einen Paket-Scope so, wie er in der Oberfläche erscheint: „MUSTERMANN Max“,
+ * „Abteilung IN-VIA“, „Bereich IN“. Unbekannte Werte (Pakete aus älteren Schemaversionen in
+ * IndexedDB) bleiben unverändert statt ein falsches Präfix zu erhalten.
+ */
+export function formatSysvScopeLabel(kind: SysvScopeKind, label: string): string {
+  return `${SCOPE_KIND_PREFIX[kind] ?? ""}${label}`;
+}
+
+/** Sammelbegriff für mehrere gleichartige Scopes, etwa „Abteilungen“ in „3 Abteilungen“. */
+export function sysvScopeKindPlural(kind: SysvScopeKind): string {
+  return SCOPE_KIND_PLURAL[kind] ?? "Scopes";
+}
+
 export interface SysvDataPackageScopeNode {
   id: string;
   label: string;

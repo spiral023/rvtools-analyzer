@@ -154,6 +154,24 @@ export function TechInfoOrganisationPanel({
 
   return (
     <div className="space-y-6">
+      {/* Die Kennzahlen stehen bewusst vor der Organisationslandkarte: sie beantworten die erste
+          Frage nach dem Tabwechsel, ohne dass die Einleitungskarte sie nach unten drückt. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <KpiCard className="bg-card/80" title="Zugeordnete Server-VMs" value={formatNum(result.summary.assignedVmCount)} icon={<Boxes className="h-4 w-4" />} info={TECHINFO_ORG_KPI.assignedVms} />
+        <KpiCard className="bg-card/80" title="Organisationen" value={formatNum(result.summary.orgCount)} icon={<Building2 className="h-4 w-4" />} info={TECHINFO_ORG_KPI.orgCount} />
+        <KpiCard className="bg-card/80" title="Bereiche" value={formatNum(result.summary.bereichCount)} icon={<Network className="h-4 w-4" />} info={TECHINFO_ORG_KPI.bereichCount} />
+        <KpiCard className="bg-card/80" title="Abteilungen" value={formatNum(result.summary.abteilungCount)} icon={<ListTree className="h-4 w-4" />} info={TECHINFO_ORG_KPI.abteilungCount} />
+        <KpiCard className="bg-card/80" title="Systemverantwortliche" value={formatNum(result.summary.personCount)} icon={<Users className="h-4 w-4" />} info={TECHINFO_ORG_KPI.personCount} />
+        <KpiCard
+          className="bg-card/80"
+          title="Fehlende / ungültige Zuordnung"
+          value={formatNum(result.summary.unassignedVmCount)}
+          severity={result.summary.unassignedVmCount > 0 ? "warn" : "ok"}
+          icon={<UserX className="h-4 w-4" />}
+          info={TECHINFO_ORG_KPI.dataQualityCount}
+        />
+      </div>
+
       <Card className="relative overflow-hidden border-border/70 shadow-sm">
         <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-primary/10 to-transparent" />
         <CardContent className="relative p-0">
@@ -199,22 +217,6 @@ export function TechInfoOrganisationPanel({
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard className="bg-card/80" title="Zugeordnete Server-VMs" value={formatNum(result.summary.assignedVmCount)} icon={<Boxes className="h-4 w-4" />} info={TECHINFO_ORG_KPI.assignedVms} />
-        <KpiCard className="bg-card/80" title="Organisationen" value={formatNum(result.summary.orgCount)} icon={<Building2 className="h-4 w-4" />} info={TECHINFO_ORG_KPI.orgCount} />
-        <KpiCard className="bg-card/80" title="Bereiche" value={formatNum(result.summary.bereichCount)} icon={<Network className="h-4 w-4" />} info={TECHINFO_ORG_KPI.bereichCount} />
-        <KpiCard className="bg-card/80" title="Abteilungen" value={formatNum(result.summary.abteilungCount)} icon={<ListTree className="h-4 w-4" />} info={TECHINFO_ORG_KPI.abteilungCount} />
-        <KpiCard className="bg-card/80" title="Systemverantwortliche" value={formatNum(result.summary.personCount)} icon={<Users className="h-4 w-4" />} info={TECHINFO_ORG_KPI.personCount} />
-        <KpiCard
-          className="bg-card/80"
-          title="Fehlende / ungültige Zuordnung"
-          value={formatNum(result.summary.unassignedVmCount)}
-          severity={result.summary.unassignedVmCount > 0 ? "warn" : "ok"}
-          icon={<UserX className="h-4 w-4" />}
-          info={TECHINFO_ORG_KPI.dataQualityCount}
-        />
-      </div>
 
       {result.doubleCountingWarning && (
         <Alert className="border-warning/40 bg-warning/5">

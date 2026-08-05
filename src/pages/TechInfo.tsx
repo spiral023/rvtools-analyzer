@@ -72,7 +72,7 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
     cell: ({ getValue }) => {
       const conflict = getValue() as boolean | null;
       if (conflict === null) return "—";
-      if (!conflict) return <Badge variant="secondary">OK</Badge>;
+      if (!conflict) return <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">OK</Badge>;
       return <Badge variant="destructive">Verstoß</Badge>;
     },
   },

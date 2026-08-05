@@ -27,12 +27,13 @@ import {
   getAvailableSysvScopePreference,
   splitSysvContactName,
 } from "@/lib/sysvScope";
+import { formatSysvScopeLabel } from "@/lib/sysvDataPackageScope";
 import type { MaintenanceSettings, SysvScopePreference } from "@/domain/models/types";
 
 export default function Settings() {
   const { settings, saveSettings, isSaving } = useMaintenanceSettings();
   const { data: techInfoRows = [] } = useAllTechInfoLatest();
-  const { mode, lastSysvScope, saveLastSysvScope } = useAppMode();
+  const { lastSysvScope, saveLastSysvScope } = useAppMode();
   const { setFilters } = useFilterState();
   const { resetAllTablePreferences } = useTableDisplayPreferencesActions();
   const [previousSettings, setPreviousSettings] = useState(settings);
@@ -237,20 +238,6 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>App-Modus</CardTitle>
-          <CardDescription>
-            Aktiver Modus: <span className="font-medium text-foreground">{mode === "sysv" ? "SysV-Modus" : "VM-Admin-Modus"}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Der App-Modus wird ausschließlich durch eine gültige <code>modus.json</code> in einem Upload geändert. Diese Ansicht bietet keinen Modus-Umschalter.
-          </p>
-        </CardContent>
-      </Card>
-
       {importedSysvPackages.length > 0 && (
         <Card>
           <CardHeader>
@@ -258,10 +245,12 @@ export default function Settings() {
             <CardDescription>Die Liste zeigt die Paketquellen, aus denen der aktuelle eingeschränkte Datensatz vereinigt wurde.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {importedSysvPackages.map((pkg) => (
+            {importedSysvPackages.map((pkg) => {
+              const scopeLabel = formatSysvScopeLabel(pkg.scopeKind, pkg.scopeLabel);
+              return (
               <div key={pkg.packageId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/15 px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" title={pkg.scopeLabel}>{pkg.scopeLabel}</p>
+                  <p className="truncate text-sm font-medium" title={scopeLabel}>{scopeLabel}</p>
                   <p className="truncate font-mono text-[11px] text-muted-foreground" title={pkg.containerPath || pkg.packageId}>{pkg.containerPath || pkg.packageId}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
@@ -269,7 +258,8 @@ export default function Settings() {
                   <span className="flex items-center gap-1.5" title="Importzeitpunkt"><CalendarClock className="size-3.5" />{new Date(pkg.importedAt).toLocaleString("de-DE")}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}

@@ -55,7 +55,6 @@ export function VmRightsizingDensityGrid({
             <span className="text-foreground/80">{formatNum(hovered.cell.vmCount)} VMs</span>
             {hovered.cell.reclaimableVcpu > 0 && <> · {formatFillUpValue(hovered.cell.reclaimableVcpu, "vCPU")} rückgewinnbar</>}
             {hovered.cell.notableCount > 0 && <> · {formatNum(hovered.cell.notableCount)} auffällig</>}
-            {hovered.cell.vmCount > 0 && <> · Klicken für Details</>}
           </>
         ) : (
           <>{formatNum(grid.vmCount)} VMs · {formatFillUpValue(grid.reclaimableVcpu, "vCPU")} rückgewinnbar gesamt</>

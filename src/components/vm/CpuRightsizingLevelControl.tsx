@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import type { CpuRightsizingLevel } from "@/domain/models/types";
 import { CPU_RIGHTSIZING_POLICIES } from "@/domain/services/vmRightsizingService";
 import { useCpuRightsizingLevel } from "@/hooks/useCpuRightsizingLevel";
@@ -46,7 +47,22 @@ export function CpuRightsizingLevelControl() {
           const policy = CPU_RIGHTSIZING_POLICIES[entry];
           return (
             <ToggleGroupItem key={entry} value={entry} className="h-auto min-h-14 flex-col px-3 py-2">
-              <span className="text-xs font-semibold">{policy.label}</span>
+              {/*
+                Kein InfoTooltip um das Item: dessen TooltipTrigger mit asChild überschreibt das
+                data-state des ToggleGroupItem, womit die aktive Stufe nicht mehr hervorgehoben wird.
+                Der Warnhinweis steht deshalb als sr-only-Text direkt neben dem Symbol.
+              */}
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                {policy.label}
+                {entry === "offensive" && (
+                  <>
+                    <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                    <span className="sr-only">
+                      Warnung: geringste Sicherheitsreserve, nur bei gut verstandener Workload sinnvoll
+                    </span>
+                  </>
+                )}
+              </span>
               <span className="text-[10px] font-normal text-muted-foreground">
                 {peakLabel(entry)} · P95 {formatPolicyPercent(policy.targetUtilizationP95)} · Spitze {formatPolicyPercent(policy.targetUtilizationPeak)}
               </span>

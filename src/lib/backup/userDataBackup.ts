@@ -192,7 +192,10 @@ function normalizeVmScopeSettings(value: unknown): VmScopeSettings | null {
   return {
     vmPowerScope: value.vmPowerScope,
     excludeVclsVms: value.excludeVclsVms,
-    excludeDummyVms: typeof value.excludeDummyVms === "boolean" ? value.excludeDummyVms : false,
+    // Backups aus Versionen vor dem Feld erben den aktuellen Default statt „nicht ausblenden“.
+    excludeDummyVms: typeof value.excludeDummyVms === "boolean"
+      ? value.excludeDummyVms
+      : DEFAULT_VM_SCOPE_SETTINGS.excludeDummyVms,
   };
 }
 

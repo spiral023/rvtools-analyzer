@@ -15,7 +15,7 @@ import type {
   Scenario,
   TechInfoOrganisationTablePreferences,
 } from "@/domain/models/types";
-import { getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
+import { DEFAULT_VM_SCOPE_SETTINGS, getStoredVmScopeSettings, saveVmScopeSettings } from "@/lib/vmScopeSettings";
 
 const makeMaintenanceWindow = (
   abbreviation = "MW 1",
@@ -108,11 +108,9 @@ describe("buildUserDataBackup / serialize / parse roundtrip", () => {
     expect(parsed.maintenanceWindows).toEqual([makeMaintenanceWindow()]);
     expect(parsed.scenarios).toEqual([scenario]);
     expect((parsed as unknown as { vcenterGroups?: unknown[] }).vcenterGroups).toEqual([vcenterGroup]);
-    expect((parsed as unknown as { vmScopeSettings?: unknown }).vmScopeSettings).toEqual({
-      vmPowerScope: "poweredOn",
-      excludeVclsVms: true,
-      excludeDummyVms: false,
-    });
+    // Ohne übergebene Scope-Einstellungen sichert das Backup den geltenden Default.
+    expect((parsed as unknown as { vmScopeSettings?: unknown }).vmScopeSettings)
+      .toEqual(DEFAULT_VM_SCOPE_SETTINGS);
     expect(parsed.techInfoOrganisationTablePreferences).toEqual(techInfoOrganisationTablePreferences);
     expect(parsed.tableDisplayPreferences).toEqual(tableDisplayPreferences);
     expect(parsed.lastSysvScope).toEqual({ kind: "person", displayName: "MUSTERMANN Max", normalizedName: "mustermann max" });

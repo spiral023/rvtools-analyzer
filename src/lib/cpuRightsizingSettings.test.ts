@@ -10,10 +10,10 @@ import {
 describe("cpuRightsizingSettings", () => {
   beforeEach(() => localStorage.clear());
 
-  it("verwendet Ausgewogen als sicheren Default", () => {
-    expect(getStoredCpuRightsizingLevel()).toBe("balanced");
+  it("verwendet Vorsichtig als sicheren Default", () => {
+    expect(getStoredCpuRightsizingLevel()).toBe("conservative");
     localStorage.setItem(CPU_RIGHTSIZING_LEVEL_STORAGE_KEY, "frei-erfunden");
-    expect(getStoredCpuRightsizingLevel()).toBe("balanced");
+    expect(getStoredCpuRightsizingLevel()).toBe("conservative");
   });
 
   it("persistiert ausschließlich geschlossene Stufen", () => {

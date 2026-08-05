@@ -23,11 +23,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { SnapshotMeta, TechInfoImportMeta, TechInfoClientImportMeta, CdpImportMeta, IpamImportMeta, EramonIfaceImportMeta, EramonL2ImportMeta, VropsImportMeta, VropsTimeSeriesImport } from "@/domain/models/types";
 import { DiagnosticsPanel } from "@/components/uploads/DiagnosticsPanel";
+import { useDiagnostics } from "@/hooks/useDiagnostics";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -307,6 +308,9 @@ function useUploadSnapshotsView() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") === "diagnostics" ? "diagnostics" : "uploads";
+  // Der Hook liegt hier statt im Panel, weil „Aktualisieren“ in der Kopfzeile steht und beide
+  // Stellen dieselbe Messung teilen müssen.
+  const diagnostics = useDiagnostics(activeTab === "diagnostics");
   const uploadRows = useMemo(
     () => uploads.map((upload) => uploadTableRow(upload, uploadSizes?.[upload.kind]?.[upload.id])),
     [uploadSizes, uploads],
@@ -430,6 +434,14 @@ function useUploadSnapshotsView() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          {activeTab === "diagnostics" && (
+            <Button variant="outline" size="sm" onClick={diagnostics.refresh} disabled={diagnostics.isFetching}>
+              {diagnostics.isFetching
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <RefreshCw className="mr-2 h-4 w-4" />}
+              Aktualisieren
+            </Button>
+          )}
           </div>
         )}
       >
@@ -549,7 +561,7 @@ function useUploadSnapshotsView() {
       </TabsContent>
 
       <TabsContent value="diagnostics">
-        <DiagnosticsPanel />
+        <DiagnosticsPanel data={diagnostics.data} isFetching={diagnostics.isFetching} />
       </TabsContent>
     </Tabs>
   );

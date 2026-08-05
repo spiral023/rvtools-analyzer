@@ -250,6 +250,7 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
         capacitySignals: capacitySignalsFixture({ totalCapacityMHz: 16_000, configuredVcpu: 8, mhzPerVcpu: 2_000 }),
       })],
       hosts,
+      level: "balanced",
     });
     expect(candidate.mhzPerCore).toBe(1_000);
     expect(candidate.mhzPerVcpu).toBe(2_000);
@@ -258,6 +259,7 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
   });
 
   it("nutzt den P99 des Demand-Maximums als Peak-Pfad, nicht dessen Monatsmaximum", () => {
+    // Stufe „Ausgewogen“, weil nur sie den P99 als Peak-Statistik verwendet.
     // P95 von 1.000 MHz verlangt für sich 2 vCPU. Der P99 innerhalb der Stunde liegt bei
     // 5.400 MHz und hebt die Zielgröße über 5,4 / 0,9 = 6 vCPU; das einmalige
     // Monatsmaximum von 20.000 MHz bliebe mit 22 vCPU weit darüber und bleibt außen vor.
@@ -269,6 +271,7 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
         demandMax: metricStats({ p95: 3_000, p99: 5_400, maximum: 20_000 }),
       })],
       hosts,
+      level: "balanced",
     });
     expect(candidate.usedVcpuEquivalentPeak).toBe(5.4);
     expect(candidate.demandBasedVcpu).toBe(6);
@@ -337,10 +340,12 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     const [withPeak] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 1_000, maximum: 12_000 }) })],
       hosts,
+      level: "balanced",
     });
     const [withoutPeak] = buildVmRightsizingCandidates({
       profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 1_000 }) })],
       hosts,
+      level: "balanced",
     });
 
     expect(withPeak.usedVcpuEquivalentPeak).toBe(12);

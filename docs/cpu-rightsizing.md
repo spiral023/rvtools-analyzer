@@ -271,14 +271,14 @@ Kapazitätsaggregation als umsetzbare Einsparung erscheint.
 ## Rightsizing-Stufen
 
 Die Stufen koppeln Peak-Statistik und Zielauslastungen. Standardmäßig wird
-**Ausgewogen** verwendet.
+**Vorsichtig** verwendet.
 
 | Stufe | Peak aus `Demand Max` | Zielauslastung P95 | Zielauslastung Peak | Charakter |
 | --- | ---: | ---: | ---: | --- |
 | Sehr vorsichtig | Maximum | 55 % | 80 % | Hohe Sicherheitsreserve; reagiert auf jede beobachtete Spitze |
-| Vorsichtig | P99,5 | 60 % | 85 % | Sehr geringe Ausblendung von Spitzen |
-| **Ausgewogen** | **P99** | **65 %** | **90 %** | **Standard für den Regelbetrieb** |
-| Offensiv | P95 | 70 % | 95 % | Höhere Verdichtung; nur bei gut verstandener Workload sinnvoll |
+| **Vorsichtig** | **P99,5** | **60 %** | **85 %** | **Standard: sehr geringe Ausblendung von Spitzen** |
+| Ausgewogen | P99 | 65 % | 90 % | Ausgeglichenes Verhältnis von Reserve und Verdichtung |
+| Offensiv | P95 | 70 % | 95 % | Höhere Verdichtung; nur bei gut verstandener Workload sinnvoll. In der Oberfläche mit einem roten Warnsymbol gekennzeichnet |
 
 Die Stufe verändert nicht die Datenbasis und nicht das Workload-Profil. Sie
 verändert nur, wie viel Reserve das Ziel gegenüber P95 und Peak einplant.
@@ -512,7 +512,7 @@ Differenz aus einer einzelnen Statistik.
 ## Empfohlener operativer Ablauf
 
 1. Analysezeitraum und Datenabdeckung prüfen.
-2. Rightsizing-Stufe auswählen; für den Regelbetrieb zunächst **Ausgewogen**.
+2. Rightsizing-Stufe auswählen; für den Regelbetrieb zunächst **Vorsichtig**.
 3. Kandidaten nach `Rückgewinnbar`, `Zusätzlich nötig` und Zurückhaltungsgrund
    sortieren.
 4. Workload-Form und Kontextsignale prüfen: Peak-Wiederholung, Ready, Co-Stop,

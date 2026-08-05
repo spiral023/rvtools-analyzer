@@ -4,6 +4,7 @@ import {
   applyVmScopeToHealthEvents,
   applyVmScopeToRows,
   applyVmScopeToVms,
+  filterByVmScope,
   parseVmNameScopeList,
   isVclsVm,
   isDummyVm,
@@ -126,6 +127,32 @@ describe("VM scope filters", () => {
     expect(
       applyVmScopeToVms(rows, makeFilter({ excludeDummyVms: true })).map((vm) => vm.vmName),
     ).toEqual(["APP-01"]);
+  });
+
+  it("überträgt den VM-Scope über den RVTools-Schlüssel auf vROps-Auslastungsprofile", () => {
+    const scopedVms = applyVmScopeToVms(
+      [
+        makeVm({ vmKey: "vm-on", vmName: "APP-ON", powerState: "poweredOn" }),
+        makeVm({ vmKey: "vm-off", vmName: "APP-OFF", powerState: "poweredOff" }),
+      ],
+      makeFilter({ vmPowerScope: "poweredOn" }),
+    );
+    const profiles = [
+      { rvtoolsObjectKey: "vm-on", vmName: "APP-ON" },
+      { rvtoolsObjectKey: "vm-off", vmName: "APP-OFF" },
+    ];
+
+    expect(filterByVmScope(profiles, scopedVms).map((profile) => profile.vmName)).toEqual(["APP-ON"]);
+  });
+
+  it("greift für Profile ohne RVTools-Schlüssel auf den normalisierten VM-Namen zurück", () => {
+    const scopedVms = [makeVm({ vmKey: "vm-on", vmName: "APP-ON" })];
+    const profiles = [
+      { rvtoolsObjectKey: null, vmName: " app-on " },
+      { rvtoolsObjectKey: null, vmName: "APP-OFF" },
+    ];
+
+    expect(filterByVmScope(profiles, scopedVms).map((profile) => profile.vmName)).toEqual([" app-on "]);
   });
 
   it("applies the same scope to raw VM sheet rows by matching normalized VMs", () => {
