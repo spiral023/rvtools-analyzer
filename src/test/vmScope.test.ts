@@ -147,7 +147,7 @@ describe("VM scope filters", () => {
 
   it("greift für Profile ohne RVTools-Schlüssel auf den normalisierten VM-Namen zurück", () => {
     const scopedVms = [makeVm({ vmKey: "vm-on", vmName: "APP-ON" })];
-    const profiles = [
+    const profiles: { rvtoolsObjectKey: string | null; vmName: string }[] = [
       { rvtoolsObjectKey: null, vmName: " app-on " },
       { rvtoolsObjectKey: null, vmName: "APP-OFF" },
     ];
