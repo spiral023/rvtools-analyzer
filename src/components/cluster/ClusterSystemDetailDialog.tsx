@@ -197,7 +197,7 @@ export function ClusterSystemDetailDialog({
     subtitle: [vcenterDisplayName || identity.vcenterId, identity.datacenter].filter(Boolean).join(" · "),
     summary: narrative,
     kpis,
-    trend: vrops.isMatched ? { title: "Cluster-Auslastung · sieben Tage", points: vrops.hourly, cpuCapacityMHz: vrops.cpuCapacityMHz, importedAt: vrops.importedAt } : undefined,
+    trend: vrops.isMatched ? { title: "Cluster-Auslastung · sieben Tage", points: vrops.hourly, cpuCapacityMHz: vrops.cpuCapacityMHz, importedAt: vrops.importedAt, secondaryLabel: "Memory Utilization Ø (MiB)" } : undefined,
     sections: [
       { title: "Kapazität & Services", fields: overviewFields },
       { title: "ESXi Hosts", table: hostTable },

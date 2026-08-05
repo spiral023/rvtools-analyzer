@@ -4,6 +4,7 @@ import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { SystemDossierPdf } from "@/components/detail/SystemDossierPdf";
 import {
   buildDossierConfluence,
+  buildDossierJson,
   buildDossierMarkdown,
   detailFileName,
   getTrendPeak,
@@ -26,6 +27,7 @@ const dossier: DetailDossier = {
   trend: {
     title: "CPU-Auslastung",
     cpuCapacityMHz: 20_000,
+    secondaryLabel: "CPU Ready (%)",
     points: [
       { timestampUtc: Date.UTC(2026, 6, 25, 12), primaryValue: 2_000, primaryPeakValue: null, secondaryValue: 0.2 },
       { timestampUtc: Date.UTC(2026, 6, 26, 12), primaryValue: 8_000, primaryPeakValue: null, secondaryValue: 0.8 },
@@ -83,6 +85,58 @@ describe("detail export", () => {
     expect(averageWeek).toHaveLength(7);
     expect(averageWeek.find((day) => day.label === "Samstag")).toMatchObject({ averageCpuDemandMHz: 2_000, peakCpuDemandMHz: 2_000, observedHours: 1 });
     expect(averageWeek.find((day) => day.label === "Sonntag")).toMatchObject({ averageCpuDemandMHz: 8_000, peakCpuDemandMHz: 8_000, observedHours: 1 });
+  });
+
+  it("lässt die Rohreihe standardmäßig weg und nimmt sie nur auf Wunsch auf", () => {
+    const withoutSeries = buildDossierMarkdown(dossier);
+    const withSeries = buildDossierMarkdown(dossier, false, { includeTimeSeries: true });
+
+    expect(withoutSeries).not.toContain("### Vollständige Zeitreihe");
+    expect(withSeries).toContain("### Vollständige Zeitreihe");
+    // Spaltenkopf der benannten Sekundärreihe und ein ISO-Zeitstempel je Messpunkt.
+    expect(withSeries).toContain("CPU Ready (%)");
+    expect(withSeries).toContain("2026-07-25T12:00:00.000Z");
+    expect(withSeries).toContain("2026-07-26T12:00:00.000Z");
+  });
+
+  it("nimmt die Rohreihe auch in den Confluence-Export auf", () => {
+    const confluence = buildDossierConfluence(dossier, false, { includeTimeSeries: true });
+
+    expect(confluence).toContain("h3. Vollständige Zeitreihe");
+    expect(confluence).toContain("2026-07-25T12:00:00.000Z");
+  });
+
+  it("liefert JSON mit Zahlen als Zahlen und Zeitstempeln als ISO-Werten", () => {
+    const parsed = JSON.parse(buildDossierJson(dossier, false, { includeTimeSeries: true }));
+
+    expect(parsed.kind).toBe("VM");
+    expect(parsed.title).toBe("srv-production-01");
+    expect(parsed.pseudonymized).toBe(false);
+    expect(parsed.trend.cpuCapacityMHz).toBe(20_000);
+    expect(parsed.trend.secondaryLabel).toBe("CPU Ready (%)");
+    expect(parsed.trend.peak).toEqual({ timestampUtc: "2026-07-26T12:00:00.000Z", cpuDemandAvgMHz: 8_000 });
+    expect(parsed.trend.averageWeek).toHaveLength(7);
+    expect(parsed.trend.hourly).toEqual([
+      { timestampUtc: "2026-07-25T12:00:00.000Z", cpuDemandAvgMHz: 2_000, cpuDemandMaxMHz: null, secondaryValue: 0.2 },
+      { timestampUtc: "2026-07-26T12:00:00.000Z", cpuDemandAvgMHz: 8_000, cpuDemandMaxMHz: null, secondaryValue: 0.8 },
+    ]);
+  });
+
+  it("lässt die Rohreihe im JSON weg, wenn sie nicht angefordert wurde", () => {
+    const parsed = JSON.parse(buildDossierJson(dossier));
+
+    expect(parsed.trend.hourly).toBeUndefined();
+    expect(parsed.trend.pointCount).toBe(2);
+    expect(parsed.trend.averageWeek).toHaveLength(7);
+  });
+
+  it("übernimmt die pseudonymisierten Werte in den JSON-Export", () => {
+    const parsed = JSON.parse(buildDossierJson(pseudonymizeDetailDossier(dossier), true));
+
+    expect(parsed.pseudonymized).toBe(true);
+    expect(parsed.title).toBe("System-001");
+    expect(parsed.sections[0].fields.map((field: { value: string }) => field.value))
+      .toEqual(["Person-001", "Organisation-001"]);
   });
 
   it("rendert ein valides A4-PDF-Datenblatt", async () => {

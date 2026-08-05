@@ -80,10 +80,29 @@ function positiveOrNull(value: number | null | undefined): number | null {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+/**
+ * Höchster beobachteter CPU-Demand der Rohreihe in MHz, Mittel- und Spitzenwerte zusammen. Bewusst
+ * über alle Punkte statt über den gerade sichtbaren Ausschnitt: sonst würde die Achseneinheit beim
+ * Umschalten von Zeitfenster oder Wochenansicht springen.
+ */
+function peakDemandMHz(points: readonly VropsObjectTrendPoint[]): number | null {
+  let peak: number | null = null;
+  for (const point of points) {
+    for (const value of [point.primaryValue, point.primaryPeakValue]) {
+      if (value !== null && Number.isFinite(value) && (peak === null || value > peak)) peak = value;
+    }
+  }
+  return peak;
+}
+
+/** Ab hier ist GHz die ruhigere Achse; darunter macht sie aus „318 MHz“ ein schlecht lesbares „0,32“. */
+const GIGAHERTZ_THRESHOLD_MHZ = 1_000;
+
 function buildPrimaryScale(
   metric: VropsTrendPrimaryMetric,
   cpuCapacityMHz: number | null,
   memoryCapacityMiB: number | null,
+  cpuPeakMHz: number | null,
 ): PrimaryScale {
   if (metric === "memory-workload") {
     const capacityGiB = positiveOrNull(memoryCapacityMiB) === null ? null : memoryCapacityMiB! / 1_024;
@@ -99,15 +118,19 @@ function buildPrimaryScale(
     };
   }
   const capacityMHz = positiveOrNull(cpuCapacityMHz);
+  // Einzelne VMs bleiben meist unter 1 GHz; Hosts und Cluster liegen darüber. Die Absolutachse
+  // folgt deshalb dem beobachteten Peak statt einer festen Einheit.
+  const inGigahertz = cpuPeakMHz !== null && cpuPeakMHz > GIGAHERTZ_THRESHOLD_MHZ;
+  const toAbsolute = (raw: number) => (inGigahertz ? raw / 1_000 : raw);
   return {
     label: "CPU Demand",
     shortLabel: "CPU",
-    absoluteUnit: "GHz",
+    absoluteUnit: inGigahertz ? "GHz" : "MHz",
     absoluteAvailable: true,
     percentAvailable: capacityMHz !== null,
-    toAbsolute: (raw) => raw / 1_000,
+    toAbsolute,
     toPercent: (raw) => (capacityMHz === null ? null : (raw / capacityMHz) * 100),
-    capacityBound: (unit) => (unit === "percent" ? 100 : capacityMHz === null ? null : capacityMHz / 1_000),
+    capacityBound: (unit) => (unit === "percent" ? 100 : capacityMHz === null ? null : toAbsolute(capacityMHz)),
   };
 }
 
@@ -149,7 +172,7 @@ export function VropsTrendChart({
   importedAt,
 }: VropsTrendChartProps) {
   const gradientId = useId().replace(/:/g, "");
-  const scale = buildPrimaryScale(primaryMetric, cpuCapacityMHz, memoryCapacityMiB);
+  const scale = buildPrimaryScale(primaryMetric, cpuCapacityMHz, memoryCapacityMiB, peakDemandMHz(hourly));
   const [chartUnit, setChartUnit] = useState<ChartUnit>(scale.percentAvailable ? "percent" : "absolute");
   const [chartView, setChartView] = useState<ChartView>("timeline");
   const [windowHours, setWindowHours] = useState<WindowHours>(3);

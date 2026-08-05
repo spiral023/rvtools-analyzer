@@ -126,7 +126,7 @@ describe("FleetCompare – vCenter-Detailansicht", () => {
     expect(screen.getAllByText("CL-Prod").length).toBeGreaterThan(0);
     expect(screen.getByText("DS01")).toBeInTheDocument();
     expect(screen.getByText("Uplink redundancy lost")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "vCenter-Details als Markdown kopieren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kopieren / Export" })).toBeInTheDocument();
   });
 
   it("erklärt Health und Risiko Score per Tooltip", async () => {

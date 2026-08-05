@@ -361,6 +361,7 @@ export function VmDetailDialog({
       })),
       cpuCapacityMHz: workloadProfile.configuredCpuCapacityMHz,
       importedAt: vropsImportedAt,
+      secondaryLabel: "CPU Ready (%)",
     } : undefined,
     sections: [
       { title: "Identität & Platzierung", fields: identityFields },

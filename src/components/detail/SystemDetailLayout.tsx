@@ -6,7 +6,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { DetailDossier, DetailField, DetailKpi, DetailSection as DetailSectionModel, DetailTable } from "@/lib/detailExport";
-import { DetailExportMenu } from "@/components/detail/DetailExportMenu";
+import { DetailExportDialog } from "@/components/detail/DetailExportDialog";
 
 export function SystemDetailContent({
   icon,
@@ -51,7 +51,7 @@ export function SystemDetailContent({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <DetailExportMenu dossier={dossier} />
+              <DetailExportDialog dossier={dossier} />
               <DialogClose
                 aria-label="Detailansicht schließen"
                 className="grid size-10 place-items-center rounded-xl bg-background text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)/0.75),0_1px_2px_hsl(var(--foreground)/0.06)] transition-[scale,color,background-color,box-shadow] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

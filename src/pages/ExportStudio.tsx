@@ -330,15 +330,6 @@ export default function ExportStudio() {
         <KpiCard title="Jüngster Snapshot" value={latestExportTs ? new Date(latestExportTs).toLocaleDateString("de-DE") : "—"} subtitle={latestExportTs ? new Date(latestExportTs).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr" : undefined} icon={<Clock className="h-4 w-4" />} />
       </KpiGrid>
 
-      <section className="rounded-lg border border-primary/25 bg-primary/[0.045] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground">{scope}. vCenter-, Such-, Cluster- und Hostfilter werden übernommen; der globale Filter wirkt auf VM-Exporte gemäß seiner Definition.</p>
-          </div>
-          <Badge variant="secondary">Nur lokal im Browser</Badge>
-        </div>
-      </section>
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28.6rem]">
         <section className="space-y-4 rounded-lg border bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-4">

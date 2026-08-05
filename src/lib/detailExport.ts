@@ -43,6 +43,22 @@ export interface DetailTrend {
   points: VropsObjectTrendPoint[];
   cpuCapacityMHz: number | null;
   importedAt?: string | null;
+  /**
+   * Bedeutung von `secondaryValue` – je Objektart CPU Ready, RAM-Workload oder Ähnliches. Ohne
+   * Angabe bleibt die Reihe im Export neutral benannt, was für eine Auswertung durch ein LLM
+   * deutlich weniger wert ist.
+   */
+  secondaryLabel?: string;
+}
+
+/** Was über die Aufbereitung hinaus in einen Dossier-Export aufgenommen wird. */
+export interface DetailExportOptions {
+  pseudonymized?: boolean;
+  /**
+   * Nimmt die vollständige stündliche vROps-Reihe auf statt nur Peak und Durchschnittswoche.
+   * Gedacht für die Auswertung durch ein LLM; für menschliche Leser sind das mehrere Hundert Zeilen.
+   */
+  includeTimeSeries?: boolean;
 }
 
 export interface DetailDossier {
@@ -126,11 +142,32 @@ function markdownEscape(value: string): string {
   return clean(value).replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
 }
 
+/** Zeitstempel der Rohreihe als ISO-Wert: eindeutig sortierbar und für ein LLM unmissverständlich. */
+function isoTimestamp(timestampUtc: number): string {
+  return new Date(timestampUtc).toISOString();
+}
+
+function trendSecondaryLabel(trend: DetailTrend): string {
+  return trend.secondaryLabel?.trim() || "Sekundärreihe";
+}
+
+function hasSecondarySeries(trend: DetailTrend): boolean {
+  return trend.points.some((point) => point.secondaryValue !== null);
+}
+
+function formatSeriesValue(value: number | null): string {
+  return value === null ? "" : value.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+}
+
 function confluenceEscape(value: string): string {
   return clean(value).replace(/\|/g, "\\|").replace(/\r?\n/g, "\\\\");
 }
 
-export function buildDossierMarkdown(dossier: DetailDossier, pseudonymized = false): string {
+export function buildDossierMarkdown(
+  dossier: DetailDossier,
+  pseudonymized = false,
+  options: DetailExportOptions = {},
+): string {
   const lines = [
     `# ${dossier.kind} ${dossier.title}`,
     "",
@@ -183,11 +220,92 @@ export function buildDossierMarkdown(dossier: DetailDossier, pseudonymized = fal
       ...averageWeek.map((day) => `| ${day.label} | ${formatCpuDemand(day.averageCpuDemandMHz)} | ${formatCpuDemand(day.peakCpuDemandMHz)} | ${day.observedHours.toLocaleString("de-DE")} |`),
       "",
     );
+
+    if (options.includeTimeSeries) {
+      const trend = dossier.trend;
+      const withSecondary = hasSecondarySeries(trend);
+      const secondaryHeader = withSecondary ? ` ${markdownEscape(trendSecondaryLabel(trend))} |` : "";
+      lines.push(
+        "### Vollständige Zeitreihe",
+        "",
+        `${trend.points.length.toLocaleString("de-DE")} stündliche Messpunkte in UTC, unverdichtet.`,
+        "",
+        `| Zeitstempel (UTC) | CPU Demand Ø (MHz) | CPU Demand Max (MHz) |${secondaryHeader}`,
+        `| --- | ---: | ---: |${withSecondary ? " ---: |" : ""}`,
+        ...trend.points.map((point) => {
+          const secondary = withSecondary ? ` ${formatSeriesValue(point.secondaryValue)} |` : "";
+          return `| ${isoTimestamp(point.timestampUtc)} | ${formatSeriesValue(point.primaryValue)} | ${formatSeriesValue(point.primaryPeakValue)} |${secondary}`;
+        }),
+        "",
+      );
+    }
   }
   return lines.join("\n");
 }
 
-export function buildDossierConfluence(dossier: DetailDossier, pseudonymized = false): string {
+/**
+ * Maschinenlesbare Fassung des Dossiers. Anders als Markdown und Confluence behält sie Zahlen als
+ * Zahlen und Zeitstempel als ISO-Werte – die Form, in der eine Auswertung durch ein LLM oder ein
+ * Skript nicht erst zurückparsen muss.
+ */
+export function buildDossierJson(
+  dossier: DetailDossier,
+  pseudonymized = false,
+  options: DetailExportOptions = {},
+): string {
+  const trend = dossier.trend;
+  const peak = trend ? getTrendPeak(trend.points) : null;
+
+  return JSON.stringify({
+    kind: dossier.kind,
+    title: clean(dossier.title),
+    subtitle: dossier.subtitle ? clean(dossier.subtitle) : undefined,
+    summary: dossier.summary,
+    sourceDate: dossier.sourceDate ?? null,
+    pseudonymized,
+    kpis: dossier.kpis.map((kpi) => ({
+      label: kpi.label,
+      value: clean(kpi.value),
+      hint: kpi.hint,
+    })),
+    sections: dossier.sections.map((section) => ({
+      title: section.title,
+      description: section.description,
+      note: section.note,
+      fields: section.fields?.map((field) => ({ label: field.label, value: clean(field.value) })),
+      table: section.table
+        ? { headers: section.table.headers, rows: section.table.rows }
+        : undefined,
+    })),
+    trend: trend
+      ? {
+        title: trend.title,
+        cpuCapacityMHz: trend.cpuCapacityMHz,
+        importedAt: trend.importedAt ?? null,
+        secondaryLabel: hasSecondarySeries(trend) ? trendSecondaryLabel(trend) : undefined,
+        pointCount: trend.points.length,
+        peak: peak
+          ? { timestampUtc: isoTimestamp(peak.timestampUtc), cpuDemandAvgMHz: peak.primaryValue }
+          : null,
+        averageWeek: summarizeAverageWeek(trend.points),
+        hourly: options.includeTimeSeries
+          ? trend.points.map((point) => ({
+            timestampUtc: isoTimestamp(point.timestampUtc),
+            cpuDemandAvgMHz: point.primaryValue,
+            cpuDemandMaxMHz: point.primaryPeakValue,
+            secondaryValue: point.secondaryValue,
+          }))
+          : undefined,
+      }
+      : undefined,
+  }, null, 2);
+}
+
+export function buildDossierConfluence(
+  dossier: DetailDossier,
+  pseudonymized = false,
+  options: DetailExportOptions = {},
+): string {
   const lines = [
     `h1. ${dossier.kind} ${dossier.title}`,
     "",
@@ -228,6 +346,21 @@ export function buildDossierConfluence(dossier: DetailDossier, pseudonymized = f
       ...averageWeek.map((day) => `| ${day.label} | ${formatCpuDemand(day.averageCpuDemandMHz)} | ${formatCpuDemand(day.peakCpuDemandMHz)} | ${day.observedHours.toLocaleString("de-DE")} |`),
       "",
     );
+
+    if (options.includeTimeSeries) {
+      const trend = dossier.trend;
+      const withSecondary = hasSecondarySeries(trend);
+      lines.push(
+        "h3. Vollständige Zeitreihe",
+        `${trend.points.length.toLocaleString("de-DE")} stündliche Messpunkte in UTC, unverdichtet.`,
+        `|| Zeitstempel (UTC) || CPU Demand Ø (MHz) || CPU Demand Max (MHz) ||${withSecondary ? ` ${confluenceEscape(trendSecondaryLabel(trend))} ||` : ""}`,
+        ...trend.points.map((point) => {
+          const secondary = withSecondary ? ` ${formatSeriesValue(point.secondaryValue)} |` : "";
+          return `| ${isoTimestamp(point.timestampUtc)} | ${formatSeriesValue(point.primaryValue)} | ${formatSeriesValue(point.primaryPeakValue)} |${secondary}`;
+        }),
+        "",
+      );
+    }
   }
   return lines.join("\n");
 }

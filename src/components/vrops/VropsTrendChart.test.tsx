@@ -89,6 +89,36 @@ describe("VropsTrendChart", () => {
     expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-domain", JSON.stringify(["dataMin", 100]));
   });
 
+  it("skaliert die CPU-Absolutachse in GHz, sobald der Peak über 1.000 MHz liegt", () => {
+    render(
+      <VropsTrendChart
+        hourly={[{ ...hourly[0], primaryValue: 2_000, primaryPeakValue: 3_000 }]}
+        cpuCapacityMHz={null}
+        secondaryCapacity={null}
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 3,00 GHz");
+  });
+
+  it("bleibt bei kleinen VMs in MHz, damit aus 318 MHz kein „0,32“ wird", () => {
+    render(
+      <VropsTrendChart
+        hourly={[{ ...hourly[0], primaryValue: 220, primaryPeakValue: 318 }]}
+        cpuCapacityMHz={null}
+        secondaryCapacity={null}
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 318,00 MHz");
+  });
+
   it("liest die RAM-Reihe als Prozentwerte des konfigurierten RAM und markiert die Policy-Schwelle", () => {
     render(
       <VropsTrendChart

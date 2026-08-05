@@ -192,7 +192,7 @@ export function HostSystemDetailDialog({
     subtitle: [host.cluster, host.datacenter, host.model].filter(Boolean).join(" · "),
     summary: narrative,
     kpis,
-    trend: vrops.isMatched ? { title: "Host-Auslastung · sieben Tage", points: vrops.hourly, cpuCapacityMHz: vrops.cpuCapacityMHz, importedAt: vrops.importedAt } : undefined,
+    trend: vrops.isMatched ? { title: "Host-Auslastung · sieben Tage", points: vrops.hourly, cpuCapacityMHz: vrops.cpuCapacityMHz, importedAt: vrops.importedAt, secondaryLabel: "Memory Utilization Ø (MiB)" } : undefined,
     sections: [
       { title: "Identität & Lifecycle", fields: identityFields },
       { title: "CPU, RAM & Kapazität", fields: resourceFields },
