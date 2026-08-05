@@ -57,7 +57,9 @@ const CHECK_SOURCES: Record<NetworkAuditCheckId, { required: NetworkAuditSourceK
   ports: { required: ["eramonIface"], optional: ["cdp", "rvtools", "techInfo", "ipam"] },
   hosts: { required: ["rvtools"], optional: ["techInfo", "ipam"] },
   mac: { required: ["cdp", "eramonL2"], optional: [] },
-  discovery: { required: ["eramonL2"], optional: ["cdp", "ipam"] },
+  // RVTools ist optional: es liefert über `vSC_VMK` die VMkernel-MACs, mit denen sich sonst
+  // unerklärte L2-Einträge einem Host zuordnen lassen.
+  discovery: { required: ["eramonL2"], optional: ["cdp", "rvtools", "ipam"] },
 };
 
 const PORT_MATCH_CATEGORIES = {
@@ -70,6 +72,9 @@ const PORT_MATCH_CATEGORIES = {
 
 const L2_CLASSIFICATION_CATEGORIES = {
   "esxi-cdp": "passed",
+  // Eine über die VMkernel-MAC zugeordnete Zeile ist erklärt und damit kein Prüffall mehr; ohne
+  // diese Quelle liefe sie als „Unbekannt/Fremd“ in die Nachschau.
+  "esxi-vmk": "passed",
   ipam: "passed",
   unknown: "review",
 } satisfies Record<L2Classification, keyof NetworkAuditCounts>;

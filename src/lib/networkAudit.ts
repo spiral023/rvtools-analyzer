@@ -1,5 +1,5 @@
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
-import type { CdpLatest, NormalizedHost, TechInfoLatest, IpamLatest, EramonIfaceLatest, EramonL2Latest } from "@/domain/models/types";
+import type { CdpLatest, NormalizedHost, SheetRow, TechInfoLatest, IpamLatest, EramonIfaceLatest, EramonL2Latest } from "@/domain/models/types";
 
 export type PortMatchStatus = "confirmed-cdp" | "no-target" | "text-match" | "documented-only" | "unknown";
 export type MatchedSource = "cdp" | "rvtools" | "techinfo" | "ipam";
@@ -284,7 +284,33 @@ export function buildCdpMacRows(input: { cdpRows: CdpLatest[]; l2Rows: EramonL2L
   return rows;
 }
 
-export type L2Classification = "esxi-cdp" | "ipam" | "unknown";
+/** VMkernel-Interface eines ESXi-Hosts aus dem RVTools-Blatt `vSC_VMK`. */
+export interface VmkAdapter {
+  host: string;
+  device: string;
+  mac: string | null;
+}
+
+function sheetText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : value === null || value === undefined ? "" : String(value).trim();
+}
+
+/**
+ * Liest Host, Gerät und MAC der VMkernel-Interfaces aus den Rohzeilen von `vSC_VMK`. Nur diese drei
+ * Felder, weil der Audit-Abgleich rein über die MAC läuft; die übrigen Spalten des Blatts
+ * (Port Group, IP, MTU, DHCP) zeigt die Netzwerk-und-Sicherheitsansicht.
+ */
+export function extractVmkAdapters(rows: readonly SheetRow[]): VmkAdapter[] {
+  return rows
+    .map((row) => ({
+      host: sheetText(row.data["Host"]),
+      device: sheetText(row.data["Device"]),
+      mac: sheetText(row.data["Mac Address"]) || null,
+    }))
+    .filter((adapter) => adapter.host !== "" && adapter.mac !== null);
+}
+
+export type L2Classification = "esxi-cdp" | "esxi-vmk" | "ipam" | "unknown";
 
 export interface L2DiscoveryRow {
   l2EntryKey: string;
@@ -296,17 +322,27 @@ export interface L2DiscoveryRow {
   dnsName: string | null;
   classification: L2Classification;
   esxiHost: string | null;
+  /** Gesetzt, wenn die MAC einem VMkernel-Interface gehört – etwa `vmk0` oder `vmk1`. */
+  esxiVmkDevice: string | null;
 }
 
 export function buildL2DiscoveryRows(input: {
   l2Rows: EramonL2Latest[];
   cdpRows: CdpLatest[];
   ipam: IpamLatest[];
+  /** Optional: ohne RVTools-Import bleibt die Zuordnung wie bisher rein CDP-basiert. */
+  vmkAdapters?: VmkAdapter[];
 }): L2DiscoveryRow[] {
   const cdpMacToHost = new Map<string, string>();
   for (const cdp of input.cdpRows) {
     const macCanonical = canonicalMac(cdp.mac);
     if (macCanonical && !cdpMacToHost.has(macCanonical)) cdpMacToHost.set(macCanonical, cdp.host);
+  }
+
+  const vmkMacToAdapter = new Map<string, VmkAdapter>();
+  for (const adapter of input.vmkAdapters ?? []) {
+    const macCanonical = canonicalMac(adapter.mac);
+    if (macCanonical && !vmkMacToAdapter.has(macCanonical)) vmkMacToAdapter.set(macCanonical, adapter);
   }
 
   const ipamIps = new Set<string>();
@@ -316,12 +352,19 @@ export function buildL2DiscoveryRows(input: {
 
   return input.l2Rows.map((l2): L2DiscoveryRow => {
     const macCanonical = canonicalMac(l2.mac);
-    const esxiHost = macCanonical ? cdpMacToHost.get(macCanonical) ?? null : null;
-    const classification: L2Classification = esxiHost
+    // CDP hat Vorrang: dort hängt die MAC nachweislich am gemeldeten Switch-Port. Die vmk-Zuordnung
+    // belegt nur, dass die MAC zu einem bekannten Host gehört – über welchen Uplink sie gerade
+    // gelernt wurde, entscheidet das NIC-Teaming.
+    const cdpHost = macCanonical ? cdpMacToHost.get(macCanonical) ?? null : null;
+    const vmkAdapter = macCanonical && !cdpHost ? vmkMacToAdapter.get(macCanonical) ?? null : null;
+    const esxiHost = cdpHost ?? vmkAdapter?.host ?? null;
+    const classification: L2Classification = cdpHost
       ? "esxi-cdp"
-      : l2.ip && ipamIps.has(l2.ip.trim().toLowerCase())
-        ? "ipam"
-        : "unknown";
+      : vmkAdapter
+        ? "esxi-vmk"
+        : l2.ip && ipamIps.has(l2.ip.trim().toLowerCase())
+          ? "ipam"
+          : "unknown";
 
     return {
       l2EntryKey: l2.l2EntryKey,
@@ -333,6 +376,7 @@ export function buildL2DiscoveryRows(input: {
       dnsName: l2.dnsName,
       classification,
       esxiHost,
+      esxiVmkDevice: vmkAdapter?.device || null,
     };
   });
 }

@@ -299,6 +299,7 @@ const l2DiscoveryRows: L2DiscoveryRow[] = [
     dnsName: null,
     classification: "unknown",
     esxiHost: null,
+    esxiVmkDevice: null,
   },
   {
     l2EntryKey: "core-01::eth1/5::aabbccddee00::100",
@@ -310,6 +311,7 @@ const l2DiscoveryRows: L2DiscoveryRow[] = [
     dnsName: "known-device.lab.local",
     classification: "ipam",
     esxiHost: null,
+    esxiVmkDevice: null,
   },
 ];
 

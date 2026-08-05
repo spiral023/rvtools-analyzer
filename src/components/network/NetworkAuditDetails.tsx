@@ -191,12 +191,16 @@ const techInfoHostColumns: ColumnDef<TechInfoHostQualityRow, unknown>[] = [
 
 const CLASSIFICATION_LABELS: Record<L2Classification, string> = {
   "esxi-cdp": "ESXi (CDP)",
+  "esxi-vmk": "ESXi (VMkernel)",
   "ipam": "IPAM-bekannt",
   "unknown": "Unbekannt/Fremd",
 };
 
 function classificationBadge(classification: L2Classification) {
   if (classification === "esxi-cdp") return <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">{CLASSIFICATION_LABELS[classification]}</Badge>;
+  // Bewusst schwächer als CDP: die MAC gehört belegbar zu einem bekannten Host, über welchen
+  // Uplink sie gelernt wurde, entscheidet aber das NIC-Teaming.
+  if (classification === "esxi-vmk") return <Badge className="border-transparent bg-success/70 text-success-foreground hover:bg-success/60">{CLASSIFICATION_LABELS[classification]}</Badge>;
   if (classification === "ipam") return <Badge variant="secondary">{CLASSIFICATION_LABELS[classification]}</Badge>;
   return <Badge variant="destructive">{CLASSIFICATION_LABELS[classification]}</Badge>;
 }
@@ -221,6 +225,7 @@ const l2DiscoveryColumns: ColumnDef<L2DiscoveryRow, unknown>[] = [
   { accessorKey: "dnsName", header: "DNS-Name", meta: { info: NET_MAC_DISCOVERY_COLUMNS.dnsName }, cell: ({ getValue }) => textCell(getValue() as string | null) },
   { id: "classification", header: "Klassifikation", meta: { info: NET_MAC_DISCOVERY_COLUMNS.classification }, accessorFn: (row) => CLASSIFICATION_LABELS[row.classification], cell: ({ row }) => classificationBadge(row.original.classification) },
   { accessorKey: "esxiHost", header: "ESXi-Host", meta: { info: NET_MAC_DISCOVERY_COLUMNS.esxiHost }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
+  { accessorKey: "esxiVmkDevice", header: "VMkernel", meta: { info: NET_MAC_DISCOVERY_COLUMNS.esxiVmkDevice }, cell: ({ getValue }) => <span className="font-mono-data">{textCell(getValue() as string | null)}</span> },
 ];
 
 function filterByScope<T>(

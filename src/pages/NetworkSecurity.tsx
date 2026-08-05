@@ -22,7 +22,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface PolicyRow { name: string; type: string; vlan: string; promiscuous: boolean; macChanges: boolean; forgedTransmits: boolean; policy: string }
-interface VmkRow { host: string; portGroup: string; device: string; ip: string; subnet: string; mtu: number; dhcp: boolean }
+interface VmkRow { host: string; portGroup: string; device: string; mac: string; ip: string; subnet: string; mtu: number; dhcp: boolean }
 interface NicRow { host: string; device: string; speed: number; duplex: boolean; driver: string; mac: string }
 interface UplinkRow { port: string; switchName: string; activeUplinks: string; standbyUplinks: string; redundant: boolean; risk: string }
 interface TeamingRow { name: string; type: string; policy: string; rollingOrder: boolean; notifySwitch: boolean; issues: string }
@@ -42,6 +42,7 @@ const vmkColumns: ColumnDef<VmkRow, unknown>[] = [
   { accessorKey: "host", header: "Host", meta: { info: NET_VMK_COLUMNS.host } },
   { accessorKey: "portGroup", header: "Port Group", meta: { info: NET_VMK_COLUMNS.portGroup } },
   { accessorKey: "device", header: "Device", meta: { info: NET_VMK_COLUMNS.device } },
+  { accessorKey: "mac", header: "MAC", meta: { info: NET_VMK_COLUMNS.mac }, cell: ({ getValue }) => <span className="font-mono-data">{(getValue() as string) || "—"}</span> },
   { accessorKey: "ip", header: "IP", meta: { info: NET_VMK_COLUMNS.ip } },
   { accessorKey: "subnet", header: "Subnet", meta: { info: NET_VMK_COLUMNS.subnet } },
   { accessorKey: "mtu", header: "MTU", meta: { info: NET_VMK_COLUMNS.mtu }, cell: ({ getValue }) => { const v = getValue() as number; return <span className={v !== 1500 && v !== 9000 ? "text-warning" : ""}>{v}</span>; }},
@@ -95,7 +96,7 @@ export function NetworkSecurityPanel() {
   const promiscuousCount = policies.filter((p) => p.promiscuous).length;
 
   const vmkAdapters = useMemo<VmkRow[]>(() =>
-    rawVmk.map((r) => ({ host: String(r.data["Host"] || ""), portGroup: String(r.data["Port Group"] || ""), device: String(r.data["Device"] || ""), ip: String(r.data["IP Address"] || ""), subnet: String(r.data["Subnet mask"] || ""), mtu: Number(String(r.data["MTU"] || "0").replace(/,/g, "")), dhcp: String(r.data["DHCP"] || "").toLowerCase() === "true" })), [rawVmk]);
+    rawVmk.map((r) => ({ host: String(r.data["Host"] || ""), portGroup: String(r.data["Port Group"] || ""), device: String(r.data["Device"] || ""), mac: String(r.data["Mac Address"] || ""), ip: String(r.data["IP Address"] || ""), subnet: String(r.data["Subnet mask"] || ""), mtu: Number(String(r.data["MTU"] || "0").replace(/,/g, "")), dhcp: String(r.data["DHCP"] || "").toLowerCase() === "true" })), [rawVmk]);
 
   const mtuValues = new Set(vmkAdapters.map((v) => v.mtu)).size;
 

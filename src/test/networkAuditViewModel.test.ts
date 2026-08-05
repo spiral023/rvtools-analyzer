@@ -62,6 +62,7 @@ const discovery = (overrides: Partial<L2DiscoveryRow> = {}): L2DiscoveryRow => (
   dnsName: "esx-01.example.test",
   classification: "esxi-cdp",
   esxiHost: "esx-01",
+  esxiVmkDevice: null,
   ...overrides,
 });
 
@@ -126,6 +127,14 @@ describe("shared network audit row classification", () => {
   it("classifies discovery results through the shared API", () => {
     expect(classifyDiscoveryAuditRow(discovery({ classification: "unknown" }))).toBe("review");
     expect(classifyDiscoveryAuditRow(discovery({ classification: "ipam" }))).toBe("passed");
+  });
+
+  it("nimmt über die VMkernel-MAC zugeordnete Einträge aus der Nachschau", () => {
+    expect(classifyDiscoveryAuditRow(discovery({
+      classification: "esxi-vmk",
+      esxiHost: "esx-01",
+      esxiVmkDevice: "vmk0",
+    }))).toBe("passed");
   });
 });
 

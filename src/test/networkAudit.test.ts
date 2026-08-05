@@ -6,12 +6,13 @@ import {
   canonicalMac,
   extractCdpDeviceHostname,
   extractLabelHostCore,
+  extractVmkAdapters,
   hostCoresMatch,
   normalizeInterfaceName,
   shortHostname,
   stripPortSuffix,
 } from "@/lib/networkAudit";
-import type { CdpLatest, EramonIfaceLatest, EramonL2Latest, IpamLatest, NormalizedHost, TechInfoLatest } from "@/domain/models/types";
+import type { CdpLatest, EramonIfaceLatest, EramonL2Latest, IpamLatest, NormalizedHost, SheetRow, TechInfoLatest } from "@/domain/models/types";
 
 function eramon(over: Partial<EramonIfaceLatest> = {}): EramonIfaceLatest {
   return {
@@ -153,5 +154,75 @@ describe("Eramon-L2-Abgleich", () => {
     const rows = buildL2DiscoveryRows({ cdpRows: [cdp()], l2Rows: [l2(), l2({ l2EntryKey: "sw02::eth1/2::aabbccddeeff::200", mac: "aabb.ccdd.eeff", ip: "10.0.0.20" })], ipam: [ipam("other")] });
 
     expect(rows.map((row) => row.classification)).toEqual(["esxi-cdp", "unknown"]);
+  });
+
+  it("ordnet eine sonst unbekannte MAC über das VMkernel-Interface einem Host zu", () => {
+    const vmkMac = "aabb.ccdd.eeff";
+    const l2Rows = [l2({ l2EntryKey: "sw02::eth1/2::aabbccddeeff::200", mac: vmkMac, ip: "10.0.0.20" })];
+
+    const withoutVmk = buildL2DiscoveryRows({ cdpRows: [cdp()], l2Rows, ipam: [] });
+    expect(withoutVmk[0]).toMatchObject({ classification: "unknown", esxiHost: null, esxiVmkDevice: null });
+
+    const withVmk = buildL2DiscoveryRows({
+      cdpRows: [cdp()],
+      l2Rows,
+      ipam: [],
+      vmkAdapters: [{ host: "esx01", device: "vmk0", mac: "AA:BB:CC:DD:EE:FF" }],
+    });
+    expect(withVmk[0]).toMatchObject({ classification: "esxi-vmk", esxiHost: "esx01", esxiVmkDevice: "vmk0" });
+  });
+
+  it("lässt der CDP-Zuordnung den Vorrang vor der VMkernel-MAC", () => {
+    const [row] = buildL2DiscoveryRows({
+      cdpRows: [cdp()],
+      l2Rows: [l2()],
+      ipam: [],
+      // Dieselbe MAC als vmk gemeldet: CDP belegt den Port, die vmk-Quelle nur den Host.
+      vmkAdapters: [{ host: "anderer-host", device: "vmk1", mac: "00:50:56:ab:cd:ef" }],
+    });
+
+    expect(row).toMatchObject({ classification: "esxi-cdp", esxiHost: "esx01", esxiVmkDevice: null });
+  });
+
+  it("bevorzugt die ESXi-Zuordnung gegenüber einem IPAM-Treffer", () => {
+    const [row] = buildL2DiscoveryRows({
+      cdpRows: [],
+      l2Rows: [l2({ ip: "10.0.0.1" })],
+      ipam: [ipam("irgendwas")],
+      vmkAdapters: [{ host: "esx01", device: "vmk1", mac: "0050.56ab.cdef" }],
+    });
+
+    expect(row).toMatchObject({ classification: "esxi-vmk", esxiHost: "esx01", esxiVmkDevice: "vmk1" });
+  });
+});
+
+describe("extractVmkAdapters", () => {
+  const vmkRow = (data: Record<string, string | number | boolean>): SheetRow => ({
+    snapshotId: "snap-1",
+    sheetName: "vSC_VMK",
+    rowIndex: 0,
+    data,
+  });
+
+  it("liest Host, Gerät und MAC aus den Rohzeilen", () => {
+    const adapters = extractVmkAdapters([
+      vmkRow({ Host: " esx01 ", Device: "vmk0", "Mac Address": "00:50:56:ab:cd:ef", "Port Group": "Management" }),
+      vmkRow({ Host: "esx01", Device: "vmk1", "Mac Address": "00:50:56:ab:cd:f0" }),
+    ]);
+
+    expect(adapters).toEqual([
+      { host: "esx01", device: "vmk0", mac: "00:50:56:ab:cd:ef" },
+      { host: "esx01", device: "vmk1", mac: "00:50:56:ab:cd:f0" },
+    ]);
+  });
+
+  it("überspringt Zeilen ohne Host oder ohne MAC", () => {
+    const adapters = extractVmkAdapters([
+      vmkRow({ Host: "", Device: "vmk0", "Mac Address": "00:50:56:ab:cd:ef" }),
+      vmkRow({ Host: "esx02", Device: "vmk0", "Mac Address": "" }),
+      vmkRow({ Host: "esx03", Device: "vmk0" }),
+    ]);
+
+    expect(adapters).toEqual([]);
   });
 });

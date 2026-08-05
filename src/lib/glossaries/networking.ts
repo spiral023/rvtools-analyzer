@@ -307,6 +307,12 @@ export const NET_VMK_COLUMNS: Record<string, GlossaryEntry> = {
     description: "VMkernel-Interface (z.B. vmk0 = Management, vmk1 = vMotion).",
     source: `${RV} · vSC_VMK · „Device“`,
   },
+  mac: {
+    term: "MAC",
+    description:
+      "MAC-Adresse des VMkernel-Interfaces. Sie ordnet Einträge der Switch-MAC-Tabelle einem ESXi-Host zu, die CDP nicht abdeckt – siehe MAC-Discovery im Netzwerk-Audit.",
+    source: `${RV} · vSC_VMK · „Mac Address“`,
+  },
   ip: {
     term: "IP",
     description: "IP-Adresse des VMkernel-Adapters.",
@@ -950,6 +956,7 @@ export const NET_MAC_DISCOVERY_COLUMNS: Record<string, GlossaryEntry> = {
   mac: { term: "MAC", description: "Am Port gelernte MAC-Adresse.", source: `${ERAMON} · „mac“` },
   learnedIp: { term: "Gelernte IP", description: "IP-Adresse, die Eramon für diese MAC beobachtet hat. Sie unterstützt die Zuordnung, ist aber eine Momentaufnahme und keine Garantie für die aktuelle oder eindeutige IP-Adresse des Geräts.", source: `${ERAMON} · „ip“` },
   dnsName: { term: "DNS-Name", description: "DNS-Name, den Eramon zu der beobachteten MAC/IP-Kombination liefert. Ein leerer oder abweichender Name ist für sich allein kein Fehler.", source: `${ERAMON} · „dnsname“` },
-  classification: { term: "Klassifikation", description: "„ESXi (CDP)“: Die MAC passt zu einem per CDP bekannten ESXi-vmnic. „IPAM-bekannt“: Für die beobachtete IP oder MAC gibt es einen IPAM-Eintrag, aber kein CDP-Treffer zu einem ESXi-Host. „Unbekannt/Fremd“: Weder CDP noch IPAM liefern eine passende Zuordnung; das kann ein Client, ein anderes Gerät oder eine Datenlücke sein.", source: `Abgleich ${ERAMON} ↔ ${CDP} ↔ IPAM` },
-  esxiHost: { term: "ESXi-Host", description: "Der ESXi-Host wird nur angezeigt, wenn die gelernte MAC direkt mit einem CDP-erfassten vmnic übereinstimmt. Bei IPAM-bekannten oder unbekannten Geräten bleibt das Feld leer.", source: `${CDP} · „VMHost“` },
+  classification: { term: "Klassifikation", description: "„ESXi (CDP)“: Die MAC passt zu einem per CDP bekannten ESXi-vmnic – der stärkste Nachweis, weil CDP den Switch-Port selbst meldet. „ESXi (VMkernel)“: Die MAC gehört zu einem VMkernel-Interface aus RVTools (vmk0, vmk1 …); der Host ist damit belegt, über welchen Uplink die MAC gelernt wurde, entscheidet aber das NIC-Teaming. „IPAM-bekannt“: Für die beobachtete IP oder MAC gibt es einen IPAM-Eintrag, aber keinen ESXi-Treffer. „Unbekannt/Fremd“: Keine Quelle liefert eine passende Zuordnung; das kann ein Client, ein anderes Gerät oder eine Datenlücke sein.", source: `Abgleich ${ERAMON} ↔ ${CDP} ↔ ${RV} · vSC_VMK ↔ IPAM` },
+  esxiHost: { term: "ESXi-Host", description: "Zugeordneter Host – entweder über eine CDP-erfasste vmnic-MAC oder über die MAC eines VMkernel-Interfaces aus RVTools. Bei IPAM-bekannten oder unbekannten Geräten bleibt das Feld leer.", source: `${CDP} · „VMHost“ · ${RV} · vSC_VMK · „Host“` },
+  esxiVmkDevice: { term: "VMkernel", description: "Gesetzt, wenn die gelernte MAC einem VMkernel-Interface gehört (etwa vmk0 für Management oder vmk1 für vMotion). Leer bei CDP-Treffern, weil dort eine physische vmnic die Quelle ist.", source: `${RV} · vSC_VMK · „Device“` },
 };

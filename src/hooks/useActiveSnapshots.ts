@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshots, getBySnapshotIds, getRawSheetRows, getAllTechInfoLatest, getAllTechInfoClientLatest, getAllCdpLatest, getAllIpamLatest, getAllEramonIfaceLatest, getAllEramonL2Latest, getAllVropsLatest } from "@/data/db";
-import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows } from "@/lib/networkAudit";
+import { buildPortAuditRows, buildCdpMacRows, buildL2DiscoveryRows, extractVmkAdapters } from "@/lib/networkAudit";
 import type { NetworkAuditSourceFacts } from "@/lib/networkAuditViewModel";
 import { buildHostDataQualityRows } from "@/lib/hostDataQualityAudit";
 import { useFilterState } from "@/hooks/useFilterState";
@@ -324,6 +324,8 @@ export function useNetworkAudit() {
   const hostsQuery = useHosts();
   const techInfoQuery = useAllTechInfoLatest();
   const ipamQuery = useAllIpamLatest();
+  // VMkernel-MACs ordnen L2-Einträge einem Host zu, die CDP nicht abdeckt (vmk0, vmk1 …).
+  const vmkQuery = useRawSheet("vSC_VMK");
 
   const { snapshots, activeSnapshotIds, snapshotQuery } = hostsQuery;
   const { refetch: refetchSnapshots } = snapshotQuery;
@@ -333,6 +335,7 @@ export function useNetworkAudit() {
   const { data: hosts = [], refetch: refetchHosts } = hostsQuery;
   const { data: techInfo = [], refetch: refetchTechInfo } = techInfoQuery;
   const { data: ipam = [], refetch: refetchIpam } = ipamQuery;
+  const { data: rawVmkRows = [], refetch: refetchVmk } = vmkQuery;
   const activeSnapshots = useMemo(() => {
     const activeSnapshotIdSet = new Set(activeSnapshotIds);
     return snapshots.filter((snapshot) => activeSnapshotIdSet.has(snapshot.snapshotId));
@@ -350,9 +353,10 @@ export function useNetworkAudit() {
     () => buildCdpMacRows({ cdpRows, l2Rows }),
     [cdpRows, l2Rows],
   );
+  const vmkAdapters = useMemo(() => extractVmkAdapters(rawVmkRows), [rawVmkRows]);
   const l2DiscoveryRows = useMemo(
-    () => buildL2DiscoveryRows({ l2Rows, cdpRows, ipam }),
-    [l2Rows, cdpRows, ipam],
+    () => buildL2DiscoveryRows({ l2Rows, cdpRows, ipam, vmkAdapters }),
+    [l2Rows, cdpRows, ipam, vmkAdapters],
   );
   const sources = useMemo<NetworkAuditSourceFacts>(() => ({
     rvtools: { count: hosts.length, importedAt: getLatestImportedAt(activeSnapshots) },
@@ -370,6 +374,7 @@ export function useNetworkAudit() {
       refetchHosts(),
       refetchTechInfo(),
       refetchIpam(),
+      refetchVmk(),
       refetchSnapshots(),
     ]);
   }, [
@@ -380,6 +385,7 @@ export function useNetworkAudit() {
     refetchL2,
     refetchSnapshots,
     refetchTechInfo,
+    refetchVmk,
   ]);
   // Fehlerpriorität: Eramon Interface, L2, CDP, Hosts, TechInfo, IPAM, Snapshots.
   const queries = [eramonIfaceQuery, l2Query, cdpQuery, hostsQuery, techInfoQuery, ipamQuery, snapshotQuery];

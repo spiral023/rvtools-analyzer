@@ -150,7 +150,15 @@ describe("NetworkAuditPanel port detail", () => {
 
   it("erklärt die L2-Discovery-Klassifikation und VLAN-Zuordnung verständlich", () => {
     expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("IPAM-bekannt");
-    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("kein CDP-Treffer");
+    // Seit der VMkernel-Zuordnung gibt es zwei ESXi-Quellen; ein IPAM-Treffer bedeutet deshalb
+    // „keine ESXi-Quelle trifft“, nicht mehr allein „CDP trifft nicht“.
+    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("keinen ESXi-Treffer");
     expect(NET_MAC_DISCOVERY_COLUMNS.vlan.description).toContain("Layer-2-Segment");
+  });
+
+  it("grenzt die VMkernel-Zuordnung gegen den stärkeren CDP-Nachweis ab", () => {
+    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("ESXi (VMkernel)");
+    expect(NET_MAC_DISCOVERY_COLUMNS.classification.description).toContain("NIC-Teaming");
+    expect(NET_MAC_DISCOVERY_COLUMNS.esxiVmkDevice.description).toContain("vmk0");
   });
 });
