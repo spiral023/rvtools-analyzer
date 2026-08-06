@@ -33,7 +33,6 @@ export default tseslint.config(
       "src/app/layout/ThemeProvider.tsx",
       "src/hooks/useFilterState.tsx",
       "src/hooks/useImportController.tsx",
-      "src/hooks/useOnboarding.tsx",
       "src/hooks/useSelection.tsx",
       "src/hooks/useTableDisplayPreferences.tsx",
       "src/lib/metricColor.tsx",

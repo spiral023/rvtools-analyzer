@@ -3,15 +3,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, useRouteError } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useRouteError } from "react-router-dom";
 import { ThemeProvider } from "@/app/layout/ThemeProvider";
 import { FilterProvider } from "@/hooks/useFilterState";
 import { AppModeProvider } from "@/hooks/useAppMode";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { AppLayout } from "@/app/layout/AppLayout";
 import { ImportProvider, SYSV_DATA_PACKAGE_IMPORTED_EVENT } from "@/hooks/useImportController";
-import { OnboardingProvider } from "@/hooks/useOnboarding";
-import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+import { useHasImportedData } from "@/hooks/useHasImportedData";
+import { StartScreen } from "@/components/startscreen/StartScreen";
+import { StartScreenPageFrame } from "@/components/startscreen/StartScreenPageFrame";
 import { TableDisplayPreferencesProvider } from "@/hooks/useTableDisplayPreferences";
 import { IMPORTED_DATA_QUERY_DEFAULTS } from "@/lib/queryCache";
 import { isLazyImportFailure, recoverFromLazyImportFailure } from "@/lib/lazyImportRecovery";
@@ -57,14 +58,43 @@ const PageFallback = () => (
   </div>
 );
 
+/**
+ * Ohne Datenbestand hat die Navigation nichts zu zeigen; dann tritt der
+ * Startbildschirm an die Stelle des gesamten Layouts. Das Impressum bleibt davon
+ * ausgenommen, damit es aus dem Startbildschirm heraus erreichbar ist.
+ */
+const ROUTES_WITHOUT_DATA = new Set(["/impressum"]);
+
 function AppRouteLayout() {
+  const { hasImportedData, isResolved } = useHasImportedData();
+  const { pathname } = useLocation();
+
+  // Bis der Bestand geklärt ist, bleibt der Bildschirm leer: ein kurz aufblitzender
+  // Startbildschirm vor der geladenen Analyse wäre irritierender als eine Pause.
+  if (!isResolved) return <div className="min-h-svh bg-background" />;
+
+  if (!hasImportedData) {
+    if (ROUTES_WITHOUT_DATA.has(pathname)) {
+      return (
+        <StartScreenPageFrame>
+          <Suspense fallback={<PageFallback />}><Outlet /></Suspense>
+        </StartScreenPageFrame>
+      );
+    }
+    return (
+      <>
+        <SysvPackageImportNavigation />
+        <StartScreen />
+      </>
+    );
+  }
+
   return (
     <>
       <SysvPackageImportNavigation />
       <AppLayout>
         <Suspense fallback={<PageFallback />}><Outlet /></Suspense>
       </AppLayout>
-      <OnboardingDialog />
       <SysvScopeDialog />
       <GlobalFileDropOverlay />
     </>
@@ -138,13 +168,11 @@ const App = () => (
         <AppModeProvider>
           <FilterProvider>
             <ImportProvider>
-              <OnboardingProvider>
-                <SelectionProvider>
-                  <TableDisplayPreferencesProvider>
-                    <RouterProvider router={router} fallbackElement={<PageFallback />} />
-                  </TableDisplayPreferencesProvider>
-                </SelectionProvider>
-              </OnboardingProvider>
+              <SelectionProvider>
+                <TableDisplayPreferencesProvider>
+                  <RouterProvider router={router} fallbackElement={<PageFallback />} />
+                </TableDisplayPreferencesProvider>
+              </SelectionProvider>
             </ImportProvider>
           </FilterProvider>
         </AppModeProvider>

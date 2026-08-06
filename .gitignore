@@ -60,3 +60,7 @@ vrops-*.csv
 .opencode/
 .mcp.json
 opencode.json
+
+# Artefakte der Browser-Automatisierung (Snapshots, Konsolenlogs, Screenshots)
+.playwright-mcp/
+/startscreen-*.png

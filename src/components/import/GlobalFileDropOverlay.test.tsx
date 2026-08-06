@@ -8,20 +8,14 @@ const {
   importFiles,
   navigateMock,
   useOptionalImportControllerMock,
-  useOptionalOnboardingMock,
 } = vi.hoisted(() => ({
   importFiles: vi.fn(),
   navigateMock: vi.fn(),
   useOptionalImportControllerMock: vi.fn(),
-  useOptionalOnboardingMock: vi.fn(),
 }));
 
 vi.mock("@/hooks/useImportController", () => ({
   useOptionalImportController: useOptionalImportControllerMock,
-}));
-
-vi.mock("@/hooks/useOnboarding", () => ({
-  useOptionalOnboarding: useOptionalOnboardingMock,
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => ({
@@ -59,8 +53,6 @@ describe("GlobalFileDropOverlay", () => {
     navigateMock.mockClear();
     useOptionalImportControllerMock.mockReset();
     useOptionalImportControllerMock.mockReturnValue({ importing: false, importFiles });
-    useOptionalOnboardingMock.mockReset();
-    useOptionalOnboardingMock.mockReturnValue({ open: false });
   });
 
   afterEach(() => {
@@ -170,18 +162,6 @@ describe("GlobalFileDropOverlay", () => {
     });
 
     expect(queryOverlay()).not.toBeInTheDocument();
-  });
-
-  it("bleibt während des Onboardings inaktiv, damit die Tour-Dropzone führt", () => {
-    useOptionalOnboardingMock.mockReturnValue({ open: true });
-    renderOverlay();
-    const file = new File(["a"], "a.xlsx");
-
-    fireEvent.dragOver(window, { dataTransfer: FILE_DRAG });
-    fireEvent.drop(window, { dataTransfer: { ...FILE_DRAG, files: [file] } });
-
-    expect(queryOverlay()).not.toBeInTheDocument();
-    expect(importFiles).not.toHaveBeenCalled();
   });
 
   it("weist während eines laufenden Imports auf den Import hin", () => {

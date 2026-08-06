@@ -129,104 +129,86 @@
     background: linear-gradient(135deg, transparent 0 62%, hsl(var(--foreground) / 0.018) 62% 63%, transparent 63% 100%);
   }
 
-  .onboarding-surface {
-    isolation: isolate;
-    box-shadow: 0 36px 100px -42px hsl(var(--primary) / 0.42);
+  /*
+   * Startbildschirm ohne Datenbestand. Die Ablagefläche zitiert bewusst ein leeres
+   * Diagramm-Panel der Anwendung – dasselbe Raster, dieselbe Grundlinie. Der Screen
+   * zeigt damit, was nach dem Import an dieser Stelle steht, statt eine allgemeine
+   * Upload-Metapher zu bemühen.
+   */
+  .startscreen-shell {
+    background-image: radial-gradient(90% 70% at 50% -12%, hsl(var(--primary) / 0.16), transparent 60%);
   }
 
-  .onboarding-surface::before {
+  .startscreen-heading {
+    text-wrap: balance;
+    letter-spacing: -0.035em;
+  }
+
+  .startscreen-logo {
+    box-shadow: 0 18px 44px -26px hsl(var(--primary) / 0.7);
+  }
+
+  .startscreen-panel {
+    isolation: isolate;
+    transition: border-color 200ms ease, background-color 200ms ease;
+  }
+
+  /* Rasterfeld des Panels: Kapazitätsdiagramme der App nutzen dieselbe Teilung. */
+  .startscreen-panel::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.13;
+    opacity: 0.75;
     background-image:
       linear-gradient(hsl(var(--border)) 1px, transparent 1px),
       linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px);
-    background-size: 36px 36px;
-    mask-image: linear-gradient(to bottom, black, transparent 76%);
-    -webkit-mask-image: linear-gradient(to bottom, black, transparent 76%);
+    background-size: 30px 30px;
+    mask-image: linear-gradient(to top, black 0%, transparent 82%);
+    -webkit-mask-image: linear-gradient(to top, black 0%, transparent 82%);
+    transition: opacity 200ms ease;
   }
 
-  .onboarding-surface > * {
+  .startscreen-panel > * {
     position: relative;
     z-index: 1;
   }
 
-  .onboarding-heading {
-    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-    text-wrap: balance;
+  .startscreen-panel[data-drag="true"]::before {
+    opacity: 1;
   }
 
-  .onboarding-progress-track {
-    @apply flex gap-2;
-  }
-
-  .onboarding-page[data-direction="forward"] {
-    animation: onboarding-forward 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .onboarding-page[data-direction="backward"] {
-    animation: onboarding-backward 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .onboarding-stagger > * {
-    animation: onboarding-rise 360ms both;
-  }
-
-  .onboarding-stagger > *:nth-child(2) {
-    animation-delay: 55ms;
-  }
-
-  .onboarding-stagger > *:nth-child(3) {
-    animation-delay: 110ms;
-  }
-
-  .onboarding-stagger > *:nth-child(4) {
-    animation-delay: 165ms;
-  }
-
-  .onboarding-logo-stage {
-    @apply relative grid min-h-72 place-items-center overflow-hidden rounded-3xl border bg-card;
-  }
-
-  .onboarding-logo-stage::before {
+  /* Scanlinie: läuft nur, solange eine Datei über der Fläche schwebt. */
+  .startscreen-panel[data-drag="true"]::after {
     content: "";
     position: absolute;
-    inset: 12%;
-    border-radius: 999px;
-    background: hsl(var(--primary) / 0.2);
-    filter: blur(52px);
-    animation: onboarding-breathe 4.8s ease-in-out infinite;
+    inset-inline: 0;
+    top: 0;
+    z-index: 0;
+    height: 2px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.9), transparent);
+    animation: startscreen-scan 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  .onboarding-logo-stage::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0.22;
-    background-image:
-      linear-gradient(hsl(var(--border)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px);
-    background-size: 28px 28px;
+  .startscreen-rise > * {
+    animation: startscreen-rise 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .onboarding-logo-stage img {
-    position: relative;
-    z-index: 1;
-    box-shadow: 0 28px 70px -32px hsl(var(--primary) / 0.65);
+  .startscreen-rise > *:nth-child(2) { animation-delay: 70ms; }
+  .startscreen-rise > *:nth-child(3) { animation-delay: 140ms; }
+  .startscreen-rise > *:nth-child(4) { animation-delay: 210ms; }
+  .startscreen-rise > *:nth-child(5) { animation-delay: 280ms; }
+
+  .startscreen-mode {
+    @apply relative flex flex-col gap-2 rounded-xl border bg-card/70 p-4;
+    transition: border-color 180ms ease, background-color 180ms ease;
   }
 
-  .onboarding-feature-card {
-    @apply flex flex-col gap-3 rounded-2xl border bg-card/80 p-5 shadow-sm;
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-  }
-
-  .onboarding-feature-card:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--primary) / 0.35);
-    box-shadow: 0 18px 38px -28px hsl(var(--primary) / 0.48);
+  .startscreen-mode:hover {
+    border-color: hsl(var(--startscreen-mode-accent) / 0.45);
+    background-color: hsl(var(--card));
   }
 
   /* Operativer Wochenplan: klare halbstündige Taktung statt dekorativer Flächen. */
@@ -502,39 +484,32 @@
   }
 }
 
-@keyframes onboarding-forward {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes onboarding-backward {
-  from { opacity: 0; transform: translateX(-24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes onboarding-rise {
-  from { opacity: 0; transform: translateY(10px); }
+@keyframes startscreen-rise {
+  from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes onboarding-breathe {
-  0%, 100% { opacity: 0.72; transform: scale(0.96); }
-  50% { opacity: 1; transform: scale(1.04); }
+@keyframes startscreen-scan {
+  from { top: 0; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  to { top: 100%; opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-page,
-  .onboarding-stagger > *,
-  .onboarding-logo-stage::before {
+  .startscreen-rise > *,
+  .startscreen-panel[data-drag="true"]::after {
     animation: none !important;
   }
 
-  .onboarding-feature-card {
-    transition: none;
+  .startscreen-panel[data-drag="true"]::after {
+    display: none;
   }
 
-  .onboarding-feature-card:hover {
-    transform: none;
+  .startscreen-mode,
+  .startscreen-panel,
+  .startscreen-panel::before {
+    transition: none;
   }
 
   .maintenance-grid__cell {

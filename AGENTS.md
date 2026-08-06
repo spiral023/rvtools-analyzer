@@ -58,6 +58,29 @@ Ziel ist, Änderungen konsistent, sicher und wartbar umzusetzen.
 - Nach Änderungen mit Einfluss auf Build oder Hosting mindestens `npm run build` ausführen.
 - Bereits bestehende Lint-Baustellen nur dann anfassen, wenn sie im Scope der Änderung liegen.
 
+## Skills für UI- und Animationsarbeit
+In `.claude/skills/` liegen Anleitungen aus [emilkowalski/skills](https://github.com/emilkowalski/skills).
+Sie sind lokal installiert und nicht versioniert; nach einem frischen Klon holt sie
+`npx skills@latest add emilkowalski/skills`. Claude Code lädt sie selbst, Codex und andere Agenten
+lesen die genannte `SKILL.md` vor der Arbeit.
+
+Lies den jeweiligen Skill, **bevor** du die Aufgabe angehst — nicht erst zur Korrektur danach:
+
+| Aufgabe | Datei |
+| --- | --- |
+| Eine Animation oder einen Übergang neu bauen | `.claude/skills/animate/SKILL.md` |
+| Vorhandene Motion im Diff bewerten | `.claude/skills/review-animations/SKILL.md` |
+| Animationen im gesamten Bestand auditieren und priorisieren | `.claude/skills/improve-animations/SKILL.md` |
+| Suchen, wo Motion überhaupt sinnvoll wäre | `.claude/skills/find-animation-opportunities/SKILL.md` |
+| Den Fachbegriff für einen beschriebenen Effekt finden | `.claude/skills/animation-vocabulary/SKILL.md` |
+| Gesten, Sheets, Federn, Tiefe, Typografie nach Apple-Vorbild | `.claude/skills/apple-design/SKILL.md` |
+| Allgemeine UI-Politur und Komponentendetails | `.claude/skills/emil-design-eng/SKILL.md` |
+| Eine Bibliothek für eine Frontend-Aufgabe wählen | `.claude/skills/pick-ui-library/SKILL.md` |
+| Mehrere Varianten einer UI zum Vergleich bauen | `.claude/skills/prototype/SKILL.md` |
+
+Die Skills setzen Vorgaben *innerhalb* der bestehenden Design-Tokens um. Wo sie einer Regel aus
+„UI- und UX-Regeln“ widersprechen, gilt diese Datei.
+
 ## Sprach- und Encoding-Regeln
 - Dateien und Inhalte immer als UTF-8 pflegen.
 - Umlaute normal schreiben: `ü`, `ä`, `ö`, `ß` statt Umschreibungen wie `ue`, `ae`, `oe`, `ss`, sofern fachlich sinnvoll.

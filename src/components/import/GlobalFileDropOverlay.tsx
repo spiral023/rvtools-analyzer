@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Upload } from "lucide-react";
 import { useOptionalImportController } from "@/hooks/useImportController";
-import { useOptionalOnboarding } from "@/hooks/useOnboarding";
 import { DRAG_IDLE_TIMEOUT_MS, dragContainsFiles } from "@/lib/fileDrag";
 
 /** Zielroute nach einem globalen Drop: nur dort ist die Import-Warteschlange mit Fortschritt sichtbar. */
@@ -23,7 +22,6 @@ const UPLOAD_ROUTE = "/upload";
  */
 export function GlobalFileDropOverlay() {
   const importController = useOptionalImportController();
-  const onboarding = useOptionalOnboarding();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [dragActive, setDragActive] = useState(false);
@@ -33,9 +31,7 @@ export function GlobalFileDropOverlay() {
 
   const importFiles = importController?.importFiles;
   const importing = importController?.importing ?? false;
-  // Während des Onboardings führt die eigene Dropzone des Dialogs durch den Import; ein globales
-  // Overlay mit Sprung auf /upload würde den Tour-Ablauf unterbrechen.
-  const enabled = Boolean(importFiles) && !onboarding?.open;
+  const enabled = Boolean(importFiles);
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current === null) return;

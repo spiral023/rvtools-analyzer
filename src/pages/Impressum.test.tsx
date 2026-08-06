@@ -1,13 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import Impressum from "@/pages/Impressum";
 import { TooltipProvider } from "@/components/ui/tooltip";
-
-const { openOnboarding } = vi.hoisted(() => ({ openOnboarding: vi.fn() }));
-
-vi.mock("@/hooks/useOnboarding", () => ({
-  useOnboarding: () => ({ openOnboarding }),
-}));
 
 function renderImpressum() {
   return render(
@@ -18,8 +12,6 @@ function renderImpressum() {
 }
 
 describe("Impressum", () => {
-  beforeEach(() => openOnboarding.mockClear());
-
   it("zeigt Marke, lokale Datenverarbeitung und Kontaktdaten", () => {
     renderImpressum();
 
@@ -34,14 +26,6 @@ describe("Impressum", () => {
       "href",
       "mailto:philipp.asanger@gmail.com",
     );
-  });
-
-  it("startet das Onboarding erneut", () => {
-    renderImpressum();
-
-    fireEvent.click(screen.getByRole("button", { name: "Onboarding erneut starten" }));
-
-    expect(openOnboarding).toHaveBeenCalledOnce();
   });
 
   it("verlinkt die weiteren Tools als externe Links mit Icon", () => {
