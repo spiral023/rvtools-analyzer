@@ -9,6 +9,7 @@ import { DemandCell } from "@/components/vm/DemandCell";
 import type { RightsizingDensitySelection } from "@/components/vm/VmRightsizingDensityGrid";
 import { UtilizationPercentCell } from "@/components/vm/WorkloadBadges";
 import type { VmRightsizingCandidate } from "@/domain/models/types";
+import { VM_RIGHTSIZING_WITHHELD_LABEL } from "@/domain/services/vmRightsizingService";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
@@ -20,13 +21,6 @@ const CONFIDENCE_LABEL: Record<VmRightsizingCandidate["confidence"], string> = {
   medium: "mittel",
   low: "niedrig",
   "not-computable": "nicht berechenbar",
-};
-
-const WITHHELD_LABEL: Record<NonNullable<VmRightsizingCandidate["recommendationWithheldReason"]>, string> = {
-  "low-confidence": "Datenbasis zu dünn",
-  "unreliable-shape": "Lastmuster nicht belastbar",
-  "burst-not-repeatable": "Spitze nicht wiederkehrend",
-  "peak-only": "Nur einzelne Spitze",
 };
 
 function formatPercent(value: number | null): string {
@@ -110,7 +104,7 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
       meta: { info: RIGHTSIZING_COLUMNS.recommendationWithheld },
       accessorFn: (row) => row.recommendationWithheldReason ?? "",
       cell: ({ row }) => row.original.recommendationWithheldReason
-        ? <span className="text-xs text-muted-foreground">{WITHHELD_LABEL[row.original.recommendationWithheldReason]}</span>
+        ? <span className="text-xs text-muted-foreground">{VM_RIGHTSIZING_WITHHELD_LABEL[row.original.recommendationWithheldReason]}</span>
         : <span className="text-xs text-success">Empfehlung berechenbar</span>,
     },
   ];

@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
+import { tableGlobalFilterFn } from "@/lib/tableSearch";
 import {
   buildExportData,
   buildCsvTable,
@@ -352,6 +353,9 @@ export function VirtualTable<T, TColumn = T>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    // Explizit instanziiert: sonst zieht die Inferenz von `useReactTable` das
+    // generische `TData` der Filterfunktion und nicht das der Tabellendaten.
+    globalFilterFn: tableGlobalFilterFn<T>,
     getColumnCanGlobalFilter: (column) => Boolean(column.accessorFn),
   });
 

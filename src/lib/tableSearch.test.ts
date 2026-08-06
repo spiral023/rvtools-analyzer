@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { ColumnDef } from "@tanstack/react-table";
 import { describe, expect, it, vi } from "vitest";
-import { countTableSearchRows } from "@/lib/tableSearch";
+import { countTableSearchRows, macSearchNeedle } from "@/lib/tableSearch";
 
 interface SearchRow {
   name: string | null | undefined;
@@ -53,6 +53,60 @@ const rows: SearchRow[] = [
     nested: { label: "Dotted-Leaf" },
   },
 ];
+
+interface MacRow {
+  host: string;
+  device: string;
+  mac: string;
+  mtu: number;
+}
+
+const macColumns: ColumnDef<MacRow, unknown>[] = [
+  { accessorKey: "host", header: "Host" },
+  { accessorKey: "device", header: "Device" },
+  { accessorKey: "mac", header: "MAC" },
+  { accessorKey: "mtu", header: "MTU" },
+];
+
+const macRows: MacRow[] = [
+  { host: "esx01", device: "vmk0", mac: "00:50:56:6a:1b:2c", mtu: 1500 },
+  { host: "esx01", device: "vmk2", mac: "00:50:56:71:9f:04", mtu: 9000 },
+];
+
+describe("macSearchNeedle", () => {
+  it("erkennt die drei gebräuchlichen Schreibweisen als dieselbe Adresse", () => {
+    expect(macSearchNeedle("00:50:56:6A:1B:2C")).toBe("0050566a1b2c");
+    expect(macSearchNeedle("0050.566a.1b2c")).toBe("0050566a1b2c");
+    expect(macSearchNeedle("00-50-56-6a-1b-2c")).toBe("0050566a1b2c");
+    expect(macSearchNeedle("0050566a1b2c")).toBe("0050566a1b2c");
+  });
+
+  it("akzeptiert Teiladressen ab drei Oktetten", () => {
+    expect(macSearchNeedle("56:6a:1b")).toBe("566a1b");
+    expect(macSearchNeedle("56:6a")).toBeNull();
+  });
+
+  it("behandelt Zahlen und Text nicht als Adresse", () => {
+    // Ohne diese Grenze fände die Suche nach einer MTU jede MAC, die „9000“ enthält.
+    expect(macSearchNeedle("9000")).toBeNull();
+    expect(macSearchNeedle("150000")).toBeNull();
+    expect(macSearchNeedle("esx01")).toBeNull();
+  });
+});
+
+describe("countTableSearchRows · MAC-Schreibweisen", () => {
+  it("findet die RVTools-Schreibweise über eine aus dem Switch kopierte Adresse", () => {
+    expect(countTableSearchRows(macRows, macColumns, "0050.5671.9f04")).toBe(1);
+    expect(countTableSearchRows(macRows, macColumns, "00-50-56-71-9f-04")).toBe(1);
+    expect(countTableSearchRows(macRows, macColumns, "005056719f04")).toBe(1);
+  });
+
+  it("lässt die gewohnte Substring-Suche unberührt", () => {
+    expect(countTableSearchRows(macRows, macColumns, "vmk2")).toBe(1);
+    expect(countTableSearchRows(macRows, macColumns, "esx01")).toBe(2);
+    expect(countTableSearchRows(macRows, macColumns, "9000")).toBe(1);
+  });
+});
 
 describe("countTableSearchRows", () => {
   it("spiegelt die case-insensitive TanStack-Substring-Suche über accessorKey-Leaf-Spalten", () => {

@@ -29,6 +29,7 @@ import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailForm
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { DEFAULT_RAM_RIGHTSIZING_POLICY, RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
+import { VM_RIGHTSIZING_WITHHELD_LABEL, VM_RIGHTSIZING_WITHHELD_NARRATIVE } from "@/domain/services/vmRightsizingService";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import {
   DetailFieldGrid,
@@ -98,7 +99,7 @@ function vmTone(value: string | null): DetailKpi["tone"] {
 function rightsizingNarrative(rightsizing: VmRightsizingCandidate | null, reclaimable: number, additional: number): string {
   if (additional > 0) return `CPU vergrößern prüfen: voraussichtlich ${additional} vCPU zusätzlich nötig.`;
   if (reclaimable > 0) return `CPU verkleinern prüfen: ${reclaimable} vCPU könnten frei werden.`;
-  if (rightsizing?.recommendationWithheldReason) return "Für Rightsizing reichen die Messdaten noch nicht aus.";
+  if (rightsizing?.recommendationWithheldReason) return VM_RIGHTSIZING_WITHHELD_NARRATIVE[rightsizing.recommendationWithheldReason];
   return "Die aktuelle CPU-Größe wirkt passend.";
 }
 
@@ -230,7 +231,7 @@ export function VmDetailDialog({
         ? `${additional} vCPU fehlen`
         : reclaimable > 0
           ? `${reclaimable} vCPU rückgewinnbar`
-          : rightsizing?.recommendationWithheldReason ? "Empfehlung zurückgehalten" : "Kein Kandidat",
+          : rightsizing?.recommendationWithheldReason ? VM_RIGHTSIZING_WITHHELD_LABEL[rightsizing.recommendationWithheldReason] : "Kein Kandidat",
       // Unterdimensionierung wiegt schwerer als ungenutzte Kapazität: Die eine kostet
       // Leistung im laufenden Betrieb, die andere nur Reserve.
       tone: additional > 0 ? "critical" : reclaimable > 0 ? "warning" : "neutral",

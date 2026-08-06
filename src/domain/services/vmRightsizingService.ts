@@ -218,6 +218,29 @@ function determineWithheldReason(
   return null;
 }
 
+type WithheldReason = NonNullable<VmRightsizingCandidate["recommendationWithheldReason"]>;
+
+/** Kurzform für Tabellenzellen und Kacheln. */
+export const VM_RIGHTSIZING_WITHHELD_LABEL: Record<WithheldReason, string> = {
+  "low-confidence": "Datenbasis zu dünn",
+  "unreliable-shape": "Lastmuster nicht belastbar",
+  "burst-not-repeatable": "Spitze nicht wiederkehrend",
+  "peak-only": "Nur einzelne Spitze",
+};
+
+/**
+ * Satzform für die Detailansicht. Nur `low-confidence` ist eine Aussage über die
+ * Menge der Messdaten – die übrigen drei Gründe treten gerade dann auf, wenn die
+ * Zeitreihe vollständig ist, das Muster darin aber keine Zielgröße trägt. Ein
+ * gemeinsamer „Messdaten reichen nicht aus“-Text wäre für sie schlicht falsch.
+ */
+export const VM_RIGHTSIZING_WITHHELD_NARRATIVE: Record<WithheldReason, string> = {
+  "low-confidence": "Keine Empfehlung: Die Zeitreihe deckt den Messzeitraum zu lückenhaft ab.",
+  "unreliable-shape": "Keine Empfehlung: Das Lastmuster wiederholt sich nicht – der Spitzenbedarf lässt sich daraus nicht ableiten.",
+  "burst-not-repeatable": "Keine Empfehlung: Die Lastspitzen kehren im Wochenverlauf nicht verlässlich wieder.",
+  "peak-only": "Keine Vergrößerung: Der Mehrbedarf stützt sich auf einzelne Spitzen statt auf dauerhafte Kapazitätsnähe.",
+};
+
 /** Ein Kandidat gilt als „auffällig“, wenn er tatsächlich hervorgehoben werden sollte – nicht jede Zeile der Vergleichstabelle. */
 export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate): boolean {
   return candidate.flags.manyVcpuLowDemand

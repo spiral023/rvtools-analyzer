@@ -50,6 +50,18 @@ function formatNumber(value: number, unit: string): string {
 }
 
 /**
+ * Achsenbeschriftung. Ohne eigenen Formatter rendert Recharts den rohen Rechenwert –
+ * aus 9.338,0078125 MHz wird dann „9,3380078125“ ohne Einheit. Die Nachkommastellen
+ * folgen der Größenordnung, damit die Skala bei GHz nicht auf ganze Zahlen einrastet
+ * und bei MHz keine sinnlose Präzision zeigt.
+ */
+function formatAxisValue(value: number, unit: string): string {
+  const magnitude = Math.abs(value);
+  const maximumFractionDigits = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 2;
+  return `${value.toLocaleString("de-DE", { maximumFractionDigits })} ${unit}`;
+}
+
+/**
  * Kennzahl der Primärreihe. "cpu-demand" liest `hourly` als MHz-Reihe,
  * "memory-workload" als Prozentreihe des konfigurierten RAM — die vROps-Metrik
  * `Memory|Workload` ist bereits relativ zur RAM-Größe der VM.
@@ -448,9 +460,9 @@ export function VropsTrendChart({
               yAxisId="primary"
               hide={!primaryVisible}
               tick={{ fontSize: 10 }}
-              width={46}
+              width={62}
               domain={["dataMin", avoidanceZoneMax ?? "dataMax"]}
-              tickFormatter={isPercent ? (value: number) => formatNumber(value, "%") : undefined}
+              tickFormatter={(value: number) => formatAxisValue(value, primaryUnit)}
             />
             {hasSecondary && (
               <YAxis
@@ -458,8 +470,8 @@ export function VropsTrendChart({
                 hide={!secondaryVisible}
                 orientation="right"
                 tick={{ fontSize: 10 }}
-                width={46}
-                tickFormatter={secondaryDataKey === "secondaryPct" ? (value: number) => formatNumber(value, "%") : undefined}
+                width={62}
+                tickFormatter={(value: number) => formatAxisValue(value, secondaryDisplayUnit)}
               />
             )}
             <Tooltip

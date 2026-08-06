@@ -102,6 +102,8 @@ describe("VropsTrendChart", () => {
     );
 
     expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 3,00 GHz");
+    // Ohne Formatter stünde hier der rohe Rechenwert „0,437056“ ohne Einheit.
+    expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-tick-label", "0,44 GHz");
   });
 
   it("bleibt bei kleinen VMs in MHz, damit aus 318 MHz kein „0,32“ wird", () => {
@@ -117,6 +119,24 @@ describe("VropsTrendChart", () => {
     );
 
     expect(screen.getByTestId("reference-dot-primary")).toHaveAttribute("data-label", "Peak · 318,00 MHz");
+    expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-tick-label", "0,44 MHz");
+  });
+
+  it("beschriftet die Sekundärachse in GiB statt mit rohen Nachkommastellen", () => {
+    render(
+      <VropsTrendChart
+        hourly={hourly}
+        cpuCapacityMHz={null}
+        secondaryCapacity={null}
+        secondaryLabel="RAM-Auslastung"
+        secondaryUnit="MiB"
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("axis-secondary")).toHaveAttribute("data-tick-label", "0,44 GiB");
   });
 
   it("liest die RAM-Reihe als Prozentwerte des konfigurierten RAM und markiert die Policy-Schwelle", () => {
