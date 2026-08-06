@@ -65,10 +65,10 @@ function ImportQueueRow({ item }: { item: ImportQueueItem }) {
       <div className="h-1 overflow-hidden rounded-full bg-muted">
         <div
           className={cn(
-            "h-full rounded-full transition-[width] duration-300 ease-out",
+            "h-full w-full origin-left rounded-full transition-transform duration-200 [transition-timing-function:var(--ease-out)] motion-reduce:transition-none",
             item.status === "error" ? "bg-destructive" : item.status === "warning" ? "bg-warning" : "bg-primary",
           )}
-          style={{ width: `${percent}%` }}
+          style={{ transform: `scaleX(${percent / 100})` }}
         />
       </div>
       {item.progress?.step ? (

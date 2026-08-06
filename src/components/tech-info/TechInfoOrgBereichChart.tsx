@@ -76,6 +76,7 @@ export function TechInfoOrgBereichChart({
             <Bar
               dataKey={metric}
               radius={[0, 4, 4, 0]}
+              isAnimationActive={false}
               cursor="pointer"
               onClick={(entry: { payload: { id: string } }) => {
                 const node = bereichNodes.find((bereich) => bereich.id === entry.payload.id);

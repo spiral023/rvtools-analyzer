@@ -274,7 +274,7 @@ export default function FleetCompare() {
           <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">vCenter Vergleich</h3>
         </InfoTooltip>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={compareChart}><XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "12px" }} /><Bar dataKey="VMs" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} /><Bar dataKey="Hosts" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /><Bar dataKey="Datastores" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} /></BarChart>
+          <BarChart data={compareChart}><XAxis dataKey="name" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Legend wrapperStyle={{ fontSize: "12px" }} /><Bar dataKey="VMs" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} isAnimationActive={false} /><Bar dataKey="Hosts" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} isAnimationActive={false} /><Bar dataKey="Datastores" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} isAnimationActive={false} /></BarChart>
         </ResponsiveContainer>
       </div>
 

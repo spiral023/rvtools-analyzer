@@ -1117,7 +1117,7 @@ export default function Hardware() {
                   labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                   formatter={(value: number) => [formatHardwareBarMetricValue(barMetric, value), HARDWARE_BAR_METRIC_LABELS[barMetric]]}
                 />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24} isAnimationActive={false}>
                   {modelBarData.map((entry, index) => (
                     <Cell key={entry.name} fill={SEVERITY_COLORS[index % SEVERITY_COLORS.length]} />
                   ))}
@@ -1146,6 +1146,7 @@ export default function Hardware() {
                   paddingAngle={3}
                   dataKey="value"
                   nameKey="name"
+                  isAnimationActive={false}
                   label={({ name, value }) => `${name} (${value})`}
                 >
                   {vendorData.map((entry, index) => (

@@ -137,7 +137,7 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
               <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" width={170} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatNum(value), "Risikoscore"]} />
-              <Bar dataKey="riskScore" name="Risikoscore" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="riskScore" name="Risikoscore" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                 {risks.map((point) => <Cell key={point.clusterKey} fill={riskColor(point.risk)} />)}
               </Bar>
             </BarChart>
@@ -152,8 +152,8 @@ export function ClusterOverviewPanel({ rows, osRows, osSource, onOsSourceChange,
             <XAxis dataKey="name" tick={CHART_AXIS_STYLE} interval="preserveStartEnd" minTickGap={32} angle={-24} textAnchor="end" height={64} axisLine={false} tickLine={false} />
             <YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number, name: string) => [formatNum(value), name]} />
-            <Bar dataKey="avgVmsPerHost" name="Ø VMs/Host" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="maxVmsPerHost" name="Max. VMs/Host" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="avgVmsPerHost" name="Ø VMs/Host" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="maxVmsPerHost" name="Max. VMs/Host" fill={CHART_COLORS.warning} radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>

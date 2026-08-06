@@ -280,7 +280,7 @@ export function VmRamRightsizingPanel() {
                 <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(value: number) => formatPercent(value, 0)} />
                 <YAxis type="category" dataKey="label" width={92} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatPercent(value), "VM-Durchschnitt"]} />
-                <Bar dataKey="value" name="Workload" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" name="Workload" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {workloadChart.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
                 </Bar>
               </BarChart>
@@ -292,7 +292,7 @@ export function VmRamRightsizingPanel() {
             <div className="relative h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={recommendationMix} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={82} paddingAngle={3} strokeWidth={0}>
+                  <Pie data={recommendationMix} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={82} paddingAngle={3} strokeWidth={0} isAnimationActive={false}>
                     {recommendationMix.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
                   </Pie>
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatNum(value), "VMs"]} />
@@ -318,8 +318,8 @@ export function VmRamRightsizingPanel() {
               <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} tickFormatter={(value: number) => formatMemory(value)} />
               <YAxis type="category" dataKey="label" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number, name: string) => [formatMemory(value), name]} />
-              <Bar dataKey="reclaimableMemoryMiB" name="Rückgewinnbar" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} />
-              <Bar dataKey="additionalMemoryMiB" name="Zusätzlich" fill={CHART_COLORS.danger} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="reclaimableMemoryMiB" name="Rückgewinnbar" fill={CHART_COLORS.warning} radius={[0, 4, 4, 0]} isAnimationActive={false} />
+              <Bar dataKey="additionalMemoryMiB" name="Zusätzlich" fill={CHART_COLORS.danger} radius={[0, 4, 4, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div> : null}

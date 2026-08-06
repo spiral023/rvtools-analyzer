@@ -373,7 +373,7 @@ export default function StorageBackup() {
                   <XAxis dataKey="label" interval={0} angle={-35} textAnchor="end" height={64} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                  <Bar dataKey="count" name="Partitionen" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="count" name="Partitionen" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                     {partitionFreeDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
                   </Bar>
                 </BarChart>
@@ -396,7 +396,7 @@ export default function StorageBackup() {
                   <XAxis type="number" domain={[0, 100]} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="datastore" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                  <Bar dataKey="freePct" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="freePct" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                     {datastoreCapacityChart.map((entry) => <Cell key={entry.datastore} fill={entry.freePct < 10 ? CHART_COLORS.danger : entry.freePct < 20 ? CHART_COLORS.warning : CHART_COLORS.success} />)}
                   </Bar>
                 </BarChart>
@@ -451,7 +451,7 @@ export default function StorageBackup() {
                 <XAxis dataKey="label" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                <Bar dataKey="count" name="VMs" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="count" name="VMs" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                   {backupRiskDistribution.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
                 </Bar>
               </BarChart>

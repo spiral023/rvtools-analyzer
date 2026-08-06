@@ -221,7 +221,7 @@ export function NetworkSecurityPanel() {
                   );
                 }}
               />
-              <Bar dataKey="count" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -230,7 +230,7 @@ export function NetworkSecurityPanel() {
             <h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Link Speed Verteilung</h3>
           </InfoTooltip>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={speedChart}><XAxis dataKey="speed" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} /></BarChart>
+            <BarChart data={speedChart}><XAxis dataKey="speed" tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="count" fill={CHART_COLORS.info} radius={[4, 4, 0, 0]} isAnimationActive={false} /></BarChart>
           </ResponsiveContainer>
         </div>
       </div>

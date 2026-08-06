@@ -158,7 +158,7 @@ export function VmPerformancePanel() {
       {topChart.length > 0 && <div className="rounded-lg border border-border/50 bg-card/30 p-4">
         <InfoTooltip entry={PERFORMANCE_SECTIONS.topCpuReady} side="bottom"><h3 className="mb-3 w-fit cursor-help text-sm font-semibold text-muted-foreground">Top CPU Ready VMs</h3></InfoTooltip>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={topChart} layout="vertical"><XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="cpuReady" radius={[0, 4, 4, 0]}>{topChart.map((entry) => <Cell key={entry.name} fill={(entry.cpuReady || 0) > 10 ? CHART_COLORS.danger : (entry.cpuReady || 0) > 5 ? CHART_COLORS.warning : CHART_COLORS.primary} />)}</Bar></BarChart>
+          <BarChart data={topChart} layout="vertical"><XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="name" width={150} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} /><Bar dataKey="cpuReady" radius={[0, 4, 4, 0]} isAnimationActive={false}>{topChart.map((entry) => <Cell key={entry.name} fill={(entry.cpuReady || 0) > 10 ? CHART_COLORS.danger : (entry.cpuReady || 0) > 5 ? CHART_COLORS.warning : CHART_COLORS.primary} />)}</Bar></BarChart>
         </ResponsiveContainer>
       </div>}
 

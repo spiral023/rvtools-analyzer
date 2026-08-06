@@ -217,7 +217,7 @@ export function VmWorkloadProfilePanel() {
                 <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>{shapeDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>{shapeDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -228,7 +228,7 @@ export function VmWorkloadProfilePanel() {
                 <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>{intensityDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>{intensityDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
