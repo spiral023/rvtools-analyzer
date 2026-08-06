@@ -7,6 +7,7 @@ import {
   toManifestWarnings,
 } from "@/domain/services/sysvDataPackageService";
 import { mergeVropsTimeSeriesChunksWithWarnings } from "@/lib/export/sysvDataPackageFormat";
+import { findVropsTimeSeriesMetricHeader } from "@/domain/services/vropsTimeSeriesSchema";
 
 function chunk(): VropsTimeSeriesChunk {
   return {
@@ -74,10 +75,30 @@ describe("SysV-vROps-Quellangabe", () => {
     expect(file.fileSizeBytes).toBe(24);
     expect(file.rowCount).toBe(4);
     expect(file.columnCount).toBe(1);
-    expect(file.detectedColumns).toEqual(["vmCpuDemandAvgMHz"]);
+    // Spaltenname, nicht interner Schlüssel: Sonst erkennt `findVropsTimeSeriesMetricHeader`
+    // die enthaltene Metrik nicht wieder und Ansichten halten sie für nicht importiert.
+    expect(file.detectedColumns).toEqual(["VM|CPU|Demand (MHz)|Avg"]);
     expect(file.fileChecksum).toBe("sysv-abc");
     expect(file.objectType).toBe("vm");
     expect(file.status).toBe("accepted");
+  });
+
+  it("macht die RAM-Metrik eines Pakets für die Metrikerkennung auffindbar", () => {
+    // Regression: Standen hier interne Schlüssel, fand `findVropsTimeSeriesMetricHeader`
+    // die Memory-Workload-Reihe nicht und der RAM-Rightsizing-Tab blieb nach einem
+    // SysV-Paketimport leer, obwohl die Werte in den Chunks lagen.
+    const withMemory: VropsTimeSeriesChunk = {
+      ...chunk(),
+      metricValues: {
+        vmCpuDemandAvgMHz: new Float32Array([1, 2, 3, 4, 5, 6]).buffer,
+        vmMemoryWorkloadAvgPct: new Float32Array([7, 8, 9, 10, 11, 12]).buffer,
+      },
+    };
+
+    const [file] = describeScopedVropsSource("sysv-ram", [withMemory]);
+
+    expect(findVropsTimeSeriesMetricHeader(file.detectedColumns, "vmMemoryWorkloadAvgPct")).toBeDefined();
+    expect(findVropsTimeSeriesMetricHeader(file.detectedColumns, "vmCpuDemandAvgMHz")).toBeDefined();
   });
 
   it("meldet ein Paket ohne Zeitreihen als leer statt mit Fremdwerten", () => {

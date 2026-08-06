@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDemandMHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandGHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
 
 describe("toCapacityPct", () => {
   it("setzt den Demand in Bezug zur konfigurierten Kapazität", () => {
@@ -23,9 +23,12 @@ describe("formatDemandPct", () => {
   });
 });
 
-describe("formatDemandMHz", () => {
-  it("wechselt bei 1 GHz die Einheit", () => {
-    expect(formatDemandMHz(630)).toBe("630 MHz");
-    expect(formatDemandMHz(2_230)).toBe("2,23 GHz");
+describe("formatDemandGHz", () => {
+  it("bleibt auch unterhalb von 1 GHz bei derselben Einheit", () => {
+    // Eine wechselnde Einheit stellte „630 MHz“ neben „2,23 GHz“ und machte den
+    // Größenvergleich zwischen Kennzahl, Achse und Tooltip unlesbar.
+    expect(formatDemandGHz(630)).toBe("0,63 GHz");
+    expect(formatDemandGHz(2_230)).toBe("2,23 GHz");
+    expect(formatDemandGHz(null)).toBe("—");
   });
 });

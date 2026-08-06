@@ -6,7 +6,7 @@ import { DemandBandChart } from "@/components/dashboard/insights/DemandBandChart
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { AverageVmInsights } from "@/domain/services/averageVmInsightsService";
 import { INSIGHTS_GLOSSARY } from "@/lib/glossaries/averageVmInsights";
-import { formatDemandMHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandGHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 import { cn } from "@/lib/utils";
 
@@ -122,15 +122,15 @@ export function AverageVmInsightsPanel({ insights, hasVropsImport }: AverageVmIn
             <div className="space-y-2">
               <div>
                 <p className="flex items-baseline gap-1.5 font-mono-data text-[2.25rem] font-bold leading-none tracking-tight text-foreground">
-                  {hasCapacity ? formatDemandPct(heroPct, 1) : formatDemandMHz(heroStats?.p50)}
+                  {hasCapacity ? formatDemandPct(heroPct, 1) : formatDemandGHz(heroStats?.p50)}
                 </p>
                 <p className="mt-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                   Median des P95 je VM
                 </p>
               </div>
               <p className="font-mono-data text-[11px] leading-relaxed text-muted-foreground">
-                <span className="text-foreground/80">{formatDemandMHz(heroStats?.p50)}</span>
-                {hasCapacity && <> von Ø {formatDemandMHz(capacityMHz)} zugeteilt</>}
+                <span className="text-foreground/80">{formatDemandGHz(heroStats?.p50)}</span>
+                {hasCapacity && <> von Ø {formatDemandGHz(capacityMHz)} zugeteilt</>}
                 <br />
                 Die Hälfte der VMs bleibt darunter.
               </p>

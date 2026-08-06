@@ -5,7 +5,7 @@ import { DistributionStrip } from "@/components/dashboard/DistributionStrip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { AverageVmWorkload } from "@/domain/services/averageVmWorkloadService";
 import { OVERVIEW_SECTIONS } from "@/lib/glossary";
-import { formatDemandMHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandGHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
 import { formatBytes, formatNum } from "@/lib/xlsx/parseHelpers";
 import type { AverageVm } from "@/lib/averageVm";
 import { cn } from "@/lib/utils";
@@ -191,21 +191,21 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
                 <div className="grid gap-x-6 gap-y-5 lg:grid-cols-3">
                   <div className="space-y-3">
                     <Hero
-                      value={formatDemandMHz(workload.timeline.average)}
+                      value={formatDemandGHz(workload.timeline.average)}
                       caption="Ø CPU Demand je VM"
                       note={capacityPct(workload, workload.timeline.average)}
                     />
                     <p className="font-mono-data text-[11px] leading-relaxed text-muted-foreground">
                       <span className="text-foreground/80">
-                        P95 {formatDemandMHz(workload.timeline.p95)}
+                        P95 {formatDemandGHz(workload.timeline.p95)}
                         {hasCapacity(workload) && ` · ${capacityPct(workload, workload.timeline.p95)}`}
                       </span>
                       <br />
-                      Max {formatDemandMHz(workload.timeline.max)}
+                      Max {formatDemandGHz(workload.timeline.max)}
                       {hasCapacity(workload) && ` · ${capacityPct(workload, workload.timeline.max)}`}
                       <br />
                       {hasCapacity(workload)
-                        ? `Anteil von Ø ${formatDemandMHz(workload.configuredCpuCapacityMHz)} zugeteilter CPU je VM`
+                        ? `Anteil von Ø ${formatDemandGHz(workload.configuredCpuCapacityMHz)} zugeteilter CPU je VM`
                         : "Auslastungsanteil ohne Hostfrequenz nicht berechenbar"}
                     </p>
                   </div>
@@ -213,7 +213,7 @@ export function AverageVmPanel({ avg, workload, hasVropsImport }: AverageVmPanel
                     <DistributionStrip
                       label="Ø CPU Demand je VM"
                       stats={workload.demandPerVm}
-                      format={formatDemandMHz}
+                      format={formatDemandGHz}
                       secondaryFormat={hasCapacity(workload) ? (value) => formatDemandPct(toCapacityPct(value, workload.configuredCpuCapacityMHz), 1) : undefined}
                       secondaryLabel="Anteil an Ø konfigurierter CPU-Kapazität je VM"
                       info={OVERVIEW_SECTIONS.averageVmDemandDistribution}

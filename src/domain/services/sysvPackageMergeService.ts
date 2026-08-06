@@ -16,6 +16,7 @@ import type {
   VropsRelationshipIssue,
   VropsTimeSeriesSummary,
 } from "@/domain/models/types";
+import { toVropsTimeSeriesMetricColumns } from "@/domain/services/vropsTimeSeriesSchema";
 import {
   mergeVropsTimeSeriesChunksWithWarnings,
   type SysvDataPackagePayload,
@@ -120,7 +121,9 @@ function describeMergedVropsSource(importId: string, chunks: readonly VropsTimeS
     fileChecksum: importId,
     rowCount,
     columnCount: metrics.size,
-    detectedColumns: [...metrics].sort((left, right) => left.localeCompare(right, "en")),
+    // Spaltennamen statt interner Schlüssel: Nur so erkennen die Ansichten die
+    // enthaltenen Metriken wieder (siehe `toVropsTimeSeriesMetricColumns`).
+    detectedColumns: toVropsTimeSeriesMetricColumns(metrics),
     status: "accepted",
   }];
 }

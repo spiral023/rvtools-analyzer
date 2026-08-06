@@ -229,6 +229,30 @@ export function findVropsTimeSeriesMetricHeader(
   return findHeader(headers, getVropsTimeSeriesMetricDefinition(key).aliases);
 }
 
+/**
+ * Übersetzt interne Metrikschlüssel in die Spaltennamen, unter denen ein vROps-CSV
+ * sie führt.
+ *
+ * Nötig für Importe, die nicht aus einer CSV stammen, sondern aus bereits
+ * verarbeiteten Chunks rekonstruiert werden (SysV-Datenpakete). Deren
+ * `detectedColumns` müssen dieselbe Sprache sprechen wie die eines echten Exports,
+ * sonst findet {@link findVropsTimeSeriesMetricHeader} eine vorhandene Metrik nicht
+ * und nachgelagerte Ansichten halten sie für nicht importiert.
+ *
+ * Unbekannte Schlüssel bleiben unverändert stehen: Eine Beschreibung des Imports
+ * darf nicht daran scheitern, dass ein Paket eine später entfernte Metrik enthält.
+ */
+export function toVropsTimeSeriesMetricColumns(metricKeys: Iterable<string>): string[] {
+  const columns = new Set<string>();
+  for (const key of metricKeys) {
+    const definition = VROPS_TIME_SERIES_SCHEMAS
+      .flatMap((schema) => schema.metrics)
+      .find((metric) => metric.key === key);
+    columns.add(definition?.aliases[0] ?? key);
+  }
+  return [...columns].sort((left, right) => left.localeCompare(right, "en"));
+}
+
 export function matchVropsTimeSeriesSchema(headers: readonly string[]): {
   schema: VropsTimeSeriesSchemaMatch | null;
   issues: VropsTimeSeriesValidationIssue[];

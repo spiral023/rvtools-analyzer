@@ -387,6 +387,39 @@ export const RAM_RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
 };
 
+/**
+ * Die vier Stufen als geschlossene Kombination aus Peak-Statistik und den beiden
+ * Zielauslastungen. Die Texte beschreiben die Betriebsfolge – wie viel Reserve nach
+ * der Verkleinerung bleibt und wann welche Stufe vertretbar ist –, nicht nochmals
+ * die Zahlen, die bereits auf der Schaltfläche stehen.
+ */
+export const CPU_RIGHTSIZING_LEVELS: Record<string, GlossaryEntry> = {
+  "very-conservative": {
+    term: "Stufe „Sehr vorsichtig“",
+    description:
+      "Rechnet gegen das absolute Maximum der Messreihe: Die neue Größe muss auch die einmalige Höchstlast des gesamten Zeitraums bei 80 % Auslastung tragen, im Regelbetrieb bleibt sie unter 55 %. Kein Messwert kann die Zielgröße überraschen, dafür fallen die Empfehlungen am kleinsten aus. Geeignet für Systeme, deren Lastspitze geschäftskritisch ist und deren Verhalten unbekannt bleibt.",
+    source: "berechnet",
+  },
+  conservative: {
+    term: "Stufe „Vorsichtig“ (Standard)",
+    description:
+      "Ignoriert das oberste halbe Prozent der Messwerte und rechnet gegen das P99,5-Perzentil. Die einmalige Ausreißerspitze fällt heraus, jede regelmäßig wiederkehrende Spitze bleibt drin. Nach der Verkleinerung liegt die VM im Regelbetrieb bei rund 60 %, in ihrer Spitze bei 85 %. Der Standard, weil eine zu klein empfohlene VM im Betrieb teurer ist als eine späte Verdichtung.",
+    source: "berechnet",
+  },
+  balanced: {
+    term: "Stufe „Ausgewogen“",
+    description:
+      "Rechnet gegen das P99-Perzentil und lässt damit das oberste Prozent der Stunden außen vor – bei einem Monat Messdaten sind das rund sieben Stunden, die über der Zielgröße liegen dürfen. Die verbleibende Reserve schrumpft auf 10 % in der Spitze. Vertretbar, wenn die Lastspitzen der Umgebung bekannt sind und kurzzeitige Sättigung fachlich verkraftbar ist.",
+    source: "berechnet",
+  },
+  offensive: {
+    term: "Stufe „Offensiv“",
+    description:
+      "Rechnet gegen das P95-Perzentil: 5 % aller gemessenen Stunden liegen über der Zielgröße – bei einem Monat rund 36 Stunden. In der Spitze bleiben 5 % Reserve, im Regelbetrieb 30 %. Die Stufe setzt voraus, dass das Lastprofil jeder betroffenen VM verstanden ist und Sättigung geplant in Kauf genommen wird. Für unbekannte oder geschäftskritische Systeme nicht geeignet.",
+    source: "berechnet",
+  },
+};
+
 export const RIGHTSIZING_SECTIONS: Record<string, GlossaryEntry> = {
   densityGrid: {
     term: "Konfigurierte vCPU vs. CPU Demand P95 %",

@@ -5,11 +5,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { AverageVmInsights, DemandBandSlot } from "@/domain/services/averageVmInsightsService";
 import { WEEKDAY_LABELS } from "@/domain/services/averageVmInsightsService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE } from "@/lib/chartStyles";
-import { formatDemandAxisTick, formatDemandMHz, formatDemandPct, formatDemandPctAxisTick, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandAxisTick, formatDemandGHz, formatDemandPct, formatDemandPctAxisTick, toCapacityPct } from "@/lib/formatDemand";
 import { INSIGHTS_GLOSSARY } from "@/lib/glossaries/averageVmInsights";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
-type DemandUnit = "mhz" | "pct";
+type DemandUnit = "ghz" | "pct";
 
 interface BandDatum {
   index: number;
@@ -39,7 +39,7 @@ export function DemandBandChart({ insights }: { insights: AverageVmInsights }) {
   const capacityMHz = insights.configuredCpuCapacityMHz;
   const canShowPct = capacityMHz !== null && capacityMHz > 0;
   const [unit, setUnit] = useState<DemandUnit>("pct");
-  const activeUnit: DemandUnit = canShowPct ? unit : "mhz";
+  const activeUnit: DemandUnit = canShowPct ? unit : "ghz";
 
   const toUnit = useMemo(
     () => (value: number | null): number | null => {
@@ -73,7 +73,7 @@ export function DemandBandChart({ insights }: { insights: AverageVmInsights }) {
 
   const weekendBands = useMemo(() => buildWeekendBands(insights.bands), [insights.bands]);
   const nowSlot = insights.nowSlotIndex !== null ? data[insights.nowSlotIndex] : null;
-  const format = (value: number | null) => (activeUnit === "pct" ? formatDemandPct(value) : formatDemandMHz(value));
+  const format = (value: number | null) => (activeUnit === "pct" ? formatDemandPct(value) : formatDemandGHz(value));
 
   return (
     <section className="space-y-2">
@@ -89,7 +89,7 @@ export function DemandBandChart({ insights }: { insights: AverageVmInsights }) {
           }
         >
           <h4 className="w-fit cursor-help text-[10px] uppercase tracking-wider text-muted-foreground">
-            Wochenverlauf · Verteilung über die VMs {activeUnit === "pct" ? "in % der zugeteilten CPU" : "in MHz"}
+            Wochenverlauf · Verteilung über die VMs {activeUnit === "pct" ? "in % der zugeteilten CPU" : "in GHz"}
           </h4>
         </InfoTooltip>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -104,11 +104,11 @@ export function DemandBandChart({ insights }: { insights: AverageVmInsights }) {
             <ToggleGroup
               type="single"
               value={activeUnit}
-              onValueChange={(value) => { if (value === "mhz" || value === "pct") setUnit(value); }}
+              onValueChange={(value) => { if (value === "ghz" || value === "pct") setUnit(value); }}
               size="sm"
               variant="outline"
             >
-              <ToggleGroupItem value="mhz" aria-label="Absolut in MHz" className="h-6 px-2 text-[10px]">MHz</ToggleGroupItem>
+              <ToggleGroupItem value="ghz" aria-label="Absolut in GHz" className="h-6 px-2 text-[10px]">GHz</ToggleGroupItem>
               <ToggleGroupItem value="pct" aria-label="Anteil der zugeteilten CPU in Prozent" className="h-6 px-2 text-[10px]">%</ToggleGroupItem>
             </ToggleGroup>
           )}
@@ -222,7 +222,7 @@ function peakOf(data: readonly BandDatum[]): BandDatum | null {
 function BandTooltip({ active, payload, unit }: { active?: boolean; payload?: { payload: BandDatum }[]; unit: DemandUnit }) {
   const slot = payload?.[0]?.payload;
   if (!active || !slot) return null;
-  const format = (value: number | null) => (unit === "pct" ? formatDemandPct(value) : formatDemandMHz(value));
+  const format = (value: number | null) => (unit === "pct" ? formatDemandPct(value) : formatDemandGHz(value));
   return (
     <div className="rounded-lg border border-border/80 bg-popover px-2.5 py-2 shadow-lg">
       <p className="text-[11px] font-semibold text-popover-foreground">

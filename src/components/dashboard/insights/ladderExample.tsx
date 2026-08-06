@@ -1,5 +1,5 @@
 import type { MetricSpread } from "@/domain/services/averageVmInsightsService";
-import { formatDemandMHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandGHz, formatDemandPct, toCapacityPct } from "@/lib/formatDemand";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 /**
@@ -18,7 +18,7 @@ export function ladderExample(
   const { stats } = spread;
   if (!stats) return null;
   const hasCapacity = capacityMHz !== null && capacityMHz > 0;
-  const show = (value: number) => (hasCapacity ? formatDemandPct(toCapacityPct(value, capacityMHz), 1) : formatDemandMHz(value));
+  const show = (value: number) => (hasCapacity ? formatDemandPct(toCapacityPct(value, capacityMHz), 1) : formatDemandGHz(value));
 
   if (stats.count === 1) {
     return <>Die einzige gemessene VM liegt {subject} bei {show(stats.p50)}.</>;

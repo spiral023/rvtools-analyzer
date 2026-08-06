@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { AverageVmWorkload, AverageVmWorkloadWeekCell } from "@/domain/services/averageVmWorkloadService";
 import { WEEKDAY_LABELS } from "@/domain/services/averageVmWorkloadService";
 import { CHART_AXIS_STYLE, CHART_GRID_STYLE } from "@/lib/chartStyles";
-import { formatDemandAxisTick, formatDemandMHz, formatDemandPct, formatDemandPctAxisTick, toCapacityPct } from "@/lib/formatDemand";
+import { formatDemandAxisTick, formatDemandGHz, formatDemandPct, formatDemandPctAxisTick, toCapacityPct } from "@/lib/formatDemand";
 import { buildHeatScale, heatCellColor, relativeToMedian } from "@/lib/heatScale";
 import { OVERVIEW_SECTIONS } from "@/lib/glossary";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
@@ -21,8 +21,8 @@ interface SlotDatum {
   vmSampleCount: number;
 }
 
-/** Anzeigeeinheit des Wochenverlaufs: absolut in MHz/GHz oder als Anteil der zugeteilten CPU. */
-type DemandUnit = "mhz" | "pct";
+/** Anzeigeeinheit des Wochenverlaufs: absolut in GHz oder als Anteil der zugeteilten CPU. */
+type DemandUnit = "ghz" | "pct";
 
 function formatHour(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
@@ -38,8 +38,10 @@ function formatHour(hour: number): string {
 export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload }) {
   const capacityMHz = workload.configuredCpuCapacityMHz;
   const canShowPct = capacityMHz !== null && capacityMHz > 0;
-  const [unit, setUnit] = useState<DemandUnit>("mhz");
-  const activeUnit: DemandUnit = canShowPct ? unit : "mhz";
+  // Prozent zuerst: Der Anteil der zugeteilten CPU ist die Größe, die ohne
+  // Kenntnis der Hostfrequenz einzuordnen ist – wie im Verteilungs-Wochenverlauf.
+  const [unit, setUnit] = useState<DemandUnit>("pct");
+  const activeUnit: DemandUnit = canShowPct ? unit : "ghz";
 
   const data = useMemo<SlotDatum[]>(
     () => workload.slots.map((slot, index) => ({
@@ -68,7 +70,7 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
         <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <InfoTooltip entry={OVERVIEW_SECTIONS.averageVmWeekProfile} side="bottom">
             <h4 className="w-fit cursor-help text-[10px] uppercase tracking-wider text-muted-foreground">
-              Wochenverlauf · Ø CPU Demand {activeUnit === "pct" ? "in % der zugeteilten CPU" : "in MHz"}
+              Wochenverlauf · Ø CPU Demand {activeUnit === "pct" ? "in % der zugeteilten CPU" : "in GHz"}
             </h4>
           </InfoTooltip>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -87,12 +89,12 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
                 type="single"
                 value={activeUnit}
                 onValueChange={(value) => {
-                  if (value === "mhz" || value === "pct") setUnit(value);
+                  if (value === "ghz" || value === "pct") setUnit(value);
                 }}
                 size="sm"
                 variant="outline"
               >
-                <ToggleGroupItem value="mhz" aria-label="Absolut in MHz" className="h-6 px-2 text-[10px]">MHz</ToggleGroupItem>
+                <ToggleGroupItem value="ghz" aria-label="Absolut in GHz" className="h-6 px-2 text-[10px]">GHz</ToggleGroupItem>
                 <ToggleGroupItem value="pct" aria-label="Anteil der zugeteilten CPU in Prozent" className="h-6 px-2 text-[10px]">%</ToggleGroupItem>
               </ToggleGroup>
             )}
@@ -164,7 +166,7 @@ export function AverageVmWeekProfile({ workload }: { workload: AverageVmWorkload
 
 /** Der aktive Modus bestimmt die Achse; im Tooltip stehen beide Einheiten, damit nichts umgerechnet werden muss. */
 function formatSlotValue(slot: SlotDatum, unit: DemandUnit): string {
-  return unit === "pct" ? formatDemandPct(slot.cpuDemandPct) : formatDemandMHz(slot.cpuDemandMHz);
+  return unit === "pct" ? formatDemandPct(slot.cpuDemandPct) : formatDemandGHz(slot.cpuDemandMHz);
 }
 
 function SlotTooltip({ active, payload }: { active?: boolean; payload?: { payload: SlotDatum }[] }) {
@@ -176,7 +178,7 @@ function SlotTooltip({ active, payload }: { active?: boolean; payload?: { payloa
         {WEEKDAY_LABELS[slot.weekdayIndex]} {formatHour(slot.hour)}
       </p>
       <p className="font-mono-data text-xs text-popover-foreground">
-        {formatDemandMHz(slot.cpuDemandMHz)}
+        {formatDemandGHz(slot.cpuDemandMHz)}
         {slot.cpuDemandPct !== null && <span className="text-muted-foreground"> · {formatDemandPct(slot.cpuDemandPct)}</span>}
       </p>
       <p className="text-[10px] text-muted-foreground">
@@ -242,16 +244,16 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
           {hovered ? (
             <>
               {WEEKDAY_LABELS[hovered.weekdayIndex]} {formatHour(hovered.hour)} ·{" "}
-              <span className="text-foreground/80">{formatDemandMHz(hovered.cpuDemandMHz)}</span>
+              <span className="text-foreground/80">{formatDemandGHz(hovered.cpuDemandMHz)}</span>
               {hoveredPct !== null && <> · {formatDemandPct(hoveredPct)}</>}
               {hoveredDelta !== null && <> · {formatDelta(hoveredDelta)} zum Median</>}
             </>
           ) : scale !== null ? (
             <>
-              Median {formatDemandMHz(scale.median)}
+              Median {formatDemandGHz(scale.median)}
               {medianPct !== null && <> · {formatDemandPct(medianPct)}</>}
               {" · Spanne "}
-              {formatDemandMHz(scale.min)}–{formatDemandMHz(scale.max)}
+              {formatDemandGHz(scale.min)}–{formatDemandGHz(scale.max)}
             </>
           ) : (
             <>keine Messwerte</>
@@ -270,7 +272,7 @@ function WeekHeatmap({ workload }: { workload: AverageVmWorkload }) {
                   <div
                     key={cell.hour}
                     role="img"
-                    aria-label={`${label} ${formatHour(cell.hour)}: ${formatDemandMHz(cell.cpuDemandMHz)}`}
+                    aria-label={`${label} ${formatHour(cell.hour)}: ${formatDemandGHz(cell.cpuDemandMHz)}`}
                     onMouseEnter={() => setHovered(cell)}
                     className={cn(
                       "h-4 rounded-[2px] transition-[outline-color] duration-150",

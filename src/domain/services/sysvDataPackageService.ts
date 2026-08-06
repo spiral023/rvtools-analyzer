@@ -35,6 +35,7 @@ import { clusterScopeKey } from "@/lib/clusterIdentity";
 import { gunzipJson } from "@/lib/compression";
 import { buildSysvDataPackageScopeDirectory, resolveSysvDataPackageVmNames } from "@/lib/sysvDataPackageScope";
 import { filterSysvRawSheet, deriveSysvRawScopeReferences, type FilteredSysvRawSheet, type SysvRawSheetScopeWarning } from "@/domain/services/sysvRawSheetScopeService";
+import { toVropsTimeSeriesMetricColumns } from "@/domain/services/vropsTimeSeriesSchema";
 import { normalizeVmNameForMatch } from "@/lib/xlsx/parseHelpers";
 import { serializeSysvDataPackage, type SysvDataPackagePayload, type SysvDataPackageRawSheet, type SysvDataPackageVropsPayload } from "@/lib/export/sysvDataPackageFormat";
 import { shortId } from "@/lib/shortId";
@@ -343,7 +344,9 @@ export function describeScopedVropsSource(
     sizeBytes += chunk.maintenanceDerived?.byteLength ?? 0;
     dataPointCount += chunk.objectKeys.length * chunk.slotCount;
   }
-  const detectedColumns = [...metrics].sort((left, right) => left.localeCompare(right, "en"));
+  // Spaltennamen statt interner Schlüssel: Nur so erkennen die Ansichten die
+  // enthaltenen Metriken wieder (siehe `toVropsTimeSeriesMetricColumns`).
+  const detectedColumns = toVropsTimeSeriesMetricColumns(metrics);
   return [{
     objectType: "vm",
     fileName: `sysv-datenpaket_${packageId}_vm-zeitreihen`,
