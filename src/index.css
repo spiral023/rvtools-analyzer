@@ -25,6 +25,11 @@
     --ring: 190 85% 48%;
     --radius: 0.5rem;
 
+    /* Motion-Tokens: themeunabhängig, deshalb absichtlich nicht in .light gespiegelt. */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --duration-theme-reveal: 480ms;
+    --duration-theme-fade: 260ms;
+
     --success: 152 69% 40%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
@@ -496,6 +501,45 @@
   to { top: 100%; opacity: 0; }
 }
 
+/*
+ * Theme-Wechsel: das alte Theme bleibt als Schnappschuss liegen, das neue flutet als
+ * Kreis vom angeklickten Schalter darüber. Animiert wird nur eine clip-path-Maske auf
+ * einem statischen View-Transition-Snapshot – die Inhalte selbst bewegen sich nicht.
+ * Die Koordinaten setzt der ThemeProvider einmalig vor dem Start, sie werden nicht
+ * pro Frame aktualisiert.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) { z-index: 0; }
+::view-transition-new(root) { z-index: 1; }
+
+html[data-theme-reveal]::view-transition-new(root) {
+  animation: theme-reveal var(--duration-theme-reveal) var(--ease-out) forwards;
+}
+
+@keyframes theme-reveal {
+  from { clip-path: circle(0 at var(--theme-reveal-x) var(--theme-reveal-y)); }
+  to { clip-path: circle(var(--theme-reveal-r) at var(--theme-reveal-x) var(--theme-reveal-y)); }
+}
+
+/*
+ * Fallback für Browser ohne View Transitions: kurzer Farb-Crossfade. Bewusst über das
+ * Attribut gesteuert und nach dem Wechsel wieder entfernt – eine dauerhafte Transition
+ * auf * würde jede Hover-Rückmeldung der App verlangsamen.
+ */
+html[data-theme-fade],
+html[data-theme-fade] * {
+  transition:
+    background-color var(--duration-theme-fade) ease,
+    border-color var(--duration-theme-fade) ease,
+    color var(--duration-theme-fade) ease,
+    fill var(--duration-theme-fade) ease !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .startscreen-rise > *,
   .startscreen-panel[data-drag="true"]::after {
@@ -518,5 +562,16 @@
 
   .detail-surface {
     transition: none;
+  }
+
+  /* Doppelte Absicherung: der ThemeProvider überspringt die View Transition bereits. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+
+  html[data-theme-fade],
+  html[data-theme-fade] * {
+    transition: none !important;
   }
 }
