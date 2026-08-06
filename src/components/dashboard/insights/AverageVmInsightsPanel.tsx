@@ -200,8 +200,8 @@ function ConcentrationTile({ insights }: { insights: AverageVmInsights }) {
         <div className="mt-2 flex items-center gap-2">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn("h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none", alert ? "bg-warning" : "bg-primary")}
-              style={{ width: `${share}%` }}
+              className={cn("h-full w-full origin-left rounded-full transition-transform duration-200 [transition-timing-function:var(--ease-out)] motion-reduce:transition-none", alert ? "bg-warning" : "bg-primary")}
+              style={{ transform: `scaleX(${share / 100})` }}
             />
           </div>
           <span className="font-mono-data text-[10px] text-muted-foreground">

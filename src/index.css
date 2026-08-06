@@ -116,6 +116,13 @@
 }
 
 @layer components {
+  /* Seitenwechsel passieren oft und auch per Tastatur. Der Inhalt wechselt deshalb direkt;
+     gezielte Feedback-Motion bleibt auf seltene Zustände wie Import und Theme-Wechsel beschränkt. */
+  .app-main > .animate-fade-in,
+  #app-header-slot > .animate-fade-in {
+    animation: none;
+  }
+
   .host-load-map__canvas {
     isolation: isolate;
     background-image:
@@ -184,6 +191,30 @@
     opacity: 1;
   }
 
+  @media (hover: hover) and (pointer: fine) {
+    .startscreen-panel[data-drag="false"]:hover {
+      border-color: hsl(var(--primary) / 0.45);
+    }
+
+    .startscreen-mode:hover {
+      border-color: hsl(var(--startscreen-mode-accent) / 0.45);
+      background-color: hsl(var(--card));
+    }
+
+    .startscreen-footer-control:hover {
+      background-color: hsl(var(--card));
+      color: hsl(var(--foreground));
+    }
+
+    .kpi-card:hover {
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    .hardware-model-card:hover {
+      border-color: hsl(var(--primary) / 0.4);
+    }
+  }
+
   /* Scanlinie: läuft nur, solange eine Datei über der Fläche schwebt. */
   .startscreen-panel[data-drag="true"]::after {
     content: "";
@@ -209,11 +240,6 @@
   .startscreen-mode {
     @apply relative flex flex-col gap-2 rounded-xl border bg-card/70 p-4;
     transition: border-color 180ms ease, background-color 180ms ease;
-  }
-
-  .startscreen-mode:hover {
-    border-color: hsl(var(--startscreen-mode-accent) / 0.45);
-    background-color: hsl(var(--card));
   }
 
   /* Operativer Wochenplan: klare halbstündige Taktung statt dekorativer Flächen. */

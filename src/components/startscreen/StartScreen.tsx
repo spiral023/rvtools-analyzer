@@ -96,7 +96,7 @@ export function StartScreen() {
             aria-busy={importing}
             className={cn(
               "startscreen-panel relative overflow-hidden rounded-2xl border-2 border-dashed bg-card/40",
-              dragActive ? "border-solid border-primary bg-primary/5" : "hover:border-primary/45",
+              dragActive ? "border-solid border-primary bg-primary/5" : "",
             )}
           >
             {showStatus ? (
@@ -164,14 +164,14 @@ export function StartScreen() {
               type="button"
               onClick={toggleTheme}
               aria-label={theme === "dark" ? "Zu hellem Design wechseln" : "Zu dunklem Design wechseln"}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="startscreen-footer-control inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-[color,background-color,transform] duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transform-none"
             >
               {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
               {theme === "dark" ? "Hell" : "Dunkel"}
             </button>
             <Link
               to="/impressum"
-              className="rounded-lg px-2 py-1.5 transition-colors hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="startscreen-footer-control rounded-lg px-2 py-1.5 transition-[color,background-color,transform] duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transform-none"
             >
               Impressum
             </Link>

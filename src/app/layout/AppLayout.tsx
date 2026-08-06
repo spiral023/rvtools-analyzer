@@ -67,7 +67,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </Button>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="app-main flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
     </SidebarProvider>

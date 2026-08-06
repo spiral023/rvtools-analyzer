@@ -216,7 +216,7 @@ export function ModelCard({
   const totalVms = hosts.reduce((s, h) => s + h.vmCount, 0);
 
   return (
-    <Card className="group hover:border-primary/40 transition-all duration-200">
+    <Card className="hardware-model-card group border-border transition-[border-color] duration-150">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">

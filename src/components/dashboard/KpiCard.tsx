@@ -29,7 +29,7 @@ export function KpiCard({
   const card = (
     <Card
       className={cn(
-        "relative overflow-hidden transition-all hover:shadow-md",
+        "kpi-card relative overflow-hidden transition-shadow duration-150",
         severity === "crit" && "border-l-4 border-l-destructive",
         severity === "warn" && "border-l-4 border-l-warning",
         severity === "ok" && "border-l-4 border-l-success",

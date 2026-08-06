@@ -89,8 +89,8 @@ function UsageBar({ label, valueMiB, totalMiB, thresholds }: UsageBarProps) {
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none", tone)}
-          style={{ width: `${pct}%` }}
+          className={cn("h-full w-full origin-left rounded-full transition-transform duration-200 [transition-timing-function:var(--ease-out)] motion-reduce:transition-none", tone)}
+          style={{ transform: `scaleX(${pct / 100})` }}
         />
       </div>
     </div>
