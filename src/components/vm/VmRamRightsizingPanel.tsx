@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, Check, HelpCircle, MemoryStick, SlidersHorizontal } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, HelpCircle, MemoryStick } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -49,6 +49,17 @@ function formatStatistic(stats: VmMemoryWorkloadStats | null, statistic: "p95" |
   return formatPercent(stats?.[statistic]);
 }
 
+const HIGH_WORKLOAD_THRESHOLD_PCT = 90;
+
+function WorkloadStatisticCell({ stats, statistic }: { stats: VmMemoryWorkloadStats | null; statistic: "p95" | "p99" | "p995" }) {
+  const value = stats?.[statistic] ?? null;
+  return (
+    <span className={value !== null && value >= HIGH_WORKLOAD_THRESHOLD_PCT ? "font-semibold text-destructive" : ""}>
+      {formatStatistic(stats, statistic)}
+    </span>
+  );
+}
+
 const CONFIDENCE_LABEL: Record<VmRamRightsizingCandidate["confidence"], string> = {
   high: "hoch",
   medium: "mittel",
@@ -83,10 +94,6 @@ function DirectionBadge({ direction }: { direction: VmRamRightsizingDirection })
 
 function statisticLabel(statistic: "p95" | "p99" | "p995"): string {
   return statistic === "p995" ? "P99,5" : statistic.toUpperCase();
-}
-
-function memoryPolicyDescription(policy: typeof RAM_RIGHTSIZING_POLICIES[keyof typeof RAM_RIGHTSIZING_POLICIES]): string {
-  return `${policy.label} · Avg ${statisticLabel(policy.normalStatistic)} · Max ${statisticLabel(policy.peakStatistic)} · Ziel ${formatPercent(policy.targetWorkloadFactor * 100)} · Rundung ${formatMemory(policy.roundingStepMiB)}`;
 }
 
 const directionColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByDirection>[number], unknown>[] = [
@@ -183,16 +190,14 @@ export function VmRamRightsizingPanel() {
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     { id: "configured-memory", header: "RAM aktuell", meta: { info: RAM_RIGHTSIZING_COLUMNS.configuredMemory }, accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
-    { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95 }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p95") },
-    { id: "avg-p99", header: "Workload Avg P99", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP99 }, accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => formatStatistic(row.original.workloadAvg, "p99") },
+    { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95 }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p95" /> },
+    { id: "avg-p99", header: "Workload Avg P99", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP99 }, accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p99" /> },
     {
       id: "peak-workload",
       meta: { info: RAM_RIGHTSIZING_COLUMNS.peakWorkload },
       header: `Peak-Workload Max ${statisticLabel(ramPolicy.peakStatistic)}`,
       accessorFn: (row) => row.workloadMax?.[ramPolicy.peakStatistic] ?? -1,
-      cell: ({ row }) => row.original.workloadMax
-        ? formatStatistic(row.original.workloadMax, ramPolicy.peakStatistic)
-        : "—",
+      cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadMax} statistic={ramPolicy.peakStatistic} />,
     },
     { id: "normal-demand", header: "Bedarf normal", meta: { info: RAM_RIGHTSIZING_COLUMNS.normalDemand }, accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
     { id: "peak-demand", header: "Bedarf Spitze", meta: { info: RAM_RIGHTSIZING_COLUMNS.peakDemand }, accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
@@ -259,16 +264,6 @@ export function VmRamRightsizingPanel() {
           <KpiCard title="Nicht berechenbare VMs" value={formatNum(notComputableCount)} severity={notComputableCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} />
         </KpiGrid>
         <RamRightsizingLevelControl />
-        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-          <div className="flex items-start gap-3">
-            <SlidersHorizontal className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <p className="font-semibold">RAM-Rightsizing-Policy · {memoryPolicyDescription(ramPolicy)}</p>
-              <p className="mt-1 text-muted-foreground">Der Bedarf bleibt separat sichtbar; das Ziel wird erst danach auf die konfigurierte Schrittweite aufgerundet. Die Policy nutzt ausschließlich Memory Workload Avg und – sofern vorhanden – Memory Workload Max. vMemory.Active und CPU-Verhaltensklassen sind kein Bestandteil der Empfehlung.</p>
-              <p className="mt-1 text-xs text-muted-foreground">{hasMemoryWorkloadMax ? "Die Max-Reihe ist im Import vorhanden und fließt mit dem gewählten Peak-Perzentil ein." : "Die Max-Reihe fehlt; die Empfehlung verwendet nur die Avg-Reihe."}</p>
-            </div>
-          </div>
-        </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <div className="rounded-lg border border-border/50 bg-card/30 p-4">

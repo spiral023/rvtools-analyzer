@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedVm, TechInfoLatest, VmWorkloadProfile } from "@/domain/models/types";
+import { rightsizingCandidateFixture } from "@/test/fixtures/vmWorkload";
 
 const mockWorkloadState = vi.hoisted(() => ({
   current: {
@@ -30,6 +31,7 @@ vi.mock("@/hooks/useVmDetailDialog", () => ({
 }));
 
 const { VmRamRightsizingPanel } = await import("./VmRamRightsizingPanel");
+const { RecommendedVcpuCell } = await import("./VmRightsizingPanel");
 
 describe("VmRamRightsizingPanel", () => {
   it("zeigt einen verständlichen Empty State ohne Memory Workload Avg", () => {
@@ -57,5 +59,20 @@ describe("VmRamRightsizingPanel", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Kein vROps-Zeitreihenimport" })).toBeInTheDocument();
+  });
+});
+
+describe("RecommendedVcpuCell", () => {
+  it("zeigt die vCPU-Differenz direkt in der Empfehlung", () => {
+    render(
+      <RecommendedVcpuCell candidate={rightsizingCandidateFixture({
+        objectKey: "vm-01",
+        recommendedVcpu: 4,
+        reclaimableVcpu: 2,
+      })} />,
+    );
+
+    expect(screen.getByText("4 vCPU")).toBeInTheDocument();
+    expect(screen.getByText("−2 vCPU rückgewinnbar")).toBeInTheDocument();
   });
 });

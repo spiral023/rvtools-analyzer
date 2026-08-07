@@ -1,7 +1,20 @@
 import { Badge } from "@/components/ui/badge";
-import type { VmWorkloadIntensity } from "@/domain/models/types";
-import { VM_WORKLOAD_INTENSITY_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import type { VmWorkloadIntensity, VmWorkloadShape } from "@/domain/models/types";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { cn } from "@/lib/utils";
+import { VM_WORKLOAD_SHAPE_CHART_COLOR } from "@/lib/workloadShapeColors";
+
+export function WorkloadShapeBadge({ shape }: { shape: VmWorkloadShape }) {
+  return (
+    <Badge
+      variant="outline"
+      className="border-current bg-current/10"
+      style={{ color: VM_WORKLOAD_SHAPE_CHART_COLOR[shape] }}
+    >
+      {VM_WORKLOAD_SHAPE_LABEL[shape]}
+    </Badge>
+  );
+}
 
 /** Gering nach hoch: grün über gelb nach rot, damit die Auslastung auf einen Blick erkennbar ist. */
 const INTENSITY_BADGE_CLASS: Record<VmWorkloadIntensity, string> = {

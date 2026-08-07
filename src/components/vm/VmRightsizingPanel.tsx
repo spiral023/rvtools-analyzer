@@ -14,7 +14,7 @@ import { DemandCell } from "@/components/vm/DemandCell";
 import { CpuRightsizingLevelControl } from "@/components/vm/CpuRightsizingLevelControl";
 import { VmRightsizingDensityDialog } from "@/components/vm/VmRightsizingDensityDialog";
 import { VmRightsizingDensityGrid, type RightsizingDensitySelection } from "@/components/vm/VmRightsizingDensityGrid";
-import { UtilizationPercentCell, WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
+import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
@@ -30,19 +30,17 @@ import {
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
 import { VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
-import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE, SEVERITY_COLORS } from "@/lib/chartStyles";
+import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
 import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
+import { VM_WORKLOAD_SHAPE_CHART_COLOR } from "@/lib/workloadShapeColors";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
-/** Dieselbe Reihenfolge wie im VM-Profile-Tab, damit die Farbzuordnung je Lastmuster app-weit konsistent bleibt. */
-const SHAPE_ORDER: VmWorkloadShape[] = ["constant", "business-hours", "night-batch", "weekend", "bursty", "variable", "irregular", "unclassified"];
 /** Aufsteigend nach Auslastung; die Tabelle sortiert damit nach der Skala statt nach dem Label. */
 const INTENSITY_ORDER: VmRightsizingCandidate["intensity"][] = ["idle", "very-low", "low", "moderate", "elevated", "high", "unknown"];
-const shapeColor = (shape: VmWorkloadShape) => SEVERITY_COLORS[SHAPE_ORDER.indexOf(shape) % SEVERITY_COLORS.length];
 
 function formatPercent(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
@@ -50,6 +48,22 @@ function formatPercent(value: number | null): string {
 
 function formatVcpu(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatFillUpValue(value, "vCPU");
+}
+
+export function RecommendedVcpuCell({ candidate }: { candidate: VmRightsizingCandidate }) {
+  const reclaimable = candidate.reclaimableVcpu ?? 0;
+  const additional = candidate.additionalVcpu ?? 0;
+
+  return (
+    <div className="space-y-1">
+      <span className="font-semibold">{formatVcpu(candidate.recommendedVcpu)}</span>
+      {reclaimable > 0 && <span className="block text-xs font-medium text-warning">−{formatVcpu(reclaimable)} rückgewinnbar</span>}
+      {additional > 0 && <span className="block text-xs font-medium text-destructive">+{formatVcpu(additional)} zusätzlich</span>}
+      {additional > 0 && candidate.flags.singleCoreBound
+        ? <span className="flex items-center gap-1 text-[10px] font-medium text-warning"><TriangleAlert className="h-3 w-3" /> Einzelkern-Warnung</span>
+        : null}
+    </div>
+  );
 }
 
 function notComputableReason(candidate: VmRightsizingCandidate): string {
@@ -133,28 +147,21 @@ export function VmRightsizingPanel() {
   const densityGrid = useMemo(() => buildRightsizingDensityGrid(computableCandidates), [computableCandidates]);
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
-    { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
-    {
-      id: "sysv",
-      header: "Systemverantwortlicher",
-      meta: { info: RIGHTSIZING_COLUMNS.sysv },
-      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
-      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
-    },
-    {
-      id: "sysv-department",
-      header: "Abteilung",
-      meta: { info: RIGHTSIZING_COLUMNS.sysvDepartment },
-      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
-      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
-    },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
+    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
+    {
+      id: "recommended-vcpu",
+      header: "Empfohlen",
+      meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu },
+      accessorFn: (row) => row.recommendedVcpu ?? -1,
+      cell: ({ row }) => <RecommendedVcpuCell candidate={row.original} />,
+    },
     {
       id: "shape",
       header: "Lastmuster",
       meta: { info: RIGHTSIZING_COLUMNS.shape },
       accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
-      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+      cell: ({ row }) => <WorkloadShapeBadge shape={row.original.shape} />,
     },
     {
       id: "intensity",
@@ -165,51 +172,6 @@ export function VmRightsizingPanel() {
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
-      id: "demand-pct",
-      header: "CPU Demand P95 %",
-      meta: { info: RIGHTSIZING_COLUMNS.demandP95Pct },
-      accessorFn: (row) => (row.usedVcpuEquivalentP95 !== null && row.vcpu ? (row.usedVcpuEquivalentP95 / row.vcpu) * 100 : -1),
-      cell: ({ row }) => { const { usedVcpuEquivalentP95, vcpu } = row.original; return <UtilizationPercentCell value={usedVcpuEquivalentP95 !== null && vcpu ? (usedVcpuEquivalentP95 / vcpu) * 100 : null} />; },
-    },
-    {
-      id: "ready-p95",
-      header: "Ready P95",
-      meta: { info: RIGHTSIZING_COLUMNS.readyP95 },
-      accessorFn: (row) => row.ready.p95 ?? -1,
-      cell: ({ row }) => { const value = row.original.ready.p95; return <span className={row.original.flags.highCpuReady ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; },
-    },
-    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
-    { id: "recommended-vcpu", header: "Empfohlen", meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu }, accessorFn: (row) => row.recommendedVcpu ?? -1, cell: ({ row }) => formatVcpu(row.original.recommendedVcpu) },
-    {
-      id: "reclaimable-vcpu",
-      header: "Rückgewinnbar",
-      meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
-      accessorFn: (row) => row.reclaimableVcpu ?? -1,
-      cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
-    },
-    {
-      id: "additional-vcpu",
-      header: "Zusätzlich",
-      meta: { info: RIGHTSIZING_COLUMNS.additionalVcpu },
-      accessorFn: (row) => row.additionalVcpu ?? -1,
-      cell: ({ row }) => {
-        const additional = row.original.additionalVcpu ?? 0;
-        return <div className="space-y-1">
-          <span className={additional > 0 ? "font-semibold text-destructive" : ""}>{formatVcpu(row.original.additionalVcpu)}</span>
-          {additional > 0 && row.original.flags.singleCoreBound
-            ? <span className="flex items-center gap-1 text-[10px] font-medium text-warning"><TriangleAlert className="h-3 w-3" /> Einzelkern-Warnung</span>
-            : null}
-        </div>;
-      },
-    },
-    {
-      id: "confidence",
-      header: "Vertrauen",
-      meta: { info: VM_PROFILE_UI.confidence },
-      accessorFn: (row) => row.confidence,
-      cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
-    },
-    {
       id: "flags",
       header: "Auffällig",
       accessorFn: (row) => RIGHTSIZING_FLAG_LABELS.filter((entry) => entry.isSet(row)).length,
@@ -217,6 +179,42 @@ export function VmRightsizingPanel() {
         const labels = RIGHTSIZING_FLAG_LABELS.filter((entry) => entry.isSet(row.original)).map((entry) => entry.label);
         return labels.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : <span className="text-xs text-warning">{labels.join(", ")}</span>;
       },
+    },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: RIGHTSIZING_COLUMNS.cluster, initiallyVisible: false }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    {
+      id: "sysv",
+      header: "Systemverantwortlicher",
+      meta: { info: RIGHTSIZING_COLUMNS.sysv, initiallyVisible: false },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: RIGHTSIZING_COLUMNS.sysvDepartment, initiallyVisible: false },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "demand-pct",
+      header: "CPU Demand P95 %",
+      meta: { info: RIGHTSIZING_COLUMNS.demandP95Pct, initiallyVisible: false },
+      accessorFn: (row) => (row.usedVcpuEquivalentP95 !== null && row.vcpu ? (row.usedVcpuEquivalentP95 / row.vcpu) * 100 : -1),
+      cell: ({ row }) => { const { usedVcpuEquivalentP95, vcpu } = row.original; return <UtilizationPercentCell value={usedVcpuEquivalentP95 !== null && vcpu ? (usedVcpuEquivalentP95 / vcpu) * 100 : null} />; },
+    },
+    {
+      id: "ready-p95",
+      header: "Ready P95",
+      meta: { info: RIGHTSIZING_COLUMNS.readyP95, initiallyVisible: false },
+      accessorFn: (row) => row.ready.p95 ?? -1,
+      cell: ({ row }) => { const value = row.original.ready.p95; return <span className={row.original.flags.highCpuReady ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; },
+    },
+    {
+      id: "confidence",
+      header: "Vertrauen",
+      meta: { info: VM_PROFILE_UI.confidence, initiallyVisible: false },
+      accessorFn: (row) => row.confidence,
+      cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
   ], [techInfoIndex]);
 
@@ -245,7 +243,7 @@ export function VmRightsizingPanel() {
       header: "Lastmuster",
       meta: { info: RIGHTSIZING_COLUMNS.shape },
       accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
-      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+      cell: ({ row }) => <WorkloadShapeBadge shape={row.original.shape} />,
     },
     {
       id: "intensity",
@@ -299,7 +297,7 @@ export function VmRightsizingPanel() {
                 <YAxis type="category" dataKey="label" width={140} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} formatter={(value: number) => [formatVcpu(value), "Rückgewinnbar"]} />
                 <Bar dataKey="reclaimableVcpu" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-                  {shapeSummary.map((entry) => <Cell key={entry.key} fill={shapeColor(entry.key as VmWorkloadShape)} />)}
+                  {shapeSummary.map((entry) => <Cell key={entry.key} fill={VM_WORKLOAD_SHAPE_CHART_COLOR[entry.key as VmWorkloadShape]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

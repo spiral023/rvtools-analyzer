@@ -11,7 +11,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
-import { UtilizationPercentCell, WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
+import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
@@ -23,6 +23,7 @@ import { normalizeVmName } from "@/lib/globalFilter";
 import { filterByVmScope } from "@/lib/vmScope";
 import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { shortHostName } from "@/lib/utils";
+import { VM_WORKLOAD_SHAPE_CHART_COLOR } from "@/lib/workloadShapeColors";
 import { VM_PROFILE_COLUMNS, VM_PROFILE_KPI, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
@@ -113,7 +114,7 @@ export function VmWorkloadProfilePanel() {
   const shapeDistribution = useMemo(() => {
     const counts = new Map<VmWorkloadShape, number>();
     for (const profile of classifiableProfiles) counts.set(profile.shape, (counts.get(profile.shape) ?? 0) + 1);
-    return CLASSIFIABLE_SHAPE_ORDER.map((shape) => ({ key: shape, label: VM_WORKLOAD_SHAPE_LABEL[shape], count: counts.get(shape) ?? 0 }));
+    return CLASSIFIABLE_SHAPE_ORDER.map((shape) => ({ key: shape, label: VM_WORKLOAD_SHAPE_LABEL[shape], count: counts.get(shape) ?? 0, color: VM_WORKLOAD_SHAPE_CHART_COLOR[shape] }));
   }, [classifiableProfiles]);
 
   const intensityDistribution = useMemo(() => {
@@ -152,7 +153,7 @@ export function VmWorkloadProfilePanel() {
       header: "Lastmuster",
       meta: { info: VM_PROFILE_COLUMNS.shape },
       accessorFn: (row) => VM_WORKLOAD_SHAPE_LABEL[row.shape],
-      cell: ({ row }) => <Badge variant="outline">{VM_WORKLOAD_SHAPE_LABEL[row.original.shape]}</Badge>,
+      cell: ({ row }) => <WorkloadShapeBadge shape={row.original.shape} />,
     },
     {
       id: "intensity",
@@ -217,7 +218,7 @@ export function VmWorkloadProfilePanel() {
                 <XAxis type="number" tick={CHART_AXIS_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="label" width={130} tick={{ ...CHART_AXIS_STYLE, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP_STYLE} itemStyle={CHART_TOOLTIP_ITEM_STYLE} labelStyle={CHART_TOOLTIP_LABEL_STYLE} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>{shapeDistribution.map((entry) => <Cell key={entry.key} fill={CHART_COLORS.primary} />)}</Bar>
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>{shapeDistribution.map((entry) => <Cell key={entry.key} fill={entry.color} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
