@@ -11,6 +11,17 @@ const LEVEL_ORDER: readonly RamRightsizingLevel[] = [
   "offensive",
 ];
 
+const LEVEL_WARNING: Partial<Record<RamRightsizingLevel, { className: string; label: string }>> = {
+  balanced: {
+    className: "text-warning",
+    label: "Achtung: nur 10 % Reserve, setzt bekannte Lastspitzen voraus",
+  },
+  offensive: {
+    className: "text-destructive",
+    label: "Warnung: geringste Sicherheitsreserve, nur bei gut verstandener Workload sinnvoll",
+  },
+};
+
 function statisticLabel(statistic: "p95" | "p99" | "p995"): string {
   return statistic === "p995" ? "P99,5" : statistic.toUpperCase();
 }
@@ -38,9 +49,18 @@ export function RamRightsizingLevelControl() {
       >
         {LEVEL_ORDER.map((entry) => {
           const policy = RAM_RIGHTSIZING_POLICIES[entry];
+          const warning = LEVEL_WARNING[entry];
           return (
             <ToggleGroupItem key={entry} value={entry} className="h-auto min-h-14 flex-col px-3 py-2">
-              <span className="text-xs font-semibold">{policy.label}</span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                {policy.label}
+                {warning && (
+                  <>
+                    <TriangleAlert className={`h-3.5 w-3.5 shrink-0 ${warning.className}`} aria-hidden="true" />
+                    <span className="sr-only">{warning.label}</span>
+                  </>
+                )}
+              </span>
               <span className="text-[10px] font-normal text-muted-foreground">
                 Avg {statisticLabel(policy.normalStatistic)} · Max {statisticLabel(policy.peakStatistic)} · Ziel {policy.targetWorkloadFactor * 100} % · {formatBytes(policy.roundingStepMiB)}
               </span>
@@ -51,3 +71,4 @@ export function RamRightsizingLevelControl() {
     </div>
   );
 }
+import { TriangleAlert } from "lucide-react";

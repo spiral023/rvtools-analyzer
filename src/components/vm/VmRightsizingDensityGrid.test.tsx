@@ -77,6 +77,17 @@ describe("VmRightsizingDensityGrid", () => {
       demandLabel: "25–50 %",
     }));
   });
+
+  it("zeigt im Hover-Hinweis keine Auffälligkeitsanzahl", () => {
+    const row = candidate();
+    const grid = buildRightsizingDensityGrid([row]);
+
+    render(<VmRightsizingDensityGrid grid={grid} />);
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: /5–8 vCPU, 25–50 % CPU Demand P95/ }));
+
+    expect(screen.queryByText(/auffällig/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("VmRightsizingDensityDialog", () => {

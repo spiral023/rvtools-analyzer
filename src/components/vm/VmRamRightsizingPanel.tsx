@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, Check, HelpCircle, MemoryStick } from "lucide-react";
+import { ArrowDown, ArrowUp, HelpCircle, MemoryStick } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -14,7 +14,7 @@ import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hook
 import { useRamRightsizingLevel } from "@/hooks/useRamRightsizingLevel";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
-import type { VmMemoryWorkloadStats, VmRamRightsizingCandidate, VmRamRightsizingDirection } from "@/domain/models/types";
+import type { VmMemoryWorkloadStats, VmRamRightsizingCandidate } from "@/domain/models/types";
 import {
   RAM_RIGHTSIZING_POLICIES,
   buildVmRamRightsizingCandidates,
@@ -39,12 +39,6 @@ function formatMemory(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatBytes(value);
 }
 
-function formatSignedMemory(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  if (value === 0) return "0 MiB";
-  return `${value > 0 ? "+" : "−"}${formatBytes(Math.abs(value))}`;
-}
-
 function formatStatistic(stats: VmMemoryWorkloadStats | null, statistic: "p95" | "p99" | "p995"): string {
   return formatPercent(stats?.[statistic]);
 }
@@ -67,33 +61,21 @@ const CONFIDENCE_LABEL: Record<VmRamRightsizingCandidate["confidence"], string> 
   "not-computable": "nicht berechenbar",
 };
 
-const DIRECTION_LABEL: Record<VmRamRightsizingDirection, string> = {
-  shrink: "Verkleinern",
-  grow: "Vergrößern",
-  unchanged: "Unverändert",
-  "not-computable": "Nicht berechenbar",
-};
-
-function DirectionBadge({ direction }: { direction: VmRamRightsizingDirection }) {
-  const icon = direction === "shrink"
-    ? <ArrowDown className="size-3" />
-    : direction === "grow"
-      ? <ArrowUp className="size-3" />
-      : direction === "unchanged"
-        ? <Check className="size-3" />
-        : <HelpCircle className="size-3" />;
-  const color = direction === "shrink"
-    ? "text-warning"
-    : direction === "grow"
-      ? "text-destructive"
-      : direction === "unchanged"
-        ? "text-success"
-        : "text-muted-foreground";
-  return <span className={`inline-flex items-center gap-1.5 font-medium ${color}`}>{icon}{DIRECTION_LABEL[direction]}</span>;
-}
-
 function statisticLabel(statistic: "p95" | "p99" | "p995"): string {
   return statistic === "p995" ? "P99,5" : statistic.toUpperCase();
+}
+
+export function RecommendedMemoryCell({ candidate }: { candidate: VmRamRightsizingCandidate }) {
+  const reclaimableMemoryMiB = candidate.direction === "shrink" ? Math.abs(candidate.deltaMiB ?? 0) : 0;
+  const additionalMemoryMiB = candidate.direction === "grow" ? Math.max(0, candidate.deltaMiB ?? 0) : 0;
+
+  return (
+    <div className="space-y-1">
+      <span className="font-semibold">{formatMemory(candidate.recommendedMemoryMiB)}</span>
+      {reclaimableMemoryMiB > 0 && <span className="block text-xs font-medium text-warning">−{formatMemory(reclaimableMemoryMiB)} rückgewinnbar</span>}
+      {additionalMemoryMiB > 0 && <span className="block text-xs font-medium text-destructive">+{formatMemory(additionalMemoryMiB)} zusätzlich</span>}
+    </div>
+  );
 }
 
 const directionColumns: ColumnDef<ReturnType<typeof summarizeRamRightsizingByDirection>[number], unknown>[] = [
@@ -174,71 +156,56 @@ export function VmRamRightsizingPanel() {
 
   const candidateColumns = useMemo<ColumnDef<VmRamRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RAM_RIGHTSIZING_COLUMNS.vmName } },
-    { accessorKey: "clusterName", header: "Cluster", meta: { info: RAM_RIGHTSIZING_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    { id: "configured-memory", header: "RAM aktuell", meta: { info: RAM_RIGHTSIZING_COLUMNS.configuredMemory, exportUnit: "MiB" }, accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
+    { id: "recommended-memory", header: "RAM empfohlen", meta: { info: RAM_RIGHTSIZING_COLUMNS.recommendedMemory, exportUnit: "MiB" }, accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <RecommendedMemoryCell candidate={row.original} /> },
+    { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95, exportUnit: "%" }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p95" /> },
+    {
+      id: "peak-workload-p995",
+      header: "Peak-Workload Max P99,5",
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.peakWorkload, exportUnit: "%" },
+      accessorFn: (row) => row.workloadMax?.p995 ?? -1,
+      cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadMax} statistic="p995" />,
+    },
+    // Der Accessor trägt das Verhältnis 0–1, die Zelle zeigt Prozent: der Export folgt der Anzeige.
+    { id: "coverage", header: "Coverage", meta: { info: RAM_RIGHTSIZING_COLUMNS.coverage, exportUnit: "%", exportValue: (row) => row.coverageRatio * 100 }, accessorFn: (row) => row.coverageRatio, cell: ({ row }) => formatPercent(row.original.coverageRatio * 100, 0) },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: RAM_RIGHTSIZING_COLUMNS.cluster, initiallyVisible: false }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
     {
       id: "sysv",
       header: "Systemverantwortlicher",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysv },
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysv, initiallyVisible: false },
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
     {
       id: "sysv-department",
       header: "Abteilung",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysvDepartment },
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.sysvDepartment, initiallyVisible: false },
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
-    { id: "configured-memory", header: "RAM aktuell", meta: { info: RAM_RIGHTSIZING_COLUMNS.configuredMemory, exportUnit: "MiB" }, accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
-    { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95, exportUnit: "%" }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p95" /> },
-    { id: "avg-p99", header: "Workload Avg P99", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP99, exportUnit: "%" }, accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p99" /> },
+    { id: "avg-p99", header: "Workload Avg P99", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP99, exportUnit: "%", initiallyVisible: false }, accessorFn: (row) => row.workloadAvg.p99 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p99" /> },
     {
       id: "peak-workload",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.peakWorkload, exportUnit: "%" },
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.peakWorkload, exportUnit: "%", initiallyVisible: false },
       header: `Peak-Workload Max ${statisticLabel(ramPolicy.peakStatistic)}`,
       accessorFn: (row) => row.workloadMax?.[ramPolicy.peakStatistic] ?? -1,
       cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadMax} statistic={ramPolicy.peakStatistic} />,
     },
-    { id: "normal-demand", header: "Bedarf normal", meta: { info: RAM_RIGHTSIZING_COLUMNS.normalDemand, exportUnit: "MiB" }, accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
-    { id: "peak-demand", header: "Bedarf Spitze", meta: { info: RAM_RIGHTSIZING_COLUMNS.peakDemand, exportUnit: "MiB" }, accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
-    { id: "required-memory", header: "Bedarfsgerecht", meta: { info: RAM_RIGHTSIZING_COLUMNS.requiredMemory, exportUnit: "MiB" }, accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
-    { id: "target-memory", header: "Ziel vor Rundung", meta: { info: RAM_RIGHTSIZING_COLUMNS.targetMemory, exportUnit: "MiB" }, accessorFn: (row) => row.targetMemoryBeforeRoundingMiB ?? -1, cell: ({ row }) => formatMemory(row.original.targetMemoryBeforeRoundingMiB) },
-    { id: "recommended-memory", header: "RAM empfohlen", meta: { info: RAM_RIGHTSIZING_COLUMNS.recommendedMemory, exportUnit: "MiB" }, accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <span className="font-semibold">{formatMemory(row.original.recommendedMemoryMiB)}</span> },
-    {
-      id: "reclaimable-memory",
-      header: "Rückgewinnbar",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.reclaimableMemoryVm, exportUnit: "MiB" },
-      accessorFn: (row) => row.direction === "shrink" ? Math.abs(row.deltaMiB ?? 0) : 0,
-      cell: ({ row }) => <span className={row.original.direction === "shrink" ? "font-semibold text-warning" : ""}>{row.original.direction === "shrink" ? formatMemory(Math.abs(row.original.deltaMiB ?? 0)) : "—"}</span>,
-    },
-    {
-      id: "additional-memory",
-      header: "Zusätzlich",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.additionalMemoryVm, exportUnit: "MiB" },
-      accessorFn: (row) => row.direction === "grow" ? Math.max(0, row.deltaMiB ?? 0) : 0,
-      cell: ({ row }) => <span className={row.original.direction === "grow" ? "font-semibold text-destructive" : ""}>{row.original.direction === "grow" ? formatMemory(Math.max(0, row.original.deltaMiB ?? 0)) : "—"}</span>,
-    },
-    {
-      id: "delta-memory",
-      header: "Delta",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.deltaMemory, exportUnit: "MiB" },
-      accessorFn: (row) => row.deltaMiB ?? -1,
-      cell: ({ row }) => <span className={row.original.direction === "shrink" ? "font-semibold text-warning" : row.original.direction === "grow" ? "font-semibold text-destructive" : ""}>{formatSignedMemory(row.original.deltaMiB)}</span>,
-    },
-    { id: "direction", header: "Richtung", meta: { info: RAM_RIGHTSIZING_COLUMNS.direction, exportValue: (row) => DIRECTION_LABEL[row.direction] }, accessorFn: (row) => row.direction, cell: ({ row }) => <DirectionBadge direction={row.original.direction} /> },
-    // Der Accessor trägt das Verhältnis 0–1, die Zelle zeigt Prozent: der Export folgt der Anzeige.
-    { id: "coverage", header: "Coverage", meta: { info: RAM_RIGHTSIZING_COLUMNS.coverage, exportUnit: "%", exportValue: (row) => row.coverageRatio * 100 }, accessorFn: (row) => row.coverageRatio, cell: ({ row }) => formatPercent(row.original.coverageRatio * 100, 0) },
+    { id: "normal-demand", header: "Bedarf normal", meta: { info: RAM_RIGHTSIZING_COLUMNS.normalDemand, exportUnit: "MiB", initiallyVisible: false }, accessorFn: (row) => row.normalDemandRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.normalDemandRequirementMiB) },
+    { id: "peak-demand", header: "Bedarf Spitze", meta: { info: RAM_RIGHTSIZING_COLUMNS.peakDemand, exportUnit: "MiB", initiallyVisible: false }, accessorFn: (row) => row.peakRequirementMiB ?? -1, cell: ({ row }) => formatMemory(row.original.peakRequirementMiB) },
+    { id: "required-memory", header: "Bedarfsgerecht", meta: { info: RAM_RIGHTSIZING_COLUMNS.requiredMemory, exportUnit: "MiB", initiallyVisible: false }, accessorFn: (row) => row.requiredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.requiredMemoryMiB) },
+    { id: "target-memory", header: "Ziel vor Rundung", meta: { info: RAM_RIGHTSIZING_COLUMNS.targetMemory, exportUnit: "MiB", initiallyVisible: false }, accessorFn: (row) => row.targetMemoryBeforeRoundingMiB ?? -1, cell: ({ row }) => formatMemory(row.original.targetMemoryBeforeRoundingMiB) },
     {
       id: "confidence",
       header: "Vertrauen",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.confidence, exportValue: (row) => CONFIDENCE_LABEL[row.confidence] },
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.confidence, initiallyVisible: false, exportValue: (row) => CONFIDENCE_LABEL[row.confidence] },
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
     {
       id: "reason",
       header: "Begründung",
-      meta: { info: RAM_RIGHTSIZING_COLUMNS.reason },
+      meta: { info: RAM_RIGHTSIZING_COLUMNS.reason, initiallyVisible: false },
       accessorFn: (row) => row.recommendationReason ?? "",
       cell: ({ row }) => <span className="block max-w-[28rem] whitespace-normal text-xs leading-5 text-muted-foreground">{row.original.recommendationReason ?? "—"}</span>,
     },
