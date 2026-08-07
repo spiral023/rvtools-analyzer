@@ -77,7 +77,7 @@ describe("importEramonIfaceCsv", () => {
     expect(latest[0].statusLabel).toBe("down");
   });
 
-  it("deleteEramonIfaceImport baut Latest aus verbleibenden Rows neu auf", async () => {
+  it("behält nur den aktuellen Import und löscht ihn vollständig", async () => {
     const { importEramonIfaceCsv } = await import("@/domain/services/importService");
     const { getAllEramonIfaceLatest, getEramonIfaceImports, deleteEramonIfaceImport } = await import("@/data/db");
     await importEramonIfaceCsv(new File(["a"], "1.csv"), "a", makeParsed([row({ port_status: "1" })]), [], [], () => {});
@@ -86,7 +86,6 @@ describe("importEramonIfaceCsv", () => {
     const newer = imports.find((i) => i.fileChecksum === "b")!;
     await deleteEramonIfaceImport(newer.ifaceImportId);
     const latest = await getAllEramonIfaceLatest();
-    expect(latest).toHaveLength(1);
-    expect(latest[0].statusLabel).toBe("aktiv");
+    expect(latest).toHaveLength(0);
   });
 });

@@ -67,7 +67,7 @@ describe("importEramonL2Csv", () => {
     expect(latest[0].ip).toBe("10.0.0.99");
   });
 
-  it("deleteEramonL2Import baut Latest neu auf", async () => {
+  it("behält nur den aktuellen Import und löscht ihn vollständig", async () => {
     const { importEramonL2Csv } = await import("@/domain/services/importService");
     const { getAllEramonL2Latest, getEramonL2Imports, deleteEramonL2Import } = await import("@/data/db");
     await importEramonL2Csv(new File(["a"], "1.csv"), "a", makeParsed([row({ ip: "10.0.0.1" })]), [], [], () => {});
@@ -76,7 +76,6 @@ describe("importEramonL2Csv", () => {
     const newer = imports.find((i) => i.fileChecksum === "b")!;
     await deleteEramonL2Import(newer.l2ImportId);
     const latest = await getAllEramonL2Latest();
-    expect(latest).toHaveLength(1);
-    expect(latest[0].ip).toBe("10.0.0.1");
+    expect(latest).toHaveLength(0);
   });
 });

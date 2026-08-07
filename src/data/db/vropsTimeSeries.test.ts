@@ -38,7 +38,13 @@ describe("vROps time-series persistence", () => {
     expect(Array.from(new Float32Array(chunk.metricValues.vmCpuDemandAvgMHz!))).toEqual([42]);
     await expect(db.getVropsTimeSeriesSummaries("ts-1")).resolves.toHaveLength(1);
 
-    await db.deleteVropsTimeSeriesImport("ts-1");
+    await db.persistVropsTimeSeriesImport({ ...meta, id: "ts-2", fileSetChecksum: "set-2" }, [], [], []);
+    await expect(db.getVropsTimeSeriesImports()).resolves.toEqual([expect.objectContaining({ id: "ts-2" })]);
+    await expect(db.getVropsTimeSeriesObjects("ts-1")).resolves.toEqual([]);
+    await expect(db.getVropsTimeSeriesChunks("ts-1")).resolves.toEqual([]);
+    await expect(db.getVropsTimeSeriesSummaries("ts-1")).resolves.toEqual([]);
+
+    await db.deleteVropsTimeSeriesImport("ts-2");
 
     await expect(db.getVropsTimeSeriesImports()).resolves.toEqual([]);
     await expect(db.getVropsTimeSeriesObjects("ts-1")).resolves.toEqual([]);

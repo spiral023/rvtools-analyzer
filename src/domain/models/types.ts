@@ -220,6 +220,8 @@ export interface TechInfoLatest {
   clusterFromTechInfo: string | null;
   cvBackup: boolean | null;
   az: string | null;
+  /** Vollständige aktuelle Quellzeile für SysV-Datenpakete. */
+  rawData?: Record<string, string | number | boolean | null>;
 }
 
 export type MaintenanceWindowHandling = "regular" | "always" | "approval-required" | "external";

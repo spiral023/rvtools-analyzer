@@ -1052,16 +1052,73 @@ async function hydrateTechInfoLatest(
   db: IDBPDatabase<RVToolsDBSchema>,
   value: TechInfoLatest,
 ): Promise<TechInfoLatest> {
-  if (value.serverType !== undefined) {
+  if (value.serverType !== undefined && value.rawData !== undefined) {
     return { ...value, serverType: value.serverType ?? null };
   }
 
   const rawRow = await db.get("techinfo_rows", [value.techInfoImportId, value.rowIndex]);
   return {
     ...value,
-    serverType: toStr(rawRow?.rawData?.["Servertyp"]),
+    serverType: value.serverType ?? toStr(rawRow?.rawData?.["Servertyp"]),
+    rawData: rawRow?.rawData,
   };
 }
+
+type LatestOnlyImportStore =
+  | "techinfo_imports" | "techinfo_client_imports" | "cdp_imports" | "ipam_imports"
+  | "eramon_iface_imports" | "eramon_l2_imports" | "vrops_imports";
+type LegacySupplementalRowsStore =
+  | "techinfo_rows" | "techinfo_client_rows" | "cdp_rows" | "ipam_rows"
+  | "eramon_iface_rows" | "eramon_l2_rows" | "vrops_rows";
+type LatestOnlyDataStore =
+  | "techinfo_latest" | "techinfo_client_latest" | "cdp_latest" | "ipam_latest"
+  | "eramon_iface_latest" | "eramon_l2_latest" | "vrops_latest";
+
+/**
+ * Ersetzt einen Zusatzdatenbestand atomar. Rohzeilen-Stores werden nur noch
+ * für die Bereinigung von Altbeständen geöffnet und danach nicht mehr befüllt.
+ */
+async function replaceLatestOnlyImport(
+  importStore: LatestOnlyImportStore,
+  legacyRowsStore: LegacySupplementalRowsStore,
+  latestStore: LatestOnlyDataStore,
+  meta: unknown,
+  latestRows: unknown[],
+): Promise<void> {
+  const db = await getDb();
+  const transaction = db.transaction([importStore, legacyRowsStore, latestStore], "readwrite");
+  // Die Union der unterschiedlich typisierten Stores lässt sich in idb nicht
+  // präzise darstellen; die drei Store-Kombinationen werden ausschließlich
+  // durch die untenstehenden typsicheren Wrapper verwendet.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = transaction as any;
+  try {
+    await tx.objectStore(importStore).clear();
+    await tx.objectStore(legacyRowsStore).clear();
+    await tx.objectStore(latestStore).clear();
+    await tx.objectStore(importStore).put(meta);
+    for (const row of latestRows) await tx.objectStore(latestStore).put(row);
+    await transaction.done;
+  } catch (error) {
+    try { transaction.abort(); } catch { /* Transaktion kann bereits abgebrochen sein. */ }
+    throw error;
+  }
+}
+
+export const replaceTechInfoImport = (meta: TechInfoImportMeta, rows: TechInfoLatest[]) =>
+  replaceLatestOnlyImport("techinfo_imports", "techinfo_rows", "techinfo_latest", meta, rows);
+export const replaceTechInfoClientImport = (meta: TechInfoClientImportMeta, rows: TechInfoClientLatest[]) =>
+  replaceLatestOnlyImport("techinfo_client_imports", "techinfo_client_rows", "techinfo_client_latest", meta, rows);
+export const replaceCdpImport = (meta: CdpImportMeta, rows: CdpLatest[]) =>
+  replaceLatestOnlyImport("cdp_imports", "cdp_rows", "cdp_latest", meta, rows);
+export const replaceIpamImport = (meta: IpamImportMeta, rows: IpamLatest[]) =>
+  replaceLatestOnlyImport("ipam_imports", "ipam_rows", "ipam_latest", meta, rows);
+export const replaceEramonIfaceImport = (meta: EramonIfaceImportMeta, rows: EramonIfaceLatest[]) =>
+  replaceLatestOnlyImport("eramon_iface_imports", "eramon_iface_rows", "eramon_iface_latest", meta, rows);
+export const replaceEramonL2Import = (meta: EramonL2ImportMeta, rows: EramonL2Latest[]) =>
+  replaceLatestOnlyImport("eramon_l2_imports", "eramon_l2_rows", "eramon_l2_latest", meta, rows);
+export const replaceVropsImport = (meta: VropsImportMeta, rows: VropsLatest[]) =>
+  replaceLatestOnlyImport("vrops_imports", "vrops_rows", "vrops_latest", meta, rows);
 
 export async function batchPut<S extends StoreName>(
   storeName: S,
@@ -1342,6 +1399,12 @@ export async function persistVropsTimeSeriesImport(
     "vrops_timeseries_summaries",
   ], "readwrite");
   try {
+    // Zeitreihen sind bewusst ein einzelner aktueller Dateisatz. Erst nach
+    // erfolgreicher Validierung wird der vorherige Bestand atomar ersetzt.
+    await transaction.objectStore("vrops_timeseries_imports").clear();
+    await transaction.objectStore("vrops_timeseries_objects").clear();
+    await transaction.objectStore("vrops_timeseries_chunks").clear();
+    await transaction.objectStore("vrops_timeseries_summaries").clear();
     await transaction.objectStore("vrops_timeseries_imports").put(meta);
     for (const object of objects) await transaction.objectStore("vrops_timeseries_objects").put(object);
     for (const chunk of chunks) await transaction.objectStore("vrops_timeseries_chunks").put(chunk);
@@ -2037,6 +2100,10 @@ async function rebuildTechInfoLatestForVm(vmNameNorm: string): Promise<void> {
 
 export async function deleteTechInfoImport(techInfoImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("techinfo_imports")) === 1) {
+    await Promise.all([db.clear("techinfo_imports"), db.clear("techinfo_rows"), db.clear("techinfo_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("techinfo_rows", "techInfoImportId", techInfoImportId);
   const affectedVmNames = new Set<string>();
   for (const row of rows) {
@@ -2081,6 +2148,10 @@ async function rebuildTechInfoClientLatestForClient(clientNameNorm: string): Pro
 
 export async function deleteTechInfoClientImport(techInfoClientImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("techinfo_client_imports")) === 1) {
+    await Promise.all([db.clear("techinfo_client_imports"), db.clear("techinfo_client_rows"), db.clear("techinfo_client_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("techinfo_client_rows", "techInfoClientImportId", techInfoClientImportId);
   const affectedClientNames = new Set<string>();
   for (const row of rows) {
@@ -2123,6 +2194,10 @@ async function rebuildCdpLatestForKey(hostAdapterKey: string): Promise<void> {
 
 export async function deleteCdpImport(cdpImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("cdp_imports")) === 1) {
+    await Promise.all([db.clear("cdp_imports"), db.clear("cdp_rows"), db.clear("cdp_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("cdp_rows", "cdpImportId", cdpImportId);
   const affectedKeys = new Set<string>();
   for (const row of rows) {
@@ -2163,6 +2238,10 @@ async function rebuildEramonIfaceLatestForKey(switchPortKey: string): Promise<vo
 
 export async function deleteEramonIfaceImport(ifaceImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("eramon_iface_imports")) === 1) {
+    await Promise.all([db.clear("eramon_iface_imports"), db.clear("eramon_iface_rows"), db.clear("eramon_iface_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("eramon_iface_rows", "ifaceImportId", ifaceImportId);
   const affectedKeys = new Set<string>();
   for (const row of rows) {
@@ -2204,6 +2283,10 @@ async function rebuildEramonL2LatestForKey(l2EntryKey: string): Promise<void> {
 
 export async function deleteEramonL2Import(l2ImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("eramon_l2_imports")) === 1) {
+    await Promise.all([db.clear("eramon_l2_imports"), db.clear("eramon_l2_rows"), db.clear("eramon_l2_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("eramon_l2_rows", "l2ImportId", l2ImportId);
   const affectedKeys = new Set<string>();
   for (const row of rows) {
@@ -2242,6 +2325,10 @@ async function rebuildIpamLatestForIp(ipAddress: string): Promise<void> {
 
 export async function deleteIpamImport(ipamImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("ipam_imports")) === 1) {
+    await Promise.all([db.clear("ipam_imports"), db.clear("ipam_rows"), db.clear("ipam_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("ipam_rows", "ipamImportId", ipamImportId);
   const affectedIps = new Set<string>();
   for (const row of rows) {
@@ -2272,6 +2359,10 @@ async function rebuildVropsLatestForCluster(clusterNorm: string): Promise<void> 
 
 export async function deleteVropsImport(vropsImportId: string): Promise<void> {
   const db = await getDb();
+  if ((await db.count("vrops_imports")) === 1) {
+    await Promise.all([db.clear("vrops_imports"), db.clear("vrops_rows"), db.clear("vrops_latest")]);
+    return;
+  }
   const rows = await db.getAllFromIndex("vrops_rows", "vropsImportId", vropsImportId);
   const affectedClusterNorms = new Set<string>();
   for (const row of rows) {

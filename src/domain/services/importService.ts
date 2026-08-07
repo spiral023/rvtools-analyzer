@@ -7,40 +7,19 @@ import {
   deleteSnapshot,
   relinkVropsTimeSeriesSnapshotIds,
   getTechInfoImportByChecksum,
-  putTechInfoImport,
-  batchPutTechInfoRows,
-  batchPutTechInfoLatest,
-  getTechInfoLatestByVmNames,
+  replaceTechInfoImport,
   getTechInfoClientImportByChecksum,
-  putTechInfoClientImport,
-  batchPutTechInfoClientRows,
-  batchPutTechInfoClientLatest,
-  getTechInfoClientLatestByClientNames,
+  replaceTechInfoClientImport,
   getCdpImportByChecksum,
-  putCdpImport,
-  batchPutCdpRows,
-  batchPutCdpLatest,
-  getCdpLatestByHostAdapterKeys,
+  replaceCdpImport,
   getIpamImportByChecksum,
-  putIpamImport,
-  batchPutIpamRows,
-  batchPutIpamLatest,
-  getIpamLatestByIpAddresses,
+  replaceIpamImport,
   getEramonIfaceImportByChecksum,
-  putEramonIfaceImport,
-  batchPutEramonIfaceRows,
-  batchPutEramonIfaceLatest,
-  getEramonIfaceLatestByKeys,
+  replaceEramonIfaceImport,
   getEramonL2ImportByChecksum,
-  putEramonL2Import,
-  batchPutEramonL2Rows,
-  batchPutEramonL2Latest,
-  getEramonL2LatestByKeys,
+  replaceEramonL2Import,
   getVropsImportByChecksum,
-  putVropsImport,
-  batchPutVropsRows,
-  batchPutVropsLatest,
-  getVropsLatestByClusterNorms,
+  replaceVropsImport,
   getMaintenanceWindows,
   upsertMaintenanceWindows,
 } from "@/data/db";
@@ -56,7 +35,6 @@ import {
   mapTechInfoClientDisplayFields,
   normalizeVmNameForMatch,
   normalizeVcenterId,
-  isTechInfoNewerOrEqual,
   TECH_INFO_CLIENT_REQUIRED_HEADERS,
   CDP_REQUIRED_HEADERS,
   mapCdpDisplayFields,
@@ -95,16 +73,10 @@ import type {
   ParsedSheetData,
   WorkerParseResult,
   TechInfoLatest,
-  TechInfoRow,
   TechInfoClientLatest,
-  TechInfoClientRow,
-  CdpRow,
   CdpLatest,
-  IpamRow,
   IpamLatest,
-  EramonIfaceRow,
   EramonIfaceLatest,
-  EramonL2Row,
   EramonL2Latest,
   VropsRow,
   VropsLatest,
@@ -779,20 +751,7 @@ async function importTechInfoXlsx(
     [techSheet.sheetName]: { rowCount: techSheet.rows.length, columnCount: techSheet.headers.length },
   };
 
-  report("Tech-Info Metadaten speichern", 35);
-  await putTechInfoImport({
-    techInfoImportId,
-    importedAt,
-    fileName: file.name,
-    fileChecksum: checksum,
-    fileSizeBytes: file.size,
-    sheetName: techSheet.sheetName,
-    rowCount: techSheet.rows.length,
-    columnCount: techSheet.headers.length,
-  });
-
-  report("Tech-Info Rohdaten speichern", 45, `${techSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
-  const fullRows: TechInfoRow[] = [];
+  report("Tech-Info aufbereiten", 45, `${techSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
   const latestCandidates = new Map<string, TechInfoLatest>();
   for (let i = 0; i < techSheet.rows.length; i++) {
     const row = techSheet.rows[i];
@@ -804,15 +763,6 @@ async function importTechInfoXlsx(
 
     const vmNameNorm = normalizeVmNameForMatch(vmName);
     const mappedFields = mapTechInfoDisplayFields(row);
-    fullRows.push({
-      techInfoImportId,
-      rowIndex: i,
-      vmName,
-      vmNameNorm,
-      importedAt,
-      rawData: toRawRowData(row),
-    });
-
     latestCandidates.set(vmNameNorm, {
       vmNameNorm,
       vmName,
@@ -820,26 +770,18 @@ async function importTechInfoXlsx(
       techInfoImportId,
       rowIndex: i,
       ...mappedFields,
+      rawData: toRawRowData(row),
     });
   }
 
-  await batchPutTechInfoRows(fullRows, 5000);
+  report("Vorherige Tech-Info ersetzen", 75);
+  await replaceTechInfoImport({
+    techInfoImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size, sheetName: techSheet.sheetName,
+    rowCount: techSheet.rows.length, columnCount: techSheet.headers.length,
+  }, [...latestCandidates.values()]);
 
-  report("Tech-Info Latest aktualisieren", 75);
-  const vmNameNorms = [...latestCandidates.keys()];
-  const existingLatest = await getTechInfoLatestByVmNames(vmNameNorms);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.vmNameNorm, entry]));
-  const latestUpdates: TechInfoLatest[] = [];
-  for (const [vmNameNorm, candidate] of latestCandidates.entries()) {
-    const current = existingMap.get(vmNameNorm);
-    const shouldReplace = isTechInfoNewerOrEqual(candidate.importedAt, current?.importedAt);
-    if (shouldReplace) latestUpdates.push(candidate);
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutTechInfoLatest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Tech-Info Zeilen`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} Tech-Info Zeilen`);
   return { success: true, fileKind: "tech-info", warnings, errors, sheetStats };
 }
 
@@ -883,20 +825,7 @@ async function importTechInfoClientXlsx(
     [clientSheet.sheetName]: { rowCount: clientSheet.rows.length, columnCount: clientSheet.headers.length },
   };
 
-  report("Tech-Info-Client Metadaten speichern", 35);
-  await putTechInfoClientImport({
-    techInfoClientImportId,
-    importedAt,
-    fileName: file.name,
-    fileChecksum: checksum,
-    fileSizeBytes: file.size,
-    sheetName: clientSheet.sheetName,
-    rowCount: clientSheet.rows.length,
-    columnCount: clientSheet.headers.length,
-  });
-
-  report("Tech-Info-Client Rohdaten speichern", 45, `${clientSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
-  const fullRows: TechInfoClientRow[] = [];
+  report("Tech-Info-Client aufbereiten", 45, `${clientSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
   const latestCandidates = new Map<string, TechInfoClientLatest>();
   for (let i = 0; i < clientSheet.rows.length; i++) {
     const row = clientSheet.rows[i];
@@ -908,15 +837,6 @@ async function importTechInfoClientXlsx(
 
     const clientNameNorm = normalizeVmNameForMatch(clientName);
     const mappedFields = mapTechInfoClientDisplayFields(row);
-    fullRows.push({
-      techInfoClientImportId,
-      rowIndex: i,
-      clientName,
-      clientNameNorm,
-      importedAt,
-      rawData: toRawRowData(row),
-    });
-
     latestCandidates.set(clientNameNorm, {
       clientNameNorm,
       clientName,
@@ -927,23 +847,14 @@ async function importTechInfoClientXlsx(
     });
   }
 
-  await batchPutTechInfoClientRows(fullRows, 5000);
+  report("Vorherige Tech-Info-Client ersetzen", 75);
+  await replaceTechInfoClientImport({
+    techInfoClientImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size, sheetName: clientSheet.sheetName,
+    rowCount: clientSheet.rows.length, columnCount: clientSheet.headers.length,
+  }, [...latestCandidates.values()]);
 
-  report("Tech-Info-Client Latest aktualisieren", 75);
-  const clientNameNorms = [...latestCandidates.keys()];
-  const existingLatest = await getTechInfoClientLatestByClientNames(clientNameNorms);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.clientNameNorm, entry]));
-  const latestUpdates: TechInfoClientLatest[] = [];
-  for (const [clientNameNorm, candidate] of latestCandidates.entries()) {
-    const current = existingMap.get(clientNameNorm);
-    const shouldReplace = isTechInfoNewerOrEqual(candidate.importedAt, current?.importedAt);
-    if (shouldReplace) latestUpdates.push(candidate);
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutTechInfoClientLatest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Tech-Info-Client Zeilen`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} Tech-Info-Client Zeilen`);
   return { success: true, fileKind: "tech-info-client", warnings, errors, sheetStats };
 }
 
@@ -999,19 +910,7 @@ export async function importCdpCsv(
     [cdpSheet.sheetName]: { rowCount: cdpSheet.rows.length, columnCount: cdpSheet.headers.length },
   };
 
-  report("CDP Metadaten speichern", 35);
-  await putCdpImport({
-    cdpImportId,
-    importedAt,
-    fileName: file.name,
-    fileChecksum: checksum,
-    fileSizeBytes: file.size,
-    rowCount: cdpSheet.rows.length,
-    columnCount: cdpSheet.headers.length,
-  });
-
-  report("CDP Zeilen speichern", 45, `${cdpSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
-  const fullRows: CdpRow[] = [];
+  report("CDP aufbereiten", 45, `${cdpSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
   const latestCandidates = new Map<string, CdpLatest>();
   for (let i = 0; i < cdpSheet.rows.length; i++) {
     const row = cdpSheet.rows[i];
@@ -1024,17 +923,6 @@ export async function importCdpCsv(
 
     const hostNorm = normalizeVmNameForMatch(host);
     const hostAdapterKey = buildHostAdapterKey(host, adapter);
-    fullRows.push({
-      cdpImportId,
-      rowIndex: i,
-      host,
-      hostNorm,
-      adapter,
-      hostAdapterKey,
-      importedAt,
-      rawData: toRawRowData(row),
-    });
-
     latestCandidates.set(hostAdapterKey, {
       hostAdapterKey,
       hostNorm,
@@ -1047,22 +935,13 @@ export async function importCdpCsv(
     });
   }
 
-  await batchPutCdpRows(fullRows, 5000);
+  report("Vorherige CDP-Daten ersetzen", 75);
+  await replaceCdpImport({
+    cdpImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size, rowCount: cdpSheet.rows.length, columnCount: cdpSheet.headers.length,
+  }, [...latestCandidates.values()]);
 
-  report("CDP Latest aktualisieren", 75);
-  const existingLatest = await getCdpLatestByHostAdapterKeys([...latestCandidates.keys()]);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.hostAdapterKey, entry]));
-  const latestUpdates: CdpLatest[] = [];
-  for (const [key, candidate] of latestCandidates.entries()) {
-    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
-      latestUpdates.push(candidate);
-    }
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutCdpLatest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} CDP Zeilen`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} CDP Zeilen`);
   return { success: true, fileKind: "cdp", warnings, errors, sheetStats };
 }
 
@@ -1111,7 +990,6 @@ export async function importEramonIfaceCsv(
 
   report("Eramon Metadaten speichern", 35);
   const switchNames = new Set<string>();
-  const fullRows: EramonIfaceRow[] = [];
   const latestCandidates = new Map<string, EramonIfaceLatest>();
 
   report("Eramon Zeilen speichern", 45, `${sheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
@@ -1126,37 +1004,20 @@ export async function importEramonIfaceCsv(
     switchNames.add(deviceName);
     const switchNorm = normalizeVmNameForMatch(deviceName);
     const switchPortKey = buildEramonSwitchPortKey(deviceName, portName);
-    fullRows.push({
-      ifaceImportId, rowIndex: i, deviceName, switchNorm, portName, switchPortKey, importedAt,
-      rawData: toRawRowData(row),
-    });
     latestCandidates.set(switchPortKey, {
       switchPortKey, switchNorm, deviceName, portName, importedAt, ifaceImportId, rowIndex: i,
       ...mapEramonIfaceDisplayFields(row),
     });
   }
 
-  await putEramonIfaceImport({
+  report("Vorherige Eramon-Daten ersetzen", 75);
+  await replaceEramonIfaceImport({
     ifaceImportId, importedAt, fileName: file.name, fileChecksum: checksum,
     fileSizeBytes: file.size,
     rowCount: sheet.rows.length, switchCount: switchNames.size,
-  });
-  await batchPutEramonIfaceRows(fullRows, 5000);
+  }, [...latestCandidates.values()]);
 
-  report("Eramon Latest aktualisieren", 75);
-  const existingLatest = await getEramonIfaceLatestByKeys([...latestCandidates.keys()]);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.switchPortKey, entry]));
-  const latestUpdates: EramonIfaceLatest[] = [];
-  for (const [key, candidate] of latestCandidates.entries()) {
-    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
-      latestUpdates.push(candidate);
-    }
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutEramonIfaceLatest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Eramon Switch-Ports`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} Eramon Switch-Ports`);
   return { success: true, fileKind: "eramon-iface", warnings, errors, sheetStats };
 }
 
@@ -1197,7 +1058,6 @@ export async function importEramonL2Csv(
 
   report("Eramon Zeilen speichern", 45, `${sheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
   const switchNames = new Set<string>();
-  const fullRows: EramonL2Row[] = [];
   const latestCandidates = new Map<string, EramonL2Latest>();
   for (let i = 0; i < sheet.rows.length; i++) {
     const row = sheet.rows[i];
@@ -1212,10 +1072,6 @@ export async function importEramonL2Csv(
     switchNames.add(switchName);
     const switchNorm = normalizeVmNameForMatch(switchName);
     const l2EntryKey = buildEramonL2Key(switchName, interfaceName, mac, vlan);
-    fullRows.push({
-      l2ImportId, rowIndex: i, switchName, switchNorm, interface: interfaceName, mac, vlan, l2EntryKey, importedAt,
-      rawData: toRawRowData(row),
-    });
     latestCandidates.set(l2EntryKey, {
       l2EntryKey, switchNorm, switchName, interface: interfaceName, mac, vlan, importedAt, l2ImportId, rowIndex: i,
       ...mapEramonL2DisplayFields(row),
@@ -1223,27 +1079,13 @@ export async function importEramonL2Csv(
   }
 
   report("Eramon Metadaten speichern", 60);
-  await putEramonL2Import({
+  await replaceEramonL2Import({
     l2ImportId, importedAt, fileName: file.name, fileChecksum: checksum,
     fileSizeBytes: file.size,
     rowCount: sheet.rows.length, switchCount: switchNames.size,
-  });
-  await batchPutEramonL2Rows(fullRows, 5000);
+  }, [...latestCandidates.values()]);
 
-  report("Eramon Latest aktualisieren", 75);
-  const existingLatest = await getEramonL2LatestByKeys([...latestCandidates.keys()]);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.l2EntryKey, entry]));
-  const latestUpdates: EramonL2Latest[] = [];
-  for (const [key, candidate] of latestCandidates.entries()) {
-    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(key)?.importedAt)) {
-      latestUpdates.push(candidate);
-    }
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutEramonL2Latest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} Eramon MAC-Einträge`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} Eramon MAC-Einträge`);
   return { success: true, fileKind: "eramon-l2", warnings, errors, sheetStats };
 }
 
@@ -1299,19 +1141,7 @@ export async function importIpamCsv(
     [ipamSheet.sheetName]: { rowCount: ipamSheet.rows.length, columnCount: ipamSheet.headers.length },
   };
 
-  report("IPAM Metadaten speichern", 35);
-  await putIpamImport({
-    ipamImportId,
-    importedAt,
-    fileName: file.name,
-    fileChecksum: checksum,
-    fileSizeBytes: file.size,
-    rowCount: ipamSheet.rows.length,
-    columnCount: ipamSheet.headers.length,
-  });
-
-  report("IPAM Zeilen speichern", 45, `${ipamSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
-  const fullRows: IpamRow[] = [];
+  report("IPAM aufbereiten", 45, `${ipamSheet.rows.length.toLocaleString("de-DE")} Zeilen...`);
   const latestCandidates = new Map<string, IpamLatest>();
   for (let i = 0; i < ipamSheet.rows.length; i++) {
     const row = ipamSheet.rows[i];
@@ -1320,14 +1150,6 @@ export async function importIpamCsv(
       warnings.push(`IPAM Zeile ${i + 1}: IP-Adresse "${ipAddress ?? ""}" ist ungültig, Zeile wurde übersprungen.`);
       continue;
     }
-
-    fullRows.push({
-      ipamImportId,
-      rowIndex: i,
-      ipAddress,
-      importedAt,
-      rawData: toRawRowData(row),
-    });
 
     latestCandidates.set(ipAddress, {
       ipAddress,
@@ -1338,22 +1160,13 @@ export async function importIpamCsv(
     });
   }
 
-  await batchPutIpamRows(fullRows, 5000);
+  report("Vorherige IPAM-Daten ersetzen", 75);
+  await replaceIpamImport({
+    ipamImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size, rowCount: ipamSheet.rows.length, columnCount: ipamSheet.headers.length,
+  }, [...latestCandidates.values()]);
 
-  report("IPAM Latest aktualisieren", 75);
-  const existingLatest = await getIpamLatestByIpAddresses([...latestCandidates.keys()]);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.ipAddress, entry]));
-  const latestUpdates: IpamLatest[] = [];
-  for (const [ipAddress, candidate] of latestCandidates.entries()) {
-    if (isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(ipAddress)?.importedAt)) {
-      latestUpdates.push(candidate);
-    }
-  }
-  if (latestUpdates.length > 0) {
-    await batchPutIpamLatest(latestUpdates, 2000);
-  }
-
-  report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} IPAM Zeilen`);
+  report("Abgeschlossen", 100, `${latestCandidates.size.toLocaleString("de-DE")} IPAM Zeilen`);
   return { success: true, fileKind: "ipam", warnings, errors, sheetStats };
 }
 
@@ -1450,38 +1263,22 @@ export async function importVropsCsv(
     warnings.push(`${ignoredPanel8Count} Zeile(n) aus Panel 8 ("Free vCPU") wurden ignoriert (wird aktuell nicht ausgewertet).`);
   }
 
-  report("vROps Metadaten speichern", 60);
-  await putVropsImport({
-    vropsImportId,
-    importedAt,
-    fileName: file.name,
-    fileChecksum: checksum,
-    fileSizeBytes: file.size,
-    rowCount: sheet.rows.length,
-    columnCount: sheet.headers.length,
-    capturedAt,
-  });
-  await batchPutVropsRows(fullRows, 5000);
-
-  report("vROps Latest aktualisieren", 75);
+  report("vROps verdichten", 75);
   const rowsByCluster = new Map<string, VropsRow[]>();
   for (const row of fullRows) {
     const bucket = rowsByCluster.get(row.clusterNorm);
     if (bucket) bucket.push(row);
     else rowsByCluster.set(row.clusterNorm, [row]);
   }
-  const existingLatest = await getVropsLatestByClusterNorms([...rowsByCluster.keys()]);
-  const existingMap = new Map(existingLatest.map((entry) => [entry.clusterNorm, entry]));
   const latestUpdates: VropsLatest[] = [];
   for (const [clusterNorm, rows] of rowsByCluster.entries()) {
     const candidate = buildVropsLatestFromRows(clusterNorm, rows);
-    if (candidate && isTechInfoNewerOrEqual(candidate.importedAt, existingMap.get(clusterNorm)?.importedAt)) {
-      latestUpdates.push(candidate);
-    }
+    if (candidate) latestUpdates.push(candidate);
   }
-  if (latestUpdates.length > 0) {
-    await batchPutVropsLatest(latestUpdates, 2000);
-  }
+  await replaceVropsImport({
+    vropsImportId, importedAt, fileName: file.name, fileChecksum: checksum,
+    fileSizeBytes: file.size, rowCount: sheet.rows.length, columnCount: sheet.headers.length, capturedAt,
+  }, latestUpdates);
 
   report("Abgeschlossen", 100, `${fullRows.length.toLocaleString("de-DE")} vROps-Messwerte, ${rowsByCluster.size} Cluster`);
   return { success: true, fileKind: "vrops", warnings, errors, sheetStats };

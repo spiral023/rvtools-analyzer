@@ -1,6 +1,5 @@
 import {
   getAllTechInfoLatest,
-  getAllTechInfoRows,
   getBySnapshotIds,
   getRawSheetBlobsBySnapshotIds,
   getSnapshots,
@@ -558,12 +557,24 @@ export async function loadSysvDataPackageSource(
   options: Pick<BuildSysvDataPackageOptions, "includeVropsTimeSeries" | "onProgress"> = {},
 ): Promise<SysvDataPackageSource> {
   report(options, "Scope auflösen", 2, "Gemeinsame Datenbasis laden");
-  const [snapshots, techInfoLatest, techInfoRows, vropsImports] = await Promise.all([
+  const [snapshots, techInfoLatest, vropsImports] = await Promise.all([
     getSnapshots(),
     getAllTechInfoLatest(),
-    getAllTechInfoRows(),
     options.includeVropsTimeSeries !== false ? getVropsTimeSeriesImports() : Promise.resolve([] as VropsTimeSeriesImport[]),
   ]);
+  // Tech-Info-Rohdaten liegen bei Latest-only direkt am aktuellen Datensatz.
+  // Ältere Datenbanken werden beim Lesen durch getAllTechInfoLatest hydratisiert.
+  const techInfoRows: TechInfoRow[] = techInfoLatest.flatMap((latest) => latest.rawData
+    ? [{
+      techInfoImportId: latest.techInfoImportId,
+      rowIndex: latest.rowIndex,
+      vmName: latest.vmName,
+      vmNameNorm: latest.vmNameNorm,
+      importedAt: latest.importedAt,
+      rawData: latest.rawData,
+    }]
+    : [],
+  );
   const allSnapshotIds = snapshots.map((snapshot) => snapshot.snapshotId);
   const [allVms, hosts, clusters, datastores, snapshotEntities, rawData] = await Promise.all([
     getBySnapshotIds<NormalizedVm>("entities_vm", allSnapshotIds),
