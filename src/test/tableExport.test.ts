@@ -51,6 +51,21 @@ describe("table export helpers", () => {
     ]);
   });
 
+  it("behält Zahlen für Excel bei und rundet Messwerte auf zwei Nachkommastellen", () => {
+    const data = buildExportData(
+      [
+        { id: "cpuDemandP95", header: "CPU Demand P95" },
+        { id: "vcpus", header: "vCPU" },
+      ],
+      [{
+        getValue: (columnId) => ({ cpuDemandP95: 148.2342523, vcpus: 4 })[columnId],
+      }],
+    );
+
+    expect(data.rows).toEqual([{ "CPU Demand P95": "148.2342523", vCPU: "4" }]);
+    expect(data.excelRows).toEqual([{ "CPU Demand P95": 148.23, vCPU: 4 }]);
+  });
+
   it("escapes markdown table cells", () => {
     const markdown = buildMarkdownTable({
       headers: ["Name", "Kommentar"],

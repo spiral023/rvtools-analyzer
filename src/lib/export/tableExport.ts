@@ -10,6 +10,11 @@ export interface TableExportRow {
 export interface TableExportData {
   headers: string[];
   rows: Record<string, string>[];
+  /**
+   * Excel erhält numerische Quellwerte separat, damit sie nicht durch die
+   * Textdarstellung für CSV, Markdown und JSON zu Zeichenketten werden.
+   */
+  excelRows?: Record<string, string | number>[];
 }
 
 export function resolveExportHeader(header: unknown, fallback: string): string {
@@ -31,6 +36,15 @@ export function formatExportValue(value: unknown): string {
     }
   }
   return String(value);
+}
+
+function formatExcelExportValue(value: unknown): string | number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Fachliche Messwerte werden im Tabellenexport bewusst auf zwei Stellen
+    // begrenzt. Ganze Zahlen (z. B. vCPU oder VM-Anzahl) bleiben ganzzahlig.
+    return Number(value.toFixed(2));
+  }
+  return formatExportValue(value);
 }
 
 export function normalizeExportFilename(value: string): string {
@@ -65,6 +79,12 @@ export function buildExportData(
     rows: rows.map((row) =>
       columns.reduce<Record<string, string>>((record, column, index) => {
         record[headers[index]] = formatExportValue(row.getValue(column.id));
+        return record;
+      }, {}),
+    ),
+    excelRows: rows.map((row) =>
+      columns.reduce<Record<string, string | number>>((record, column, index) => {
+        record[headers[index]] = formatExcelExportValue(row.getValue(column.id));
         return record;
       }, {}),
     ),
@@ -166,7 +186,16 @@ export function exportJsonTable(data: TableExportData, filename: string): void {
 
 export async function exportExcelTable(data: TableExportData, filename: string): Promise<void> {
   const XLSX = await import("@e965/xlsx");
-  const worksheet = XLSX.utils.json_to_sheet(data.rows, { header: data.headers });
+  const worksheet = XLSX.utils.json_to_sheet(data.excelRows ?? data.rows, { header: data.headers });
+  for (const address of Object.keys(worksheet)) {
+    if (address.startsWith("!")) continue;
+    const cell = worksheet[address];
+    if (cell?.t === "n" && typeof cell.v === "number" && !Number.isInteger(cell.v)) {
+      // Excel übernimmt die Dezimaltrennzeichen aus der lokalen Office-Sprache:
+      // in deutscher Umgebung wird daraus beispielsweise „148,23“.
+      cell.z = "0.00";
+    }
+  }
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Tabelle");
   XLSX.writeFile(workbook, `${normalizeExportFilename(filename)}.xlsx`, {
