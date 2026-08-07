@@ -95,6 +95,7 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Übersicht" })).toHaveAttribute("href", "/overview");
     expect(screen.queryByRole("link", { name: "Kapazität" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Netzwerk-Kontrolle" })).toHaveAttribute("href", "/network-audit");
+    expect(screen.getByRole("link", { name: "VM-Kontrolle" })).toHaveAttribute("href", "/vm-control");
     expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });

@@ -63,6 +63,7 @@ const analysisNav: NavItem[] = [
 
 const toolsNav: NavItem[] = [
   { title: "Netzwerk-Kontrolle", url: "/network-audit", icon: ListChecks },
+  { title: "VM-Kontrolle", url: "/vm-control", icon: Monitor },
   { title: "Wartung", url: "/wartungsankuendigung", icon: CalendarRange },
   { title: "Planung", url: "/planning", icon: GitCompare },
   { title: "Export & Berichte", url: "/exports", icon: FileOutput },

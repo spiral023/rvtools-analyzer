@@ -37,6 +37,7 @@ const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
 const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const ExportStudio = lazy(() => import("@/pages/ExportStudio"));
+const VmControl = lazy(() => import("@/pages/VmControl"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Impressum = lazy(() => import("@/pages/Impressum"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -147,6 +148,7 @@ const router = createBrowserRouter([
       { path: "wartungsfenster", element: <MaintenanceWindows /> },
       { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
       { path: "planning", element: <Planning /> },
+      { path: "vm-control", element: <VmControl /> },
       { path: "exports", element: <ExportStudio /> },
       { path: "settings", element: <Settings /> },
       { path: "vcenter", element: <VCenter /> },

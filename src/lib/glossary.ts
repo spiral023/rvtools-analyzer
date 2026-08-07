@@ -70,6 +70,10 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
       "Gleicht Eramon-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Die Tabs führen von der Übersicht in die einzelnen Prüfungen und zeigen bestätigte Zuordnungen, Datenlücken und Widersprüche.",
     source: "Eramon · CDP-CSV · RVTools · Tech-Info · IPAM",
   },
+  "/vm-control": {
+    term: "VM-Kontrolle",
+    description: "Arbeitsbereich für künftige Prüfungen virtueller Maschinen.",
+  },
   "/hardware": {
     term: "Hardware",
     description:
