@@ -1,5 +1,12 @@
 # Changelog
 
+## 07.08.2026
+
+- Die **Hardware-Analyse** ist kein eigener Menüpunkt mehr, sondern der Tab **Hardware** der Hostseite — Hersteller, Modelle, CPU-Bestückung und Komponenten beschreiben denselben physischen Bestand wie das Hostinventar. Gespeicherte Links auf `/hardware` öffnen den Tab direkt. Im SysV-Modus bleibt der Tab wie zuvor der Menüpunkt verborgen.
+- Der Menüpunkt **VM-Kontrolle** ist entfallen; die Seite war ein Platzhalter ohne Inhalt. `/vm-control` führt auf die VMs.
+- Die Sidebar ist kompakter: 28 px hohe Einträge, engere Gruppenüberschriften und Abstände. Zusammen mit den zusammengelegten Seiten ist die Navigation rund 230 px kürzer und passt auf Laptop-Displays ohne Scrollen deutlich weiter.
+- **Wartung** ist kein eigener Menüpunkt mehr, sondern der dritte Tab der Cluster-Seite neben **Übersicht** und **Kapazität**. Cluster-Zuweisungen, Verantwortliche und Wartungsankündigungen liegen damit dort, wo auch die Cluster selbst beurteilt werden, und die globale Einschränkung gilt für alle drei Ansichten gemeinsam. Gespeicherte Links auf `/wartungsankuendigung` führen weiterhin zum Ziel und öffnen den Tab direkt.
+
 ## 02.08.2026
 
 - Das Rightsizing nennt nur noch die empfohlene Zielgröße. Die Spalte **Nächster Schritt** – höchstens ein Viertel der konfigurierten vCPU je Wartungsfenster – entfällt in Tabelle, VM-Detail und in beiden Exporten. Die Umsetzung geht direkt auf die empfohlene CPU-Konfiguration; **Rückgewinnbar** nennt wie bisher die volle Differenz.

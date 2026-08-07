@@ -98,6 +98,9 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("link", { name: "Daily Ops" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Performance" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Compliance / Lifecycle" })).not.toBeInTheDocument();
+    // Wartung ist ein Cluster-Tab, Hardware ein Host-Tab.
+    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Hardware" })).not.toBeInTheDocument();
   });
 
   it("ordnet Cluster direkt unter vCenter ein", () => {
@@ -120,8 +123,8 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Übersicht" })).toHaveAttribute("href", "/overview");
     expect(screen.queryByRole("link", { name: "Kapazität" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Netzwerk-Kontrolle" })).toHaveAttribute("href", "/network-audit");
-    expect(screen.getByRole("link", { name: "VM-Kontrolle" })).toHaveAttribute("href", "/vm-control");
-    expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
+    expect(screen.queryByRole("link", { name: "VM-Kontrolle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 
@@ -130,7 +133,7 @@ describe("AppSidebar", () => {
     useOptionalAppModeMock.mockReturnValue({ mode: "sysv", isHydrated: true });
     renderSidebar();
 
-    for (const name of ["vCenter", "Cluster", "Netzwerk-Kontrolle", "Wartung", "Hardware", "Planung", "Wartungsfenster"]) {
+    for (const name of ["vCenter", "Cluster", "Netzwerk-Kontrolle", "Planung", "Wartungsfenster"]) {
       expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
     }
   });
@@ -177,8 +180,8 @@ describe("AppSidebar", () => {
     renderSidebar();
 
     expect(screen.queryByRole("link", { name: "Netzwerk-Kontrolle" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Hardware" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Planung" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Wartungsfenster" })).not.toBeInTheDocument();
   });
 
   it("zeigt Details verwandter Tools in einer festen Fläche statt als überlagernden Tooltip", () => {

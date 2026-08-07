@@ -13,7 +13,7 @@ export function StartScreenImportStatus() {
   const failed = items.filter((item) => item.status === "error");
 
   return (
-    <div aria-live="polite" className="flex flex-col gap-4 p-5 sm:p-6">
+    <div aria-live="polite" className="startscreen-import-status flex flex-col gap-4 p-5 sm:p-6">
       <div className="flex items-center gap-2.5">
         {importing ? (
           <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
@@ -50,7 +50,7 @@ function ImportQueueRow({ item }: { item: ImportQueueItem }) {
   const percent = item.progress?.percent ?? (item.status === "queued" ? 0 : 100);
 
   return (
-    <li className="flex flex-col gap-1.5 rounded-lg bg-background/60 px-3 py-2.5 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)]">
+    <li className="startscreen-import-queue-row flex flex-col gap-1.5 rounded-lg bg-background/60 px-3 py-2.5 shadow-[inset_0_0_0_1px_hsl(var(--border)/0.7)]">
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate text-sm">{item.fileName}</span>
         {item.fileKind ? (

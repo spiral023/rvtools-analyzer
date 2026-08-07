@@ -3,7 +3,6 @@ import { useRawSheet, useActiveSnapshotIds, useClusters, useDatastores, useHosts
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -932,10 +931,10 @@ export function HostDetailDialog(props: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Main Page                                                          */
+/*  Panel (Hardware-Tab der Hostseite)                                 */
 /* ------------------------------------------------------------------ */
 
-export default function Hardware() {
+export function HardwarePanel() {
   const { activeSnapshotIds, filters, snapshots } = useActiveSnapshotIds();
   const { data: hostRows = [] } = useRawSheet("vHost");
   const { data: hbaRows = [] } = useRawSheet("vHBA");
@@ -1035,8 +1034,15 @@ export default function Hardware() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Hardware" subtitle="ESXi-Host-Hardware-Modelle, Komponenten und Konfiguration">
-      </PageHeader>
+      {/* KPIs zuerst: Wie in der Hostübersicht steht die Kennzahlenleiste direkt unter den Tabs. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} info={HARDWARE_KPI.hosts} />
+        <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} info={HARDWARE_KPI.variants} />
+        <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} info={HARDWARE_KPI.vendors} />
+        <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} info={HARDWARE_KPI.vms} />
+        <KpiCard title="CPU-Kerne gesamt" value={totalCores} icon={<Cpu className="h-4 w-4" />} info={HARDWARE_KPI.totalCores} />
+        <KpiCard title="RAM gesamt" value={formatMemory(totalMemoryMiB)} icon={<MemoryStick className="h-4 w-4" />} info={HARDWARE_KPI.totalRam} />
+      </div>
 
       <div className="flex flex-col gap-3 rounded-lg bg-muted/35 px-4 py-3 text-sm md:flex-row md:items-start md:justify-between">
         <div className="flex gap-3 text-muted-foreground">
@@ -1062,16 +1068,6 @@ export default function Hardware() {
           RAM-Modus aktiv: Hosts werden nur dann in derselben RAM-Variante zusammengefasst, wenn die RAM-Abweichung höchstens {DEFAULT_RAM_VARIANT_TOLERANCE_PERCENT}% beträgt.
         </p>
       )}
-
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KpiCard title="ESXi Hosts" value={totalHosts} icon={<Server className="h-4 w-4" />} info={HARDWARE_KPI.hosts} />
-        <KpiCard title="Hardware-Varianten" value={uniqueModels} icon={<Layers className="h-4 w-4" />} info={HARDWARE_KPI.variants} />
-        <KpiCard title="Hersteller" value={uniqueVendors} icon={<MonitorCog className="h-4 w-4" />} info={HARDWARE_KPI.vendors} />
-        <KpiCard title="VMs gesamt" value={totalVms} icon={<HardDrive className="h-4 w-4" />} info={HARDWARE_KPI.vms} />
-        <KpiCard title="CPU-Kerne gesamt" value={totalCores} icon={<Cpu className="h-4 w-4" />} info={HARDWARE_KPI.totalCores} />
-        <KpiCard title="RAM gesamt" value={formatMemory(totalMemoryMiB)} icon={<MemoryStick className="h-4 w-4" />} info={HARDWARE_KPI.totalRam} />
-      </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

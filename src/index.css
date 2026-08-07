@@ -242,6 +242,58 @@
     transition: border-color 180ms ease, background-color 180ms ease;
   }
 
+  /* Seltene Zustandswechsel beim Import: die neue Information tritt an die Stelle
+     der Ablageaufforderung, ohne den Arbeitsfluss mit einer großen Bewegung zu stören. */
+  .startscreen-import-status,
+  .startscreen-import-queue-row {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  }
+
+  @starting-style {
+    .startscreen-import-status,
+    .startscreen-import-queue-row {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  /* Ein neuer Planungswert soll als Ergebnis der Aktion lesbar werden, nicht die
+     ganze datenreiche Ansicht dekorativ in Bewegung setzen. */
+  .configuration-list-entry {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+
+  @starting-style {
+    .configuration-list-entry {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  /* Der globale Dateidrop endet am selben Ort, an dem er erschienen ist. Die
+     Transition retargetet sauber, wenn eine Datei direkt erneut ins Fenster kommt. */
+  .global-file-drop-overlay {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  }
+
+  .global-file-drop-overlay.is-leaving {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  @starting-style {
+    .global-file-drop-overlay {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+  }
+
   /* Operativer Wochenplan: klare halbstündige Taktung statt dekorativer Flächen. */
   .maintenance-grid-shell {
     overflow: hidden;
@@ -588,6 +640,17 @@ html[data-theme-fade] * {
 
   .detail-surface {
     transition: none;
+  }
+
+  .startscreen-import-status,
+  .startscreen-import-queue-row,
+  .configuration-list-entry,
+  .global-file-drop-overlay {
+    transition: opacity 120ms var(--ease-out);
+  }
+
+  .global-file-drop-overlay.is-leaving {
+    transform: scale(1);
   }
 
   /* Doppelte Absicherung: der ThemeProvider überspringt die View Transition bereits. */

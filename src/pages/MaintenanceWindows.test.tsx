@@ -366,11 +366,11 @@ describe("MaintenanceWindows", () => {
     expect(screen.queryByText("Vergleich")).not.toBeInTheDocument();
   });
 
-  it("zeigt Wartung und Planung als eigene Tools", () => {
+  it("führt Wartung nicht mehr als eigenes Tool, Planung schon", () => {
     render(<MemoryRouter><SidebarProvider><AppSidebar /></SidebarProvider></MemoryRouter>);
 
     expect(screen.queryByRole("link", { name: "Wartungsankündigung" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Wartung" })).toHaveAttribute("href", "/wartungsankuendigung");
+    expect(screen.queryByRole("link", { name: "Wartung" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Planung" })).toHaveAttribute("href", "/planning");
   });
 });

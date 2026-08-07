@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PageLoadingState } from "@/components/dashboard/PageLoadingState";
+import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { VirtualTable } from "@/components/tables/VirtualTable";
@@ -988,7 +988,8 @@ export function ClusterMaintenancePanel() {
 
   const dataLoading = snapshotsLoading || vmsLoading || clustersLoading || hostsLoading
     || rawVHostLoading || techInfoLoading || capacityPoliciesLoading;
-  if (dataLoading) return <PageLoadingState title="Wartungsankündigung" />;
+  // Der Seitentitel steht bereits im Cluster-Kopf; im Tab wäre eine zweite Überschrift doppelt.
+  if (dataLoading) return <PanelLoadingState />;
 
   if (snapshots.length === 0) return null;
 

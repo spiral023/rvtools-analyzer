@@ -31,13 +31,10 @@ const NetworkAudit = lazy(() => import("@/pages/NetworkAudit"));
 const VCenter = lazy(() => import("@/pages/FleetCompare"));
 const Hosts = lazy(() => import("@/pages/Hosts"));
 const Vms = lazy(() => import("@/pages/Vms"));
-const Hardware = lazy(() => import("@/pages/Hardware"));
 const TechInfo = lazy(() => import("@/pages/TechInfo"));
 const MaintenanceWindows = lazy(() => import("@/pages/MaintenanceWindows"));
-const Wartungsankuendigung = lazy(() => import("@/pages/Wartungsankuendigung"));
 const Planning = lazy(() => import("@/pages/Planning"));
 const ExportStudio = lazy(() => import("@/pages/ExportStudio"));
-const VmControl = lazy(() => import("@/pages/VmControl"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Impressum = lazy(() => import("@/pages/Impressum"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -143,12 +140,12 @@ const router = createBrowserRouter([
       { path: "network-security", element: <Networking initialTab="security" /> },
       { path: "network-audit", element: <NetworkAudit /> },
       { path: "host-network", element: <Networking initialTab="host" /> },
-      { path: "hardware", element: <Hardware /> },
+      { path: "hardware", element: <Navigate to="/hosts?tab=hardware" replace /> },
       { path: "tech-info", element: <TechInfo /> },
       { path: "wartungsfenster", element: <MaintenanceWindows /> },
-      { path: "wartungsankuendigung", element: <Wartungsankuendigung /> },
+      { path: "wartungsankuendigung", element: <Navigate to="/clusters?tab=maintenance" replace /> },
       { path: "planning", element: <Planning /> },
-      { path: "vm-control", element: <VmControl /> },
+      { path: "vm-control", element: <Navigate to="/vms" replace /> },
       { path: "exports", element: <ExportStudio /> },
       { path: "settings", element: <Settings /> },
       { path: "vcenter", element: <VCenter /> },

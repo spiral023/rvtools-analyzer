@@ -63,14 +63,11 @@ const infrastructureNav: NavItem[] = [
 const analysisNav: NavItem[] = [
   { title: "Storage / Backup", url: "/storage-backup", icon: Database },
   { title: "Netzwerk", url: "/network-security", icon: Network },
-  { title: "Hardware", url: "/hardware", icon: Server },
   { title: "Tech-Info", url: "/tech-info", icon: ClipboardList },
 ];
 
 const toolsNav: NavItem[] = [
   { title: "Netzwerk-Kontrolle", url: "/network-audit", icon: ListChecks },
-  { title: "VM-Kontrolle", url: "/vm-control", icon: Monitor },
-  { title: "Wartung", url: "/wartungsankuendigung", icon: CalendarRange },
   { title: "Planung", url: "/planning", icon: GitCompare },
   { title: "Export & Berichte", url: "/exports", icon: FileOutput },
   { title: "Wartungsfenster", url: "/wartungsfenster", icon: CalendarRange },
@@ -86,8 +83,6 @@ const SYSV_HIDDEN_NAV_URLS = new Set([
   "/vcenter",
   "/clusters",
   "/network-audit",
-  "/wartungsankuendigung",
-  "/hardware",
   "/planning",
   "/wartungsfenster",
 ]);
@@ -119,12 +114,15 @@ function NavSection({
   }, [importController]);
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+    // Kompakte Dichte: Der Standard der shadcn-Sidebar rechnet mit wenigen Einträgen. Bei
+    // 14 Einträgen in vier Gruppen entscheidet jede gesparte Zeilenhöhe darüber, ob die
+    // Navigation auf einem Laptop-Display ohne Scrollen sichtbar bleibt.
+    <SidebarGroup className="px-2 py-1">
+      <SidebarGroupLabel className="h-6 text-[10px] uppercase tracking-wider text-muted-foreground/60">
         {label}
       </SidebarGroupLabel>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-0.5">
           {items.map((item) => {
             const isDropzone = !!item.dropzone && !!importController;
             const isDragOver = isDropzone && dragOverUrl === item.url;
@@ -133,12 +131,13 @@ function NavSection({
             return (
               <SidebarMenuItem key={item.url}>
                 <InfoTooltip entry={SIDEBAR_GLOSSARY[item.url]} side="right" align="center">
-                  <SidebarMenuButton asChild>
+                  {/* size="sm" liefert die 28px-Zeile; text-sm hält die Schrift auf Lesegröße. */}
+                  <SidebarMenuButton asChild size="sm" className="gap-2.5 px-2.5 py-1 text-sm">
                     <NavLink
                       to={item.url}
                       end
                       className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        "flex items-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                         isDragOver && "bg-primary/10 text-primary ring-2 ring-inset ring-primary/50",
                       )}
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
@@ -322,7 +321,7 @@ export function AppSidebar() {
           <span className="text-[10px] text-muted-foreground">Analyzer</span>
         </div>
       </div>
-      <SidebarContent className="py-2">
+      <SidebarContent className="gap-1 py-1">
         <NavSection label="Dashboard" items={mainNav} />
         <NavSection label="Infrastruktur" items={infrastructureNav.filter(visibleInCurrentMode)} />
         <NavSection label="Analyse" items={analysisNav.filter(visibleInCurrentMode)} />

@@ -381,7 +381,7 @@ export function MaintenanceWindowEditor({
               {draft.calendarRules.length > 0 && <ul className="space-y-2 border-t pt-3" aria-label="Monatsregeln">
                 {draft.calendarRules.map((rule, index) => {
                   const summary = ruleSummary(rule);
-                  return <li className="flex items-center justify-between gap-3 text-sm" key={`${rule.weekday}-${rule.occurrences.join("-")}`}>
+                  return <li className="configuration-list-entry flex items-center justify-between gap-3 text-sm" key={`${rule.weekday}-${rule.occurrences.join("-")}`}>
                     <span>{summary}</span>
                     <Button aria-label={`Monatsregel ${summary} entfernen`} disabled={scheduleEditingDisabled} onClick={() => updateDraft((current) => ({ ...current, calendarRules: current.calendarRules.filter((_, ruleIndex) => ruleIndex !== index) }))} size="sm" type="button" variant="ghost">Entfernen</Button>
                   </li>;

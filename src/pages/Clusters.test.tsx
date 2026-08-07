@@ -225,7 +225,6 @@ vi.mock("@/components/tables/VirtualTable", () => ({
 }));
 
 const { default: Clusters } = await import("@/pages/Clusters");
-const { default: Wartungsankuendigung } = await import("@/pages/Wartungsankuendigung");
 const { default: Planning } = await import("@/pages/Planning");
 
 function LocationProbe() {
@@ -280,7 +279,7 @@ describe("Clusters", () => {
     const capacityTab = await screen.findByRole("tab", { name: "Kapazität" });
     expect(capacityTab).toHaveAttribute("data-state", "active");
 
-    expect(screen.queryByRole("tab", { name: "Wartung" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Wartung" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Planung" })).not.toBeInTheDocument();
   });
 
@@ -369,15 +368,25 @@ describe("Clusters", () => {
     expect(screen.queryByText("Pool 2")).not.toBeInTheDocument();
   });
 
-  it("shows maintenance assignments on its own page", async () => {
-    renderToolPage(<Wartungsankuendigung />);
+  it("zeigt die Wartungszuweisungen im Wartung-Tab", async () => {
+    renderClusters("/clusters?tab=maintenance");
 
-    expect(await screen.findByRole("heading", { name: "Wartung" })).toBeInTheDocument();
-    expect(screen.getByText("Cluster")).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Wartung" })).toHaveAttribute("data-state", "active");
     expect(screen.getByText("VMs im Scope")).toBeInTheDocument();
     expect(screen.getByText("Ohne Wartungsfenster")).toBeInTheDocument();
     expect(screen.getByText("Cluster-Zuweisungen")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mail erstellen" })).not.toBeInTheDocument();
+  });
+
+  it("öffnet den Wartung-Tab über die Tab-Leiste", async () => {
+    renderClusters("/clusters", true);
+
+    const maintenanceTab = await screen.findByRole("tab", { name: "Wartung" });
+    fireEvent.mouseDown(maintenanceTab);
+    fireEvent.click(maintenanceTab);
+
+    expect(await screen.findByText("Cluster-Zuweisungen")).toBeInTheDocument();
+    expect(screen.getByText("/clusters?tab=maintenance")).toBeInTheDocument();
   });
 
   it("shows planning KPIs and the What-If metrics table above the summary", async () => {
@@ -442,9 +451,6 @@ describe("Clusters", () => {
   });
 
   it("redirects former cluster tabs to the dedicated pages", async () => {
-    renderClusters("/clusters?tab=maintenance", true);
-    expect(await screen.findByText("/wartungsankuendigung")).toBeInTheDocument();
-
     renderClusters("/clusters?tab=planning", true);
     expect(await screen.findByText("/planning")).toBeInTheDocument();
   });

@@ -47,6 +47,16 @@ function queryOverlay(): HTMLElement | null {
   return screen.queryByText("Dateien hier ablegen zum Importieren");
 }
 
+function finishOverlayExit() {
+  const overlay = queryOverlay()?.closest('[role="status"]');
+  expect(overlay).toHaveAttribute("aria-hidden", "true");
+  if (overlay) {
+    const event = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(event, "propertyName", { value: "opacity" });
+    fireEvent(overlay, event);
+  }
+}
+
 describe("GlobalFileDropOverlay", () => {
   beforeEach(() => {
     importFiles.mockClear();
@@ -148,6 +158,7 @@ describe("GlobalFileDropOverlay", () => {
 
     fireEvent.dragLeave(window, { dataTransfer: FILE_DRAG, relatedTarget: null });
 
+    finishOverlayExit();
     expect(queryOverlay()).not.toBeInTheDocument();
   });
 
@@ -161,6 +172,7 @@ describe("GlobalFileDropOverlay", () => {
       vi.advanceTimersByTime(DRAG_IDLE_TIMEOUT_MS);
     });
 
+    finishOverlayExit();
     expect(queryOverlay()).not.toBeInTheDocument();
   });
 

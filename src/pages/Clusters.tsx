@@ -3,6 +3,7 @@ import { Server } from "lucide-react";
 import { ClusterDetailDialog } from "@/components/cluster/ClusterDetailDialog";
 import { ClusterOsDetailDialog } from "@/components/cluster/ClusterOsDetailDialog";
 import { ClusterCapacityPanel } from "@/components/cluster/ClusterCapacityPanel";
+import { ClusterMaintenancePanel } from "@/components/cluster/ClusterMaintenancePanel";
 import { ClusterOverviewPanel } from "@/components/cluster/ClusterOverviewPanel";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -18,16 +19,16 @@ import { clusterScopeKey, resolveClusterIdentity, type ClusterIdentity } from "@
 import { buildClusterOsDistributionRows, type ClusterOsDistributionRow, type VmOsSource } from "@/lib/vmOsDistribution";
 import { CLUSTER_TABS } from "@/lib/glossaries/clusters";
 
-type ClusterTab = "overview" | "capacity";
+type ClusterTab = "overview" | "capacity" | "maintenance";
 
 function isClusterTab(value: string | null): value is ClusterTab {
-  return value === "overview" || value === "capacity";
+  return value === "overview" || value === "capacity" || value === "maintenance";
 }
 
 export default function Clusters() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryTab = searchParams.get("tab");
-  const legacyTarget = queryTab === "maintenance" ? "/wartungsankuendigung" : queryTab === "planning" ? "/planning" : null;
+  const legacyTarget = queryTab === "planning" ? "/planning" : null;
   const tab: ClusterTab = isClusterTab(queryTab) ? queryTab : "overview";
   const { snapshots, activeSnapshotIds, filters, snapshotsLoading } = useActiveSnapshotIds();
   const { data: clusters = [], isLoading: clustersLoading } = useClusters();
@@ -124,11 +125,12 @@ export default function Clusters() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Cluster" />
-      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für Übersicht und Kapazität: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf beide Ansichten angewendet." />
+      <GlobalFilterScopeHint text="Die globale Einschränkung gilt für Übersicht, Kapazität und Wartung: vCenter-, Cluster- und Sucheingrenzung werden vCenter-sicher auf alle Ansichten angewendet." />
       <Tabs value={tab} onValueChange={selectTab}>
         <TabsList>
           <InfoTooltip entry={CLUSTER_TABS.overview}><TabsTrigger value="overview">Übersicht</TabsTrigger></InfoTooltip>
           <InfoTooltip entry={CLUSTER_TABS.capacity}><TabsTrigger value="capacity">Kapazität</TabsTrigger></InfoTooltip>
+          <InfoTooltip entry={CLUSTER_TABS.maintenance}><TabsTrigger value="maintenance">Wartung</TabsTrigger></InfoTooltip>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <ClusterOverviewPanel
@@ -151,6 +153,9 @@ export default function Clusters() {
             search={filters.search}
             onOpenCluster={setSelectedClusterKey}
           />
+        </TabsContent>
+        <TabsContent value="maintenance" className="mt-6">
+          <ClusterMaintenancePanel />
         </TabsContent>
       </Tabs>
       <ClusterDetailDialog

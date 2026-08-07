@@ -82,15 +82,6 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
       "Gleicht Eramon-Switch-Ports gegen CDP, RVTools, Tech-Info und IPAM ab. Die Tabs führen von der Übersicht in die einzelnen Prüfungen und zeigen bestätigte Zuordnungen, Datenlücken und Widersprüche.",
     source: "Eramon · CDP-CSV · RVTools · Tech-Info · IPAM",
   },
-  "/vm-control": {
-    term: "VM-Kontrolle",
-    description: "Arbeitsbereich für künftige Prüfungen virtueller Maschinen.",
-  },
-  "/hardware": {
-    term: "Hardware",
-    description:
-      "Physische ESXi-Hosts: Hersteller, Modelle, CPU-Bestückung, BIOS sowie HBAs und NICs. Basis für Hardware-Standardisierung und Refresh-Planung.",
-  },
   "/tech-info": {
     term: "Tech-Info",
     description:
@@ -104,17 +95,12 @@ export const SIDEBAR_GLOSSARY: Record<string, GlossaryEntry> = {
   "/hosts": {
     term: "Hosts",
     description:
-      "Inventar aller ESXi-Hosts und ihre Verteilung auf aktuelle ESXi-Releases.",
+      "Inventar aller ESXi-Hosts und ihre Verteilung auf aktuelle ESXi-Releases. Der Tab Hardware zeigt zusätzlich Hersteller, Modelle, CPU-Bestückung, BIOS sowie HBAs und NICs als Basis für Standardisierung und Refresh-Planung.",
   },
   "/vms": {
     term: "VMs",
     description:
       "Virtuelle Maschinen mit Inventar sowie Performance-, Snapshot-, Health- und Compliance-Details.",
-  },
-  "/wartungsankuendigung": {
-    term: "Wartung",
-    description:
-      "Cluster-Zuweisungen, Verantwortliche und Wartungsfenster pflegen sowie daraus Wartungsankündigungen ableiten.",
   },
   "/wartungsfenster": {
     term: "Wartungsfenster",

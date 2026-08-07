@@ -25,6 +25,8 @@ export function GlobalFileDropOverlay() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [dragActive, setDragActive] = useState(false);
+  const [overlayRendered, setOverlayRendered] = useState(false);
+  const [overlayLeaving, setOverlayLeaving] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
@@ -40,6 +42,17 @@ export function GlobalFileDropOverlay() {
   }, []);
 
   useEffect(() => clearIdleTimer, [clearIdleTimer]);
+
+  // Das Overlay bleibt beim Verlassen noch kurz im DOM. So kann es den Drop-Zustand
+  // sauber ausblenden, statt zwischen zwei Drag-Ereignissen zu blinken.
+  useEffect(() => {
+    if (dragActive && enabled) {
+      setOverlayRendered(true);
+      setOverlayLeaving(false);
+      return;
+    }
+    if (overlayRendered) setOverlayLeaving(true);
+  }, [dragActive, enabled, overlayRendered]);
 
   useEffect(() => {
     const deactivate = () => {
@@ -95,14 +108,19 @@ export function GlobalFileDropOverlay() {
     };
   }, [clearIdleTimer, enabled, importFiles, navigate]);
 
-  if (!dragActive || !enabled) return null;
+  if (!overlayRendered) return null;
 
   return (
     <div
       role="status"
-      className="pointer-events-none fixed inset-0 z-[60] flex animate-in items-center justify-center bg-background/80 p-6 backdrop-blur-sm fade-in-0 duration-150"
+      aria-hidden={overlayLeaving}
+      onTransitionEnd={(event) => {
+        if (event.target !== event.currentTarget || event.propertyName !== "opacity" || !overlayLeaving) return;
+        setOverlayRendered(false);
+      }}
+      className={`global-file-drop-overlay pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-background/80 p-6 backdrop-blur-sm${overlayLeaving ? " is-leaving" : ""}`}
     >
-      <div className="flex max-w-lg animate-in flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/60 bg-card/95 p-10 text-center shadow-lg zoom-in-95 duration-150">
+      <div className="flex max-w-lg flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/60 bg-card/95 p-10 text-center shadow-lg">
         {importing
           ? <Loader2 className="h-10 w-10 animate-spin text-primary" />
           : <Upload className="h-10 w-10 text-primary" />}
