@@ -1,0 +1,18 @@
+# Cache-Regeln für Cloudflare Pages.
+#
+# Alles, was hier ausgeliefert wird, trägt einen unveränderlichen Namen (dann
+# regelt es die Function unter functions/assets/) oder muss bei jeder Anfrage
+# revalidiert werden. Letzteres betrifft vor allem die index.html: Sie enthält
+# die Verweise auf die gehashten Chunk-Dateien. Kommt sie nach einem Deploy aus
+# einem Zwischencache – etwa aus einem Firmen-Proxy mit TLS-Inspection – zeigt
+# sie auf Chunks, die es nicht mehr gibt, und die App bricht beim Laden einer
+# lazy geladenen Route ab.
+#
+# "no-cache" verbietet kein Caching, es erzwingt die Revalidierung vor jeder
+# Verwendung. Über den ETag bleibt eine 304-Antwort möglich, der Transfer
+# bleibt also günstig.
+#
+# Hinweis: Für Antworten aus Pages Functions gelten diese Regeln nicht,
+# /assets/* setzt seine Header deshalb selbst.
+/*
+  Cache-Control: no-cache, must-revalidate

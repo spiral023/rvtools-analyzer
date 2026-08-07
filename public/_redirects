@@ -1,1 +1,8 @@
+# SPA-Fallback: Deep-Links wie /vms müssen die index.html erhalten, damit der
+# Client-Router die Route auflösen kann.
+#
+# Achtung: Diese Regel greift auch für Anfragen unter /assets/. Ein fehlender
+# Chunk führt dadurch nicht zu einem 404, sondern zu einer 200-Antwort mit
+# HTML-Inhalt. functions/assets/[[path]].ts fängt diesen Fall ab und wandelt
+# ihn in einen echten, nicht cachebaren 404 um.
 /* /index.html 200
