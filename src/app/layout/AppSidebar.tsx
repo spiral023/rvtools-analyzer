@@ -14,6 +14,7 @@ import {
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { SIDEBAR_GLOSSARY } from "@/lib/glossary";
 import { RELATED_TOOLS } from "@/lib/relatedTools";
+import { USAGE_TIPS } from "@/lib/usageTips";
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
 import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
@@ -22,6 +23,9 @@ import {
   LayoutDashboard,
   Upload,
   Loader2,
+  Lightbulb,
+  ChevronLeft,
+  ChevronRight,
   Database,
   Network,
   GitCompare,
@@ -156,26 +160,83 @@ function NavSection({
   );
 }
 
+/**
+ * Startpunkt des Karussells. Ein Zufallstipp je Seitenaufruf verhindert, dass jeder
+ * Nutzer dauerhaft denselben Hinweis sieht und den Bereich als Deko abtut.
+ */
+function pickRandomTipIndex() {
+  return Math.floor(Math.random() * USAGE_TIPS.length);
+}
+
+/**
+ * Die Fläche über den Tool-Icons zeigt standardmäßig einen Bedienhinweis und wechselt
+ * nur solange auf die Tool-Beschreibung, wie ein Tool-Icon fokussiert oder überfahren wird.
+ * Die Höhe ist fix, damit weder Moduswechsel noch unterschiedlich lange Texte die
+ * darunterliegenden Icons verschieben.
+ */
 function RelatedToolsNav() {
   const [activeTool, setActiveTool] = useState<(typeof RELATED_TOOLS)[number] | null>(null);
+  const [tipIndex, setTipIndex] = useState(pickRandomTipIndex);
+  const tip = USAGE_TIPS[tipIndex];
+
+  const shiftTip = (offset: number) =>
+    setTipIndex((current) => (current + offset + USAGE_TIPS.length) % USAGE_TIPS.length);
 
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <div
-          aria-live="polite"
-          aria-atomic="true"
-          className={cn(
-            "mb-2 h-[76px] overflow-hidden rounded-lg bg-sidebar-accent/50 px-3 py-2 transition-opacity duration-150 motion-reduce:transition-none",
-            activeTool ? "opacity-100" : "pointer-events-none opacity-0",
+        <div className="mb-2 flex h-[108px] flex-col overflow-hidden rounded-lg bg-sidebar-accent/50 px-3 py-2">
+          <div aria-live="polite" aria-atomic="true" className="min-h-0 flex-1">
+            <div
+              key={activeTool ? `tool-${activeTool.href}` : `tip-${tip.id}`}
+              className="animate-in fade-in duration-150 motion-reduce:animate-none"
+            >
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-sidebar-accent-foreground">
+                {!activeTool && <Lightbulb className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                <span className="truncate">{activeTool ? activeTool.name : tip.title}</span>
+              </p>
+              {/* Ohne Karussell-Zeile ist Platz für eine vierte Zeile – längere Tool-Beschreibungen enden dadurch nicht mehr in Auslassungspunkten. */}
+              <p
+                className={cn(
+                  "mt-1 text-[11px] leading-4 text-sidebar-foreground/70",
+                  activeTool ? "line-clamp-4" : "line-clamp-3",
+                )}
+              >
+                {activeTool ? activeTool.description : tip.text}
+              </p>
+            </div>
+          </div>
+          {!activeTool && (
+            <div className="mt-1 flex h-5 shrink-0 items-center justify-between">
+              <button
+                type="button"
+                aria-label="Vorheriger Tipp"
+                onClick={() => shiftTip(-1)}
+                className="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/60 transition-colors hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+              <div aria-hidden="true" className="flex items-center gap-1">
+                {USAGE_TIPS.map((entry, index) => (
+                  <span
+                    key={entry.id}
+                    className={cn(
+                      "h-1 w-1 rounded-full bg-sidebar-foreground/25 transition-colors",
+                      index === tipIndex && "bg-sidebar-foreground/70",
+                    )}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-label="Nächster Tipp"
+                onClick={() => shiftTip(1)}
+                className="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/60 transition-colors hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
           )}
-        >
-          <p className="truncate text-xs font-semibold text-sidebar-accent-foreground">
-            {activeTool?.name}
-          </p>
-          <p className="mt-1 line-clamp-3 text-[11px] leading-4 text-sidebar-foreground/70">
-            {activeTool?.description}
-          </p>
         </div>
         <div className="grid grid-cols-4 gap-1 px-1">
           {RELATED_TOOLS.map((tool) => (

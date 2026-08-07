@@ -131,22 +131,6 @@ export function VmWorkloadProfilePanel() {
 
   const columns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: VM_PROFILE_COLUMNS.vmName } },
-    { accessorKey: "clusterName", header: "Cluster", meta: { info: VM_PROFILE_COLUMNS.cluster }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
-    {
-      id: "sysv",
-      header: "Systemverantwortlicher",
-      meta: { info: VM_PROFILE_COLUMNS.sysv },
-      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
-      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
-    },
-    {
-      id: "sysv-department",
-      header: "Abteilung",
-      meta: { info: VM_PROFILE_COLUMNS.sysvDepartment },
-      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
-      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
-    },
-    { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
     { accessorKey: "vcpu", header: "vCPU", meta: { info: VM_PROFILE_COLUMNS.vcpu }, cell: ({ getValue }) => formatNum(getValue() as number | null) },
     {
       id: "shape",
@@ -163,6 +147,9 @@ export function VmWorkloadProfilePanel() {
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
+    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <Sparkline profile={row.original} /> },
+    { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
+    { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     {
       id: "confidence",
       header: "Vertrauen",
@@ -170,11 +157,24 @@ export function VmWorkloadProfilePanel() {
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={confidenceBadgeVariant(row.original.confidence)}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
-    { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
-    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <Sparkline profile={row.original} /> },
-    { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
-    { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
-    { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95 }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
+    { accessorKey: "clusterName", header: "Cluster", meta: { info: VM_PROFILE_COLUMNS.cluster, initiallyVisible: false }, cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
+    {
+      id: "sysv",
+      header: "Systemverantwortlicher",
+      meta: { info: VM_PROFILE_COLUMNS.sysv, initiallyVisible: false },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysv ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    {
+      id: "sysv-department",
+      header: "Abteilung",
+      meta: { info: VM_PROFILE_COLUMNS.sysvDepartment, initiallyVisible: false },
+      accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
+      cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+    },
+    { accessorKey: "host", header: "Host", meta: { info: VM_PROFILE_COLUMNS.host, initiallyVisible: false }, cell: ({ getValue }) => { const value = getValue() as string | null; return value ? shortHostName(value) : "—"; } },
+    { id: "coverage", header: "Abdeckung", meta: { info: VM_PROFILE_COLUMNS.coverage, initiallyVisible: false }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100, 0) },
+    { id: "ready-p95", header: "Ready P95", meta: { info: VM_PROFILE_COLUMNS.readyP95, initiallyVisible: false }, accessorFn: (row) => row.ready.p95 ?? -1, cell: ({ row }) => { const value = row.original.ready.p95; return <span className={value !== null && value > 5 ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; } },
   ], [techInfoIndex]);
 
   const uncomputableColumns = useMemo<ColumnDef<VmWorkloadProfile, unknown>[]>(() => [

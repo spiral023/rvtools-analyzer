@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "@/app/layout/AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { USAGE_TIPS } from "@/lib/usageTips";
 
 const { importFiles, useOptionalImportControllerMock, useOptionalAppModeMock, useRestrictedDatasetMock } = vi.hoisted(() => ({
   importFiles: vi.fn(),
@@ -35,6 +36,7 @@ function renderSidebar() {
 
 describe("AppSidebar", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     importFiles.mockClear();
     useOptionalImportControllerMock.mockReset();
     useOptionalAppModeMock.mockReset();
@@ -170,6 +172,54 @@ describe("AppSidebar", () => {
     fireEvent.mouseLeave(markdownEditorLink);
 
     expect(screen.queryByText("Einfacher Markdown-Editor mit verschiedenen Exportformaten")).not.toBeInTheDocument();
+  });
+
+  it("zeigt ohne Tool-Hover einen Bedienhinweis statt einer leeren Fläche", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    renderSidebar();
+
+    expect(screen.getByText(USAGE_TIPS[0].title)).toBeInTheDocument();
+    expect(screen.getByText(USAGE_TIPS[0].text)).toBeInTheDocument();
+  });
+
+  it("schaltet über das Karussell vor und zurück und läuft dabei um", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    renderSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Tipp" }));
+    expect(screen.getByText(USAGE_TIPS[1].title)).toBeInTheDocument();
+    expect(screen.queryByText(USAGE_TIPS[0].title)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Vorheriger Tipp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vorheriger Tipp" }));
+    expect(screen.getByText(USAGE_TIPS[USAGE_TIPS.length - 1].title)).toBeInTheDocument();
+  });
+
+  it("startet mit einem zufälligen Tipp", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    renderSidebar();
+
+    expect(screen.getByText(USAGE_TIPS[USAGE_TIPS.length - 1].title)).toBeInTheDocument();
+  });
+
+  it("blendet den Tipp samt Karussell aus, solange ein Tool aktiv ist", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    renderSidebar();
+
+    const markdownEditorLink = screen.getByRole("link", { name: "Markdown Editor" });
+    fireEvent.mouseEnter(markdownEditorLink);
+
+    expect(screen.queryByText(USAGE_TIPS[0].title)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nächster Tipp" })).not.toBeInTheDocument();
+
+    fireEvent.mouseLeave(markdownEditorLink);
+
+    expect(screen.getByText(USAGE_TIPS[0].title)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nächster Tipp" })).toBeInTheDocument();
   });
 
   it("zeigt die verwandten Tools ohne Überschrift und Trennlinie", () => {
