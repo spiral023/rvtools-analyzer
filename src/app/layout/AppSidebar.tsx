@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import { USAGE_TIPS } from "@/lib/usageTips";
 import { useOptionalImportController } from "@/hooks/useImportController";
 import { useOptionalAppMode } from "@/hooks/useAppMode";
 import { useRestrictedDataset } from "@/hooks/useRestrictedDataset";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -26,6 +27,7 @@ import {
   Lightbulb,
   ChevronLeft,
   ChevronRight,
+  Download,
   Database,
   Network,
   GitCompare,
@@ -177,14 +179,28 @@ function pickRandomTipIndex() {
 function RelatedToolsNav() {
   const [activeTool, setActiveTool] = useState<(typeof RELATED_TOOLS)[number] | null>(null);
   const [tipIndex, setTipIndex] = useState(pickRandomTipIndex);
-  const tip = USAGE_TIPS[tipIndex];
+  const { canInstall, isInstalled, install } = usePwaInstall();
+
+  // Läuft die App bereits installiert, ist der Installationshinweis nur noch Ballast.
+  const tips = useMemo(
+    () => USAGE_TIPS.filter((entry) => entry.action?.id !== "install-pwa" || !isInstalled),
+    [isInstalled],
+  );
+  // Der Startindex zieht über die ungefilterte Liste und kann deshalb überlaufen.
+  const tip = tips[tipIndex % tips.length];
+  const action = tip.action?.id === "install-pwa" && canInstall ? tip.action : null;
 
   const shiftTip = (offset: number) =>
-    setTipIndex((current) => (current + offset + USAGE_TIPS.length) % USAGE_TIPS.length);
+    setTipIndex((current) => (current + offset + tips.length) % tips.length);
 
   return (
     <SidebarGroup>
       <SidebarGroupContent>
+        {/*
+          Feste Höhe aus 16px Innenabstand, 16px Titel, 4px Abstand, drei Textzeilen à 16px und
+          24px Karussell-Zeile. Ein Tipp mit Schaltfläche bleibt darin, weil die Schaltfläche
+          zwei Textzeilen ersetzt statt sie zu ergänzen.
+        */}
         <div className="mb-2 flex h-[108px] flex-col overflow-hidden rounded-lg bg-sidebar-accent/50 px-3 py-2">
           <div aria-live="polite" aria-atomic="true" className="min-h-0 flex-1">
             <div
@@ -195,15 +211,30 @@ function RelatedToolsNav() {
                 {!activeTool && <Lightbulb className="h-3 w-3 shrink-0" aria-hidden="true" />}
                 <span className="truncate">{activeTool ? activeTool.name : tip.title}</span>
               </p>
-              {/* Ohne Karussell-Zeile ist Platz für eine vierte Zeile – längere Tool-Beschreibungen enden dadurch nicht mehr in Auslassungspunkten. */}
+              {/*
+                Ohne Karussell-Zeile ist Platz für eine vierte Zeile – längere Tool-Beschreibungen
+                enden dadurch nicht mehr in Auslassungspunkten. Umgekehrt tritt die Schaltfläche
+                eines Tipps an die Stelle der zweiten und dritten Textzeile: Was sie auslöst,
+                steht bereits in ihrer Beschriftung.
+              */}
               <p
                 className={cn(
                   "mt-1 text-[11px] leading-4 text-sidebar-foreground/70",
-                  activeTool ? "line-clamp-4" : "line-clamp-3",
+                  activeTool ? "line-clamp-4" : action ? "line-clamp-1" : "line-clamp-3",
                 )}
               >
-                {activeTool ? activeTool.description : tip.text}
+                {activeTool ? activeTool.description : action ? action.text : tip.text}
               </p>
+              {!activeTool && action && (
+                <button
+                  type="button"
+                  onClick={() => void install()}
+                  className="mt-1 flex items-center gap-1 rounded text-[11px] font-medium leading-4 text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Download className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  {action.label}
+                </button>
+              )}
             </div>
           </div>
           {!activeTool && (
@@ -217,12 +248,12 @@ function RelatedToolsNav() {
                 <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
               <div aria-hidden="true" className="flex items-center gap-1">
-                {USAGE_TIPS.map((entry, index) => (
+                {tips.map((entry, index) => (
                   <span
                     key={entry.id}
                     className={cn(
                       "h-1 w-1 rounded-full bg-sidebar-foreground/25 transition-colors",
-                      index === tipIndex && "bg-sidebar-foreground/70",
+                      index === tipIndex % tips.length && "bg-sidebar-foreground/70",
                     )}
                   />
                 ))}

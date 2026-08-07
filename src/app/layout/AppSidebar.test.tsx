@@ -5,11 +5,24 @@ import { AppSidebar } from "@/app/layout/AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { USAGE_TIPS } from "@/lib/usageTips";
 
-const { importFiles, useOptionalImportControllerMock, useOptionalAppModeMock, useRestrictedDatasetMock } = vi.hoisted(() => ({
+const {
+  importFiles,
+  install,
+  useOptionalImportControllerMock,
+  useOptionalAppModeMock,
+  useRestrictedDatasetMock,
+  usePwaInstallMock,
+} = vi.hoisted(() => ({
   importFiles: vi.fn(),
+  install: vi.fn(),
   useOptionalImportControllerMock: vi.fn(),
   useOptionalAppModeMock: vi.fn(),
   useRestrictedDatasetMock: vi.fn(),
+  usePwaInstallMock: vi.fn(),
+}));
+
+vi.mock("@/hooks/usePwaInstall", () => ({
+  usePwaInstall: usePwaInstallMock,
 }));
 
 vi.mock("@/hooks/useImportController", () => ({
@@ -43,7 +56,17 @@ describe("AppSidebar", () => {
     useOptionalAppModeMock.mockReturnValue(null);
     useRestrictedDatasetMock.mockReset();
     useRestrictedDatasetMock.mockReturnValue({ isRestricted: false, sources: [], isPending: false });
+    install.mockReset();
+    install.mockResolvedValue(true);
+    usePwaInstallMock.mockReset();
+    usePwaInstallMock.mockReturnValue({ canInstall: false, isInstalled: false, install });
   });
+
+  /** Stellt den Zufallsstart so ein, dass das Karussell bei diesem Tipp beginnt. */
+  function startAtTip(id: string) {
+    const index = USAGE_TIPS.findIndex((entry) => entry.id === id);
+    vi.spyOn(Math, "random").mockReturnValue((index + 0.5) / USAGE_TIPS.length);
+  }
 
   it("benennt den Upload-Menüpunkt in Uploads um", () => {
     useOptionalImportControllerMock.mockReturnValue(null);
@@ -220,6 +243,45 @@ describe("AppSidebar", () => {
 
     expect(screen.getByText(USAGE_TIPS[0].title)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nächster Tipp" })).toBeInTheDocument();
+  });
+
+  it("bietet die Installation direkt an, sobald der Browser sie erlaubt", async () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    usePwaInstallMock.mockReturnValue({ canInstall: true, isInstalled: false, install });
+    startAtTip("install-pwa");
+    renderSidebar();
+
+    const installTip = USAGE_TIPS.find((entry) => entry.id === "install-pwa");
+    const installButton = screen.getByRole("button", { name: installTip!.action!.label });
+    expect(screen.getByText(installTip!.action!.text)).toBeInTheDocument();
+    expect(screen.queryByText(installTip!.text)).not.toBeInTheDocument();
+
+    fireEvent.click(installButton);
+
+    expect(install).toHaveBeenCalledTimes(1);
+  });
+
+  it("erklärt den Weg über das Browsermenü, wenn keine Installationsaufforderung vorliegt", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    startAtTip("install-pwa");
+    renderSidebar();
+
+    const installTip = USAGE_TIPS.find((entry) => entry.id === "install-pwa");
+    expect(screen.getByText(installTip!.text)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: installTip!.action!.label })).not.toBeInTheDocument();
+  });
+
+  it("nimmt den Installationstipp aus der Rotation, wenn die App bereits installiert läuft", () => {
+    useOptionalImportControllerMock.mockReturnValue(null);
+    usePwaInstallMock.mockReturnValue({ canInstall: false, isInstalled: true, install });
+    startAtTip("install-pwa");
+    renderSidebar();
+
+    const nextButton = screen.getByRole("button", { name: "Nächster Tipp" });
+    for (let step = 0; step < USAGE_TIPS.length; step++) {
+      expect(screen.queryByText("Als App installieren")).not.toBeInTheDocument();
+      fireEvent.click(nextButton);
+    }
   });
 
   it("zeigt die verwandten Tools ohne Überschrift und Trennlinie", () => {

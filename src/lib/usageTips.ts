@@ -1,3 +1,18 @@
+/**
+ * Aktion, die ein Tipp direkt anbieten kann, sofern der Browser sie hergibt. Ist sie nicht
+ * verfügbar, bleibt der Tipp ein reiner Hinweis mit seinem normalen `text`.
+ */
+export interface UsageTipAction {
+  id: "install-pwa";
+  label: string;
+  /**
+   * Ersetzt `text`, solange die Aktion verfügbar ist. Höchstens rund 40 Zeichen: Die
+   * Schaltfläche tritt an die Stelle der zweiten und dritten Textzeile, damit die
+   * Tipp-Fläche ihre Höhe behält.
+   */
+  text: string;
+}
+
 export interface UsageTip {
   /** Stabile Kennung, damit ein Tipp umformuliert werden kann, ohne Verweise zu brechen. */
   id: string;
@@ -8,6 +23,7 @@ export interface UsageTip {
    * schneidet `line-clamp-3` sichtbar mit Auslassungspunkten ab.
    */
   text: string;
+  action?: UsageTipAction;
 }
 
 /**
@@ -48,7 +64,13 @@ export const USAGE_TIPS: UsageTip[] = [
   {
     id: "install-pwa",
     title: "Als App installieren",
-    text: "Über das Symbol in der Adressleiste läuft der Analyzer als eigene App, auch offline.",
+    // Fallback für Browser ohne `beforeinstallprompt`, etwa Safari und Firefox.
+    text: "Über das Browsermenü lässt sich der Analyzer als eigene App einrichten, auch offline.",
+    action: {
+      id: "install-pwa",
+      label: "Jetzt installieren",
+      text: "Eigenes Fenster, Start auch ohne Netz.",
+    },
   },
   {
     id: "local-data",
