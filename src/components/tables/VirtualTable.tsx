@@ -405,6 +405,7 @@ export function VirtualTable<T, TColumn = T>({
       exportableColumns.map((column) => ({
         id: column.id,
         header: column.columnDef.header,
+        info: column.columnDef.meta?.info,
       })),
       rows.map((row) => ({
         getValue: (columnId) => row.getValue(columnId),
@@ -889,7 +890,7 @@ export function VirtualTable<T, TColumn = T>({
           <DialogHeader className="border-b border-border/60 bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-14">
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary"><Download className="h-4 w-4" aria-hidden="true" /> Tabellenexport</div>
             <DialogTitle className="text-balance">Sichtbare Tabelle weitergeben</DialogTitle>
-            <DialogDescription>Exportiert werden {rows.length.toLocaleString("de-DE")} gefilterte Zeilen und {exportableColumns.length} sichtbare Spalten – genau wie aktuell in der Tabelle.</DialogDescription>
+            <DialogDescription>Exportiert werden {rows.length.toLocaleString("de-DE")} gefilterte Zeilen und {exportableColumns.length} sichtbare Spalten – genau wie aktuell in der Tabelle. Die Excel-Datei trägt die Spaltenerklärungen als Notiz am Spaltenkopf.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 p-5 sm:grid-cols-2">
             <section className="rounded-xl border border-border/70 bg-card/70 p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">

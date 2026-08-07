@@ -1,6 +1,11 @@
+import type { Comments } from "@e965/xlsx";
+import type { GlossaryEntry } from "@/lib/glossary";
+
 export interface TableExportColumn {
   id: string;
   header: unknown;
+  /** Glossar-Erklärung der Spalte; wird im Excel-Export zur Notiz am Spaltenkopf. */
+  info?: GlossaryEntry;
 }
 
 export interface TableExportRow {
@@ -15,6 +20,26 @@ export interface TableExportData {
    * Textdarstellung für CSV, Markdown und JSON zu Zeichenketten werden.
    */
   excelRows?: Record<string, string | number>[];
+  /**
+   * Erklärung je Header, die der Excel-Export als Notiz an den Spaltenkopf hängt.
+   * Nur für Excel relevant: CSV, Markdown und JSON bleiben reine Datenformate.
+   */
+  headerNotes?: Record<string, string>;
+}
+
+/**
+ * Formt einen Glossar-Eintrag in den Notiztext am Spaltenkopf – inhaltlich
+ * derselbe Text wie im Frontend-Tooltip (Begriff, Erklärung, RVTools-Herkunft).
+ * Der Begriff entfällt, wenn er dem Header schon entspricht.
+ */
+export function buildHeaderNote(entry: GlossaryEntry, header: string): string {
+  const term = entry.term?.trim() ?? "";
+  const description = entry.description?.trim() ?? "";
+  const source = entry.source?.trim() ?? "";
+  const lines = (term && term !== header.trim() ? [term, description] : [description]).filter(Boolean);
+  if (!lines.length) return "";
+  if (source) lines.push("", `Quelle: ${source}`);
+  return lines.join("\n");
 }
 
 export function resolveExportHeader(header: unknown, fallback: string): string {
@@ -76,6 +101,11 @@ export function buildExportData(
 
   return {
     headers,
+    headerNotes: columns.reduce<Record<string, string>>((notes, column, index) => {
+      const note = column.info ? buildHeaderNote(column.info, headers[index]) : "";
+      if (note) notes[headers[index]] = note;
+      return notes;
+    }, {}),
     rows: rows.map((row) =>
       columns.reduce<Record<string, string>>((record, column, index) => {
         record[headers[index]] = formatExportValue(row.getValue(column.id));
@@ -184,6 +214,9 @@ export function exportJsonTable(data: TableExportData, filename: string): void {
   downloadTextFile(buildJsonTable(data), `${normalizeExportFilename(filename)}.json`, "application/json;charset=utf-8");
 }
 
+/** Autor der Header-Notizen; Excel zeigt ihn fett vor dem Notiztext. */
+const EXCEL_NOTE_AUTHOR = "RVTools Analyzer";
+
 export async function exportExcelTable(data: TableExportData, filename: string): Promise<void> {
   const XLSX = await import("@e965/xlsx");
   const worksheet = XLSX.utils.json_to_sheet(data.excelRows ?? data.rows, { header: data.headers });
@@ -196,6 +229,18 @@ export async function exportExcelTable(data: TableExportData, filename: string):
       cell.z = "0.00";
     }
   }
+  // Die Spaltenerklärungen aus dem Frontend-Tooltip wandern als Excel-Notiz an
+  // den Spaltenkopf: rote Ecke in der Zelle, Text erst beim Überfahren sichtbar.
+  data.headers.forEach((header, index) => {
+    const note = data.headerNotes?.[header];
+    if (!note) return;
+    const cell = worksheet[XLSX.utils.encode_cell({ r: 0, c: index })];
+    if (!cell) return;
+    const comments: Comments = [{ a: EXCEL_NOTE_AUTHOR, t: note, T: false }];
+    comments.hidden = true;
+    cell.c = comments;
+  });
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Tabelle");
   XLSX.writeFile(workbook, `${normalizeExportFilename(filename)}.xlsx`, {

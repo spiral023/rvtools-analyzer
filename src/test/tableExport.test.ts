@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildExportData,
   buildConfluenceWikiTable,
+  buildHeaderNote,
   buildJsonTable,
   buildMarkdownTable,
   copyTableText,
@@ -64,6 +65,34 @@ describe("table export helpers", () => {
 
     expect(data.rows).toEqual([{ "CPU Demand P95": "148.2342523", vCPU: "4" }]);
     expect(data.excelRows).toEqual([{ "CPU Demand P95": 148.23, vCPU: 4 }]);
+  });
+
+  it("übernimmt die Spaltenerklärungen als Header-Notizen für Excel", () => {
+    const data = buildExportData(
+      [
+        {
+          id: "cpuReady",
+          header: "CPU Ready",
+          info: { term: "CPU Ready", description: "Wartezeit auf CPU-Zeit.", source: 'RVTools · vCPU · „Ready %"' },
+        },
+        {
+          id: "vcpus",
+          header: "vCPU",
+          info: { term: "Virtuelle CPUs", description: "Zugewiesene vCPUs der VM." },
+        },
+        { id: "vm", header: "VM" },
+      ],
+      [{ getValue: (columnId) => ({ cpuReady: 1.5, vcpus: 4, vm: "app-01" })[columnId] }],
+    );
+
+    expect(data.headerNotes).toEqual({
+      "CPU Ready": 'Wartezeit auf CPU-Zeit.\n\nQuelle: RVTools · vCPU · „Ready %"',
+      vCPU: "Virtuelle CPUs\nZugewiesene vCPUs der VM.",
+    });
+  });
+
+  it("lässt Header-Notizen ohne Inhalt weg", () => {
+    expect(buildHeaderNote({ term: "", description: "" }, "vCPU")).toBe("");
   });
 
   it("escapes markdown table cells", () => {

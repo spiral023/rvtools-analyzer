@@ -13,7 +13,8 @@ import type {
 } from "@/domain/models/types";
 import { buildVmRightsizingCandidates, isNotableRightsizingCandidate } from "@/domain/services/vmRightsizingService";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
-import { buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
+import { buildHeaderNote, buildMarkdownTable, type TableExportData } from "@/lib/export/tableExport";
+import { getExportColumnInfo } from "@/lib/glossaries/exportStudio";
 import type { ClusterCapacityRow } from "@/lib/clusterCapacityWorkspace";
 
 export type PseudonymKind = "vcenter" | "cluster" | "server" | "host" | "datacenter" | "datastore" | "resource-pool" | "person" | "department" | "text";
@@ -423,6 +424,11 @@ export function buildExportDataFromDataset(dataset: ExportStudioDataset, selecte
   });
   return {
     headers: columns.map((column) => column.label),
+    headerNotes: columns.reduce<Record<string, string>>((notes, column) => {
+      const note = buildHeaderNote(getExportColumnInfo(dataset.source, column), column.label);
+      if (note) notes[column.label] = note;
+      return notes;
+    }, {}),
     rows: dataset.rows.map((row) => columns.reduce<Record<string, string>>((result, column) => {
       result[column.label] = row[column.id] ?? "";
       return result;
