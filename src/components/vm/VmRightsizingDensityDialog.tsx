@@ -57,24 +57,24 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
       accessorFn: (row) => techInfoIndex.get(normalizeVmName(row.vmName))?.sysvDepartment ?? null,
       cell: ({ getValue }) => (getValue() as string | null) ?? "—",
     },
-    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
+    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu, exportUnit: "vCPU" }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
     // Direkt neben der konfigurierten Größe: das Begriffspaar, um das es in dieser Ansicht
     // geht, steht damit unmittelbar nebeneinander statt durch sechs Kennzahlen getrennt.
     {
       id: "reclaimable-vcpu",
       header: "Rückgewinnbar",
-      meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
+      meta: { info: RIGHTSIZING_COLUMNS.reclaimableVcpu, exportUnit: "vCPU" },
       accessorFn: (row) => row.reclaimableVcpu ?? -1,
       cell: ({ row }) => <span className={(row.original.reclaimableVcpu ?? 0) > 0 ? "font-semibold text-warning" : ""}>{formatVcpu(row.original.reclaimableVcpu)}</span>,
     },
     {
       id: "additional-vcpu",
       header: "Zusätzlich",
-      meta: { info: RIGHTSIZING_COLUMNS.additionalVcpu },
+      meta: { info: RIGHTSIZING_COLUMNS.additionalVcpu, exportUnit: "vCPU" },
       accessorFn: (row) => row.additionalVcpu ?? -1,
       cell: ({ row }) => <span className={(row.original.additionalVcpu ?? 0) > 0 ? "font-semibold text-destructive" : ""}>{formatVcpu(row.original.additionalVcpu)}</span>,
     },
-    { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
+    { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95, exportUnit: "MHz" }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
       id: "demand-pct",
       header: "Demand P95 %",
@@ -85,23 +85,28 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
     {
       id: "ready-p95",
       header: "Ready P95",
-      meta: { info: RIGHTSIZING_COLUMNS.readyP95 },
+      meta: { info: RIGHTSIZING_COLUMNS.readyP95, exportUnit: "%" },
       accessorFn: (row) => row.ready.p95 ?? -1,
       cell: ({ row }) => <span className={row.original.flags.highCpuReady ? "font-semibold text-warning" : ""}>{formatPercent(row.original.ready.p95)}</span>,
     },
-    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
-    { id: "recommended-vcpu", header: "Empfohlen", meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu }, accessorFn: (row) => row.recommendedVcpu ?? -1, cell: ({ row }) => formatVcpu(row.original.recommendedVcpu) },
+    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
+    { id: "recommended-vcpu", header: "Empfohlen", meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu, exportUnit: "vCPU" }, accessorFn: (row) => row.recommendedVcpu ?? -1, cell: ({ row }) => formatVcpu(row.original.recommendedVcpu) },
     {
       id: "confidence",
       header: "Vertrauen",
-      meta: { info: VM_PROFILE_UI.confidence },
+      meta: { info: VM_PROFILE_UI.confidence, exportValue: (row) => CONFIDENCE_LABEL[row.confidence] },
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
     {
       id: "withheld",
       header: "Hinweis",
-      meta: { info: RIGHTSIZING_COLUMNS.recommendationWithheld },
+      meta: {
+        info: RIGHTSIZING_COLUMNS.recommendationWithheld,
+        exportValue: (row) => row.recommendationWithheldReason
+          ? VM_RIGHTSIZING_WITHHELD_LABEL[row.recommendationWithheldReason]
+          : "Empfehlung berechenbar",
+      },
       accessorFn: (row) => row.recommendationWithheldReason ?? "",
       cell: ({ row }) => row.original.recommendationWithheldReason
         ? <span className="text-xs text-muted-foreground">{VM_RIGHTSIZING_WITHHELD_LABEL[row.original.recommendationWithheldReason]}</span>

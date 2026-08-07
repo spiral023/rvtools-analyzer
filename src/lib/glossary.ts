@@ -30,6 +30,18 @@ declare module "@tanstack/react-table" {
     initiallyVisible?: boolean;
     /** Explizite Ausnahme für Spalten, die nicht in Datei-/Zwischenablage-Exporte gehören. */
     exportable?: boolean;
+    /**
+     * Einheit des Rohwerts, die Exporte an den Spaltenkopf hängen: „CPU Demand P95 (MHz)“.
+     * Nötig, weil die Tabellenzelle ihre Einheit mitformatiert („1,2 GHz“), der Export aber
+     * die nackte Zahl weitergibt und ohne Kopfangabe nicht interpretierbar ist.
+     */
+    exportUnit?: string;
+    /**
+     * Exportwert der Spalte, wenn der Accessor-Wert nur die Sortierung bedient – etwa ein
+     * Skalenindex oder die Anzahl gesetzter Merkmale. Der Export übernimmt sonst diese
+     * Hilfszahl statt der Aussage, die in der Tabelle zu lesen ist.
+     */
+    exportValue?: (row: TData) => unknown;
   }
 }
 

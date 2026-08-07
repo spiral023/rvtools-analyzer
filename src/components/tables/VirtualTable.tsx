@@ -401,16 +401,28 @@ export function VirtualTable<T, TColumn = T>({
     ? sortedRowIds.some((id) => selectedKeys?.has(id)) && !allSelected
     : false;
 
-  const getExportData = () => buildExportData(
+  const getExportData = () => {
+    // Spalten, deren Accessor nur sortiert (Skalenindex, Merkmalsanzahl), liefern den
+    // Exportwert über meta.exportValue aus der Zeile statt aus dem Tabellenmodell.
+    const exportValueResolvers = new Map(
+      exportableColumns.map((column) => [column.id, column.columnDef.meta?.exportValue]),
+    );
+
+    return buildExportData(
       exportableColumns.map((column) => ({
         id: column.id,
         header: column.columnDef.header,
         info: column.columnDef.meta?.info,
+        unit: column.columnDef.meta?.exportUnit,
       })),
       rows.map((row) => ({
-        getValue: (columnId) => row.getValue(columnId),
+        getValue: (columnId) => {
+          const resolveExportValue = exportValueResolvers.get(columnId);
+          return resolveExportValue ? resolveExportValue(row.original) : row.getValue(columnId);
+        },
       })),
     );
+  };
 
   const handleExport = async (format: "excel" | "csv" | "markdown" | "json" | "confluence" | "copy-csv" | "copy-markdown" | "copy-json") => {
     const exportData = getExportData();

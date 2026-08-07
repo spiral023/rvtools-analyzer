@@ -99,6 +99,39 @@ describe("VirtualTable", () => {
     }
   });
 
+  it("exportiert Einheit im Spaltenkopf und den Exportwert statt des Sortierschlüssels", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const levels = ["niedrig", "mittel", "hoch"];
+    const exportColumns: ColumnDef<TableRow, unknown>[] = [
+      { accessorKey: "ipAddress", header: "IP" },
+      { accessorKey: "name", header: "Demand P95", meta: { exportUnit: "MHz" } },
+      {
+        id: "level",
+        header: "Niveau",
+        // Sortiert über die Skalenposition, exportiert wird das Label.
+        accessorFn: (row) => levels.indexOf(row.comment ?? ""),
+        meta: { exportValue: (row) => row.comment },
+      },
+    ];
+
+    render(
+      <VirtualTable
+        data={[{ ipAddress: "10.0.0.1", name: "app-01", comment: "hoch" }]}
+        columns={exportColumns}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Aktuell sichtbare Tabelle exportieren"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "CSV" }));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+
+    const [csv] = writeText.mock.calls[0] as [string];
+    expect(csv.split("\r\n")[0]).toBe("IP;Demand P95 (MHz);Niveau");
+    // Ohne exportValue stünde hier die 2 aus dem Sortierschlüssel.
+    expect(csv.split("\r\n")[1]).toBe("10.0.0.1;app-01;hoch");
+  });
+
   it("reserviert Platz für die horizontale Scrollleiste, damit die letzte Zeile sichtbar bleibt", () => {
     const spies = [
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1200),

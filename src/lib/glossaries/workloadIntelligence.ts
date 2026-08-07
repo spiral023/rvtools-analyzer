@@ -268,6 +268,11 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   intensity: { term: "Niveau", description: "Auslastungsniveau aus dem VM-Profile-Tab: P95 relativ zur konfigurierten CPU-Kapazität.", source: "berechnet" },
   behaviorClass: { term: "Verhaltensklasse", description: "Verhaltensklasse aus dem VM-Profile-Tab – dieselbe Berechnung, keine zweite Profillogik.", source: "berechnet" },
   confidence: { term: "Vertrauen", description: "Vertrauensniveau der zugrunde liegenden Klassifikation.", source: "berechnet" },
+  flags: {
+    term: "Auffällig",
+    description: "Sammelspalte der erkannten Auffälligkeiten: viele vCPU bei geringem Bedarf, auffälliges CPU Ready, Co-Stop unter Last, Einzelkern-Engpass, Last auf wenigen Kernen und dauerhaft nahe Kapazität. Jede einzelne ist ein Prüfhinweis, keine Empfehlung – mehrere zusammen schärfen das Bild.",
+    source: "berechnet · vROps",
+  },
 };
 
 export const RAM_RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {

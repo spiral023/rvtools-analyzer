@@ -29,7 +29,7 @@ import {
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
-import { VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
@@ -89,12 +89,20 @@ const RIGHTSIZING_FLAG_LABELS: ReadonlyArray<{ label: string; isSet: (candidate:
   { label: "Dauerhaft nahe Kapazität", isSet: (candidate) => candidate.flags.sustainedNearCapacity },
 ];
 
+/**
+ * Die Auffälligkeiten als Text – der Sortierschlüssel der Spalte ist nur ihre Anzahl und
+ * taugt im Export nicht: „3“ sagt nicht, worauf zu schauen ist.
+ */
+function rightsizingFlagText(candidate: VmRightsizingCandidate): string {
+  return RIGHTSIZING_FLAG_LABELS.filter((entry) => entry.isSet(candidate)).map((entry) => entry.label).join(", ");
+}
+
 const summaryColumns: ColumnDef<VmRightsizingGroupSummary, unknown>[] = [
   { accessorKey: "label", header: "" },
   { accessorKey: "vmCount", header: "VMs", cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "candidateCount", header: "Kandidaten", cell: ({ getValue }) => formatNum(getValue() as number) },
   { accessorKey: "totalVcpu", header: "vCPU gesamt", cell: ({ getValue }) => formatVcpu(getValue() as number) },
-  { accessorKey: "reclaimableVcpu", header: "Rückgewinnbar", cell: ({ getValue }) => { const value = getValue() as number; return <span className={value > 0 ? "font-semibold text-warning" : "font-medium"}>{formatVcpu(value)}</span>; } },
+  { accessorKey: "reclaimableVcpu", header: "Rückgewinnbar", meta: { exportUnit: "vCPU" }, cell: ({ getValue }) => { const value = getValue() as number; return <span className={value > 0 ? "font-semibold text-warning" : "font-medium"}>{formatVcpu(value)}</span>; } },
   { accessorKey: "reclaimableVcpuPercent", header: "Rückgewinnbar %", cell: ({ getValue }) => { const value = getValue() as number | null; return <span className={value !== null && value > 0 ? "font-semibold text-warning" : "text-muted-foreground"}>{formatPercent(value)}</span>; } },
 ];
 
@@ -147,12 +155,12 @@ export function VmRightsizingPanel() {
   const densityGrid = useMemo(() => buildRightsizingDensityGrid(computableCandidates), [computableCandidates]);
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
-    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
-    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
+    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu, exportUnit: "vCPU" }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
+    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
     {
       id: "recommended-vcpu",
       header: "Empfohlen",
-      meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu },
+      meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu, exportUnit: "vCPU" },
       accessorFn: (row) => row.recommendedVcpu ?? -1,
       cell: ({ row }) => <RecommendedVcpuCell candidate={row.original} />,
     },
@@ -166,14 +174,15 @@ export function VmRightsizingPanel() {
     {
       id: "intensity",
       header: "Niveau",
-      meta: { info: RIGHTSIZING_COLUMNS.intensity },
+      meta: { info: RIGHTSIZING_COLUMNS.intensity, exportValue: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity] },
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
-    { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
+    { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95, exportUnit: "MHz" }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
       id: "flags",
       header: "Auffällig",
+      meta: { info: RIGHTSIZING_COLUMNS.flags, exportValue: rightsizingFlagText },
       accessorFn: (row) => RIGHTSIZING_FLAG_LABELS.filter((entry) => entry.isSet(row)).length,
       cell: ({ row }) => {
         const labels = RIGHTSIZING_FLAG_LABELS.filter((entry) => entry.isSet(row.original)).map((entry) => entry.label);
@@ -205,14 +214,14 @@ export function VmRightsizingPanel() {
     {
       id: "ready-p95",
       header: "Ready P95",
-      meta: { info: RIGHTSIZING_COLUMNS.readyP95, initiallyVisible: false },
+      meta: { info: RIGHTSIZING_COLUMNS.readyP95, initiallyVisible: false, exportUnit: "%" },
       accessorFn: (row) => row.ready.p95 ?? -1,
       cell: ({ row }) => { const value = row.original.ready.p95; return <span className={row.original.flags.highCpuReady ? "text-warning font-semibold" : ""}>{formatPercent(value)}</span>; },
     },
     {
       id: "confidence",
       header: "Vertrauen",
-      meta: { info: VM_PROFILE_UI.confidence, initiallyVisible: false },
+      meta: { info: VM_PROFILE_UI.confidence, initiallyVisible: false, exportValue: (row) => CONFIDENCE_LABEL[row.confidence] },
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
@@ -237,7 +246,7 @@ export function VmRightsizingPanel() {
     },
     { id: "host", header: "Host", meta: { info: RIGHTSIZING_COLUMNS.host }, accessorFn: (row) => row.hostName ?? "", cell: ({ getValue }) => (getValue() as string) || "—" },
     { accessorKey: "powerState", header: "Powerstate", cell: ({ getValue }) => (getValue() as string | null) ?? "—" },
-    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
+    { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu, exportUnit: "vCPU" }, cell: ({ getValue }) => formatVcpu(getValue() as number | null) },
     {
       id: "shape",
       header: "Lastmuster",
@@ -248,15 +257,16 @@ export function VmRightsizingPanel() {
     {
       id: "intensity",
       header: "Niveau",
-      meta: { info: RIGHTSIZING_COLUMNS.intensity },
+      meta: { info: RIGHTSIZING_COLUMNS.intensity, exportValue: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity] },
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
-    { id: "coverage", header: "Abdeckung", accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100) },
+    // Der Accessor trägt das Verhältnis 0–1, die Zelle zeigt Prozent: der Export folgt der Anzeige.
+    { id: "coverage", header: "Abdeckung", meta: { exportUnit: "%", exportValue: (row) => row.demand.coverageRatio * 100 }, accessorFn: (row) => row.demand.coverageRatio, cell: ({ row }) => formatPercent(row.original.demand.coverageRatio * 100) },
     {
       id: "confidence",
       header: "Vertrauen",
-      meta: { info: VM_PROFILE_UI.confidence },
+      meta: { info: VM_PROFILE_UI.confidence, exportValue: (row) => CONFIDENCE_LABEL[row.confidence] },
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },

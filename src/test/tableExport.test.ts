@@ -95,6 +95,21 @@ describe("table export helpers", () => {
     expect(buildHeaderNote({ term: "", description: "" }, "vCPU")).toBe("");
   });
 
+  it("ergänzt Einheiten im Spaltenkopf, ohne sie zu verdoppeln", () => {
+    const data = buildExportData(
+      [
+        { id: "demand", header: "CPU Demand P95", unit: "MHz" },
+        { id: "demandPct", header: "CPU Demand P95 %", unit: "%" },
+        { id: "totalVcpu", header: "vCPU gesamt", unit: "vCPU" },
+        { id: "vmCount", header: "VMs" },
+      ],
+      [{ getValue: (columnId) => ({ demand: 1234, demandPct: 42, totalVcpu: 8, vmCount: 3 })[columnId] }],
+    );
+
+    expect(data.headers).toEqual(["CPU Demand P95 (MHz)", "CPU Demand P95 %", "vCPU gesamt", "VMs"]);
+    expect(data.rows[0]["CPU Demand P95 (MHz)"]).toBe("1234");
+  });
+
   it("escapes markdown table cells", () => {
     const markdown = buildMarkdownTable({
       headers: ["Name", "Kommentar"],
