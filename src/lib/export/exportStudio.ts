@@ -92,6 +92,7 @@ const RECOMMENDATION_WITHHELD_LABEL: Record<NonNullable<VmRightsizingCandidate["
   "low-confidence": "Datenbasis zu dünn",
   "unreliable-shape": "Muster ohne reproduzierbaren Verlauf",
   "burst-not-repeatable": "Spitze wiederholt sich nicht wochenweise",
+  "rising-trend": "Belastung steigt im Messzeitraum",
   "peak-only": "Nur einzelne Spitze, keine Dauerlast",
 };
 

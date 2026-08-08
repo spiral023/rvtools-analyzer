@@ -257,7 +257,7 @@ describe("buildAnalysisExportFiles", () => {
         demandBasedVcpu: 12,
         additionalVcpu: 4,
         recommendedVcpu: 12,
-        flags: { manyVcpuLowDemand: false, highCpuReady: false, costopUnderLoad: true, singleCoreBound: true, concentratedOnFewCores: true, sustainedNearCapacity: true },
+        flags: { manyVcpuLowDemand: false, highCpuReady: false, costopUnderLoad: true, singleCoreBound: true, concentratedOnFewCores: true, sustainedNearCapacity: true, risingTrend: false },
       })],
     });
     const [headerLine, row] = fileByPath(files, "vms.csv").split("\n");

@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedVm, TechInfoLatest, VmMemoryWorkloadStats, VmRamRightsizingCandidate, VmWorkloadProfile } from "@/domain/models/types";
 import { rightsizingCandidateFixture } from "@/test/fixtures/vmWorkload";
+import { EMPTY_WORKLOAD_TREND } from "@/domain/services/vmWorkloadTrendService";
 
 const mockWorkloadState = vi.hoisted(() => ({
   current: {
@@ -70,6 +71,7 @@ function ramCandidate(overrides: Partial<VmRamRightsizingCandidate> = {}): VmRam
     deltaMiB: -2_048,
     direction: "shrink",
     confidence: "high",
+    trend: EMPTY_WORKLOAD_TREND,
     recommendationReason: null,
     peakSignalUsed: true,
     ...overrides,
