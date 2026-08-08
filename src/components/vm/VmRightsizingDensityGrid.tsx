@@ -115,11 +115,11 @@ export function VmRightsizingDensityGrid({
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-3.5 rounded-[2px]" style={{ backgroundColor: "hsl(var(--warning) / 0.7)" }} />
-          ab 90 %
+          2–5 % oder 90–100 %
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-3.5 rounded-[2px]" style={{ backgroundColor: "hsl(var(--destructive) / 0.7)" }} />
-          ab 100 %
+          unter 2 % oder ab 100 %
         </span>
       </div>
     </div>

@@ -33,6 +33,12 @@ function formatVcpu(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatFillUpValue(value, "vCPU");
 }
 
+function formatUsedVcpu(value: number | null): string {
+  return value === null || !Number.isFinite(value)
+    ? "—"
+    : `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} vCPUs`;
+}
+
 function demandPercent(candidate: VmRightsizingCandidate): number | null {
   return candidate.usedVcpuEquivalentP95 !== null && candidate.vcpu
     ? (candidate.usedVcpuEquivalentP95 / candidate.vcpu) * 100
@@ -89,7 +95,7 @@ function createColumns(techInfoIndex: VmTechInfoSearchIndex): ColumnDef<VmRights
       accessorFn: (row) => row.ready.p95 ?? -1,
       cell: ({ row }) => <span className={row.original.flags.highCpuReady ? "font-semibold text-warning" : ""}>{formatPercent(row.original.ready.p95)}</span>,
     },
-    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
+    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatUsedVcpu(row.original.usedVcpuEquivalentP95) },
     { id: "recommended-vcpu", header: "Empfohlen", meta: { info: RIGHTSIZING_COLUMNS.recommendedVcpu, exportUnit: "vCPU" }, accessorFn: (row) => row.recommendedVcpu ?? -1, cell: ({ row }) => formatVcpu(row.original.recommendedVcpu) },
     {
       id: "confidence",

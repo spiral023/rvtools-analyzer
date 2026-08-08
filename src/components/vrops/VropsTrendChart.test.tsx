@@ -86,7 +86,28 @@ describe("VropsTrendChart", () => {
     );
 
     expect(screen.getByTestId("reference-area-primary-80")).toHaveAttribute("data-y2", "100");
+    expect(screen.getByTestId("reference-area-primary-0")).toHaveAttribute("data-y2", "10");
     expect(screen.getByTestId("axis-primary")).toHaveAttribute("data-domain", JSON.stringify(["dataMin", 100]));
+  });
+
+  it("zeichnet im RAM-Verlauf keine Vermeidungszone, wenn beide Grenzen deaktiviert sind", () => {
+    render(
+      <VropsTrendChart
+        hourly={[{ timestampUtc: hourly[0].timestampUtc, primaryValue: 62, primaryPeakValue: 94, secondaryValue: null }]}
+        primaryMetric="memory-workload"
+        cpuCapacityMHz={null}
+        memoryCapacityMiB={16_384}
+        secondaryCapacity={null}
+        avoidanceThresholdPct={null}
+        lowAvoidanceThresholdPct={null}
+        hasImport
+        isMatched
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.queryByTestId("reference-area-primary-0")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reference-area-primary-80")).not.toBeInTheDocument();
   });
 
   it("skaliert die CPU-Absolutachse in GHz, sobald der Peak über 1.000 MHz liegt", () => {

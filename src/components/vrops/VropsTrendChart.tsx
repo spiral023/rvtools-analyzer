@@ -159,8 +159,10 @@ interface VropsTrendChartProps {
   secondaryLabel?: string;
   /** Überschrift der Chartkarte; ohne Angabe der neutrale Verlaufstitel. */
   title?: string;
-  /** Beginn der markierten Vermeidungszone in Prozent der Kapazität. */
-  avoidanceThresholdPct?: number;
+  /** Beginn der oberen markierten Vermeidungszone; `null` blendet sie aus. */
+  avoidanceThresholdPct?: number | null;
+  /** Ende der unteren Vermeidungszone; `null` blendet sie aus. */
+  lowAvoidanceThresholdPct?: number | null;
   hasImport: boolean;
   isMatched: boolean;
   isLoading: boolean;
@@ -178,6 +180,7 @@ export function VropsTrendChart({
   secondaryLabel,
   title = "Auslastungsverlauf",
   avoidanceThresholdPct = CPU_DEMAND_AVOIDANCE_THRESHOLD_PCT,
+  lowAvoidanceThresholdPct = primaryMetric === "cpu-demand" ? 10 : null,
   hasImport,
   isMatched,
   isLoading,
@@ -272,14 +275,20 @@ export function VropsTrendChart({
   // Peaks oberhalb der Kapazität sollen dabei weiterhin vollständig markiert
   // bleiben.
   const avoidanceScaleUpperBound = scale.capacityBound(isPercent ? "percent" : "absolute");
-  const avoidanceThreshold = trendAvoidanceThreshold(avoidanceScaleUpperBound, avoidanceThresholdPct);
+  const avoidanceThreshold = avoidanceThresholdPct === null
+    ? null
+    : trendAvoidanceThreshold(avoidanceScaleUpperBound, avoidanceThresholdPct);
   const avoidanceZoneMax = typeof primaryPeak?.primaryHigh === "number"
     && avoidanceThreshold !== null
     && avoidanceScaleUpperBound !== null
     && primaryPeak.primaryHigh > avoidanceThreshold
     ? Math.max(avoidanceScaleUpperBound, primaryPeak.primaryHigh)
     : null;
-  const avoidanceLabelPct = Math.round(avoidanceThresholdPct);
+  const avoidanceLabelPct = avoidanceThresholdPct === null ? null : Math.round(avoidanceThresholdPct);
+  const lowAvoidanceThreshold = lowAvoidanceThresholdPct === null
+    ? null
+    : trendAvoidanceThreshold(avoidanceScaleUpperBound, lowAvoidanceThresholdPct);
+  const lowAvoidanceLabelPct = lowAvoidanceThresholdPct === null ? null : Math.round(lowAvoidanceThresholdPct);
 
   // Die Ø-Woche liegt immer auf der künstlichen Woche ab Montag, 01.01.2024.
   // Das Wochenende wird daher als vollständiger, fester Bereich eingezeichnet –
@@ -441,6 +450,27 @@ export function VropsTrendChart({
                 <ReferenceLine
                   yAxisId="primary"
                   y={avoidanceThreshold}
+                  stroke="hsl(var(--destructive))"
+                  strokeDasharray="3 4"
+                  strokeOpacity={0.5}
+                />
+              </>
+            )}
+            {primaryVisible && lowAvoidanceThreshold !== null && lowAvoidanceLabelPct !== null && (
+              <>
+                <ReferenceArea
+                  yAxisId="primary"
+                  y1={0}
+                  y2={lowAvoidanceThreshold}
+                  ifOverflow="extendDomain"
+                  fill="hsl(var(--destructive))"
+                  fillOpacity={0.085}
+                  strokeOpacity={0}
+                  label={{ value: `Vermeiden · 0–${lowAvoidanceLabelPct} %`, position: "insideBottomRight", fill: "hsl(var(--destructive))", fontSize: 10, fontWeight: 700 }}
+                />
+                <ReferenceLine
+                  yAxisId="primary"
+                  y={lowAvoidanceThreshold}
                   stroke="hsl(var(--destructive))"
                   strokeDasharray="3 4"
                   strokeOpacity={0.5}

@@ -28,8 +28,8 @@ import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage
 import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailFormat";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
 import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
-import { DEFAULT_RAM_RIGHTSIZING_POLICY, RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
-import { VM_RIGHTSIZING_WITHHELD_LABEL, VM_RIGHTSIZING_WITHHELD_NARRATIVE } from "@/domain/services/vmRightsizingService";
+import { RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
+import { VM_RIGHTSIZING_WITHHELD_NARRATIVE } from "@/domain/services/vmRightsizingService";
 import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import {
   DetailFieldGrid,
@@ -42,7 +42,7 @@ import {
 import type { DetailDossier, DetailField, DetailKpi } from "@/lib/detailExport";
 import { VropsTrendChart } from "@/components/vrops/VropsTrendChart";
 import type { VropsObjectTrendPoint } from "@/hooks/useVropsObjectSeries";
-import { WorkloadIntensityBadge } from "@/components/vm/WorkloadBadges";
+import { WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { describeTrendRange } from "@/lib/trendDownsampling";
 import { VmTechnicalSections } from "@/components/vm/VmTechnicalSections";
 
@@ -89,13 +89,6 @@ function bool(value: boolean | null | undefined): string {
   return value ? "Ja" : "Nein";
 }
 
-function vmTone(value: string | null): DetailKpi["tone"] {
-  const normalized = (value || "").replace(/\s+/g, "").toLowerCase();
-  if (normalized === "poweredon" || normalized === "on" || normalized === "green") return "good";
-  if (!value) return "neutral";
-  return "warning";
-}
-
 function rightsizingNarrative(rightsizing: VmRightsizingCandidate | null, reclaimable: number, additional: number): string {
   if (additional > 0) return `CPU vergrößern prüfen: voraussichtlich ${additional} vCPU zusätzlich nötig.`;
   if (reclaimable > 0) return `CPU verkleinern prüfen: ${reclaimable} vCPU könnten frei werden.`;
@@ -136,7 +129,7 @@ function VmCpuSummary({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="font-medium">CPU-Auslastung P95 {percent(p95Pct)}</span>
       <WorkloadIntensityBadge intensity={workloadProfile.intensity} />
-      <span className="text-muted-foreground">Muster: {VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape]}</span>
+      <WorkloadShapeBadge shape={workloadProfile.shape} />
       <span className="text-muted-foreground">Konfiguriert: {vm.cpuCount ?? "—"} vCPU</span>
       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${actionClass}`}>
         <ActionIcon className="size-3.5" aria-hidden="true" />
@@ -213,29 +206,37 @@ export function VmDetailDialog({
   })) ?? [];
   const hasMemoryTrend = memoryTrendPoints.some((point) => point.primaryValue !== null || point.primaryPeakValue !== null);
   const memoryCapacityMiB = workloadProfile?.configuredMemoryMiB ?? vm.memoryMiB;
-  // Die markierte Zone folgt der aktiven RAM-Policy: oberhalb ihrer
-  // Zielauslastung ist der geplante Puffer aufgebraucht.
-  const ramPolicy = ramRightsizing ? RAM_RIGHTSIZING_POLICIES[ramRightsizing.policyLevel] : DEFAULT_RAM_RIGHTSIZING_POLICY;
-  const ramAvoidanceThresholdPct = Math.round(ramPolicy.targetWorkloadFactor * 100);
+  const ramPolicy = ramRightsizing ? RAM_RIGHTSIZING_POLICIES[ramRightsizing.policyLevel] : null;
+  const ramRightsizingValue = ramRightsizing?.recommendedMemoryMiB === null || ramRightsizing?.recommendedMemoryMiB === undefined
+    ? "Keine Empfehlung"
+    : formatBytes(ramRightsizing.recommendedMemoryMiB);
+  const ramRightsizingTone: DetailKpi["tone"] = ramRightsizing?.direction === "grow"
+    ? "critical"
+    : ramRightsizing?.direction === "shrink"
+      ? "warning"
+      : ramRightsizing?.direction === "unchanged"
+        ? "good"
+        : "neutral";
 
   const kpis: DetailKpi[] = [
-    { label: "Betriebszustand", value: compactValue(vm.powerState), hint: compactValue(vm.connectionState), tone: vmTone(vm.powerState) },
     { label: "vCPU", value: compactValue(vm.cpuCount === null ? null : String(vm.cpuCount)), hint: `${toNumber(cpu["Sockets"]) ?? "—"} Sockel`, tone: "neutral", info: VM_PROFILE_COLUMNS.vcpu },
-    { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `vMemory.Active Rohdiagnose: ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
-    { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && p95Pct >= 80 ? "critical" : p95Pct !== null && p95Pct >= 60 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.demandP95Pct, infoExample: demandP95Example },
+    { label: "CPU Demand P95", value: percent(p95Pct), hint: workloadProfile ? `${decimal(workloadProfile.demand.p95, 0)} MHz` : "Keine Zeitreihe", tone: p95Pct !== null && (p95Pct <= 2.5 || p95Pct >= 80) ? "critical" : p95Pct !== null && (p95Pct <= 5 || p95Pct >= 60) ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.demandP95Pct, infoExample: demandP95Example },
     { label: "CPU Ready P95", value: percent(workloadProfile?.ready.p95), hint: workloadProfile ? `${workloadProfile.demand.sampleCount} Messpunkte` : "Keine Zeitreihe", tone: (workloadProfile?.ready.p95 ?? 0) > 5 ? "warning" : workloadProfile ? "good" : "neutral", info: VM_PROFILE_COLUMNS.readyP95, infoExample: readyP95Example },
     {
       label: "Rightsizing",
       value: rightsizing?.recommendedVcpu ? `${rightsizing.recommendedVcpu} vCPU` : "Keine Änderung",
-      hint: additional > 0
-        ? `${additional} vCPU fehlen`
-        : reclaimable > 0
-          ? `${reclaimable} vCPU rückgewinnbar`
-          : rightsizing?.recommendationWithheldReason ? VM_RIGHTSIZING_WITHHELD_LABEL[rightsizing.recommendationWithheldReason] : "Kein Kandidat",
+      hint: "Sehr vorsichtig bis offensiv",
       // Unterdimensionierung wiegt schwerer als ungenutzte Kapazität: Die eine kostet
       // Leistung im laufenden Betrieb, die andere nur Reserve.
       tone: additional > 0 ? "critical" : reclaimable > 0 ? "warning" : "neutral",
       info: RIGHTSIZING_COLUMNS.recommendedVcpu,
+    },
+    { label: "Arbeitsspeicher", value: formatBytes(vm.memoryMiB), hint: `vMemory.Active Rohdiagnose: ${formatBytes(toNumber(memory["Active"]))}`, tone: "neutral" },
+    {
+      label: "RAM-Rightsizing",
+      value: ramRightsizingValue,
+      hint: ramPolicy ? `${RAM_RIGHTSIZING_POLICIES["very-conservative"].label} bis ${RAM_RIGHTSIZING_POLICIES.offensive.label}` : "Keine Memory-Workload-Daten",
+      tone: ramRightsizingTone,
     },
   ];
 
@@ -256,7 +257,7 @@ export function VmDetailDialog({
     { label: "Servertyp", value: compactValue(techInfo.serverType) },
     { label: "Wartungsfenster", value: compactValue(techInfo.maintenanceWindow) },
     { label: "Betriebssystem (Tech-Info)", value: compactValue(techInfo.operatingSystem) },
-    { label: "CV-Backup", value: bool(techInfo.cvBackup) },
+    { label: "CV-Backup", value: bool(techInfo.cvBackup), tone: techInfo.cvBackup === true ? "good" : techInfo.cvBackup === false ? "critical" : "neutral" },
     { label: "BZ / AZ", value: [techInfo.bz, techInfo.az].filter(Boolean).join(" · ") || "—" },
     { label: "Kommentar", value: compactValue(techInfo.comment), sensitivity: "text" },
   ] : [];
@@ -281,15 +282,15 @@ export function VmDetailDialog({
     { label: "Variationskoeffizient", value: decimal(workloadProfile.signals.coefficientOfVariation), info: VM_PROFILE_COLUMNS.coefficientOfVariation },
     { label: "Aktive Stunden", value: percent(workloadProfile.signals.dutyCyclePct), info: VM_PROFILE_COLUMNS.dutyCycle },
     { label: "Grundlastanteil", value: percent(workloadProfile.signals.baselineRatio === null ? null : workloadProfile.signals.baselineRatio * 100), info: VM_PROFILE_COLUMNS.baselineRatio },
-    { label: "Tages-Wiederholbarkeit", value: decimal(workloadProfile.signals.dailyRepeatability), info: VM_PROFILE_COLUMNS.dailyRepeatability },
-    { label: "Wochen-Wiederholbarkeit", value: decimal(workloadProfile.signals.weeklyRepeatability), info: VM_PROFILE_COLUMNS.weeklyRepeatability },
+    { label: "Tages-Wiederholbarkeit", value: decimal(workloadProfile.signals.dailyRepeatability), tone: (workloadProfile.signals.dailyRepeatability ?? 0) >= 0.75 ? "good" : "neutral", info: VM_PROFILE_COLUMNS.dailyRepeatability },
+    { label: "Wochen-Wiederholbarkeit", value: decimal(workloadProfile.signals.weeklyRepeatability), tone: (workloadProfile.signals.weeklyRepeatability ?? 0) >= 0.75 ? "good" : "neutral", info: VM_PROFILE_COLUMNS.weeklyRepeatability },
     { label: "Streuung der Wochenmaxima", value: decimal(workloadProfile.signals.weeklyPeakVariation), info: VM_PROFILE_COLUMNS.weeklyPeakVariation },
-    { label: "Business-Hours-Konzentration", value: decimal(workloadProfile.signals.businessHoursConcentration), info: VM_PROFILE_COLUMNS.businessHoursConcentration },
-    { label: "Nacht-Konzentration", value: decimal(workloadProfile.signals.nightConcentration), info: VM_PROFILE_COLUMNS.nightConcentration },
-    { label: "Wochenend-Konzentration", value: decimal(workloadProfile.signals.weekendConcentration), info: VM_PROFILE_COLUMNS.weekendConcentration },
+    { label: "Business-Hours-Konzentration", value: decimal(workloadProfile.signals.businessHoursConcentration), tone: (workloadProfile.signals.businessHoursConcentration ?? 0) >= 0.65 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.businessHoursConcentration },
+    { label: "Nacht-Konzentration", value: decimal(workloadProfile.signals.nightConcentration), tone: (workloadProfile.signals.nightConcentration ?? 0) >= 0.65 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.nightConcentration },
+    { label: "Wochenend-Konzentration", value: decimal(workloadProfile.signals.weekendConcentration), tone: (workloadProfile.signals.weekendConcentration ?? 0) >= 0.65 ? "warning" : "neutral", info: VM_PROFILE_COLUMNS.weekendConcentration },
     { label: "Konfigurierte CPU-Kapazität", value: workloadProfile.configuredCpuCapacityMHz ? `${decimal(workloadProfile.configuredCpuCapacityMHz, 0)} MHz` : "—", info: VM_PROFILE_COLUMNS.configuredCapacity },
-    { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity75), info: VM_PROFILE_COLUMNS.hoursAboveCapacity75 },
-    { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity90), info: VM_PROFILE_COLUMNS.hoursAboveCapacity90 },
+    { label: "Stunden über 75 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity75 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity75), tone: (workloadProfile.capacitySignals.hoursAboveCapacity75 ?? 0) >= 24 ? "critical" : "neutral", info: VM_PROFILE_COLUMNS.hoursAboveCapacity75 },
+    { label: "Stunden über 90 % Kapazität", value: workloadProfile.capacitySignals.hoursAboveCapacity90 === null ? "—" : hours(workloadProfile.capacitySignals.hoursAboveCapacity90), tone: (workloadProfile.capacitySignals.hoursAboveCapacity90 ?? 0) > 0 ? "critical" : "neutral", info: VM_PROFILE_COLUMNS.hoursAboveCapacity90 },
     { label: "Co-Stop unter Last P95", value: percent(workloadProfile.capacitySignals.costopUnderLoadP95Pct), info: VM_PROFILE_COLUMNS.costopUnderLoadP95 },
     { label: "Stunden Einzelkern-Engpass", value: hours(workloadProfile.capacitySignals.singleCoreBoundHours), info: VM_PROFILE_COLUMNS.singleCoreBoundHours, infoExample: singleCoreExample },
     { label: "Lastkonzentration", value: decimal(workloadProfile.capacitySignals.concentrationIndexP90), info: VM_PROFILE_COLUMNS.concentrationIndexP90, infoExample: concentrationExample },
@@ -305,12 +306,12 @@ export function VmDetailDialog({
     { label: "Empfohlen", value: rightsizing.recommendedVcpu === null ? "Keine Empfehlung" : `${rightsizing.recommendedVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.recommendedVcpu },
     { label: "Rückgewinnbar", value: rightsizing.reclaimableVcpu === null ? "—" : `${rightsizing.reclaimableVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.reclaimableVcpu },
     { label: "Zusätzlich nötig", value: rightsizing.additionalVcpu === null ? "—" : `${rightsizing.additionalVcpu} vCPU`, info: RIGHTSIZING_COLUMNS.additionalVcpu },
-    { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand), info: RIGHTSIZING_COLUMNS.manyVcpuLowDemand },
-    { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady), info: RIGHTSIZING_COLUMNS.highCpuReady },
-    { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad), info: RIGHTSIZING_COLUMNS.costopUnderLoad },
-    { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound), info: RIGHTSIZING_COLUMNS.singleCoreBound, infoExample: singleCoreExample },
-    { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores), info: RIGHTSIZING_COLUMNS.concentratedOnFewCores, infoExample: concentrationExample },
-    { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity), info: RIGHTSIZING_COLUMNS.sustainedNearCapacity },
+    { label: "Viele vCPU, geringer Bedarf", value: bool(rightsizing.flags.manyVcpuLowDemand), tone: rightsizing.flags.manyVcpuLowDemand ? "critical" : "good", info: RIGHTSIZING_COLUMNS.manyVcpuLowDemand },
+    { label: "Auffälliges CPU Ready", value: bool(rightsizing.flags.highCpuReady), tone: rightsizing.flags.highCpuReady ? "critical" : "good", info: RIGHTSIZING_COLUMNS.highCpuReady },
+    { label: "Co-Stop unter Last", value: bool(rightsizing.flags.costopUnderLoad), tone: rightsizing.flags.costopUnderLoad ? "critical" : "good", info: RIGHTSIZING_COLUMNS.costopUnderLoad },
+    { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound), tone: rightsizing.flags.singleCoreBound ? "critical" : "good", info: RIGHTSIZING_COLUMNS.singleCoreBound, infoExample: singleCoreExample },
+    { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores), tone: rightsizing.flags.concentratedOnFewCores ? "critical" : "good", info: RIGHTSIZING_COLUMNS.concentratedOnFewCores, infoExample: concentrationExample },
+    { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity), tone: rightsizing.flags.sustainedNearCapacity ? "critical" : "good", info: RIGHTSIZING_COLUMNS.sustainedNearCapacity },
   ] : [];
   const ramRightsizingFields: DetailField[] = ramRightsizing ? [
     { label: "RAM aktuell", value: formatBytes(ramRightsizing.configuredMemoryMiB) },
@@ -320,7 +321,7 @@ export function VmDetailDialog({
     { label: "RAM-Bedarf berechnet", value: formatBytes(ramRightsizing.requiredMemoryMiB) },
     { label: "RAM empfohlen", value: formatBytes(ramRightsizing.recommendedMemoryMiB) },
     { label: "Delta", value: ramRightsizing.deltaMiB === null ? "—" : `${ramRightsizing.deltaMiB > 0 ? "+" : ramRightsizing.deltaMiB < 0 ? "−" : ""}${formatBytes(Math.abs(ramRightsizing.deltaMiB))}` },
-    { label: "Richtung", value: ramRightsizing.direction === "shrink" ? "Verkleinern" : ramRightsizing.direction === "grow" ? "Vergrößern" : ramRightsizing.direction === "unchanged" ? "Unverändert" : "Nicht berechenbar" },
+    { label: "Richtung", value: ramRightsizing.direction === "shrink" ? "Verkleinern" : ramRightsizing.direction === "grow" ? "Vergrößern" : ramRightsizing.direction === "unchanged" ? "Unverändert" : "Nicht berechenbar", tone: ramRightsizing.direction === "grow" ? "critical" : ramRightsizing.direction === "shrink" ? "warning" : ramRightsizing.direction === "unchanged" ? "good" : "neutral" },
     { label: "Datenabdeckung", value: percent(ramRightsizing.coverageRatio * 100) },
     { label: "Datenqualität", value: ramRightsizing.confidence },
     { label: "Begründung", value: ramRightsizing.recommendationReason ?? "—" },
@@ -471,12 +472,14 @@ export function VmDetailDialog({
         badges={
           <>
             <Badge variant="secondary" className="rounded-full text-[10px]">{compactValue(vm.powerState)}</Badge>
-            <Badge variant="outline" className="rounded-full text-[10px]">Config {compactValue(vm.configStatus)}</Badge>
+            {techInfo?.sysv && <Badge variant="outline" className="rounded-full text-[10px]"><UserRound className="mr-1 size-3" />{techInfo.sysv}</Badge>}
+            {techInfo?.sysvDepartment && <Badge variant="outline" className="rounded-full text-[10px]">{techInfo.sysvDepartment}</Badge>}
             {techInfo?.maintenanceWindow && <Badge variant="outline" className="rounded-full text-[10px]">Wartung {techInfo.maintenanceWindow}</Badge>}
             {optionalDataLoading && <Badge variant="outline" className="rounded-full text-[10px]">Zusatzdaten werden geladen…</Badge>}
           </>
         }
         dossier={dossier}
+        showScrollHint
       >
         <DetailNarrative source={workloadProfile ? "RVTools · Tech-Info · vROps" : "RVTools · optionale Zusatzdaten"}>
           <VmCpuSummary
@@ -536,7 +539,8 @@ export function VmDetailDialog({
               cpuCapacityMHz={null}
               memoryCapacityMiB={memoryCapacityMiB}
               secondaryCapacity={null}
-              avoidanceThresholdPct={ramAvoidanceThresholdPct}
+              avoidanceThresholdPct={null}
+              lowAvoidanceThresholdPct={null}
               hasImport
               isMatched
               isLoading={false}

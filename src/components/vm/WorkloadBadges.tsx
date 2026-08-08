@@ -40,10 +40,13 @@ export function WorkloadIntensityBadge({ intensity }: { intensity: VmWorkloadInt
 const UTILIZATION_CRITICAL_PCT = 100;
 /** Ab hier bleibt kein nennenswerter Kopfraum für Lastspitzen. */
 const UTILIZATION_WARN_PCT = 90;
+const UTILIZATION_TOO_LOW_CRITICAL_PCT = 2.5;
+const UTILIZATION_TOO_LOW_WARN_PCT = 5;
 
 /**
- * CPU Demand P95 in Prozent der konfigurierten Kapazität. Über 100 % rot, über 90 %
- * gelb – dieselbe Ampel wie beim Auslastungsniveau, nur auf dem exakten Wert.
+ * CPU Demand P95 in Prozent der konfigurierten Kapazität. Zu wenig Auslastung ist
+ * ebenso auffällig wie Kapazitätsnähe: bis 2,5 % rot, bis 5 % gelb, ab 90 % gelb
+ * und über 100 % rot.
  */
 export function UtilizationPercentCell({ value }: { value: number | null }) {
   if (value === null || !Number.isFinite(value)) return <span className="text-muted-foreground">—</span>;
@@ -51,8 +54,9 @@ export function UtilizationPercentCell({ value }: { value: number | null }) {
     <span
       className={cn(
         "tabular-nums",
-        value > UTILIZATION_CRITICAL_PCT && "font-semibold text-destructive",
-        value > UTILIZATION_WARN_PCT && value <= UTILIZATION_CRITICAL_PCT && "font-semibold text-warning",
+        (value <= UTILIZATION_TOO_LOW_CRITICAL_PCT || value > UTILIZATION_CRITICAL_PCT) && "font-semibold text-destructive",
+        ((value > UTILIZATION_TOO_LOW_CRITICAL_PCT && value <= UTILIZATION_TOO_LOW_WARN_PCT)
+          || (value > UTILIZATION_WARN_PCT && value <= UTILIZATION_CRITICAL_PCT)) && "font-semibold text-warning",
       )}
     >
       {value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %

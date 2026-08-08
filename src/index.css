@@ -123,6 +123,17 @@
     animation: none;
   }
 
+  .system-detail-scroll-hint {
+    animation: system-detail-scroll-hint 240ms var(--ease-out) 2 alternate;
+  }
+
+  @keyframes system-detail-scroll-hint {
+    to {
+      opacity: 0.72;
+      transform: translateY(3px);
+    }
+  }
+
   .host-load-map__canvas {
     isolation: isolate;
     background-image:
@@ -619,6 +630,9 @@ html[data-theme-fade] * {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .system-detail-scroll-hint {
+    animation: none;
+  }
   .startscreen-rise > *,
   .startscreen-panel[data-drag="true"]::after {
     animation: none !important;

@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Database, Info, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, Database, Info, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -15,6 +15,7 @@ export function SystemDetailContent({
   subtitle,
   badges,
   dossier,
+  showScrollHint = false,
   children,
 }: {
   icon: ReactNode;
@@ -23,8 +24,11 @@ export function SystemDetailContent({
   subtitle?: string;
   badges?: ReactNode;
   dossier: DetailDossier;
+  showScrollHint?: boolean;
   children: ReactNode;
 }) {
+  const [scrollHintVisible, setScrollHintVisible] = useState(showScrollHint);
+
   return (
     <TooltipProvider>
       <DialogContent
@@ -61,9 +65,19 @@ export function SystemDetailContent({
             </div>
           </div>
         </DialogHeader>
-        <div className="system-detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className="system-detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          onScroll={(event) => setScrollHintVisible(showScrollHint && event.currentTarget.scrollTop < 24)}
+        >
           <main className="mx-auto w-full max-w-[1380px] space-y-4 p-4 sm:px-6 sm:py-5">{children}</main>
         </div>
+        {scrollHintVisible && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center" aria-hidden="true">
+            <span className="system-detail-scroll-hint inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-background/95 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground shadow-lg backdrop-blur-sm">
+              Weitere Details <ChevronDown className="size-3.5" />
+            </span>
+          </div>
+        )}
       </DialogContent>
     </TooltipProvider>
   );

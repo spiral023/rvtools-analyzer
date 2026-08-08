@@ -11,6 +11,7 @@ import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
+import { VmWeekProfileSparkline } from "@/components/vm/VmWeekProfileSparkline";
 import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
@@ -58,24 +59,6 @@ function notComputableReason(profile: VmWorkloadProfile): string {
 }
 
 const CONFIDENCE_LABEL: Record<VmWorkloadProfile["confidence"], string> = { high: "hoch", medium: "mittel", low: "niedrig", "not-computable": "nicht berechenbar" };
-
-function Sparkline({ profile }: { profile: VmWorkloadProfile }) {
-  const values = profile.hourly.map((point) => point.cpuDemandMHz);
-  const finite = values.filter((value): value is number => value !== null);
-  if (finite.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
-  const max = Math.max(...finite, 1);
-  const width = 120;
-  const height = 26;
-  const stepX = values.length > 1 ? width / (values.length - 1) : width;
-  const points = values
-    .map((value, index) => `${(index * stepX).toFixed(1)},${(height - (value === null ? 0 : (value / max) * height)).toFixed(1)}`)
-    .join(" ");
-  return (
-    <svg width={width} height={height} className="text-primary" aria-hidden="true">
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
 
 export function VmWorkloadProfilePanel() {
   const { imports, profiles: allProfiles, isLoading } = useVmWorkloadProfiles(null);
@@ -147,7 +130,7 @@ export function VmWorkloadProfilePanel() {
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
-    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <Sparkline profile={row.original} /> },
+    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <VmWeekProfileSparkline profile={row.original} /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     {

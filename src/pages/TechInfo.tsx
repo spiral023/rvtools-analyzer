@@ -51,7 +51,6 @@ interface TechInfoVmRow {
   bz: string | null;
   clusterFromTechInfo: string | null;
   cvBackup: boolean | null;
-  cvBackupRisk: boolean;
   az: string | null;
   hasTechInfo: boolean;
 }
@@ -82,11 +81,12 @@ const columns: ColumnDef<TechInfoVmRow, unknown>[] = [
     accessorKey: "cvBackup",
     header: "CV-Backup",
     meta: { info: TECHINFO_SERVER_COLUMNS.cvBackup },
-    cell: ({ getValue, row }) => {
+    cell: ({ getValue }) => {
       const val = getValue() as boolean | null;
       if (val === null) return "—";
-      if (!val && row.original.cvBackupRisk) return <Badge variant="destructive">Nein</Badge>;
-      return val ? "Ja" : "Nein";
+      return val
+        ? <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/80">Ja</Badge>
+        : <Badge variant="destructive">Nein</Badge>;
     },
   },
   { accessorKey: "bz", header: "BZ", meta: { info: TECHINFO_SERVER_COLUMNS.bz }, cell: ({ getValue }) => getValue() || "—" },
@@ -193,9 +193,6 @@ export default function TechInfo() {
           bz: techInfo.bz,
           clusterFromTechInfo: techInfo.clusterFromTechInfo,
           cvBackup: techInfo.cvBackup,
-          cvBackupRisk: techInfo.cvBackup === false && (
-            techInfo.az?.trim().toUpperCase() === "PROD" || techInfo.bz?.trim().toUpperCase() === "P"
-          ),
           az: techInfo.az,
           hasTechInfo: true,
         };

@@ -21,7 +21,7 @@ export interface RightsizingBand {
   max: number | null;
 }
 
-/** Über 100 % ist die konfigurierte Kapazität erschöpft, ab 90 % wird sie knapp. */
+/** Kapazitätsnähe und deutliche Unterauslastung werden gleichermaßen hervorgehoben. */
 export type RightsizingDemandSeverity = "critical" | "warn" | "neutral";
 
 export interface RightsizingDemandBand extends RightsizingBand {
@@ -75,8 +75,8 @@ const DEMAND_BANDS: readonly RightsizingDemandBand[] = [
   { key: "25-50", label: "25–50 %", min: 25, max: 50, severity: "neutral" },
   { key: "10-25", label: "10–25 %", min: 10, max: 25, severity: "neutral" },
   { key: "5-10", label: "5–10 %", min: 5, max: 10, severity: "neutral" },
-  { key: "2-5", label: "2–5 %", min: 2, max: 5, severity: "neutral" },
-  { key: "0-2", label: "< 2 %", min: 0, max: 2, severity: "neutral" },
+  { key: "2-5", label: "2–5 %", min: 2, max: 5, severity: "warn" },
+  { key: "0-2", label: "< 2 %", min: 0, max: 2, severity: "critical" },
 ];
 
 /** Auch bei einem sehr kleinen Bestand bleibt die X-Achse als Skala lesbar. */

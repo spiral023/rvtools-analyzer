@@ -15,6 +15,7 @@ import { CpuRightsizingLevelControl } from "@/components/vm/CpuRightsizingLevelC
 import { VmRightsizingDensityDialog } from "@/components/vm/VmRightsizingDensityDialog";
 import { VmRightsizingDensityGrid, type RightsizingDensitySelection } from "@/components/vm/VmRightsizingDensityGrid";
 import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
+import { VmWeekProfileSparkline } from "@/components/vm/VmWeekProfileSparkline";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
@@ -36,7 +37,7 @@ import { normalizeVmName } from "@/lib/globalFilter";
 import { buildRightsizingDensityGrid } from "@/lib/rightsizingDensity";
 import { buildTechInfoSearchIndex, normalizeVmSearchTerm } from "@/lib/vmSearch";
 import { VM_WORKLOAD_SHAPE_CHART_COLOR } from "@/lib/workloadShapeColors";
-import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
+import { RIGHTSIZING_COLUMNS, RIGHTSIZING_KPI, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import { formatNum } from "@/lib/xlsx/parseHelpers";
 
 /** Aufsteigend nach Auslastung; die Tabelle sortiert damit nach der Skala statt nach dem Label. */
@@ -48,6 +49,12 @@ function formatPercent(value: number | null): string {
 
 function formatVcpu(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatFillUpValue(value, "vCPU");
+}
+
+function formatUsedVcpu(value: number | null): string {
+  return value === null || !Number.isFinite(value)
+    ? "—"
+    : `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} vCPUs`;
 }
 
 export function RecommendedVcpuCell({ candidate }: { candidate: VmRightsizingCandidate }) {
@@ -119,6 +126,10 @@ export function VmRightsizingPanel() {
     () => buildVmRightsizingCandidates({ profiles, hosts, level: rightsizingLevel }),
     [hosts, profiles, rightsizingLevel],
   );
+  const profilesByObjectKey = useMemo(
+    () => new Map(profiles.map((profile) => [profile.objectKey, profile])),
+    [profiles],
+  );
   const scopedCandidates = useMemo(
     () => filterRightsizingCandidatesByVmScope(allCandidates, scopedVms),
     [allCandidates, scopedVms],
@@ -156,7 +167,7 @@ export function VmRightsizingPanel() {
   const candidateColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },
     { accessorKey: "vcpu", header: "Konfiguriert", meta: { info: RIGHTSIZING_COLUMNS.vcpu, exportUnit: "vCPU" }, cell: ({ getValue }) => formatVcpu(getValue() as number) },
-    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatVcpu(row.original.usedVcpuEquivalentP95) },
+    { id: "used-vcpu", header: "Genutzt (P95)", meta: { info: RIGHTSIZING_COLUMNS.usedVcpuEquivalent, exportUnit: "vCPU" }, accessorFn: (row) => row.usedVcpuEquivalentP95 ?? -1, cell: ({ row }) => formatUsedVcpu(row.original.usedVcpuEquivalentP95) },
     {
       id: "recommended-vcpu",
       header: "Empfohlen",
@@ -177,6 +188,16 @@ export function VmRightsizingPanel() {
       meta: { info: RIGHTSIZING_COLUMNS.intensity, exportValue: (row) => VM_WORKLOAD_INTENSITY_LABEL[row.intensity] },
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
+    },
+    {
+      id: "sparkline",
+      header: "7-Tage-Profil",
+      enableSorting: false,
+      meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false },
+      cell: ({ row }) => {
+        const profile = profilesByObjectKey.get(row.original.objectKey);
+        return profile ? <VmWeekProfileSparkline profile={profile} /> : <span className="text-xs text-muted-foreground">—</span>;
+      },
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95, exportUnit: "MHz" }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     {
@@ -225,7 +246,7 @@ export function VmRightsizingPanel() {
       accessorFn: (row) => row.confidence,
       cell: ({ row }) => <Badge variant={row.original.confidence === "high" ? "default" : row.original.confidence === "not-computable" ? "destructive" : "secondary"}>{CONFIDENCE_LABEL[row.original.confidence]}</Badge>,
     },
-  ], [techInfoIndex]);
+  ], [profilesByObjectKey, techInfoIndex]);
 
   const uncomputableColumns = useMemo<ColumnDef<VmRightsizingCandidate, unknown>[]>(() => [
     { accessorKey: "vmName", header: "VM", meta: { info: RIGHTSIZING_COLUMNS.vmName } },

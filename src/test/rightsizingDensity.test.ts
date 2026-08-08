@@ -48,6 +48,12 @@ describe("buildRightsizingDensityGrid", () => {
     expect(cellOf(grid, "ge-100", "3-4").vmCount).toBe(2);
   });
 
+  it("markiert Unterauslastung unter 2 % kritisch und bis 5 % als Warnung", () => {
+    const grid = buildRightsizingDensityGrid([]);
+    expect(grid.demandBands.find((band) => band.key === "0-2")?.severity).toBe("critical");
+    expect(grid.demandBands.find((band) => band.key === "2-5")?.severity).toBe("warn");
+  });
+
   it("überspringt VMs ohne vCPU-Angabe oder ohne berechenbaren Bedarf", () => {
     const grid = buildRightsizingDensityGrid([
       candidate({ objectKey: "ohne-vcpu", vcpu: null }),
