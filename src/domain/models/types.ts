@@ -1086,10 +1086,33 @@ export interface VmWorkloadClassificationSignals {
   weeklyPeakVariation: number | null;
   /** Anteil der Demand-Summe während Mo–Fr 06–17 Uhr relativ zum Anteil verfügbarer Stunden; 1 = gleichverteilt. */
   businessHoursConcentration: number | null;
-  /** Wie `businessHoursConcentration`, für Mo–Fr 00–06 Uhr. */
+  /** Stärkerer Konzentrationswert der Fenster Mo–Fr 00–06 Uhr und 20–06 Uhr. */
   nightConcentration: number | null;
   /** Wie `businessHoursConcentration`, für Samstag/Sonntag. */
   weekendConcentration: number | null;
+  /** Anteil erhöhter Stunden im jüngsten Sieben-Tage-Profil. Breite Dauerphasen sind keine Bursts. */
+  recentPeakSharePct: number | null;
+  /** P90 der zusammenhängenden Peak-Längen im jüngsten Sieben-Tage-Profil. */
+  recentPeakRunP90Hours: number | null;
+  /** Güte, mit der die VM in das zugewiesene Lastmuster passt (0–100). */
+  shapeFitScore: number | null;
+  /** Mehrfaktorieller Vertrauenswert aus Datenbasis, Mustergüte und zeitlicher Konsistenz (0–100). */
+  confidenceScore: number | null;
+}
+
+export type VmWorkloadTrendDirection = "strongly-rising" | "rising" | "stable" | "falling" | "not-computable";
+
+/** Robuster linearer Trend aus täglichen Medianen; getrennt für CPU und RAM berechnet. */
+export interface VmWorkloadTrend {
+  direction: VmWorkloadTrendDirection;
+  days: number;
+  slopePerDay: number | null;
+  projectedChange: number | null;
+  relativeChangePct: number | null;
+  capacityChangePct: number | null;
+  rSquared: number | null;
+  firstWeekMedian: number | null;
+  lastWeekMedian: number | null;
 }
 
 /**
@@ -1220,6 +1243,7 @@ export interface VmRamRightsizingCandidate {
   deltaMiB: number | null;
   direction: VmRamRightsizingDirection;
   confidence: VropsTimeSeriesConfidenceLevel;
+  trend: VmWorkloadTrend;
   /** Menschlich verwendbarer Grund, wenn keine Empfehlung berechnet werden kann. */
   recommendationReason: string | null;
   /** Zeigt, ob eine Max-Reihe importiert und für die Policy verwendet wurde. */
@@ -1296,6 +1320,10 @@ export interface VmWorkloadProfile {
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
   signals: VmWorkloadClassificationSignals;
+  /** Tendenz des CPU Demand Avg über tägliche Mediane. */
+  cpuTrend: VmWorkloadTrend;
+  /** Tendenz des Memory Workload Avg; nicht berechenbar bei älteren Importen. */
+  memoryTrend: VmWorkloadTrend;
 }
 
 /**
@@ -1317,6 +1345,7 @@ export interface VmRightsizingCandidate {
   intensity: VmWorkloadIntensity;
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
+  trend: VmWorkloadTrend;
   /** Globale Stufe, mit der diese Kandidatenbewertung berechnet wurde. */
   rightsizingLevel: CpuRightsizingLevel;
   demand: VmWorkloadProfileMetricStats;
@@ -1350,7 +1379,7 @@ export interface VmRightsizingCandidate {
    * Vergrößerungen, die nur an einer einzelnen Spitze hängen statt an Dauerlast.
    * `null`, wenn eine Empfehlung ausgesprochen wurde.
    */
-  recommendationWithheldReason: "low-confidence" | "unreliable-shape" | "burst-not-repeatable" | "peak-only" | null;
+  recommendationWithheldReason: "low-confidence" | "unreliable-shape" | "burst-not-repeatable" | "rising-trend" | "peak-only" | null;
   /**
    * Empfohlene vCPU-Zielgröße – die bedarfsgerechte Größe, sofern sie ausgesprochen wird.
    * Eine prüfpflichtige Kandidatengröße, nie eine automatische Änderung.
@@ -1387,6 +1416,8 @@ export interface VmRightsizingCandidate {
     concentratedOnFewCores: boolean;
     /** Dauerhaft nahe der Kapazitätsgrenze – Grundlage jeder Vergrößerungsempfehlung. */
     sustainedNearCapacity: boolean;
+    /** Belastung steigt über den Messmonat belastbar an; Verkleinerungen werden gesperrt. */
+    risingTrend: boolean;
   };
 }
 

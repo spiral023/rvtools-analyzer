@@ -27,10 +27,10 @@ import type {
 import { formatRvtoolsDate, matchRowsForVm, summarizeSnapshots, summarizeStorage } from "@/lib/vmDetail";
 import { compactValue, lastPathSegment, str, toNumber } from "@/lib/vmDetailFormat";
 import { formatBytes } from "@/lib/xlsx/parseHelpers";
-import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, VM_WORKLOAD_TREND_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { RAM_RIGHTSIZING_POLICIES } from "@/domain/services/vmRamRightsizingService";
 import { VM_RIGHTSIZING_WITHHELD_NARRATIVE } from "@/domain/services/vmRightsizingService";
-import { RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
+import { RAM_RIGHTSIZING_COLUMNS, RIGHTSIZING_COLUMNS, RIGHTSIZING_SECTIONS, VM_PROFILE_COLUMNS, VM_PROFILE_SECTIONS, VM_PROFILE_UI } from "@/lib/glossaries/workloadIntelligence";
 import {
   DetailFieldGrid,
   DetailKpiGrid,
@@ -264,6 +264,7 @@ export function VmDetailDialog({
 
   const workloadFields: DetailField[] = workloadProfile ? [
     { label: "Lastmuster", value: VM_WORKLOAD_SHAPE_LABEL[workloadProfile.shape], info: VM_PROFILE_COLUMNS.shape },
+    { label: "CPU-Tendenz", value: VM_WORKLOAD_TREND_LABEL[workloadProfile.cpuTrend.direction], tone: workloadProfile.cpuTrend.direction === "strongly-rising" ? "critical" : workloadProfile.cpuTrend.direction === "rising" ? "warning" : workloadProfile.cpuTrend.direction === "stable" ? "good" : "neutral", info: VM_PROFILE_COLUMNS.trend },
     {
       label: "Auslastungsniveau",
       value: VM_WORKLOAD_INTENSITY_LABEL[workloadProfile.intensity],
@@ -277,7 +278,8 @@ export function VmDetailDialog({
       info: VM_PROFILE_COLUMNS.intensity,
       infoExample: profileExample,
     },
-    { label: "Vertrauen", value: workloadProfile.confidence, info: VM_PROFILE_UI.confidence },
+    { label: "Vertrauen", value: `${workloadProfile.confidence} · ${workloadProfile.signals.confidenceScore ?? "—"}/100`, info: VM_PROFILE_UI.confidence },
+    { label: "Mustergüte", value: workloadProfile.signals.shapeFitScore === null ? "—" : `${workloadProfile.signals.shapeFitScore}/100`, tone: (workloadProfile.signals.shapeFitScore ?? 100) < 60 ? "warning" : "good", info: VM_PROFILE_COLUMNS.shapeFit },
     { label: "Datenabdeckung", value: percent(workloadProfile.demand.coverageRatio * 100), info: VM_PROFILE_COLUMNS.coverage },
     { label: "Variationskoeffizient", value: decimal(workloadProfile.signals.coefficientOfVariation), info: VM_PROFILE_COLUMNS.coefficientOfVariation },
     { label: "Aktive Stunden", value: percent(workloadProfile.signals.dutyCyclePct), info: VM_PROFILE_COLUMNS.dutyCycle },
@@ -312,6 +314,7 @@ export function VmDetailDialog({
     { label: "Einzelkern-Engpass", value: bool(rightsizing.flags.singleCoreBound), tone: rightsizing.flags.singleCoreBound ? "critical" : "good", info: RIGHTSIZING_COLUMNS.singleCoreBound, infoExample: singleCoreExample },
     { label: "Last auf wenigen Kernen", value: bool(rightsizing.flags.concentratedOnFewCores), tone: rightsizing.flags.concentratedOnFewCores ? "critical" : "good", info: RIGHTSIZING_COLUMNS.concentratedOnFewCores, infoExample: concentrationExample },
     { label: "Dauerhaft nahe Kapazität", value: bool(rightsizing.flags.sustainedNearCapacity), tone: rightsizing.flags.sustainedNearCapacity ? "critical" : "good", info: RIGHTSIZING_COLUMNS.sustainedNearCapacity },
+    { label: "CPU-Tendenz", value: VM_WORKLOAD_TREND_LABEL[rightsizing.trend.direction], tone: rightsizing.trend.direction === "strongly-rising" ? "critical" : rightsizing.trend.direction === "rising" ? "warning" : rightsizing.trend.direction === "stable" ? "good" : "neutral", info: RIGHTSIZING_COLUMNS.trend },
   ] : [];
   const ramRightsizingFields: DetailField[] = ramRightsizing ? [
     { label: "RAM aktuell", value: formatBytes(ramRightsizing.configuredMemoryMiB) },
@@ -324,6 +327,7 @@ export function VmDetailDialog({
     { label: "Richtung", value: ramRightsizing.direction === "shrink" ? "Verkleinern" : ramRightsizing.direction === "grow" ? "Vergrößern" : ramRightsizing.direction === "unchanged" ? "Unverändert" : "Nicht berechenbar", tone: ramRightsizing.direction === "grow" ? "critical" : ramRightsizing.direction === "shrink" ? "warning" : ramRightsizing.direction === "unchanged" ? "good" : "neutral" },
     { label: "Datenabdeckung", value: percent(ramRightsizing.coverageRatio * 100) },
     { label: "Datenqualität", value: ramRightsizing.confidence },
+    { label: "RAM-Tendenz", value: VM_WORKLOAD_TREND_LABEL[ramRightsizing.trend.direction], tone: ramRightsizing.trend.direction === "strongly-rising" ? "critical" : ramRightsizing.trend.direction === "rising" ? "warning" : ramRightsizing.trend.direction === "stable" ? "good" : "neutral", info: RAM_RIGHTSIZING_COLUMNS.trend },
     { label: "Begründung", value: ramRightsizing.recommendationReason ?? "—" },
   ] : [];
   const clientFields: DetailField[] = client ? [

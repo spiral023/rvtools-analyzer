@@ -16,6 +16,7 @@ import { VmRightsizingDensityDialog } from "@/components/vm/VmRightsizingDensity
 import { VmRightsizingDensityGrid, type RightsizingDensitySelection } from "@/components/vm/VmRightsizingDensityGrid";
 import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { VmWeekProfileSparkline } from "@/components/vm/VmWeekProfileSparkline";
+import { WorkloadTrendBadge } from "@/components/vm/WorkloadTrendBadge";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
@@ -30,7 +31,7 @@ import {
   summarizeReclaimableVcpuByShape,
   summarizeReclaimableVcpuByCluster,
 } from "@/domain/services/vmRightsizingService";
-import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, VM_WORKLOAD_TREND_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_GRID_STYLE, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { formatFillUpValue } from "@/lib/fillUpUnits";
 import { normalizeVmName } from "@/lib/globalFilter";
@@ -94,6 +95,7 @@ const RIGHTSIZING_FLAG_LABELS: ReadonlyArray<{ label: string; isSet: (candidate:
   { label: "Einzelkern-Engpass", isSet: (candidate) => candidate.flags.singleCoreBound },
   { label: "Last auf wenigen Kernen", isSet: (candidate) => candidate.flags.concentratedOnFewCores },
   { label: "Dauerhaft nahe Kapazität", isSet: (candidate) => candidate.flags.sustainedNearCapacity },
+  { label: "CPU-Last steigt", isSet: (candidate) => candidate.flags.risingTrend },
 ];
 
 /**
@@ -189,6 +191,7 @@ export function VmRightsizingPanel() {
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
+    { id: "trend", header: "Tendenz", meta: { info: RIGHTSIZING_COLUMNS.trend, exportValue: (row) => VM_WORKLOAD_TREND_LABEL[row.trend.direction] }, accessorFn: (row) => row.trend.direction, cell: ({ row }) => <WorkloadTrendBadge trend={row.original.trend} compact /> },
     {
       id: "sparkline",
       header: "7-Tage-Profil",

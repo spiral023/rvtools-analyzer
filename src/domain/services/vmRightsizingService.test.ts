@@ -128,9 +128,9 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.recommendedVcpu).toBe(4);
   });
 
-  it("hält die Empfehlung bei zu dünner Datenbasis zurück, weist den Bedarf aber aus", () => {
+  it("hält die Empfehlung bei niedriger Datenqualität zurück, weist den Bedarf aber aus", () => {
     const [candidate] = buildVmRightsizingCandidates({
-      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }), confidence: "medium" })],
+      profiles: [profile({ objectKey: "vm-1", vcpu: 16, demand: metricStats({ p95: 10 }), confidence: "low" })],
       hosts,
     });
     expect(candidate.recommendationWithheldReason).toBe("low-confidence");
@@ -138,6 +138,21 @@ describe("buildVmRightsizingCandidates – Zurückhaltung der Empfehlung", () =>
     expect(candidate.recommendedVcpu).toBe(16);
     // Die bedarfsgerechte Zielgröße bleibt sichtbar, damit die Planung sie beurteilen kann.
     expect(candidate.demandBasedVcpu).toBe(2);
+  });
+
+  it("sperrt eine Verkleinerung bei steigender CPU-Tendenz", () => {
+    const [candidate] = buildVmRightsizingCandidates({
+      profiles: [profile({
+        objectKey: "vm-growing",
+        vcpu: 16,
+        demand: metricStats({ p95: 500 }),
+        cpuTrend: { direction: "strongly-rising", days: 31, slopePerDay: 50, projectedChange: 1_500, relativeChangePct: 80, capacityChangePct: 10, rSquared: 0.9, firstWeekMedian: 500, lastWeekMedian: 1_800 },
+      })],
+      hosts,
+    });
+    expect(candidate.recommendationWithheldReason).toBe("rising-trend");
+    expect(candidate.flags.risingTrend).toBe(true);
+    expect(candidate.reclaimableVcpu).toBe(0);
   });
 
   it("hält die Empfehlung bei Mustern ohne reproduzierbaren Verlauf zurück", () => {

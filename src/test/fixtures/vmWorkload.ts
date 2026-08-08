@@ -13,6 +13,7 @@ import type {
   VmWorkloadProfile,
   VmWorkloadProfileMetricStats,
 } from "@/domain/models/types";
+import { EMPTY_WORKLOAD_TREND } from "@/domain/services/vmWorkloadTrendService";
 
 export function metricStatsFixture(
   overrides: Partial<VmWorkloadProfileMetricStats> = {},
@@ -46,6 +47,10 @@ export function classificationSignalsFixture(
     businessHoursConcentration: null,
     nightConcentration: null,
     weekendConcentration: null,
+    recentPeakSharePct: null,
+    recentPeakRunP90Hours: null,
+    shapeFitScore: null,
+    confidenceScore: null,
     ...overrides,
   };
 }
@@ -94,6 +99,8 @@ export function vmWorkloadProfileFixture(
     behaviorClass: "constant-load",
     confidence: "high",
     signals: classificationSignalsFixture(),
+    cpuTrend: EMPTY_WORKLOAD_TREND,
+    memoryTrend: EMPTY_WORKLOAD_TREND,
     ...overrides,
   };
 }
@@ -114,6 +121,7 @@ export function rightsizingCandidateFixture(
     intensity: "moderate",
     behaviorClass: "constant-load",
     confidence: "high",
+    trend: EMPTY_WORKLOAD_TREND,
     rightsizingLevel: "balanced",
     demand: metricStatsFixture(),
     ready: metricStatsFixture(),
@@ -133,6 +141,7 @@ export function rightsizingCandidateFixture(
       singleCoreBound: false,
       concentratedOnFewCores: false,
       sustainedNearCapacity: false,
+      risingTrend: false,
     },
     ...overrides,
   };

@@ -12,12 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { DemandCell } from "@/components/vm/DemandCell";
 import { VmWeekProfileSparkline } from "@/components/vm/VmWeekProfileSparkline";
+import { WorkloadTrendBadge } from "@/components/vm/WorkloadTrendBadge";
 import { UtilizationPercentCell, WorkloadIntensityBadge, WorkloadShapeBadge } from "@/components/vm/WorkloadBadges";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useVmDetailDialog } from "@/hooks/useVmDetailDialog";
 import { useVmWorkloadProfiles } from "@/hooks/useVmWorkloadProfiles";
 import type { VmWorkloadIntensity, VmWorkloadProfile, VmWorkloadShape } from "@/domain/models/types";
-import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL } from "@/domain/services/vmWorkloadProfileService";
+import { filterVmWorkloadProfilesBySearch, VM_WORKLOAD_INTENSITY_LABEL, VM_WORKLOAD_SHAPE_LABEL, VM_WORKLOAD_TREND_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { CHART_AXIS_STYLE, CHART_COLORS, CHART_TOOLTIP_ITEM_STYLE, CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chartStyles";
 import { average } from "@/lib/statistics";
 import { normalizeVmName } from "@/lib/globalFilter";
@@ -130,6 +131,7 @@ export function VmWorkloadProfilePanel() {
       accessorFn: (row) => INTENSITY_ORDER.indexOf(row.intensity),
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
+    { id: "trend", header: "Tendenz", meta: { info: VM_PROFILE_COLUMNS.trend, exportValue: (row) => VM_WORKLOAD_TREND_LABEL[row.cpuTrend.direction] }, accessorFn: (row) => row.cpuTrend.direction, cell: ({ row }) => <WorkloadTrendBadge trend={row.original.cpuTrend} compact /> },
     { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <VmWeekProfileSparkline profile={row.original} /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
@@ -188,7 +190,7 @@ export function VmWorkloadProfilePanel() {
           <KpiCard title="VMs mit Profil" value={formatNum(profiles.length)} icon={<Layers className="h-4 w-4" />} info={VM_PROFILE_KPI.profiledVms} />
           <KpiCard title="Ø Datenabdeckung" value={formatPercent(averageCoveragePct, 0)} icon={<Gauge className="h-4 w-4" />} info={VM_PROFILE_KPI.averageCoverage} />
           <KpiCard title="Niedriges Vertrauen" value={formatNum(lowConfidenceCount)} severity={lowConfidenceCount > 0 ? "warn" : "ok"} icon={<Clock className="h-4 w-4" />} info={VM_PROFILE_KPI.lowConfidence} />
-          <KpiCard title="Ruhend (< 2 %)" value={formatNum(idleCount)} icon={<Activity className="h-4 w-4" />} info={VM_PROFILE_KPI.idle} />
+          <KpiCard title="Ruhend (< 2,5 %)" value={formatNum(idleCount)} icon={<Activity className="h-4 w-4" />} info={VM_PROFILE_KPI.idle} />
           <KpiCard title="Hohe Auslastung" value={formatNum(highIntensityCount)} icon={<TrendingUp className="h-4 w-4" />} info={VM_PROFILE_KPI.highIntensity} />
           <KpiCard title="Nicht klassifizierbar" value={formatNum(unclassifiedCount)} severity={unclassifiedCount > 0 ? "warn" : "ok"} icon={<HelpCircle className="h-4 w-4" />} info={VM_PROFILE_KPI.unclassified} />
         </KpiGrid>

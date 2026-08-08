@@ -9,12 +9,14 @@ import type {
   VmWorkloadProfile,
   VmWorkloadProfileMetricStats,
   VmWorkloadShape,
+  VmWorkloadTrendDirection,
   VropsTimeSeriesChunk,
   VropsTimeSeriesConfidenceLevel,
   VropsTimeSeriesImport,
   VropsTimeSeriesImportedObject,
 } from "@/domain/models/types";
 import { readVropsTimeSeriesMetric } from "@/domain/services/vropsTimeSeriesSeriesReader";
+import { calculateWorkloadTrend } from "@/domain/services/vmWorkloadTrendService";
 import { average, percentile, standardDeviation } from "@/lib/statistics";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 
@@ -54,9 +56,17 @@ export const VM_WORKLOAD_INTENSITY_LABEL: Record<VmWorkloadIntensity, string> = 
   high: "Hoch",
 };
 
+export const VM_WORKLOAD_TREND_LABEL: Record<VmWorkloadTrendDirection, string> = {
+  "strongly-rising": "Stark steigend",
+  rising: "Steigend",
+  stable: "Stabil",
+  falling: "Fallend",
+  "not-computable": "Nicht berechenbar",
+};
+
 /** Obergrenze der jeweiligen Stufe in Prozent der konfigurierten CPU-Kapazität; `high` ist offen. */
 export const VM_WORKLOAD_INTENSITY_RANGE: Record<Exclude<VmWorkloadIntensity, "unknown" | "high">, number> = {
-  idle: 2,
+  idle: 2.5,
   "very-low": 5,
   low: 10,
   moderate: 25,
@@ -84,6 +94,9 @@ export interface VmBehaviorThresholds {
   /** Verhältnis Median/P95: liegt der Median deutlich unter dem P95, dominieren Spitzen statt einer Grundlast. */
   burstyMedianToP95Max: number;
   burstyCvMin: number;
+  /** Bursts müssen im jüngsten Wochenprofil kompakt bleiben; breite Plateaus sind variable Last. */
+  burstyPeakShareMaxPct: number;
+  burstyPeakRunP90MaxHours: number;
   /** Variationskoeffizient, unterhalb dessen die stündliche Last als annähernd konstant gilt. */
   constantLoadCvMax: number;
   /** Konzentration = Demand-Anteil / Stunden-Anteil eines Zeitfensters; 1 = gleichverteilt über die Woche. */
@@ -102,6 +115,7 @@ export interface VmBehaviorThresholds {
   dutyCycleCapacityMinPct: number;
   businessHourStart: number;
   businessHourEnd: number;
+  nightHourStart: number;
   nightHourEnd: number;
   classificationMinCoverageRatio: number;
   classificationMinSamples: number;
@@ -112,6 +126,8 @@ export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
   lowUtilizationP95CapacityMaxPct: 10,
   burstyMedianToP95Max: 0.4,
   burstyCvMin: 0.8,
+  burstyPeakShareMaxPct: 25,
+  burstyPeakRunP90MaxHours: 6,
   /**
    * An 3.980 vermessenen VMs hergeleitet. Als unabhängiges Maß für „wirklich flach“
    * dient p95/p50 ≤ 1,5 **und** Monatsmaximum/p50 ≤ 2,5 **und** ein Stunden-P95 des
@@ -143,6 +159,7 @@ export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
   dutyCycleCapacityMinPct: 5,
   businessHourStart: 6,
   businessHourEnd: 17,
+  nightHourStart: 20,
   nightHourEnd: 6,
   classificationMinCoverageRatio: 0.5,
   classificationMinSamples: 24,
@@ -244,6 +261,8 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
       const configuredCpuCapacityMHz = capacitySignals.totalCapacityMHz
         ?? (mhzPerCore !== null && vm.cpuCount ? mhzPerCore * vm.cpuCount : null);
       const { shape, intensity, behaviorClass, signals } = classifyVmBehavior(hourGrid, demandSeries, { configuredCpuCapacityMHz });
+      const cpuTrend = calculateWorkloadTrend(hourGrid.map((entry) => ({ dayKey: entry.dayKey, value: demandSeries.get(entry.timestampUtc) })), { capacity: configuredCpuCapacityMHz });
+      const memoryTrend = calculateWorkloadTrend(hourGrid.map((entry) => ({ dayKey: entry.dayKey, value: memoryWorkloadAvgSeries.get(entry.timestampUtc) })), { capacity: 100 });
       return [{
         objectKey: object.objectKey,
         rvtoolsObjectKey: object.rvtoolsObjectKey,
@@ -266,8 +285,10 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         shape,
         intensity,
         behaviorClass,
-        confidence: determineProfileConfidence(demand.coverageRatio, demand.sampleCount),
+        confidence: determineProfileConfidence(demand.coverageRatio, demand.sampleCount, { shape, signals }),
         signals,
+        cpuTrend,
+        memoryTrend,
       }];
     });
 
@@ -419,12 +440,18 @@ function lastFiniteValue(hourGrid: readonly HourGridEntry[], series: ReadonlyMap
   return null;
 }
 
-/** Vertrauensniveau folgt ausschließlich der Datenabdeckung; die Musterschwellen selbst enthalten keine Unsicherheit. */
-export function determineProfileConfidence(coverageRatio: number, sampleCount: number): VropsTimeSeriesConfidenceLevel {
+/** Datenbasis bleibt die Untergrenze; bei Profilen kommen Mustergüte und Konsistenz hinzu. */
+export function determineProfileConfidence(
+  coverageRatio: number,
+  sampleCount: number,
+  classification?: { shape: VmWorkloadShape; signals: VmWorkloadClassificationSignals },
+): VropsTimeSeriesConfidenceLevel {
   if (sampleCount === 0) return "not-computable";
   if (coverageRatio < MEDIUM_CONFIDENCE_COVERAGE_RATIO || sampleCount < MEDIUM_CONFIDENCE_MIN_SAMPLES) return "low";
   if (coverageRatio < HIGH_CONFIDENCE_COVERAGE_RATIO || sampleCount < HIGH_CONFIDENCE_MIN_SAMPLES) return "medium";
-  return "high";
+  if (!classification || classification.signals.confidenceScore === null) return "high";
+  if (classification.shape === "unclassified") return "low";
+  return classification.signals.confidenceScore >= 80 ? "high" : classification.signals.confidenceScore >= 55 ? "medium" : "low";
 }
 
 /** Berechnet Lokalzeit-Stunde und Wochenendflag je Zeitschlitz einmal für den ganzen Import statt je VM. */
@@ -495,6 +522,10 @@ export function classifyVmBehavior(
     businessHoursConcentration: null,
     nightConcentration: null,
     weekendConcentration: null,
+    recentPeakSharePct: null,
+    recentPeakRunP90Hours: null,
+    shapeFitScore: null,
+    confidenceScore: null,
   };
   const thresholds: VmBehaviorThresholds = options.thresholds
     ? { ...VM_BEHAVIOR_THRESHOLDS, ...options.thresholds }
@@ -539,10 +570,17 @@ export function classifyVmBehavior(
     return hourShare > 0 ? demandShare / hourShare : null;
   };
   const businessHoursConcentration = concentration((sample) => !sample.isWeekend && sample.hour >= thresholds.businessHourStart && sample.hour < thresholds.businessHourEnd);
-  const nightConcentration = concentration((sample) => !sample.isWeekend && sample.hour < thresholds.nightHourEnd);
+  // Das stärkere der beiden Fenster gewinnt: Der bisher sehr treffsichere Kern
+  // 00–06 Uhr bleibt erhalten, zusätzlich werden regelmäßige Läufe um 20–23 Uhr
+  // erkannt. Ein einziges breites Fenster würde die Konzentration früher Nachtjobs
+  // verwässern und bereits korrekt klassifizierte VMs zurück auf „variable“ setzen.
+  const nightCoreConcentration = concentration((sample) => !sample.isWeekend && sample.hour < thresholds.nightHourEnd);
+  const eveningNightConcentration = concentration((sample) => !sample.isWeekend && (sample.hour >= thresholds.nightHourStart || sample.hour < thresholds.nightHourEnd));
+  const nightConcentration = Math.max(nightCoreConcentration ?? 0, eveningNightConcentration ?? 0) || null;
   const weekendConcentration = concentration((sample) => sample.isWeekend);
   const dailyRepeatability = calculateDailyRepeatability(samples);
   const { weeklyRepeatability, weeklyPeakVariation } = calculateWeeklySignals(samples);
+  const { recentPeakSharePct, recentPeakRunP90Hours } = calculateRecentPeakSignals(samples, median, p95);
 
   const signals: VmWorkloadClassificationSignals = {
     coefficientOfVariation,
@@ -556,9 +594,15 @@ export function classifyVmBehavior(
     businessHoursConcentration,
     nightConcentration,
     weekendConcentration,
+    recentPeakSharePct,
+    recentPeakRunP90Hours,
+    shapeFitScore: null,
+    confidenceScore: null,
   };
 
-  const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration }, thresholds);
+  const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration, recentPeakSharePct, recentPeakRunP90Hours }, thresholds);
+  signals.shapeFitScore = calculateShapeFitScore(shape, signals, thresholds);
+  signals.confidenceScore = calculateConfidenceScore(coverageRatio, samples.length, shape, signals);
   // Reicht die Datenbasis nicht für eine Formaussage, trägt sie auch keine Niveauaussage.
   // Beide Achsen behandeln dieselbe Datenlücke damit gleich.
   const intensity = shape === "unclassified" ? "unknown" : determineIntensity(utilizationP95Pct);
@@ -581,6 +625,8 @@ interface ShapeInput {
   businessHoursConcentration: number | null;
   nightConcentration: number | null;
   weekendConcentration: number | null;
+  recentPeakSharePct: number | null;
+  recentPeakRunP90Hours: number | null;
 }
 
 /**
@@ -604,7 +650,8 @@ function determineShape(input: ShapeInput, thresholds: VmBehaviorThresholds): Vm
   const calendarWindow = dominantCalendarShape(input, thresholds);
   if (calendarWindow !== null) return calendarWindow;
   if (cv !== null && cv >= thresholds.burstyCvMin && p95 > 0 && median < p95 * thresholds.burstyMedianToP95Max) {
-    return "bursty";
+    if ((input.recentPeakSharePct ?? 100) < thresholds.burstyPeakShareMaxPct
+      && (input.recentPeakRunP90Hours ?? Number.POSITIVE_INFINITY) < thresholds.burstyPeakRunP90MaxHours) return "bursty";
   }
   if (cv !== null && cv >= thresholds.irregularCvMin && dailyRepeatability !== null && dailyRepeatability < thresholds.irregularDailyRepeatabilityMax) {
     return "irregular";
@@ -627,6 +674,102 @@ function dominantCalendarShape(input: ShapeInput, thresholds: VmBehaviorThreshol
     patterns[0].concentration - patterns[1].concentration >= thresholds.calendarDominanceMarginMin
     ? patterns[0].shape
     : null;
+}
+
+function calculateRecentPeakSignals(
+  samples: readonly (HourGridEntry & { slotIndex: number; value: number })[],
+  median: number,
+  p95: number,
+): { recentPeakSharePct: number | null; recentPeakRunP90Hours: number | null } {
+  if (samples.length === 0 || p95 <= 0) return { recentPeakSharePct: null, recentPeakRunP90Hours: null };
+  const lastSlot = samples[samples.length - 1].slotIndex;
+  const recent = samples.filter((sample) => sample.slotIndex >= lastSlot - 167);
+  if (recent.length === 0) return { recentPeakSharePct: null, recentPeakRunP90Hours: null };
+  const threshold = median + 0.6 * Math.max(0, p95 - median);
+  let highHours = 0;
+  let run = 0;
+  let previousSlot: number | null = null;
+  const runs: number[] = [];
+  for (const sample of recent) {
+    const isPeak = sample.value >= threshold;
+    if (isPeak) {
+      highHours += 1;
+      if (previousSlot !== null && sample.slotIndex !== previousSlot + 1 && run > 0) {
+        runs.push(run);
+        run = 0;
+      }
+      run += 1;
+    } else if (run > 0) {
+      runs.push(run);
+      run = 0;
+    }
+    previousSlot = sample.slotIndex;
+  }
+  if (run > 0) runs.push(run);
+  return {
+    recentPeakSharePct: (highHours / recent.length) * 100,
+    recentPeakRunP90Hours: percentile(runs, 0.9) ?? 0,
+  };
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function calculateShapeFitScore(
+  shape: VmWorkloadShape,
+  signals: VmWorkloadClassificationSignals,
+  thresholds: VmBehaviorThresholds,
+): number {
+  const cv = signals.coefficientOfVariation ?? 0;
+  const concentrations = [
+    signals.businessHoursConcentration ?? 0,
+    signals.nightConcentration ?? 0,
+    signals.weekendConcentration ?? 0,
+  ].sort((left, right) => right - left);
+  const dominance = concentrations[0] - concentrations[1];
+  let fit = 0;
+  switch (shape) {
+    case "constant": fit = clamp01(1 - cv / (thresholds.constantLoadCvMax + 0.1)); break;
+    case "business-hours": fit = calendarFit(signals.businessHoursConcentration, dominance); break;
+    case "night-batch": fit = calendarFit(signals.nightConcentration, dominance); break;
+    case "weekend": fit = calendarFit(signals.weekendConcentration, dominance); break;
+    case "bursty":
+      fit = clamp01(
+        0.45 * ((cv - 0.6) / 0.8)
+        + 0.35 * (1 - (signals.recentPeakRunP90Hours ?? 8) / 8)
+        + 0.2 * (1 - (signals.recentPeakSharePct ?? 30) / 30),
+      );
+      break;
+    case "irregular":
+      fit = clamp01(0.5 * ((cv - 0.4) / 0.8) + 0.5 * (1 - ((signals.dailyRepeatability ?? 0) + 0.2) / 0.7));
+      break;
+    case "variable": fit = 0.58; break;
+    case "unclassified": fit = 0; break;
+  }
+  return Math.round(fit * 100);
+}
+
+function calendarFit(concentration: number | null, dominance: number): number {
+  return clamp01(0.6 * (((concentration ?? 0) - 1) / 0.7) + 0.4 * (dominance / 0.4));
+}
+
+function calculateConfidenceScore(
+  coverageRatio: number,
+  sampleCount: number,
+  shape: VmWorkloadShape,
+  signals: VmWorkloadClassificationSignals,
+): number {
+  const dataScore = clamp01((coverageRatio - 0.5) / 0.4);
+  const sampleScore = clamp01((sampleCount - 24) / (168 - 24));
+  const fitScore = (signals.shapeFitScore ?? 0) / 100;
+  let consistencyScore = clamp01(((signals.dailyRepeatability ?? 0) + 0.2) / 1.2);
+  if (shape === "constant") consistencyScore = clamp01(1 - (signals.weeklyPeakVariation ?? 0.5));
+  if (shape === "bursty") consistencyScore = clamp01(((signals.weeklyRepeatability ?? 0) + 0.2) / 1.2);
+  if (shape === "irregular") consistencyScore = clamp01(1 - ((signals.weeklyRepeatability ?? 0) + 0.2) / 0.8);
+  if (shape === "variable") consistencyScore = clamp01(0.35 + 0.45 * ((signals.weeklyRepeatability ?? 0) + 0.2) / 1.2);
+  if (shape === "unclassified") consistencyScore = 0;
+  return Math.round(100 * (0.35 * dataScore + 0.15 * sampleScore + 0.35 * fitScore + 0.15 * consistencyScore));
 }
 
 /** Stuft das Auslastungsniveau anhand des P95-Anteils an der konfigurierten Kapazität ein. */

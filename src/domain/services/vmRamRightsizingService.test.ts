@@ -172,6 +172,18 @@ describe("VM-RAM-Rightsizing-Kandidaten", () => {
     expect(candidate.direction).toBe("shrink");
   });
 
+  it("sperrt eine RAM-Verkleinerung bei steigender Tendenz", () => {
+    const [candidate] = buildVmRamRightsizingCandidates({
+      profiles: [profileFixture("vm-01", Array(24).fill(50), undefined, {
+        memoryTrend: { direction: "rising", days: 31, slopePerDay: 1, projectedChange: 30, relativeChangePct: 60, capacityChangePct: 30, rSquared: 0.8, firstWeekMedian: 30, lastWeekMedian: 60 },
+      })],
+      hasMemoryWorkloadMax: false,
+      policy: TEST_POLICY,
+    });
+    expect(candidate.direction).toBe("not-computable");
+    expect(candidate.recommendationReason).toMatch(/RAM-Workload steigt/i);
+  });
+
   it("bewertet einen vorhandenen, aber unvollständigen Max-Import als nicht berechenbar", () => {
     const [candidate] = buildVmRamRightsizingCandidates({
       profiles: [profileFixture("vm-01", Array(24).fill(50), [60, null, ...Array(22).fill(null)])],

@@ -71,6 +71,20 @@ describe("classifyVmBehavior", () => {
     expect(classifyVmBehavior(grid, demand).behaviorClass).toBe("night-batch");
   });
 
+  it("erkennt regelmäßig wiederkehrende Abend-Batches ab 20 Uhr", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry) => [entry.timestampUtc, !entry.isWeekend && entry.hour >= 21 && entry.hour < 23 ? 4_000 : 100]));
+    expect(classifyVmBehavior(grid, demand).shape).toBe("night-batch");
+  });
+
+  it("stuft breite Hochlastphasen nicht als bursty ein", () => {
+    const grid = buildSyntheticWeek();
+    const demand = new Map(grid.map((entry, index) => [entry.timestampUtc, index < 100 ? 4_000 : 50]));
+    const result = classifyVmBehavior(grid, demand);
+    expect(result.shape).not.toBe("bursty");
+    expect(result.signals.recentPeakRunP90Hours ?? 0).toBeGreaterThan(6);
+  });
+
   it("erkennt Wochenendlast", () => {
     const grid = buildSyntheticWeek();
     const demand = new Map(grid.map((entry) => [entry.timestampUtc, entry.isWeekend ? 3_000 : 200]));
@@ -228,6 +242,12 @@ describe("determineProfileConfidence", () => {
   });
   it("ist hoch bei vollständiger Abdeckung über mehrere Tage", () => {
     expect(determineProfileConfidence(0.95, 160)).toBe("high");
+  });
+  it("senkt vollständige Reihen bei schwacher Mustergüte auf mittel", () => {
+    const grid = buildSyntheticWeek();
+    const classified = classifyVmBehavior(grid, new Map(grid.map((entry) => [entry.timestampUtc, entry.hour % 2 ? 1_000 : 300])));
+    classified.signals.confidenceScore = 70;
+    expect(determineProfileConfidence(1, 168, classified)).toBe("medium");
   });
 });
 

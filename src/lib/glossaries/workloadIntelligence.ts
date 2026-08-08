@@ -25,7 +25,7 @@ export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
   intensity: {
     term: "Auslastungsniveau",
     description:
-      "Höhe der CPU-Last als P95 relativ zur konfigurierten Kapazität, bewusst unabhängig vom zeitlichen Muster: ruhend (< 2 %), sehr niedrig (2–5 %), niedrig (5–10 %), mittel (10–25 %), erhöht (25–50 %), hoch (ab 50 %). „Unbekannt“, solange Hostfrequenz oder vCPU-Zahl fehlen.",
+      "Höhe der CPU-Last als P95 relativ zur konfigurierten Kapazität, bewusst unabhängig vom zeitlichen Muster: ruhend (< 2,5 %), sehr niedrig (2,5–5 %), niedrig (5–10 %), mittel (10–25 %), erhöht (25–50 %), hoch (ab 50 %). „Unbekannt“, solange Hostfrequenz oder vCPU-Zahl fehlen.",
   },
   confidence: {
     term: "Vertrauensniveau",
@@ -57,7 +57,7 @@ export const VM_PROFILE_KPI: Record<string, GlossaryEntry> = {
   },
   idle: {
     term: "Ruhend",
-    description: "VMs mit einem CPU-Demand-P95 unter 2 % der konfigurierten Kapazität. Der engste und damit belastbarste Kandidatenkreis für Rückbau oder Zusammenlegung – im Gegensatz zu „gering genutzt“, das bis 10 % reicht und deutlich mehr VMs umfasst.",
+    description: "VMs mit einem CPU-Demand-P95 unter 2,5 % der konfigurierten Kapazität. Der engste und damit belastbarste Kandidatenkreis für Rückbau oder Zusammenlegung – im Gegensatz zu „gering genutzt“, das bis 10 % reicht und deutlich mehr VMs umfasst.",
     source: "berechnet",
   },
   highIntensity: {
@@ -82,7 +82,9 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   shape: { term: "Lastmuster", description: "Zeitlicher Lastverlauf der letzten sieben Tage, unabhängig von der Höhe der Auslastung. Aus Variationskoeffizient, Kalenderkonzentrationen und Tageswiederholbarkeit abgeleitet.", source: "berechnet" },
   intensity: { term: "Niveau", description: "Auslastungshöhe als P95 relativ zur konfigurierten CPU-Kapazität, unabhängig vom zeitlichen Muster.", source: "berechnet" },
   behaviorClass: { term: "Verhaltensklasse", description: "Zusammenfassung von Lastmuster und Niveau in eine Einzelklasse; ein niedriges Niveau überschreibt das Muster. Für Musterfragen sind die Spalten „Lastmuster“ und „Niveau“ aussagekräftiger.", source: "berechnet" },
-  confidence: { term: "Vertrauen", description: "Vertrauensniveau der Klassifikation.", source: "berechnet" },
+  confidence: { term: "Vertrauen", description: "Mehrfaktorielles Vertrauensniveau aus Datenabdeckung, Stichprobengröße, Passung zum erkannten Lastmuster und zeitlicher Wiederholbarkeit. Eine vollständige Reihe allein führt nicht mehr automatisch zu hohem Vertrauen.", source: "berechnet" },
+  trend: { term: "Tendenz", description: "Robuster linearer Verlauf der täglichen CPU-Demand-Mediane über mindestens 14 Tage. Stark steigende Trends werden rot gewarnt und sperren Verkleinerungsempfehlungen.", source: "berechnet · vROps-Demand" },
+  shapeFit: { term: "Mustergüte", description: "Punktwert von 0 bis 100 dafür, wie gut Konzentration, Streuung, Peak-Kompaktheit und Wiederholbarkeit zur zugewiesenen Lastmusterklasse passen.", source: "berechnet" },
   coverage: { term: "Abdeckung", description: "Anteil der erwarteten Stunden, für die ein CPU-Demand-Wert vorliegt.", source: "berechnet" },
   sparkline: { term: "7-Tage-Profil", description: "CPU Demand je Stunde der letzten sieben Tage – Grundlage der Klassifikation.", source: VROPS },
   demandAvg: { term: "Demand Ø", description: "Mittlerer CPU-Demand über alle verwertbaren Stunden.", source: VROPS },
@@ -98,7 +100,7 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   weeklyRepeatability: { term: "Wochen-Wiederholbarkeit", description: "Ähnlichkeit vollständiger 168-Stunden-Wochen. Ein hoher Wert zeigt ein wiederkehrendes Wochenmuster und hilft, Spitzen als planbar oder unplanbar einzuordnen; mindestens zwei volle Wochen sind nötig.", source: "berechnet · vROps-Demand" },
   weeklyPeakVariation: { term: "Streuung der Wochenmaxima", description: "Variationskoeffizient der Wochenhöchstwerte. Niedrig bedeutet, dass die Spitzen von Woche zu Woche ähnlich hoch sind; hoch bedeutet, dass die Spitzen schwer planbar sind.", source: "berechnet · vROps-Demand" },
   businessHoursConcentration: { term: "Business-Hours-Konzentration", description: "Demand-Anteil Mo–Fr 06–17 Uhr relativ zum Anteil dieser Stunden an der Woche. 1 bedeutet gleichmäßig verteilt; Werte über 1 zeigen eine Konzentration in Geschäftszeiten.", source: "berechnet · vROps-Demand" },
-  nightConcentration: { term: "Nacht-Konzentration", description: "Demand-Anteil werktags 00–06 Uhr relativ zum Anteil dieses Zeitfensters. Werte über 1 weisen auf nächtliche Jobs oder Batch-Verarbeitung hin.", source: "berechnet · vROps-Demand" },
+  nightConcentration: { term: "Nacht-Konzentration", description: "Der stärkere Konzentrationswert aus werktags 00–06 Uhr und 20–06 Uhr. Damit bleiben frühe Nachtjobs präzise erkannt und regelmäßige Batchläufe um 21 oder 22 Uhr kommen hinzu.", source: "berechnet · vROps-Demand" },
   weekendConcentration: { term: "Wochenend-Konzentration", description: "Demand-Anteil am Wochenende relativ zum Anteil der Wochenendstunden. Werte über 1 zeigen Wochenendlast, Werte unter 1 eine eher werktags geprägte VM.", source: "berechnet · vROps-Demand" },
   configuredCapacity: { term: "Konfigurierte CPU-Kapazität", description: "CPU-Kapazität der VM in MHz, bevorzugt aus vROps; sonst als vCPU × MHz je Core des aktuellen Hosts angenähert. Sie ist die Bezugsgröße für Demand P95 in Prozent.", source: "berechnet · vROps/ RVTools vHost + vInfo" },
   hoursAboveCapacity75: { term: "Stunden über 75 % Kapazität", description: "Anzahl der Stunden, in denen der Demand mehr als 75 % der aktuell konfigurierten CPU-Kapazität überschritt. Viele solche Stunden sprechen eher für dauerhaften Mehrbedarf als für eine einzelne Spitze.", source: "berechnet · vROps-Demand/Kapazität" },
@@ -250,7 +252,7 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   },
   recommendationWithheld: {
     term: "Keine Empfehlung, weil",
-    description: "Verkleinerung und Vergrößerung tragen unterschiedliche Risiken und werden deshalb unterschiedlich abgesichert. Eine Verkleinerung unterbleibt bei zu dünner Datenbasis (Vertrauen unter „hoch“), bei den Mustern unregelmäßig und nicht berechenbar sowie bei bursty-VMs, deren Spitze sich nicht wochenweise wiederholt. Eine Vergrößerung unterbleibt, solange nur eine einzelne Spitze dafür spricht und keine Dauerlast nahe der Kapazitätsgrenze. Die Kennzahlen bleiben in jedem Fall zur eigenen Beurteilung sichtbar.",
+    description: "Verkleinerung und Vergrößerung tragen unterschiedliche Risiken und werden deshalb unterschiedlich abgesichert. Eine Verkleinerung unterbleibt bei niedriger/nicht berechenbarer Datenqualität, bei steigender Tendenz, bei unregelmäßigen Mustern sowie bei bursty-VMs ohne wiederkehrende Spitze. Eine Vergrößerung unterbleibt, solange nur eine einzelne Spitze dafür spricht und keine Dauerlast nahe der Kapazitätsgrenze. Die Kennzahlen bleiben sichtbar.",
     source: "berechnet",
   },
   configured: { term: "Konfiguriert", description: "Aktuell zugewiesene vCPU-Anzahl der VM. Sie ist die Vergleichsgröße für genutztes vCPU-Äquivalent und Rightsizing, nicht der tatsächlich belegte CPU-Bedarf.", source: `${RV} · vInfo · „CPUs“` },
@@ -259,6 +261,7 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   highCpuReady: { term: "Auffälliges CPU Ready", description: "CPU Ready P95 über 5 %. Prüfe zuerst Host-/Cluster-Contention und die vCPU-Breite; ein blindes Verkleinern kann Ready verbessern oder verschlechtern – je nach Ursache.", source: VROPS },
   concentratedOnFewCores: { term: "Last auf wenigen Kernen", description: "Der Lastkonzentrationsindex liegt im auffälligen Bereich ab etwa 0,4. Mehr vCPU lösen keinen Einzelthread-Engpass, wenn die Anwendung die zusätzlichen Kerne nicht parallel nutzt.", source: "berechnet · vROps" },
   sustainedNearCapacity: { term: "Dauerhaft nahe Kapazität", description: "Mindestens 24 Stunden lagen über 75 % der aktuell konfigurierten CPU-Kapazität. Erst diese Dauerhaftigkeit trägt eine Vergrößerungsempfehlung; ein einzelner kurzer Peak reicht bewusst nicht.", source: "berechnet · vROps-Demand/Kapazität" },
+  trend: { term: "CPU-Tendenz", description: "Trend der täglichen CPU-Demand-Mediane über den Messmonat. Ein belastbarer Anstieg ist eine Auffälligkeit und verhindert, dass historisch niedrigere Werte zu einer Verkleinerung führen.", source: "berechnet · vROps-Demand" },
   weeklyRepeatability: {
     term: "Wochen-Wiederholbarkeit",
     description: "Wie ähnlich sich die vollen Wochen einer VM sind (Korrelation der 168-Stunden-Verläufe) und wie gleichmäßig hoch ihre Wochenmaxima ausfallen. Entscheidet bei bursty-VMs darüber, ob die Spitze planbar ist: Im Bestand wiederholt rund die Hälfte von ihnen den Wochenverlauf zuverlässig, während das bei unregelmäßigen VMs praktisch nie zutrifft. Braucht mindestens zwei volle Wochen Messdaten.",
@@ -280,6 +283,7 @@ export const RAM_RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   cluster: RIGHTSIZING_COLUMNS.cluster,
   sysv: RIGHTSIZING_COLUMNS.sysv,
   sysvDepartment: RIGHTSIZING_COLUMNS.sysvDepartment,
+  trend: { term: "RAM-Tendenz", description: "Trend der täglichen Memory-Workload-Mediane. Ein belastbarer Anstieg wird gewarnt und sperrt eine RAM-Verkleinerung.", source: "berechnet · vROps Memory Workload Avg" },
   direction: {
     term: "Richtung",
     description: "Abgeleitete Handlung aus aktuellem RAM und dem empfohlenen Ziel: verkleinern, vergrößern, unverändert oder nicht berechenbar.",

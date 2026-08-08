@@ -9,6 +9,8 @@ import { PanelLoadingState } from "@/components/dashboard/PageLoadingState";
 import { SearchScopeNotice } from "@/components/dashboard/SearchScopeNotice";
 import { VirtualTable } from "@/components/tables/VirtualTable";
 import { Badge } from "@/components/ui/badge";
+import { WorkloadTrendBadge } from "@/components/vm/WorkloadTrendBadge";
+import { VM_WORKLOAD_TREND_LABEL } from "@/domain/services/vmWorkloadProfileService";
 import { RamRightsizingLevelControl } from "@/components/vm/RamRightsizingLevelControl";
 import { useActiveSnapshotIds, useTechInfoLatestByVmNames, useVms } from "@/hooks/useActiveSnapshots";
 import { useRamRightsizingLevel } from "@/hooks/useRamRightsizingLevel";
@@ -158,6 +160,7 @@ export function VmRamRightsizingPanel() {
     { accessorKey: "vmName", header: "VM", meta: { info: RAM_RIGHTSIZING_COLUMNS.vmName } },
     { id: "configured-memory", header: "RAM aktuell", meta: { info: RAM_RIGHTSIZING_COLUMNS.configuredMemory, exportUnit: "MiB" }, accessorFn: (row) => row.configuredMemoryMiB ?? -1, cell: ({ row }) => formatMemory(row.original.configuredMemoryMiB) },
     { id: "recommended-memory", header: "RAM empfohlen", meta: { info: RAM_RIGHTSIZING_COLUMNS.recommendedMemory, exportUnit: "MiB" }, accessorFn: (row) => row.recommendedMemoryMiB ?? -1, cell: ({ row }) => <RecommendedMemoryCell candidate={row.original} /> },
+    { id: "trend", header: "Tendenz", meta: { info: RAM_RIGHTSIZING_COLUMNS.trend, exportValue: (row) => VM_WORKLOAD_TREND_LABEL[row.trend.direction] }, accessorFn: (row) => row.trend.direction, cell: ({ row }) => <WorkloadTrendBadge trend={row.original.trend} compact /> },
     { id: "avg-p95", header: "Workload Avg P95", meta: { info: RAM_RIGHTSIZING_COLUMNS.workloadAvgP95, exportUnit: "%" }, accessorFn: (row) => row.workloadAvg.p95 ?? -1, cell: ({ row }) => <WorkloadStatisticCell stats={row.original.workloadAvg} statistic="p95" /> },
     {
       id: "peak-workload-p995",

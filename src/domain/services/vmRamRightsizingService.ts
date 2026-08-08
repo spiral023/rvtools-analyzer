@@ -9,6 +9,7 @@ import type {
   RamRightsizingLevel,
   VropsTimeSeriesConfidenceLevel,
 } from "@/domain/models/types";
+import { EMPTY_WORKLOAD_TREND, isRisingWorkloadTrend } from "@/domain/services/vmWorkloadTrendService";
 import { average } from "@/lib/statistics";
 import { normalizeVmName } from "@/lib/globalFilter";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
@@ -277,6 +278,7 @@ function buildCandidate(input: {
     ? calculateVmMemoryWorkloadStats(maxValues, expectedHours)
     : null;
   const configuredMemoryMiB = profile?.configuredMemoryMiB ?? vm?.memoryMiB ?? null;
+  const trend = profile?.memoryTrend ?? EMPTY_WORKLOAD_TREND;
   const confidence = evaluateRamWorkloadConfidence(workloadAvg, policy);
   const demand = deriveRamDemand(configuredMemoryMiB, workloadAvg, workloadMax, policy);
   let recommendationReason: string | null = null;
@@ -309,6 +311,15 @@ function buildCandidate(input: {
       recommendationAllowed = false;
       recommendationReason = `Die vorhandene Workload-Max-Reihe ist für die Peak-Policy zu lückenhaft (${formatCoverage(workloadMax.coverageRatio)} Abdeckung).`;
     }
+  }
+
+  if (recommendationAllowed
+    && configuredMemoryMiB !== null
+    && demand.recommendedMemoryMiB !== null
+    && demand.recommendedMemoryMiB < configuredMemoryMiB
+    && isRisingWorkloadTrend(trend)) {
+    recommendationAllowed = false;
+    recommendationReason = "Keine Verkleinerung: Der RAM-Workload steigt im Messzeitraum belastbar an.";
   }
 
   const recommendedMemoryMiB = recommendationAllowed ? demand.recommendedMemoryMiB : null;
@@ -346,6 +357,7 @@ function buildCandidate(input: {
     deltaMiB,
     direction,
     confidence: effectiveConfidence,
+    trend,
     recommendationReason: direction === "not-computable" ? recommendationReason : null,
     peakSignalUsed: recommendationAllowed && workloadMax !== null && workloadMax.presentHours > 0,
   };

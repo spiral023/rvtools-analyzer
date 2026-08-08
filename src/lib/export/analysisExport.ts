@@ -41,7 +41,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * Version des Exportformats. Erhöhen, sobald sich Spalten oder Kodierung ändern —
  * Auswertungsskripte prüfen sie, statt Spaltenpositionen zu raten.
  */
-export const ANALYSIS_EXPORT_FORMAT_VERSION = 4;
+export const ANALYSIS_EXPORT_FORMAT_VERSION = 5;
 
 /** Metriken, die als Rohreihe ausgegeben werden, samt Kodierung und Einheit. */
 const SERIES_METRICS: ReadonlyArray<{
@@ -297,10 +297,13 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
       "coefficientOfVariation", "activeHourSharePct", "dutyCyclePct", "baselineRatio",
       "utilizationP95Pct", "dailyRepeatability", "weeklyRepeatability", "weeklyPeakVariation",
       "businessHoursConcentration", "nightConcentration", "weekendConcentration",
+      "recentPeakSharePct", "recentPeakRunP90Hours", "shapeFitScore", "confidenceScore",
+      "cpuTrend", "cpuTrendRSquared", "cpuTrendRelativeChangePct", "cpuTrendCapacityChangePct",
+      "ramTrend", "ramTrendRSquared", "ramTrendRelativeChangePct", "ramTrendCapacityChangePct",
       "rightsizingLevel", "mhzPerVcpu", "usedVcpuEquivalentP95", "usedVcpuEquivalentPeak", "demandBasedVcpu",
       "recommendedVcpu", "reclaimableVcpu", "additionalVcpu", "recommendationWithheldReason",
       "flagManyVcpuLowDemand", "flagHighCpuReady",
-      "flagCostopUnderLoad", "flagSingleCoreBound", "flagConcentratedOnFewCores", "flagSustainedNearCapacity",
+      "flagCostopUnderLoad", "flagSingleCoreBound", "flagConcentratedOnFewCores", "flagSustainedNearCapacity", "flagRisingTrend",
       "techInfoServerType", "techInfoMaintenanceWindow", "techInfoOperatingSystem",
       "techInfoDepartment", "techInfoBz", "techInfoAz",
     ];
@@ -380,6 +383,18 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         round(signals?.businessHoursConcentration ?? null, 4),
         round(signals?.nightConcentration ?? null, 4),
         round(signals?.weekendConcentration ?? null, 4),
+        round(signals?.recentPeakSharePct ?? null, 2),
+        round(signals?.recentPeakRunP90Hours ?? null, 2),
+        signals?.shapeFitScore ?? null,
+        signals?.confidenceScore ?? null,
+        profile?.cpuTrend?.direction ?? null,
+        round(profile?.cpuTrend?.rSquared ?? null, 4),
+        round(profile?.cpuTrend?.relativeChangePct ?? null, 2),
+        round(profile?.cpuTrend?.capacityChangePct ?? null, 2),
+        profile?.memoryTrend?.direction ?? null,
+        round(profile?.memoryTrend?.rSquared ?? null, 4),
+        round(profile?.memoryTrend?.relativeChangePct ?? null, 2),
+        round(profile?.memoryTrend?.capacityChangePct ?? null, 2),
         candidate?.rightsizingLevel ?? input.rightsizingLevel,
         round(candidate?.mhzPerVcpu ?? null, 2),
         round(candidate?.usedVcpuEquivalentP95 ?? null, 3),
@@ -395,6 +410,7 @@ export function buildAnalysisExportFiles(input: BuildAnalysisExportInput): Analy
         candidate?.flags.singleCoreBound ?? null,
         candidate?.flags.concentratedOnFewCores ?? null,
         candidate?.flags.sustainedNearCapacity ?? null,
+        candidate?.flags.risingTrend ?? null,
         techInfo?.serverType ?? null,
         techInfo?.maintenanceWindow ?? null,
         techInfo?.operatingSystem ?? null,

@@ -9,6 +9,7 @@ import type {
   VmWorkloadShape,
 } from "@/domain/models/types";
 import { VM_BEHAVIOR_CLASS_LABEL, VM_WORKLOAD_SHAPE_LABEL, hasRepeatableWeeklyPeak } from "@/domain/services/vmWorkloadProfileService";
+import { EMPTY_WORKLOAD_TREND, isRisingWorkloadTrend } from "@/domain/services/vmWorkloadTrendService";
 import { matchesSearchFields, techInfoSearchValues, type VmTechInfoSearchIndex } from "@/lib/vmSearch";
 import { filterByVmScope } from "@/lib/vmScope";
 
@@ -176,6 +177,7 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       intensity: profile.intensity,
       behaviorClass: profile.behaviorClass,
       confidence: profile.confidence,
+      trend: profile.cpuTrend ?? EMPTY_WORKLOAD_TREND,
       rightsizingLevel: level,
       demand: profile.demand,
       ready: profile.ready,
@@ -188,7 +190,7 @@ export function buildVmRightsizingCandidates(input: BuildVmRightsizingCandidates
       recommendedVcpu,
       reclaimableVcpu,
       additionalVcpu,
-      flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, singleCoreBound, concentratedOnFewCores, sustainedNearCapacity },
+      flags: { manyVcpuLowDemand, highCpuReady, costopUnderLoad, singleCoreBound, concentratedOnFewCores, sustainedNearCapacity, risingTrend: isRisingWorkloadTrend(profile.cpuTrend) },
     }];
   }).sort((left, right) => (right.reclaimableVcpu ?? -1) - (left.reclaimableVcpu ?? -1));
 }
@@ -207,10 +209,15 @@ function determineWithheldReason(
   sustainedNearCapacity: boolean,
 ): VmRightsizingCandidate["recommendationWithheldReason"] {
   if (demandBasedVcpu === null || profile.vcpu === null || demandBasedVcpu === profile.vcpu) return null;
-  if (profile.confidence !== "high") return "low-confidence";
+  // „mittel“ bedeutet jetzt meist: vollständige Reihe, aber nur mäßige Passung in die
+  // beschreibende Musterklasse. Das Perzentil bleibt dennoch belastbar. Nur wirklich
+  // dünne Daten (`low`/`not-computable`) sperren das Rightsizing grundsätzlich; die
+  // musterabhängigen Gates folgen separat.
+  if (profile.confidence === "low" || profile.confidence === "not-computable") return "low-confidence";
   if (demandBasedVcpu > profile.vcpu) {
     return sustainedNearCapacity ? null : "peak-only";
   }
+  if (isRisingWorkloadTrend(profile.cpuTrend)) return "rising-trend";
   if (SHAPES_WITHOUT_RECOMMENDATION.includes(profile.shape)) return "unreliable-shape";
   if (SHAPES_REQUIRING_REPEATABLE_PEAK.includes(profile.shape) && !hasRepeatableWeeklyPeak(profile.signals)) {
     return "burst-not-repeatable";
@@ -225,6 +232,7 @@ export const VM_RIGHTSIZING_WITHHELD_LABEL: Record<WithheldReason, string> = {
   "low-confidence": "Datenbasis zu dünn",
   "unreliable-shape": "Lastmuster nicht belastbar",
   "burst-not-repeatable": "Spitze nicht wiederkehrend",
+  "rising-trend": "Last steigt an",
   "peak-only": "Nur einzelne Spitze",
 };
 
@@ -238,6 +246,7 @@ export const VM_RIGHTSIZING_WITHHELD_NARRATIVE: Record<WithheldReason, string> =
   "low-confidence": "Keine Empfehlung: Die Zeitreihe deckt den Messzeitraum zu lückenhaft ab.",
   "unreliable-shape": "Keine Empfehlung: Das Lastmuster wiederholt sich nicht – der Spitzenbedarf lässt sich daraus nicht ableiten.",
   "burst-not-repeatable": "Keine Empfehlung: Die Lastspitzen kehren im Wochenverlauf nicht verlässlich wieder.",
+  "rising-trend": "Keine Verkleinerung: CPU Demand steigt im Messzeitraum belastbar an.",
   "peak-only": "Keine Vergrößerung: Der Mehrbedarf stützt sich auf einzelne Spitzen statt auf dauerhafte Kapazitätsnähe.",
 };
 
@@ -248,6 +257,7 @@ export function isNotableRightsizingCandidate(candidate: VmRightsizingCandidate)
     || candidate.flags.costopUnderLoad
     || candidate.flags.singleCoreBound
     || candidate.flags.concentratedOnFewCores
+    || candidate.flags.risingTrend
     || (candidate.reclaimableVcpu ?? 0) > 0
     || (candidate.additionalVcpu ?? 0) > 0;
 }
