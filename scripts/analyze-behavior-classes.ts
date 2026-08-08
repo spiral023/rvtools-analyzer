@@ -526,7 +526,7 @@ function main(): void {
     if (entry.shape !== "constant") return false;
     const values = [
       { name: "Business-Hours", value: entry.signals.businessHoursConcentration ?? 0 },
-      { name: "Nächtlicher Batch", value: entry.signals.nightConcentration ?? 0 },
+      { name: "Nächtliche Last", value: entry.signals.nightConcentration ?? 0 },
       { name: "Wochenendlast", value: entry.signals.weekendConcentration ?? 0 },
     ].sort((left, right) => right.value - left.value);
     return values[0].value >= 1.35 && values[0].value - values[1].value >= 0.15;
@@ -536,7 +536,7 @@ function main(): void {
     printDistribution("  Würden stattdessen erkannt als", calendarMasked.map((entry) => {
       const values = [
         { name: "Business-Hours", value: entry.signals.businessHoursConcentration ?? 0 },
-        { name: "Nächtlicher Batch", value: entry.signals.nightConcentration ?? 0 },
+        { name: "Nächtliche Last", value: entry.signals.nightConcentration ?? 0 },
         { name: "Wochenendlast", value: entry.signals.weekendConcentration ?? 0 },
       ].sort((left, right) => right.value - left.value);
       return values[0].name;

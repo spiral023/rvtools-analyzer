@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import { decodeAnalysisSeries, type SeriesEncoding } from "@/lib/export/analysisSeriesCodec";
 import { buildHourGrid, classifyVmBehavior, determineProfileConfidence } from "@/domain/services/vmWorkloadProfileService";
+import { calculateWorkloadTrend } from "@/domain/services/vmWorkloadTrendService";
 import type { VropsTimeSeriesImport } from "@/domain/models/types";
 
 const ROOT = process.argv[2] ?? "c:/Users/asi/Documents/GitHub/rvtools-analyzer/rvtools-analyse_2026-08-01";
@@ -280,8 +281,8 @@ section("22  Lastmuster-Diagnose — variable Last, breite Bursts und Abend-Batc
   const variableNight = (shapeGroups.get("variable") ?? []).filter((entry) => dominantCalendar(entry, false) === "night-batch");
   const burstyNight = (shapeGroups.get("bursty") ?? []).filter((entry) => dominantCalendar(entry, false) === "night-batch");
   console.log(`\nDauerlast mit starkem, wiederholbarem Kalenderfenster: ${constantCalendar.length} (Business ${constantCalendar.filter((item) => item.proposed === "business-hours").length}, Nacht ${constantCalendar.filter((item) => item.proposed === "night-batch").length}, Wochenende ${constantCalendar.filter((item) => item.proposed === "weekend").length}).`);
-  console.log(`Variable Last → nächtlicher Batch mit erweitertem Fenster 20–06 Uhr: ${variableNight.length}.`);
-  console.log(`Bursty → nächtlicher Batch mit erweitertem Fenster 20–06 Uhr: ${burstyNight.length}.`);
+  console.log(`Variable Last → nächtliche Last mit erweitertem Fenster 20–06 Uhr: ${variableNight.length}.`);
+  console.log(`Bursty → nächtliche Last mit erweitertem Fenster 20–06 Uhr: ${burstyNight.length}.`);
   table(["vmId", "alt", "neu", "CV", "Business", "Abend/Nacht", "Wochenende", "Tageskorr.", "Peakstunde"],
     [
       ...constantCalendar.map(({ entry, proposed }) => ({ entry, proposed })),
@@ -290,6 +291,31 @@ section("22  Lastmuster-Diagnose — variable Last, breite Bursts und Abend-Batc
     ].sort((left, right) => diagnosticsByVm.get(right.entry.vm.vmId)!.nightExtended - diagnosticsByVm.get(left.entry.vm.vmId)!.nightExtended).slice(0, 35).map(({ entry, proposed }) => {
       const d = diagnosticsByVm.get(entry.vm.vmId)!;
       return [entry.vm.vmId, entry.vm.shape, proposed, fmt(entry.cv, 2), fmt(d.business, 2), fmt(d.nightExtended, 2), fmt(d.weekend, 2), fmt(d.dailyRepeatability, 2), `${d.peakHour}:00`];
+    }));
+
+  console.log("\nSchwache, aber wiederholbare Business-Hours-Kandidaten (Sensitivitätsanalyse):");
+  table(["Konz. min", "Dominanz min", "Wiederholung min", "Dauerlast", "Variabel", "Unregelmäßig", "gesamt"],
+    [1.1, 1.15, 1.2, 1.25].flatMap((concentrationMin) => [0.05, 0.1].flatMap((dominanceMin) => [0.35, 0.45, 0.55].map((repeatabilityMin) => {
+      const candidates = metrics.filter((entry) => {
+        if (!["constant", "variable", "irregular"].includes(entry.vm.shape)) return false;
+        const d = diagnosticsByVm.get(entry.vm.vmId)!;
+        const runnerUp = Math.max(d.nightExtended, d.weekend);
+        const repeatability = Math.max(d.dailyRepeatability ?? -1, entry.weekCorrMedian ?? -1);
+        return d.business >= concentrationMin && d.business - runnerUp >= dominanceMin && repeatability >= repeatabilityMin;
+      });
+      return [fmt(concentrationMin, 2), fmt(dominanceMin, 2), fmt(repeatabilityMin, 2), ...["constant", "variable", "irregular"].map((shape) => String(candidates.filter((entry) => entry.vm.shape === shape).length)), String(candidates.length)];
+    }))));
+
+  const subtleBusiness = metrics.filter((entry) => {
+    if (!["constant", "variable", "irregular"].includes(entry.vm.shape)) return false;
+    const d = diagnosticsByVm.get(entry.vm.vmId)!;
+    const repeatability = Math.max(d.dailyRepeatability ?? -1, entry.weekCorrMedian ?? -1);
+    return d.business >= 1.15 && d.business - Math.max(d.nightExtended, d.weekend) >= 0.1 && repeatability >= 0.45;
+  });
+  table(["vmId", "alt", "CV", "Business", "Abend/Nacht", "Wochenende", "Tageskorr.", "Wochenkorr.", "Peakstunde"],
+    subtleBusiness.sort((left, right) => diagnosticsByVm.get(right.vm.vmId)!.business - diagnosticsByVm.get(left.vm.vmId)!.business).slice(0, 40).map((entry) => {
+      const d = diagnosticsByVm.get(entry.vm.vmId)!;
+      return [entry.vm.vmId, entry.vm.shape, fmt(entry.cv, 2), fmt(d.business, 2), fmt(d.nightExtended, 2), fmt(d.weekend, 2), fmt(d.dailyRepeatability, 2), fmt(entry.weekCorrMedian, 2), `${d.peakHour}:00`];
     }));
 }
 
@@ -362,16 +388,54 @@ function calculateDailyTrend(values: Float64Array | undefined, capacity: number 
   };
 }
 
+function calculateDailyMeanTrend(values: Float64Array | undefined, capacity: number | null, isPercentSeries = false): DailyTrend | null {
+  if (!values) return null;
+  const byDay = new Map<string, number[]>();
+  for (let slot = 0; slot < Math.min(values.length, analysisHourGrid.length); slot += 1) {
+    if (!Number.isFinite(values[slot])) continue;
+    const day = byDay.get(analysisHourGrid[slot].dayKey) ?? [];
+    day.push(values[slot]);
+    byDay.set(analysisHourGrid[slot].dayKey, day);
+  }
+  const daily = [...byDay.values()].filter((day) => day.length >= 12).map((day) => mean(day)!);
+  if (daily.length < 14) return null;
+  const xMean = (daily.length - 1) / 2;
+  const yMean = mean(daily)!;
+  let numerator = 0;
+  let xSquared = 0;
+  let totalSquared = 0;
+  for (let index = 0; index < daily.length; index += 1) {
+    numerator += (index - xMean) * (daily[index] - yMean);
+    xSquared += (index - xMean) ** 2;
+    totalSquared += (daily[index] - yMean) ** 2;
+  }
+  const slopePerDay = xSquared > 0 ? numerator / xSquared : 0;
+  const projectedChange = slopePerDay * (daily.length - 1);
+  let residualSquared = 0;
+  for (let index = 0; index < daily.length; index += 1) {
+    const fitted = yMean + slopePerDay * (index - xMean);
+    residualSquared += (daily[index] - fitted) ** 2;
+  }
+  const rSquared = totalSquared > 0 ? Math.max(0, 1 - residualSquared / totalSquared) : 0;
+  const baseline = Math.max(Math.abs(quantile(sortedCopy(daily), 0.5) ?? 0), isPercentSeries ? 1 : 10);
+  const relativeChangePct = (projectedChange / baseline) * 100;
+  const capacityChangePct = isPercentSeries ? projectedChange : capacity && capacity > 0 ? (projectedChange / capacity) * 100 : null;
+  const magnitude = capacityChangePct ?? relativeChangePct;
+  const direction = rSquared >= 0.65 && relativeChangePct >= 40 && magnitude >= (isPercentSeries ? 8 : 2.5)
+    ? "strongly-rising"
+    : rSquared >= 0.5 && relativeChangePct >= 20 && magnitude >= (isPercentSeries ? 4 : 1)
+      ? "rising"
+      : rSquared >= 0.5 && relativeChangePct <= -20 && magnitude <= (isPercentSeries ? -4 : -1)
+        ? "falling"
+        : "stable";
+  return { days: daily.length, slopePerDay, projectedChange, relativeChangePct, capacityChangePct, rSquared, firstWeekMedian: quantile(sortedCopy(daily.slice(0, 7)), 0.5) ?? daily[0], lastWeekMedian: quantile(sortedCopy(daily.slice(-7)), 0.5) ?? daily[daily.length - 1], direction };
+}
+
 section("23  Tendenz — nahezu lineare 31-Tage-Anstiege bei CPU und RAM");
 {
-  const cpuTrends = metrics.flatMap((entry) => {
-    const trend = calculateDailyTrend(entry.avg, entry.capacity);
-    return trend ? [{ entry, trend }] : [];
-  });
-  const ramTrends = metrics.flatMap((entry) => {
-    const trend = calculateDailyTrend(memoryWorkloadAvg?.get(entry.vm.vmId), 100, true);
-    return trend ? [{ entry, trend }] : [];
-  });
+  const toTrendPoints = (values: Float64Array | undefined) => analysisHourGrid.map((slot, index) => ({ dayKey: slot.dayKey, value: values?.[index] }));
+  const cpuTrends = metrics.map((entry) => ({ entry, trend: calculateWorkloadTrend(toTrendPoints(entry.avg), { capacity: entry.capacity }) }));
+  const ramTrends = metrics.map((entry) => ({ entry, trend: calculateWorkloadTrend(toTrendPoints(memoryWorkloadAvg?.get(entry.vm.vmId)), { capacity: 100 }) }));
   for (const [label, entries] of [["CPU", cpuTrends], ["RAM", ramTrends]] as const) {
     const counts = new Map<string, number>();
     for (const item of entries) counts.set(item.trend.direction, (counts.get(item.trend.direction) ?? 0) + 1);
@@ -381,6 +445,18 @@ section("23  Tendenz — nahezu lineare 31-Tage-Anstiege bei CPU und RAM");
         .sort((left, right) => (right.trend.capacityChangePct ?? right.trend.relativeChangePct) - (left.trend.capacityChangePct ?? left.trend.relativeChangePct))
         .slice(0, 30)
         .map(({ entry, trend }) => [entry.vm.vmId, entry.vm.shape, fmt(trend.rSquared, 2), fmt(trend.projectedChange, 1), `${fmt(trend.relativeChangePct, 0)} %`, fmt(trend.capacityChangePct, 1), fmt(trend.firstWeekMedian, 1), fmt(trend.lastWeekMedian, 1)]));
+  }
+  for (const [label, series, isPercent] of [["CPU", demandAvg, false], ["RAM", memoryWorkloadAvg, true]] as const) {
+    const newlyDetected = metrics.flatMap((entry) => {
+      const medianTrend = calculateDailyTrend(series?.get(entry.vm.vmId), isPercent ? 100 : entry.capacity, isPercent);
+      const meanTrend = calculateDailyMeanTrend(series?.get(entry.vm.vmId), isPercent ? 100 : entry.capacity, isPercent);
+      return medianTrend && meanTrend && medianTrend.direction === "stable" && (meanTrend.direction === "rising" || meanTrend.direction === "strongly-rising") ? [{ entry, medianTrend, meanTrend }] : [];
+    });
+    console.log(`\n${label}: durch Tagesmittel zusätzlich erkannt: ${newlyDetected.length}`);
+    table(["vmId", "shape", "Mittel-R²", "Mittel relativ", "Mittel Kapazität", "erste Woche", "letzte Woche"], newlyDetected
+      .sort((left, right) => (right.meanTrend.capacityChangePct ?? right.meanTrend.relativeChangePct) - (left.meanTrend.capacityChangePct ?? left.meanTrend.relativeChangePct))
+      .slice(0, 30)
+      .map(({ entry, meanTrend }) => [entry.vm.vmId, entry.vm.shape, fmt(meanTrend.rSquared, 2), `${fmt(meanTrend.relativeChangePct, 0)} %`, fmt(meanTrend.capacityChangePct, 1), fmt(meanTrend.firstWeekMedian, 1), fmt(meanTrend.lastWeekMedian, 1)]));
   }
 }
 

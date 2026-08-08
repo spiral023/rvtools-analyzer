@@ -89,6 +89,7 @@ export function vmWorkloadProfileFixture(
     configuredMemoryMiB: 8_192,
     powerState: "poweredOn",
     workloadClass: "std",
+    timezone: "Europe/Vienna",
     hourly: [],
     demand: metricStatsFixture(),
     demandMax: metricStatsFixture(),

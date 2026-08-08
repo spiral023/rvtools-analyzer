@@ -152,15 +152,45 @@ describe("classifyVmBehavior – Trennung von Muster und Niveau", () => {
     expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThanOrEqual(1.35);
     expect(result.shape).toBe("business-hours");
 
-    // Die Streuung entscheidet vor dem Kalender: Mit einer großzügigeren Schwelle gilt
-    // derselbe Verlauf als flach genug für Dauerlast.
+    // Ein klarer Kalenderbezug bleibt auch bei einer großzügigeren Dauerlast-Schwelle
+    // erhalten: das Zeitfenster beschreibt die Reihe genauer als nur ihre Streuung.
     const lenient = classifyVmBehavior(grid, withPeak, { configuredCpuCapacityMHz: 10_000, thresholds: { constantLoadCvMax: 0.5 } });
-    expect(lenient.shape).toBe("constant");
-    expect(lenient.behaviorClass).toBe("constant-load");
+    expect(lenient.shape).toBe("business-hours");
+    expect(lenient.behaviorClass).toBe("business-hours");
 
     // Ohne Lastfenster bleibt es reine Dauerlast.
     const flat = new Map(grid.map((entry) => [entry.timestampUtc, 2_000]));
     expect(classifyVmBehavior(grid, flat, { configuredCpuCapacityMHz: 10_000 }).shape).toBe("constant");
+  });
+
+  it("erkennt ein schwaches, aber wiederholbares Business-Hours-Muster statt Dauerlast", () => {
+    const grid = buildSyntheticWeek(4);
+    const demand = new Map(grid.map((entry) => [
+      entry.timestampUtc,
+      !entry.isWeekend && entry.hour >= 6 && entry.hour < 17 ? 1_260 : 1_000,
+    ]));
+    const result = classifyVmBehavior(grid, demand, { configuredCpuCapacityMHz: 10_000 });
+
+    expect(result.signals.coefficientOfVariation ?? 1).toBeLessThanOrEqual(0.2);
+    expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThanOrEqual(1.15);
+    expect(result.shape).toBe("business-hours");
+  });
+
+  it("lässt ein schwaches Kalenderfenster ohne Wiederholung als variable Last", () => {
+    const grid = buildSyntheticWeek(4);
+    const demand = new Map(grid.map((entry, index) => [
+      entry.timestampUtc,
+      !entry.isWeekend && entry.hour >= 6 && entry.hour < 17
+        ? 1_600 + ((index * 97) % 17) * 70
+        : 1_000 + ((index * 53) % 11) * 90,
+    ]));
+    const result = classifyVmBehavior(grid, demand, {
+      configuredCpuCapacityMHz: 10_000,
+      thresholds: { subtleCalendarRepeatabilityMin: 0.99 },
+    });
+
+    expect(result.signals.businessHoursConcentration ?? 0).toBeGreaterThan(1.15);
+    expect(result.shape).not.toBe("business-hours");
   });
 
   it("stuft das Auslastungsniveau anhand des P95-Kapazitätsanteils ein", () => {
@@ -422,8 +452,8 @@ describe("Wochen-Wiederholbarkeit", () => {
   });
 });
 
-function buildSyntheticWeek() {
-  return buildHourGrid(makeImport({ rangeStartUtc: Date.UTC(2024, 0, 8, 0, 0, 0), expectedSlots: 168 }));
+function buildSyntheticWeek(weeks = 1) {
+  return buildHourGrid(makeImport({ rangeStartUtc: Date.UTC(2024, 0, 8, 0, 0, 0), expectedSlots: 168 * weeks }));
 }
 
 function makeImport(overrides: Partial<VropsTimeSeriesImport>): VropsTimeSeriesImport {

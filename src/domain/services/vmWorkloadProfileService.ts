@@ -27,7 +27,7 @@ export const VM_BEHAVIOR_CLASS_LABEL: Record<VmBehaviorClass, string> = {
   unclassified: "Nicht berechenbar",
   "constant-load": "Dauerlast",
   "business-hours": "Business-Hours",
-  "night-batch": "Nächtlicher Batch",
+  "night-batch": "Nächtliche Last",
   "weekend-load": "Wochenendlast",
   bursty: "Bursty",
   "variable-load": "Variable Last",
@@ -39,7 +39,7 @@ export const VM_WORKLOAD_SHAPE_LABEL: Record<VmWorkloadShape, string> = {
   unclassified: "Nicht berechenbar",
   constant: "Dauerlast",
   "business-hours": "Business-Hours",
-  "night-batch": "Nächtlicher Batch",
+  "night-batch": "Nächtliche Last",
   weekend: "Wochenendlast",
   bursty: "Bursty",
   irregular: "Unregelmäßig",
@@ -102,6 +102,10 @@ export interface VmBehaviorThresholds {
   /** Konzentration = Demand-Anteil / Stunden-Anteil eines Zeitfensters; 1 = gleichverteilt über die Woche. */
   calendarConcentrationMin: number;
   calendarDominanceMarginMin: number;
+  /** Schwächere Kalenderprägung gilt nur zusammen mit stabiler Tages- oder Wochenwiederholung. */
+  subtleCalendarConcentrationMin: number;
+  subtleCalendarDominanceMarginMin: number;
+  subtleCalendarRepeatabilityMin: number;
   irregularCvMin: number;
   irregularDailyRepeatabilityMax: number;
   /**
@@ -149,6 +153,9 @@ export const VM_BEHAVIOR_THRESHOLDS: VmBehaviorThresholds = {
   constantLoadCvMax: 0.2,
   calendarConcentrationMin: 1.35,
   calendarDominanceMarginMin: 0.15,
+  subtleCalendarConcentrationMin: 1.15,
+  subtleCalendarDominanceMarginMin: 0.1,
+  subtleCalendarRepeatabilityMin: 0.45,
   irregularCvMin: 0.5,
   irregularDailyRepeatabilityMax: 0.3,
   // An vier vollen Wochen gemessen: `bursty` erreicht im Median 0,66 Korrelation bei
@@ -213,7 +220,7 @@ export function filterVmWorkloadProfilesBySearch(
 }
 
 /**
- * Leitet für jede eindeutig zugeordnete VM ein Sieben-Tage-CPU-Profil samt
+ * Leitet für jede eindeutig zugeordnete VM ein CPU-Profil samt
  * Verhaltensklasse ab. Reine Funktion ohne UI- oder Persistenzbezug; wird von
  * VM-Profilen und Rightsizing-Kandidaten gemeinsam genutzt. Cluster- und
  * Hostname stammen direkt aus RVTools; `clusterKey`/`hostKey` sind die beim
@@ -277,6 +284,7 @@ export function buildVmWorkloadProfiles(input: BuildVmWorkloadProfilesInput): Vm
         configuredMemoryMiB: vm.memoryMiB,
         powerState: object.powerState,
         workloadClass: object.workloadClass ?? "unknown",
+        timezone: input.import.timezone,
         hourly,
         demand,
         demandMax,
@@ -600,7 +608,7 @@ export function classifyVmBehavior(
     confidenceScore: null,
   };
 
-  const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration, recentPeakSharePct, recentPeakRunP90Hours }, thresholds);
+  const shape = determineShape({ samples: samples.length, coverageRatio, coefficientOfVariation, median, p95, dailyRepeatability, weeklyRepeatability, businessHoursConcentration, nightConcentration, weekendConcentration, recentPeakSharePct, recentPeakRunP90Hours }, thresholds);
   signals.shapeFitScore = calculateShapeFitScore(shape, signals, thresholds);
   signals.confidenceScore = calculateConfidenceScore(coverageRatio, samples.length, shape, signals);
   // Reicht die Datenbasis nicht für eine Formaussage, trägt sie auch keine Niveauaussage.
@@ -622,6 +630,7 @@ interface ShapeInput {
   median: number;
   p95: number;
   dailyRepeatability: number | null;
+  weeklyRepeatability: number | null;
   businessHoursConcentration: number | null;
   nightConcentration: number | null;
   weekendConcentration: number | null;
@@ -643,12 +652,12 @@ function determineShape(input: ShapeInput, thresholds: VmBehaviorThresholds): Vm
   if (input.samples < thresholds.classificationMinSamples || input.coverageRatio < thresholds.classificationMinCoverageRatio) {
     return "unclassified";
   }
-  // Die Streuung entscheidet vor dem Kalender: Bei einem Variationskoeffizienten unter
-  // der Schwelle ist der Verlauf so flach, dass ein dominantes Zeitfenster darauf keine
-  // planbare Spitze mehr beschreibt.
-  if (cv !== null && cv <= thresholds.constantLoadCvMax) return "constant";
+  // Auch ein schwaches Lastfenster kann bei kleiner Streuung fachlich aussagekräftiger
+  // als „Dauerlast“ sein. Die feinere Kalenderstufe verlangt dafür zusätzlich eine
+  // stabile Tages- oder Wochenwiederholung und bleibt bei wirklich flachen Reihen aus.
   const calendarWindow = dominantCalendarShape(input, thresholds);
   if (calendarWindow !== null) return calendarWindow;
+  if (cv !== null && cv <= thresholds.constantLoadCvMax) return "constant";
   if (cv !== null && cv >= thresholds.burstyCvMin && p95 > 0 && median < p95 * thresholds.burstyMedianToP95Max) {
     if ((input.recentPeakSharePct ?? 100) < thresholds.burstyPeakShareMaxPct
       && (input.recentPeakRunP90Hours ?? Number.POSITIVE_INFINITY) < thresholds.burstyPeakRunP90MaxHours) return "bursty";
@@ -670,10 +679,14 @@ function dominantCalendarShape(input: ShapeInput, thresholds: VmBehaviorThreshol
     { shape: "night-batch" as const, concentration: input.nightConcentration ?? 0 },
     { shape: "weekend" as const, concentration: input.weekendConcentration ?? 0 },
   ].sort((left, right) => right.concentration - left.concentration);
-  return patterns[0].concentration >= thresholds.calendarConcentrationMin &&
-    patterns[0].concentration - patterns[1].concentration >= thresholds.calendarDominanceMarginMin
-    ? patterns[0].shape
-    : null;
+  const dominance = patterns[0].concentration - patterns[1].concentration;
+  const strongMatch = patterns[0].concentration >= thresholds.calendarConcentrationMin
+    && dominance >= thresholds.calendarDominanceMarginMin;
+  const repeatability = Math.max(input.dailyRepeatability ?? -1, input.weeklyRepeatability ?? -1);
+  const subtleRepeatableMatch = patterns[0].concentration >= thresholds.subtleCalendarConcentrationMin
+    && dominance >= thresholds.subtleCalendarDominanceMarginMin
+    && repeatability >= thresholds.subtleCalendarRepeatabilityMin;
+  return strongMatch || subtleRepeatableMatch ? patterns[0].shape : null;
 }
 
 function calculateRecentPeakSignals(

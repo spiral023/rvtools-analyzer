@@ -1102,7 +1102,7 @@ export interface VmWorkloadClassificationSignals {
 
 export type VmWorkloadTrendDirection = "strongly-rising" | "rising" | "stable" | "falling" | "not-computable";
 
-/** Robuster linearer Trend aus täglichen Medianen; getrennt für CPU und RAM berechnet. */
+/** Robuster linearer Trend aus täglichen Medianen und Mitteln; getrennt für CPU und RAM berechnet. */
 export interface VmWorkloadTrend {
   direction: VmWorkloadTrendDirection;
   days: number;
@@ -1279,7 +1279,7 @@ export interface VmWorkloadHourlyPoint {
 }
 
 /**
- * Aus einer vROps-Zeitreihe abgeleitetes Sieben-Tage-Auslastungsprofil einer
+ * Aus einer vROps-Zeitreihe abgeleitetes Auslastungsprofil einer
  * einzelnen VM. Ausschließlich eine Beobachtung, keine Empfehlung; wird von
  * VM-Profilen und Rightsizing-Kandidaten gemeinsam genutzt.
  */
@@ -1298,6 +1298,8 @@ export interface VmWorkloadProfile {
   configuredMemoryMiB: number | null;
   powerState: string | null;
   workloadClass: "high" | "std" | "unknown";
+  /** Zeitzone des Imports; nötig für die korrekte durchschnittliche Woche. */
+  timezone: string;
   hourly: VmWorkloadHourlyPoint[];
   demand: VmWorkloadProfileMetricStats;
   /**
@@ -1320,7 +1322,7 @@ export interface VmWorkloadProfile {
   behaviorClass: VmBehaviorClass;
   confidence: VropsTimeSeriesConfidenceLevel;
   signals: VmWorkloadClassificationSignals;
-  /** Tendenz des CPU Demand Avg über tägliche Mediane. */
+  /** Tendenz des CPU Demand Avg über robuste tägliche Lagewerte. */
   cpuTrend: VmWorkloadTrend;
   /** Tendenz des Memory Workload Avg; nicht berechenbar bei älteren Importen. */
   memoryTrend: VmWorkloadTrend;

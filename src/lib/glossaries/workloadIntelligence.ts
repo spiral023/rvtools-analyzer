@@ -20,7 +20,7 @@ export const VM_PROFILE_UI: Record<string, GlossaryEntry> = {
   shape: {
     term: "Lastmuster",
     description:
-      "Zeitlicher Verlauf der CPU-Last über sieben Tage, bewusst unabhängig von der Höhe der Auslastung: Dauerlast, Business-Hours, nächtlicher Batch, Wochenendlast, bursty, unregelmäßig oder variabel. Eine schwach ausgelastete VM behält damit ihr erkennbares Muster – etwa ein Nachtjob, der nur wenig CPU braucht.",
+      "Zeitlicher Verlauf der CPU-Last, bewusst unabhängig von der Höhe der Auslastung: Dauerlast, Business-Hours, nächtliche Last, Wochenendlast, bursty, unregelmäßig oder variabel. Eine schwach ausgelastete VM behält damit ihr erkennbares Muster – etwa ein Nachtjob, der nur wenig CPU braucht.",
   },
   intensity: {
     term: "Auslastungsniveau",
@@ -83,10 +83,11 @@ export const VM_PROFILE_COLUMNS: Record<string, GlossaryEntry> = {
   intensity: { term: "Niveau", description: "Auslastungshöhe als P95 relativ zur konfigurierten CPU-Kapazität, unabhängig vom zeitlichen Muster.", source: "berechnet" },
   behaviorClass: { term: "Verhaltensklasse", description: "Zusammenfassung von Lastmuster und Niveau in eine Einzelklasse; ein niedriges Niveau überschreibt das Muster. Für Musterfragen sind die Spalten „Lastmuster“ und „Niveau“ aussagekräftiger.", source: "berechnet" },
   confidence: { term: "Vertrauen", description: "Mehrfaktorielles Vertrauensniveau aus Datenabdeckung, Stichprobengröße, Passung zum erkannten Lastmuster und zeitlicher Wiederholbarkeit. Eine vollständige Reihe allein führt nicht mehr automatisch zu hohem Vertrauen.", source: "berechnet" },
-  trend: { term: "Tendenz", description: "Robuster linearer Verlauf der täglichen CPU-Demand-Mediane über mindestens 14 Tage. Stark steigende Trends werden rot gewarnt und sperren Verkleinerungsempfehlungen.", source: "berechnet · vROps-Demand" },
+  trend: { term: "Tendenz", description: "Robuster linearer Verlauf täglicher CPU-Lagewerte über mindestens 14 Tage. Median und Tagesmittel ergänzen sich, damit auch ansteigende Lastfenster erkannt werden. Stark steigende Trends werden rot gewarnt und sperren Verkleinerungsempfehlungen.", source: "berechnet · vROps-Demand" },
   shapeFit: { term: "Mustergüte", description: "Punktwert von 0 bis 100 dafür, wie gut Konzentration, Streuung, Peak-Kompaktheit und Wiederholbarkeit zur zugewiesenen Lastmusterklasse passen.", source: "berechnet" },
   coverage: { term: "Abdeckung", description: "Anteil der erwarteten Stunden, für die ein CPU-Demand-Wert vorliegt.", source: "berechnet" },
-  sparkline: { term: "7-Tage-Profil", description: "CPU Demand je Stunde der letzten sieben Tage – Grundlage der Klassifikation.", source: VROPS },
+  sparkline: { term: "Letzte 7 Tage", description: "CPU Demand je Stunde der letzten sieben Tage. Ergänzend zeigt die durchschnittliche Woche das über den Messmonat typische Muster.", source: VROPS },
+  averageWeek: { term: "Durchschnittliche Woche", description: "CPU Demand je Wochentag und Stunde, gemittelt über alle gemessenen Wochen. Wiederkehrende Business-, Nacht- und Wochenendmuster werden dadurch leichter erkennbar.", source: "berechnet · vROps-Demand" },
   demandAvg: { term: "Demand Ø", description: "Mittlerer CPU-Demand über alle verwertbaren Stunden.", source: VROPS },
   demandP50: { term: "Demand P50", description: "Median des stündlichen CPU-Demand – die „typische“ Stunde.", source: VROPS },
   demandP95: { term: "Demand P95", description: "95.-Perzentil des stündlichen CPU-Demand: In 95 % der verwertbaren Stunden lag der Bedarf höchstens bei diesem Wert; die höchsten 5 % der Stunden liegen darüber. Dadurch ist der Wert robuster als ein Maximum, aber näher an der Spitzenlast als der Mittelwert.", source: VROPS },
@@ -261,7 +262,7 @@ export const RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   highCpuReady: { term: "Auffälliges CPU Ready", description: "CPU Ready P95 über 5 %. Prüfe zuerst Host-/Cluster-Contention und die vCPU-Breite; ein blindes Verkleinern kann Ready verbessern oder verschlechtern – je nach Ursache.", source: VROPS },
   concentratedOnFewCores: { term: "Last auf wenigen Kernen", description: "Der Lastkonzentrationsindex liegt im auffälligen Bereich ab etwa 0,4. Mehr vCPU lösen keinen Einzelthread-Engpass, wenn die Anwendung die zusätzlichen Kerne nicht parallel nutzt.", source: "berechnet · vROps" },
   sustainedNearCapacity: { term: "Dauerhaft nahe Kapazität", description: "Mindestens 24 Stunden lagen über 75 % der aktuell konfigurierten CPU-Kapazität. Erst diese Dauerhaftigkeit trägt eine Vergrößerungsempfehlung; ein einzelner kurzer Peak reicht bewusst nicht.", source: "berechnet · vROps-Demand/Kapazität" },
-  trend: { term: "CPU-Tendenz", description: "Trend der täglichen CPU-Demand-Mediane über den Messmonat. Ein belastbarer Anstieg ist eine Auffälligkeit und verhindert, dass historisch niedrigere Werte zu einer Verkleinerung führen.", source: "berechnet · vROps-Demand" },
+  trend: { term: "CPU-Tendenz", description: "Trend robuster täglicher CPU-Lagewerte über den Messmonat. Neben dem Median wird das Tagesmittel geprüft, damit ansteigende Lastfenster nicht verborgen bleiben. Ein belastbarer Anstieg verhindert eine Verkleinerung.", source: "berechnet · vROps-Demand" },
   weeklyRepeatability: {
     term: "Wochen-Wiederholbarkeit",
     description: "Wie ähnlich sich die vollen Wochen einer VM sind (Korrelation der 168-Stunden-Verläufe) und wie gleichmäßig hoch ihre Wochenmaxima ausfallen. Entscheidet bei bursty-VMs darüber, ob die Spitze planbar ist: Im Bestand wiederholt rund die Hälfte von ihnen den Wochenverlauf zuverlässig, während das bei unregelmäßigen VMs praktisch nie zutrifft. Braucht mindestens zwei volle Wochen Messdaten.",
@@ -283,7 +284,7 @@ export const RAM_RIGHTSIZING_COLUMNS: Record<string, GlossaryEntry> = {
   cluster: RIGHTSIZING_COLUMNS.cluster,
   sysv: RIGHTSIZING_COLUMNS.sysv,
   sysvDepartment: RIGHTSIZING_COLUMNS.sysvDepartment,
-  trend: { term: "RAM-Tendenz", description: "Trend der täglichen Memory-Workload-Mediane. Ein belastbarer Anstieg wird gewarnt und sperrt eine RAM-Verkleinerung.", source: "berechnet · vROps Memory Workload Avg" },
+  trend: { term: "RAM-Tendenz", description: "Trend robuster täglicher Memory-Workload-Lagewerte. Median und Tagesmittel erfassen auch zeitlich begrenzte Anstiege. Ein belastbarer Anstieg wird gewarnt und sperrt eine RAM-Verkleinerung.", source: "berechnet · vROps Memory Workload Avg" },
   direction: {
     term: "Richtung",
     description: "Abgeleitete Handlung aus aktuellem RAM und dem empfohlenen Ziel: verkleinern, vergrößern, unverändert oder nicht berechenbar.",

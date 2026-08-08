@@ -28,8 +28,9 @@ export const EMPTY_WORKLOAD_TREND: VmWorkloadTrend = {
 
 /**
  * Erkennt längerfristige Änderungen ohne durch einzelne Stundenpeaks getäuscht zu
- * werden. Grundlage sind Tagesmediane und eine lineare Regression über mindestens
- * 14 ausreichend belegte Tage.
+ * werden. Der Tagesmedian bleibt die robuste Hauptreihe. Zusätzlich prüft das
+ * Tagesmittel Lastfenster, die weniger als die Hälfte eines Tages belegen und daher
+ * im Median unsichtbar wären. Grundlage sind mindestens 14 ausreichend belegte Tage.
  */
 export function calculateWorkloadTrend(
   points: readonly WorkloadTrendPoint[],
@@ -42,14 +43,27 @@ export function calculateWorkloadTrend(
     day.push(point.value);
     byDay.set(point.dayKey, day);
   }
-  const daily: number[] = [];
+  const dailyMedian: number[] = [];
+  const dailyMean: number[] = [];
   for (const values of byDay.values()) {
     if (values.length < 12) continue;
     const median = percentile(values, 0.5);
-    if (median !== null) daily.push(median);
+    const mean = average(values);
+    if (median !== null && mean !== null) {
+      dailyMedian.push(median);
+      dailyMean.push(mean);
+    }
   }
-  if (daily.length < 14) return { ...EMPTY_WORKLOAD_TREND, days: daily.length };
+  if (dailyMedian.length < 14) return { ...EMPTY_WORKLOAD_TREND, days: dailyMedian.length };
 
+  const medianTrend = calculateLinearTrend(dailyMedian, options);
+  const meanTrend = calculateLinearTrend(dailyMean, options);
+  if (isRisingWorkloadTrend(meanTrend) && !isRisingWorkloadTrend(medianTrend)) return meanTrend;
+  if (meanTrend.direction === "strongly-rising" && medianTrend.direction === "rising") return meanTrend;
+  return medianTrend;
+}
+
+function calculateLinearTrend(daily: readonly number[], options: WorkloadTrendOptions): VmWorkloadTrend {
   const xMean = (daily.length - 1) / 2;
   const yMean = average(daily) ?? 0;
   let numerator = 0;

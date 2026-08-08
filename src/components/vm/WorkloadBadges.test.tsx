@@ -21,7 +21,7 @@ describe("Lastmuster-Farben", () => {
   it("zeigt das Lastmuster-Badge in seiner festen Farbe", () => {
     render(<WorkloadShapeBadge shape="night-batch" />);
 
-    expect(screen.getByText("Nächtlicher Batch")).toHaveStyle({ color: CHART_COLORS.purple });
+    expect(screen.getByText("Nächtliche Last")).toHaveStyle({ color: CHART_COLORS.purple });
   });
 });
 

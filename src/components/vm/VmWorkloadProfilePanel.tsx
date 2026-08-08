@@ -132,7 +132,8 @@ export function VmWorkloadProfilePanel() {
       cell: ({ row }) => <WorkloadIntensityBadge intensity={row.original.intensity} />,
     },
     { id: "trend", header: "Tendenz", meta: { info: VM_PROFILE_COLUMNS.trend, exportValue: (row) => VM_WORKLOAD_TREND_LABEL[row.cpuTrend.direction] }, accessorFn: (row) => row.cpuTrend.direction, cell: ({ row }) => <WorkloadTrendBadge trend={row.original.cpuTrend} compact /> },
-    { id: "sparkline", header: "7-Tage-Profil", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <VmWeekProfileSparkline profile={row.original} /> },
+    { id: "sparkline", header: "Letzte 7 Tage", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false }, cell: ({ row }) => <VmWeekProfileSparkline profile={row.original} /> },
+    { id: "average-week", header: "Durchschnittliche Woche", enableSorting: false, meta: { info: VM_PROFILE_COLUMNS.averageWeek, configurable: false, exportable: false }, cell: ({ row }) => <VmWeekProfileSparkline profile={row.original} mode="average" /> },
     { id: "demand", header: "CPU Demand P95", meta: { info: VM_PROFILE_COLUMNS.demandP95 }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
     { id: "demand-pct", header: "CPU Demand P95 %", meta: { info: VM_PROFILE_COLUMNS.demandP95Pct }, accessorFn: (row) => row.signals.utilizationP95Pct ?? -1, cell: ({ row }) => <UtilizationPercentCell value={row.original.signals.utilizationP95Pct} /> },
     {

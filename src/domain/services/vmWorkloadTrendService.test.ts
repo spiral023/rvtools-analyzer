@@ -21,6 +21,17 @@ describe("calculateWorkloadTrend", () => {
     expect(trend.direction).toBe("stable");
   });
 
+  it("erkennt den Anstieg eines täglichen Lastfensters auch wenn der Tagesmedian flach bleibt", () => {
+    const points = Array.from({ length: 31 }, (_, day) => Array.from({ length: 24 }, (_, hour) => ({
+      dayKey: `2026-07-${String(day + 1).padStart(2, "0")}`,
+      value: hour >= 8 && hour < 17 ? 500 + day * 100 : 100,
+    }))).flat();
+
+    const trend = calculateWorkloadTrend(points, { capacity: 10_000 });
+    expect(trend.direction).toBe("strongly-rising");
+    expect(trend.rSquared).toBeCloseTo(1);
+  });
+
   it("trifft ohne mindestens 14 vollständig belegte Tage keine Aussage", () => {
     const trend = calculateWorkloadTrend(dailySeries(13, (day) => day), { capacity: 100 });
     expect(trend.direction).toBe("not-computable");

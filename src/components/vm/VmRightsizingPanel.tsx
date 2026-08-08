@@ -194,12 +194,22 @@ export function VmRightsizingPanel() {
     { id: "trend", header: "Tendenz", meta: { info: RIGHTSIZING_COLUMNS.trend, exportValue: (row) => VM_WORKLOAD_TREND_LABEL[row.trend.direction] }, accessorFn: (row) => row.trend.direction, cell: ({ row }) => <WorkloadTrendBadge trend={row.original.trend} compact /> },
     {
       id: "sparkline",
-      header: "7-Tage-Profil",
+      header: "Letzte 7 Tage",
       enableSorting: false,
       meta: { info: VM_PROFILE_COLUMNS.sparkline, configurable: false, exportable: false },
       cell: ({ row }) => {
         const profile = profilesByObjectKey.get(row.original.objectKey);
         return profile ? <VmWeekProfileSparkline profile={profile} /> : <span className="text-xs text-muted-foreground">—</span>;
+      },
+    },
+    {
+      id: "average-week",
+      header: "Durchschnittliche Woche",
+      enableSorting: false,
+      meta: { info: VM_PROFILE_COLUMNS.averageWeek, configurable: false, exportable: false },
+      cell: ({ row }) => {
+        const profile = profilesByObjectKey.get(row.original.objectKey);
+        return profile ? <VmWeekProfileSparkline profile={profile} mode="average" /> : <span className="text-xs text-muted-foreground">—</span>;
       },
     },
     { id: "demand", header: "CPU Demand P95", meta: { info: RIGHTSIZING_COLUMNS.demandP95, exportUnit: "MHz" }, accessorFn: (row) => row.demand.p95 ?? -1, cell: ({ row }) => <DemandCell demand={row.original.demand} /> },
